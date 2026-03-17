@@ -147,7 +147,7 @@ const LandingPagesList = () => {
 
   // Show editor
   if (editingPageId) {
-    return <PageHTMLEditor pageId={editingPageId} onBack={() => { setEditingPageId(null); fetchPages(); }} />;
+    return <GrapesEditor pageId={editingPageId} onBack={() => { setEditingPageId(null); fetchPages(); }} />;
   }
 
   if (showAnalytics) {
