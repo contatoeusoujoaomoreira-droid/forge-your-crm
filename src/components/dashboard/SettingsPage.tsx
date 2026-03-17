@@ -1,18 +1,20 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  Globe, Key, Plus, Trash2, ExternalLink, Copy, ChevronDown, ChevronRight,
-  Info, AlertCircle, CheckCircle2,
+  Globe, Key, Plus, Trash2, Copy, ChevronDown, ChevronRight,
+  Info, AlertCircle, CheckCircle2, RefreshCw, ExternalLink, Shield,
+  Loader2,
 } from "lucide-react";
 
 interface Domain {
   id: string;
   domain: string;
   isActive: boolean;
+  status: "pending" | "verified" | "error";
+  addedAt: string;
 }
 
 interface ApiKey {
@@ -44,8 +46,10 @@ const DNS_INSTRUCTIONS = [
     provider: "Cloudflare",
     steps: [
       "Acesse o painel do Cloudflare → DNS → Records",
-      "Adicione um registro CNAME apontando seu domínio para o endereço fornecido pelo sistema",
-      "Desative o proxy (nuvem laranja) se necessário",
+      'Adicione registro tipo A: Name = @ (raiz), Value = 185.158.133.1',
+      'Adicione registro tipo A: Name = www, Value = 185.158.133.1',
+      'Adicione registro TXT: Name = _lovable, Value = lovable_verify=[código exibido abaixo]',
+      "Desative o proxy (nuvem laranja) para o registro A",
       "Aguarde propagação DNS (até 24h)",
     ],
   },
@@ -53,8 +57,9 @@ const DNS_INSTRUCTIONS = [
     provider: "GoDaddy",
     steps: [
       "Acesse My Products → DNS → Manage",
-      "Adicione um registro CNAME com Host = @ e Value = endereço do sistema",
-      "Para www, adicione outro CNAME com Host = www",
+      'Adicione registro A: Host = @, Points to = 185.158.133.1',
+      'Adicione registro A: Host = www, Points to = 185.158.133.1',
+      'Adicione registro TXT: Host = _lovable, TXT Value = lovable_verify=[código]',
       "TTL: 1 hora. Aguarde propagação.",
     ],
   },
@@ -62,8 +67,9 @@ const DNS_INSTRUCTIONS = [
     provider: "Namecheap",
     steps: [
       "Acesse Domain List → Manage → Advanced DNS",
-      "Adicione registro CNAME: Host = @, Value = endereço do sistema",
-      "Para www: Host = www, Value = endereço do sistema",
+      'Adicione registro A: Host = @, Value = 185.158.133.1',
+      'Adicione registro A: Host = www, Value = 185.158.133.1',
+      'Adicione registro TXT: Host = _lovable, Value = lovable_verify=[código]',
       "Aguarde até 48h para propagação.",
     ],
   },
@@ -71,7 +77,9 @@ const DNS_INSTRUCTIONS = [
     provider: "HostGator",
     steps: [
       "Acesse cPanel → Zone Editor",
-      "Adicione registro CNAME apontando para o endereço do sistema",
+      'Adicione registro A apontando para 185.158.133.1',
+      'Adicione registro A para www apontando para 185.158.133.1',
+      'Adicione registro TXT: _lovable com valor lovable_verify=[código]',
       "Salve e aguarde propagação.",
     ],
   },
@@ -80,7 +88,9 @@ const DNS_INSTRUCTIONS = [
     steps: [
       "Acesse Registro.br → Meus Domínios → DNS",
       "Edite a Zona DNS do domínio",
-      "Adicione registro CNAME apontando para o endereço do sistema",
+      'Adicione registro A: @ → 185.158.133.1',
+      'Adicione registro A: www → 185.158.133.1',
+      'Adicione registro TXT: _lovable → lovable_verify=[código]',
       "Aguarde propagação (pode levar até 72h).",
     ],
   },
@@ -88,8 +98,9 @@ const DNS_INSTRUCTIONS = [
     provider: "Google Domains",
     steps: [
       "Acesse Google Domains → DNS → Custom Records",
-      "Adicione CNAME: Host = @, Data = endereço do sistema",
-      "Adicione outro para www se desejado",
+      'Adicione A Record: Host = @, Data = 185.158.133.1',
+      'Adicione A Record: Host = www, Data = 185.158.133.1',
+      'Adicione TXT Record: Host = _lovable, Data = lovable_verify=[código]',
       "Aguarde propagação.",
     ],
   },
@@ -97,8 +108,9 @@ const DNS_INSTRUCTIONS = [
     provider: "AWS Route 53",
     steps: [
       "Acesse Route 53 → Hosted Zones → seu domínio",
-      "Crie Record Set → Type: CNAME",
-      "Value: endereço do sistema",
+      'Crie Record Set → Type: A → Value: 185.158.133.1',
+      'Crie Record Set → Type: A → Name: www → Value: 185.158.133.1',
+      'Crie Record Set → Type: TXT → Name: _lovable → Value: "lovable_verify=[código]"',
       "TTL: 300. Aguarde propagação.",
     ],
   },
@@ -114,9 +126,11 @@ const SettingsPage = () => {
   const [showAddDomain, setShowAddDomain] = useState(false);
   const [showAddApi, setShowAddApi] = useState(false);
   const [expandedDns, setExpandedDns] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [editingDomain, setEditingDomain] = useState<string | null>(null);
+  const [editDomainValue, setEditDomainValue] = useState("");
   const { toast } = useToast();
 
-  // Load from localStorage (user-scoped settings)
   useEffect(() => {
     const savedDomains = localStorage.getItem("forge_domains");
     const savedKeys = localStorage.getItem("forge_api_keys");
@@ -136,11 +150,66 @@ const SettingsPage = () => {
 
   const handleAddDomain = () => {
     if (!newDomain.trim()) return;
-    const domain: Domain = { id: crypto.randomUUID(), domain: newDomain.trim().toLowerCase(), isActive: true };
+    const cleaned = newDomain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    if (domains.some(d => d.domain === cleaned)) {
+      toast({ title: "Domínio já existe", variant: "destructive" });
+      return;
+    }
+    const domain: Domain = {
+      id: crypto.randomUUID(),
+      domain: cleaned,
+      isActive: true,
+      status: "pending",
+      addedAt: new Date().toISOString(),
+    };
     saveDomains([...domains, domain]);
     setNewDomain("");
     setShowAddDomain(false);
-    toast({ title: "Domínio adicionado!" });
+    toast({ title: "Domínio adicionado! Configure os registros DNS." });
+  };
+
+  const handleVerifyDomain = async (id: string) => {
+    setVerifying(id);
+    const domain = domains.find(d => d.id === id);
+    if (!domain) return;
+
+    try {
+      // Check DNS via public DNS API
+      const resp = await fetch(`https://dns.google/resolve?name=${domain.domain}&type=A`);
+      const data = await resp.json();
+      const hasCorrectA = data.Answer?.some((a: any) => a.data === "185.158.133.1");
+
+      if (hasCorrectA) {
+        saveDomains(domains.map(d => d.id === id ? { ...d, status: "verified" as const } : d));
+        toast({ title: "DNS verificado! Domínio apontando corretamente.", description: "O SSL será provisionado automaticamente." });
+      } else {
+        saveDomains(domains.map(d => d.id === id ? { ...d, status: "error" as const } : d));
+        toast({
+          title: "DNS não verificado",
+          description: `O registro A de ${domain.domain} não está apontando para 185.158.133.1. Verifique a configuração e aguarde a propagação.`,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Erro ao verificar DNS. Tente novamente.", variant: "destructive" });
+    }
+    setVerifying(null);
+  };
+
+  const handleEditDomain = (id: string) => {
+    const domain = domains.find(d => d.id === id);
+    if (domain) {
+      setEditingDomain(id);
+      setEditDomainValue(domain.domain);
+    }
+  };
+
+  const handleSaveEditDomain = (id: string) => {
+    const cleaned = editDomainValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    if (!cleaned) return;
+    saveDomains(domains.map(d => d.id === id ? { ...d, domain: cleaned, status: "pending" as const } : d));
+    setEditingDomain(null);
+    toast({ title: "Domínio atualizado!" });
   };
 
   const handleRemoveDomain = (id: string) => {
@@ -172,7 +241,16 @@ const SettingsPage = () => {
     saveApiKeys(apiKeys.map(k => k.id === id ? { ...k, isActive: !k.isActive } : k));
   };
 
-  const systemDomain = typeof window !== "undefined" ? window.location.host : "app.forgeai.com";
+  const getStatusBadge = (status: Domain["status"]) => {
+    switch (status) {
+      case "verified":
+        return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(132,204,22,0.15)", color: "#a3e635" }}><CheckCircle2 className="h-3 w-3" /> Verificado</span>;
+      case "error":
+        return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}><AlertCircle className="h-3 w-3" /> DNS incorreto</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}><RefreshCw className="h-3 w-3" /> Pendente</span>;
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-4xl">
@@ -184,11 +262,11 @@ const SettingsPage = () => {
               <Globe className="h-5 w-5 text-primary" /> Domínios Próprios
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Conecte seus domínios ao sistema para usar em landing pages.
+              Conecte seus domínios para usar em landing pages.
             </p>
           </div>
           <Button size="sm" onClick={() => setShowAddDomain(!showAddDomain)}>
-            <Plus className="h-4 w-4 mr-1" /> Adicionar Domínio
+            <Plus className="h-4 w-4 mr-1" /> Adicionar
           </Button>
         </div>
 
@@ -200,14 +278,20 @@ const SettingsPage = () => {
                 onChange={e => setNewDomain(e.target.value)}
                 placeholder="seudominio.com.br"
                 className="flex-1 bg-secondary/50 border-border"
+                onKeyDown={e => e.key === "Enter" && handleAddDomain()}
               />
               <Button onClick={handleAddDomain}>Adicionar</Button>
             </div>
             <div className="flex items-start gap-2 p-3 rounded-lg" style={{ background: "hsl(var(--primary) / 0.05)" }}>
               <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <div className="text-xs text-muted-foreground">
-                <p className="font-semibold text-foreground mb-1">Apontamento DNS necessário</p>
-                <p>Após adicionar, configure um registro <strong>CNAME</strong> apontando para: <code className="px-1.5 py-0.5 rounded text-primary" style={{ background: "hsl(var(--primary) / 0.1)" }}>{systemDomain}</code></p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Configuração DNS necessária</p>
+                <p>Após adicionar, configure os seguintes registros DNS:</p>
+                <div className="space-y-1 mt-2 font-mono text-[11px]">
+                  <p><strong className="text-primary">A</strong> → @ → <code className="px-1 py-0.5 rounded" style={{ background: "hsl(var(--primary) / 0.1)" }}>185.158.133.1</code></p>
+                  <p><strong className="text-primary">A</strong> → www → <code className="px-1 py-0.5 rounded" style={{ background: "hsl(var(--primary) / 0.1)" }}>185.158.133.1</code></p>
+                  <p><strong className="text-primary">TXT</strong> → _lovable → <code className="px-1 py-0.5 rounded" style={{ background: "hsl(var(--primary) / 0.1)" }}>lovable_verify=...</code></p>
+                </div>
               </div>
             </div>
           </div>
@@ -221,22 +305,62 @@ const SettingsPage = () => {
         ) : (
           <div className="space-y-2">
             {domains.map((d) => (
-              <div key={d.id} className="surface-card rounded-lg p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`h-2 w-2 rounded-full ${d.isActive ? "bg-primary" : "bg-muted-foreground"}`} />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{d.domain}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      CNAME → {systemDomain}
-                    </p>
+              <div key={d.id} className="surface-card rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-2 w-2 rounded-full ${d.isActive ? "bg-primary" : "bg-muted-foreground"}`} />
+                    <div>
+                      {editingDomain === d.id ? (
+                        <div className="flex gap-2">
+                          <Input
+                            value={editDomainValue}
+                            onChange={e => setEditDomainValue(e.target.value)}
+                            className="h-7 text-sm bg-secondary/50 border-border"
+                            onKeyDown={e => e.key === "Enter" && handleSaveEditDomain(d.id)}
+                          />
+                          <Button size="sm" className="h-7" onClick={() => handleSaveEditDomain(d.id)}>Salvar</Button>
+                          <Button variant="ghost" size="sm" className="h-7" onClick={() => setEditingDomain(null)}>Cancelar</Button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-foreground">{d.domain}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {getStatusBadge(d.status)}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => handleVerifyDomain(d.id)}
+                      disabled={verifying === d.id}
+                      className="h-7 px-2 text-xs"
+                      title="Verificar DNS"
+                    >
+                      {verifying === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      <span className="ml-1 hidden sm:inline">Verificar</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditDomain(d.id)} className="h-7 px-2 text-xs">Editar</Button>
+                    <Switch checked={d.isActive} onCheckedChange={() => handleToggleDomain(d.id)} />
+                    <Button variant="ghost" size="sm" onClick={() => handleRemoveDomain(d.id)} className="text-destructive h-7 px-2">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={d.isActive} onCheckedChange={() => handleToggleDomain(d.id)} />
-                  <Button variant="ghost" size="sm" onClick={() => handleRemoveDomain(d.id)} className="text-destructive h-7 px-2">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {d.status === "error" && (
+                  <div className="flex items-start gap-2 p-2 rounded text-xs" style={{ background: "rgba(239,68,68,0.05)", color: "rgba(248,113,113,0.8)" }}>
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>O registro A não aponta para 185.158.133.1. Verifique as configurações DNS no seu provedor e aguarde a propagação (até 72h).</span>
+                  </div>
+                )}
+                {d.status === "verified" && (
+                  <div className="flex items-start gap-2 p-2 rounded text-xs" style={{ background: "rgba(132,204,22,0.05)", color: "rgba(163,230,53,0.8)" }}>
+                    <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>DNS verificado. SSL será provisionado automaticamente. Seu site estará disponível em breve via HTTPS.</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -271,16 +395,26 @@ const SettingsPage = () => {
                         </li>
                       ))}
                     </ol>
-                    <div className="mt-3 flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Apontar para:</span>
-                      <code className="px-2 py-1 rounded text-primary text-[11px] font-mono" style={{ background: "hsl(var(--primary) / 0.1)" }}>{systemDomain}</code>
-                      <button
-                        onClick={() => { navigator.clipboard.writeText(systemDomain); toast({ title: "Copiado!" }); }}
-                        className="text-primary hover:text-primary/80"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
+                    <div className="mt-3 p-2 rounded" style={{ background: "hsl(var(--primary) / 0.05)" }}>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">IP para registros A</p>
+                      <div className="flex items-center gap-2">
+                        <code className="px-2 py-1 rounded text-primary text-xs font-mono font-semibold" style={{ background: "hsl(var(--primary) / 0.1)" }}>185.158.133.1</code>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText("185.158.133.1"); toast({ title: "IP copiado!" }); }}
+                          className="text-primary hover:text-primary/80"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
+                    <a
+                      href="https://dnschecker.org"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary mt-2 hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Verificar propagação no DNSChecker.org
+                    </a>
                   </div>
                 )}
               </div>
@@ -297,21 +431,20 @@ const SettingsPage = () => {
               <Key className="h-5 w-5 text-primary" /> Chaves de API Externas
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Adicione chaves de API de provedores LLM para usar na geração com IA.
+              Adicione chaves de provedores LLM para usar na geração de páginas com IA.
             </p>
           </div>
           <Button size="sm" onClick={() => setShowAddApi(!showAddApi)}>
-            <Plus className="h-4 w-4 mr-1" /> Adicionar Chave
+            <Plus className="h-4 w-4 mr-1" /> Adicionar
           </Button>
         </div>
 
-        {/* Built-in AI notice */}
         <div className="flex items-start gap-3 p-4 rounded-lg" style={{ background: "hsl(var(--primary) / 0.05)", border: "1px solid hsl(var(--primary) / 0.15)" }}>
           <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-foreground">IA Nativa incluída</p>
             <p className="text-xs text-muted-foreground mt-1">
-              O sistema já inclui IA nativa (Gemini & GPT) sem necessidade de chave. Adicione chaves externas apenas se quiser usar seus próprios tokens ou modelos específicos.
+              O sistema já inclui IA nativa (Gemini & GPT) sem necessidade de chave. Adicione chaves externas para usar seus próprios tokens. Você pode selecionar qual chave usar no chat de criação com IA.
             </p>
           </div>
         </div>
@@ -348,7 +481,7 @@ const SettingsPage = () => {
               <Button onClick={handleAddApiKey}>Salvar Chave</Button>
               <div className="flex items-start gap-1 text-xs text-muted-foreground">
                 <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
-                <span>Suas chaves são armazenadas localmente no navegador.</span>
+                <span>Suas chaves são armazenadas localmente no navegador e enviadas diretamente ao provedor.</span>
               </div>
             </div>
           </div>
@@ -358,7 +491,7 @@ const SettingsPage = () => {
           <div className="surface-card rounded-lg p-6 text-center">
             <Key className="h-8 w-8 text-muted-foreground mx-auto mb-3 opacity-50" />
             <p className="text-sm text-muted-foreground">Nenhuma chave API configurada</p>
-            <p className="text-xs text-muted-foreground mt-1">A IA nativa do sistema será utilizada.</p>
+            <p className="text-xs text-muted-foreground mt-1">A IA nativa do sistema será utilizada por padrão.</p>
           </div>
         ) : (
           <div className="space-y-2">

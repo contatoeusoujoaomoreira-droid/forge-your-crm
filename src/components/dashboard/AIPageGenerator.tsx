@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Send, Bot, User, Loader2, Save, Eye, Code,
-  Monitor, Tablet, Smartphone, Sparkles,
+  Monitor, Tablet, Smartphone, Sparkles, Key, ChevronDown, Settings2,
 } from "lucide-react";
 
 interface Props {
@@ -14,12 +14,19 @@ interface Props {
 
 type Message = { role: "user" | "assistant"; content: string };
 
+interface ApiKeyConfig {
+  id: string;
+  name: string;
+  provider: string;
+  key: string;
+  isActive: boolean;
+}
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-landing-page`;
 
 function extractHtmlFromMarkdown(text: string): string | null {
   const match = text.match(/```html\s*([\s\S]*?)```/);
   if (match) return match[1].trim();
-  // Try to detect raw HTML
   if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) return text.trim();
   return null;
 }
@@ -32,22 +39,41 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [savingPage, setSavingPage] = useState(false);
+  const [showKeySelector, setShowKeySelector] = useState(false);
+  const [selectedKeyId, setSelectedKeyId] = useState<string>("builtin");
+  const [apiKeys, setApiKeys] = useState<ApiKeyConfig[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
+  // Load API keys from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("forge_api_keys");
+    if (saved) {
+      try {
+        const keys: ApiKeyConfig[] = JSON.parse(saved);
+        setApiKeys(keys.filter(k => k.isActive));
+      } catch {}
+    }
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Update iframe when previewHtml changes
   useEffect(() => {
     if (iframeRef.current && previewHtml) {
       const doc = iframeRef.current.contentDocument;
       if (doc) { doc.open(); doc.write(previewHtml); doc.close(); }
     }
   }, [previewHtml, showPreview]);
+
+  const getSelectedKeyInfo = () => {
+    if (selectedKeyId === "builtin") return { name: "Forge AI (Nativo)", provider: "builtin" };
+    const key = apiKeys.find(k => k.id === selectedKeyId);
+    return key ? { name: key.name, provider: key.provider } : { name: "Forge AI (Nativo)", provider: "builtin" };
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -60,14 +86,28 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
 
     let assistantContent = "";
 
+    // If editing existing page, include previous HTML context
+    const contextMessages = [...newMessages];
+    if (previewHtml && newMessages.length > 2) {
+      // Add the current HTML as context for edits
+      const lastUserMsg = contextMessages[contextMessages.length - 1];
+      lastUserMsg.content = `[CONTEXTO: A página atual tem o seguinte HTML]\n\`\`\`html\n${previewHtml}\n\`\`\`\n\n[INSTRUÇÃO DO USUÁRIO]: ${lastUserMsg.content}\n\nIMPORTANTE: Retorne o HTML COMPLETO da página com as alterações solicitadas. Mantenha tudo que não foi pedido para alterar.`;
+    }
+
     try {
+      // Determine which key/endpoint to use
+      const selectedKey = selectedKeyId !== "builtin" ? apiKeys.find(k => k.id === selectedKeyId) : null;
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({
+          messages: contextMessages,
+          ...(selectedKey ? { externalKey: selectedKey.key, externalProvider: selectedKey.provider } : {}),
+        }),
       });
 
       if (!resp.ok) {
@@ -115,7 +155,6 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
         }
       }
 
-      // Check if response contains HTML
       const html = extractHtmlFromMarkdown(assistantContent);
       if (html) {
         setPreviewHtml(html);
@@ -156,6 +195,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
   };
 
   const previewWidth = previewDevice === "mobile" ? "375px" : previewDevice === "tablet" ? "768px" : "100%";
+  const keyInfo = getSelectedKeyInfo();
 
   const suggestions = [
     "Crie uma landing page de alta conversão para um curso de marketing digital",
@@ -180,15 +220,76 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
               </div>
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: "white" }}>Forge AI Builder</h3>
-                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Descreva a página que deseja criar</p>
+                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {previewHtml ? "Peça alterações ou gere uma nova página" : "Descreva a página que deseja criar"}
+                </p>
               </div>
             </div>
           </div>
-          {previewHtml && (
-            <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} className="h-7" style={{ color: "#a3e635" }}>
-              <Eye className="h-3.5 w-3.5 mr-1" /> {showPreview ? "Ocultar" : "Preview"}
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {/* Key Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowKeySelector(!showKeySelector)}
+                className="flex items-center gap-1.5 h-7 px-2 rounded text-[11px] transition-colors"
+                style={{ color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <Key className="h-3 w-3" />
+                <span className="max-w-[100px] truncate">{keyInfo.name}</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {showKeySelector && (
+                <div className="absolute right-0 top-full mt-1 w-64 rounded-lg shadow-xl z-50 overflow-hidden" style={{ background: "#1a1a1a", border: "1px solid #2a2a2a" }}>
+                  <div className="p-2" style={{ borderBottom: "1px solid #2a2a2a" }}>
+                    <p className="text-[10px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>Selecionar IA</p>
+                  </div>
+                  <div className="p-1">
+                    <button
+                      onClick={() => { setSelectedKeyId("builtin"); setShowKeySelector(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded text-left text-xs transition-colors"
+                      style={{
+                        color: selectedKeyId === "builtin" ? "#a3e635" : "rgba(255,255,255,0.7)",
+                        background: selectedKeyId === "builtin" ? "rgba(132,204,22,0.1)" : "transparent",
+                      }}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <div>
+                        <p className="font-medium">Forge AI (Nativo)</p>
+                        <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px" }}>Gemini & GPT incluídos</p>
+                      </div>
+                    </button>
+                    {apiKeys.map(key => (
+                      <button
+                        key={key.id}
+                        onClick={() => { setSelectedKeyId(key.id); setShowKeySelector(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded text-left text-xs transition-colors"
+                        style={{
+                          color: selectedKeyId === key.id ? "#a3e635" : "rgba(255,255,255,0.7)",
+                          background: selectedKeyId === key.id ? "rgba(132,204,22,0.1)" : "transparent",
+                        }}
+                      >
+                        <Key className="h-3.5 w-3.5" />
+                        <div>
+                          <p className="font-medium">{key.name}</p>
+                          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px" }}>{key.provider} • {key.key.slice(0, 6)}...{key.key.slice(-4)}</p>
+                        </div>
+                      </button>
+                    ))}
+                    {apiKeys.length === 0 && (
+                      <p className="px-3 py-2 text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        Adicione chaves em Configurações
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {previewHtml && (
+              <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} className="h-7" style={{ color: "#a3e635" }}>
+                <Eye className="h-3.5 w-3.5 mr-1" /> {showPreview ? "Ocultar" : "Preview"}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Messages */}
@@ -201,7 +302,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
               <div className="text-center">
                 <h3 className="text-lg font-bold mb-2" style={{ color: "white" }}>Crie páginas com IA</h3>
                 <p className="text-sm max-w-md" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  Descreva o tipo de landing page, site ou página que deseja criar. A IA vai gerar o HTML completo para você.
+                  Descreva o tipo de landing page que deseja criar. Após gerar, você pode pedir alterações específicas no chat.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-2 w-full max-w-md">
@@ -259,6 +360,24 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Edit hints when page exists */}
+        {previewHtml && !isLoading && messages.length > 0 && (
+          <div className="px-4 pb-2">
+            <div className="flex gap-1.5 flex-wrap">
+              {["Mude a cor de fundo", "Adicione mais depoimentos", "Troque o texto do botão", "Adicione animações CSS"].map(hint => (
+                <button
+                  key={hint}
+                  onClick={() => { setInput(hint); inputRef.current?.focus(); }}
+                  className="text-[10px] px-2.5 py-1 rounded-full transition-colors"
+                  style={{ background: "rgba(132,204,22,0.1)", color: "#a3e635", border: "1px solid rgba(132,204,22,0.2)" }}
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Input */}
         <div className="p-4" style={{ borderTop: "1px solid #1a1a1a" }}>
           <div className="flex gap-2 items-end">
@@ -267,7 +386,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Descreva a página que deseja criar..."
+              placeholder={previewHtml ? "Peça alterações: 'mude a cor do header para azul'..." : "Descreva a página que deseja criar..."}
               rows={1}
               className="flex-1 resize-none rounded-xl px-4 py-3 text-sm focus:outline-none"
               style={{
