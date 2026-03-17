@@ -29,7 +29,11 @@ const SectionPreview = ({ sections, selectedId, onSelect }: {
         if (!Renderer) return null;
         return (
           <div key={section.id} onClick={() => onSelect?.(section.id)}
-            className={`relative ${isEditor ? "cursor-pointer" : ""} transition-all ${selectedId === section.id ? "ring-2 ring-primary/40 ring-inset" : isEditor ? "hover:ring-1 hover:ring-border hover:ring-inset" : ""}`}>
+            className={`relative ${isEditor ? "cursor-pointer" : ""} transition-all ${
+              selectedId === section.id
+                ? "ring-2 ring-primary/40 ring-inset"
+                : isEditor ? "hover:ring-1 hover:ring-border hover:ring-inset" : ""
+            }`}>
             <Renderer config={section.config} isEditor={isEditor} />
           </div>
         );
