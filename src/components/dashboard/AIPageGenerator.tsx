@@ -109,8 +109,6 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
     }
 
     try {
-      // Determine which key/endpoint to use
-      const selectedKey = selectedKeyId !== "builtin" ? apiKeys.find(k => k.id === selectedKeyId) : null;
 
       const resp = await fetch(CHAT_URL, {
         method: "POST",
