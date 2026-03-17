@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+// @ts-ignore
 import grapesjs, { Editor } from "grapesjs";
 import "grapesjs/dist/css/grapes.min.css";
 import grapesjsBlocksBasic from "grapesjs-blocks-basic";

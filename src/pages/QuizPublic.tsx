@@ -31,7 +31,7 @@ const QuizPublic = () => {
       if (!slug) { setNotFound(true); setLoading(false); return; }
       const { data } = await supabase.from("quizzes").select("*").eq("slug", slug).eq("is_active", true).maybeSingle();
       if (!data) { setNotFound(true); setLoading(false); return; }
-      setQuiz({ ...data, questions: Array.isArray(data.questions) ? data.questions as Question[] : [] });
+      setQuiz({ ...data, questions: Array.isArray(data.questions) ? data.questions as unknown as Question[] : [] });
       setLoading(false);
     };
     fetch();
