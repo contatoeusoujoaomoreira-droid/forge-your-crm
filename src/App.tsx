@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import PageEditor from "./pages/PageEditor";
 import LandingPagePublic from "./pages/LandingPagePublic";
 import QuizPublic from "./pages/QuizPublic";
 import NotFound from "./pages/NotFound";
@@ -15,15 +16,8 @@ const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
-
-  if (loading) {
-    return <div className="min-h-screen bg-background" />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
+  if (loading) return <div className="min-h-screen bg-background" />;
+  if (!user) return <Navigate to="/auth" replace />;
   return children;
 };
 
@@ -37,17 +31,10 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/editor/:id" element={<ProtectedRoute><PageEditor /></ProtectedRoute>} />
             <Route path="/p/:slug" element={<LandingPagePublic />} />
             <Route path="/quiz/:slug" element={<QuizPublic />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
