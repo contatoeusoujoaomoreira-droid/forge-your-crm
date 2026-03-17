@@ -22,16 +22,16 @@ const Auth = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) navigate("/dashboard");
   }, [user, navigate]);
 
   const getErrorMessage = (error: any): string => {
     const msg = error?.message || "";
     if (msg.includes("Invalid login credentials")) {
-      return "E-mail ou senha incorretos. Verifique seus dados ou crie uma conta.";
+      return "E-mail ou senha incorretos. Se você entrou antes com Google, continue com Google em vez de usar senha.";
     }
     if (msg.includes("Email not confirmed")) {
-      return "E-mail não confirmado. Verifique sua caixa de entrada.";
+      return "E-mail não confirmado. Verifique sua caixa de entrada e spam.";
     }
     if (msg.includes("User already registered")) {
       return "Este e-mail já está cadastrado. Tente fazer login.";
@@ -51,9 +51,9 @@ const Auth = () => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast({ title: "Bem-vindo de volta!", description: "Login realizado com sucesso." });
-        navigate("/");
+        navigate("/dashboard");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -62,10 +62,20 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast({
-          title: "Conta criada!",
-          description: "Login realizado com sucesso.",
-        });
+
+        if (data.session) {
+          toast({
+            title: "Conta criada!",
+            description: "Seu acesso já está ativo.",
+          });
+          navigate("/dashboard");
+        } else {
+          toast({
+            title: "Conta criada!",
+            description: "Confirme seu e-mail para entrar.",
+          });
+          setIsLogin(true);
+        }
       }
     } catch (error: any) {
       toast({
@@ -81,7 +91,7 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     try {
       const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/dashboard`,
       });
       if (error) {
         toast({
@@ -90,15 +100,14 @@ const Auth = () => {
           variant: "destructive",
         });
       }
-    } catch (err: any) {
+    } catch (_err: any) {
       toast({
         title: "Erro",
-        description: "Falha ao entrar com Google. Se estiver no preview, tente na URL publicada.",
+        description: "Falha ao entrar com Google. Se estiver no preview, teste na URL publicada.",
         variant: "destructive",
       });
     }
   };
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
       <div className="absolute inset-0 grid-bg-subtle" />

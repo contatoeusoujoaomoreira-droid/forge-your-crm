@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Footer = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <footer className="border-t border-border py-12">
@@ -21,10 +23,10 @@ const Footer = () => {
             <a href="#recursos" className="hover:text-foreground transition-colors">Recursos</a>
             <a href="#planos" className="hover:text-foreground transition-colors">Planos</a>
             <button
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate(user ? "/dashboard" : "/auth")}
               className="hover:text-foreground transition-colors"
             >
-              Entrar
+              {user ? "Dashboard" : "Entrar"}
             </button>
           </div>
         </div>

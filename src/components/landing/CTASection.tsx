@@ -2,9 +2,11 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const CTASection = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <section id="contato" className="py-24 relative">
@@ -25,10 +27,10 @@ const CTASection = () => {
           </p>
           <Button
             size="lg"
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate(user ? "/dashboard" : "/auth")}
             className="mt-8 bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime-lg text-base px-10 h-12"
           >
-            Criar Conta Grátis <ArrowRight className="ml-2 h-5 w-5" />
+            {user ? "Abrir painel" : "Criar Conta Grátis"} <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </motion.div>
       </div>
