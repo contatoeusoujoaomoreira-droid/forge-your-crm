@@ -25,6 +25,23 @@ const Auth = () => {
     if (user) navigate("/");
   }, [user, navigate]);
 
+  const getErrorMessage = (error: any): string => {
+    const msg = error?.message || "";
+    if (msg.includes("Invalid login credentials")) {
+      return "E-mail ou senha incorretos. Verifique seus dados ou crie uma conta.";
+    }
+    if (msg.includes("Email not confirmed")) {
+      return "E-mail não confirmado. Verifique sua caixa de entrada.";
+    }
+    if (msg.includes("User already registered")) {
+      return "Este e-mail já está cadastrado. Tente fazer login.";
+    }
+    if (msg.includes("Password should be at least")) {
+      return "A senha deve ter pelo menos 6 caracteres.";
+    }
+    return error.message || "Ocorreu um erro. Tente novamente.";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -53,7 +70,7 @@ const Auth = () => {
     } catch (error: any) {
       toast({
         title: "Erro",
-        description: error.message || "Ocorreu um erro. Tente novamente.",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -62,13 +79,21 @@ const Auth = () => {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (error) {
+    try {
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (error) {
+        toast({
+          title: "Erro",
+          description: "Falha ao entrar com Google. Tente novamente.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
       toast({
         title: "Erro",
-        description: "Falha ao entrar com Google. Tente novamente.",
+        description: "Falha ao entrar com Google. Se estiver no preview, tente na URL publicada.",
         variant: "destructive",
       });
     }
