@@ -160,9 +160,9 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
                 property: "transition",
                 type: "composite",
                 properties: [
-                  { name: "Propriedade", property: "transition-property", type: "select", defaults: "all", options: [{ value: "all", name: "Todas" }, { value: "transform", name: "Transform" }, { value: "opacity", name: "Opacity" }, { value: "background", name: "Background" }, { value: "color", name: "Color" }] },
+                  { name: "Propriedade", property: "transition-property", type: "select", defaults: "all", options: [{ id: "all", value: "all", name: "Todas" }, { id: "transform", value: "transform", name: "Transform" }, { id: "opacity", value: "opacity", name: "Opacity" }, { id: "background", value: "background", name: "Background" }, { id: "color", value: "color", name: "Color" }] },
                   { name: "Duração", property: "transition-duration", type: "text", defaults: "0.3s" },
-                  { name: "Easing", property: "transition-timing-function", type: "select", defaults: "ease", options: [{ value: "ease", name: "Ease" }, { value: "ease-in-out", name: "Ease In Out" }, { value: "cubic-bezier(0.4,0,0.2,1)", name: "Suave" }] },
+                  { name: "Easing", property: "transition-timing-function", type: "select", defaults: "ease", options: [{ id: "ease", value: "ease", name: "Ease" }, { id: "ease-in-out", value: "ease-in-out", name: "Ease In Out" }, { id: "suave", value: "cubic-bezier(0.4,0,0.2,1)", name: "Suave" }] },
                 ],
               },
             ],
