@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Globe, Pencil, Copy, Trash2, ExternalLink, BarChart3, X, Sparkles, Home, Code } from "lucide-react";
+import { Plus, Globe, Pencil, Copy, Trash2, ExternalLink, BarChart3, X, Sparkles, Home, Code, Bot } from "lucide-react";
 import PageAnalytics from "@/components/dashboard/PageAnalytics";
 import GrapesEditor from "@/components/dashboard/GrapesEditor";
+import AIPageGenerator from "@/components/dashboard/AIPageGenerator";
 import TemplatesModal, { type PageTemplate } from "@/components/dashboard/TemplatesModal";
 
 interface LandingPage {
@@ -32,6 +33,7 @@ const LandingPagesList = () => {
   const [mainPage, setMainPage] = useState<LandingPage | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState<string | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", slug: "", meta_title: "", meta_description: "", pixel_meta_id: "", pixel_google_id: "" });
@@ -57,13 +59,10 @@ const LandingPagesList = () => {
       pixel_meta_id: form.pixel_meta_id || null, pixel_google_id: form.pixel_google_id || null, is_published: false,
     }).select("id").single();
     if (error) { toast({ title: error.message, variant: "destructive" }); return; }
-    await supabase.from("landing_page_sections").insert({
-      page_id: data.id, section_type: "hero", order: 0,
-      config: { headline: "Título Principal", subtitle: "Subtítulo da sua landing page", ctaText: "Comece Agora", ctaUrl: "#", badge: "🔥 Oferta Especial", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16" },
-    });
     toast({ title: "Landing Page criada!" });
     setShowForm(false);
     setForm({ title: "", slug: "", meta_title: "", meta_description: "", pixel_meta_id: "", pixel_google_id: "" });
+    if (data) setEditingPageId(data.id);
     fetchPages();
   };
 
@@ -71,7 +70,6 @@ const LandingPagesList = () => {
     const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now().toString(36);
 
     if (template.isFullHTML && template.htmlFile) {
-      // Fetch the HTML file content
       try {
         const response = await fetch(template.htmlFile);
         const htmlContent = await response.text();
@@ -82,7 +80,6 @@ const LandingPagesList = () => {
         toast({ title: `Página criada a partir do template "${template.name}"!` });
         setShowTemplates(false);
         fetchPages();
-        // Open editor
         if (data) setEditingPageId(data.id);
       } catch {
         toast({ title: "Erro ao carregar template", variant: "destructive" });
@@ -108,8 +105,7 @@ const LandingPagesList = () => {
     }).select("id").single();
     if (error) { toast({ title: error.message, variant: "destructive" }); return; }
     await supabase.from("landing_page_sections").insert([
-      { page_id: data.id, section_type: "hero", order: 0, config: { headline: "Acelere suas Vendas com IA", subtitle: "A plataforma all-in-one para capturar leads e gerenciar seu pipeline.", ctaText: "Começar Grátis →", badge: "⚡ Forge AI CRM" } },
-      { page_id: data.id, section_type: "features", order: 1, config: { title: "Tudo que você precisa", items: [{ icon: "📊", title: "CRM Inteligente", description: "Pipeline visual com drag-and-drop." }, { icon: "🌐", title: "Landing Pages", description: "Crie páginas de alta conversão." }, { icon: "📝", title: "Quiz Builder", description: "Qualifique leads com quizzes." }] } },
+      { page_id: data.id, section_type: "hero", order: 0, config: { headline: "Acelere suas Vendas com IA", subtitle: "A plataforma all-in-one para capturar leads.", ctaText: "Começar Grátis →", badge: "⚡ Forge AI CRM" } },
     ]);
     toast({ title: "Página principal criada!" });
     fetchPages();
@@ -144,6 +140,14 @@ const LandingPagesList = () => {
     await supabase.from("landing_pages").update({ is_published: !current }).eq("id", id);
     fetchPages();
   };
+
+  // Show AI Generator
+  if (showAIGenerator) {
+    return <AIPageGenerator
+      onPageCreated={(pageId) => { setShowAIGenerator(false); setEditingPageId(pageId); }}
+      onBack={() => { setShowAIGenerator(false); fetchPages(); }}
+    />;
+  }
 
   // Show editor
   if (editingPageId) {
@@ -184,15 +188,9 @@ const LandingPagesList = () => {
         </span>
         <span className="text-muted-foreground">•</span>
         <span className="text-muted-foreground">{page._viewCount} views</span>
-        {page.html_content && <>
-          <span className="text-muted-foreground">•</span>
-          <span className="text-primary text-[10px]">HTML</span>
-        </>}
       </div>
       <div className="flex items-center gap-1 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={() => setEditingPageId(page.id)} title="Editar">
-          <Pencil className="h-3 w-3" />
-        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setEditingPageId(page.id)} title="Editar"><Pencil className="h-3 w-3" /></Button>
         <Button variant="ghost" size="sm" onClick={() => setShowAnalytics(page.id)}><BarChart3 className="h-3 w-3" /></Button>
         <Button variant="ghost" size="sm" onClick={() => handleDuplicate(page)} title="Duplicar"><Copy className="h-3 w-3" /></Button>
         {page.is_published && (
@@ -210,6 +208,9 @@ const LandingPagesList = () => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-foreground">Landing Pages</h2>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowAIGenerator(true)} className="border-primary/30 hover:bg-primary/5">
+            <Bot className="h-4 w-4 mr-1 text-primary" /> Criar com IA
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)}>
             <Sparkles className="h-4 w-4 mr-1" /> Templates
           </Button>
@@ -232,28 +233,12 @@ const LandingPagesList = () => {
               <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="minha-pagina" className="mt-1 bg-secondary/50 border-border" />
               <p className="text-[10px] text-muted-foreground mt-1">/p/{form.slug || "..."}</p>
             </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Meta Title (SEO)</Label>
-              <Input value={form.meta_title} onChange={(e) => setForm({ ...form, meta_title: e.target.value })} className="mt-1 bg-secondary/50 border-border" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Meta Description</Label>
-              <Input value={form.meta_description} onChange={(e) => setForm({ ...form, meta_description: e.target.value })} className="mt-1 bg-secondary/50 border-border" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Pixel Meta (ID)</Label>
-              <Input value={form.pixel_meta_id} onChange={(e) => setForm({ ...form, pixel_meta_id: e.target.value })} className="mt-1 bg-secondary/50 border-border" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Pixel Google (ID)</Label>
-              <Input value={form.pixel_google_id} onChange={(e) => setForm({ ...form, pixel_google_id: e.target.value })} className="mt-1 bg-secondary/50 border-border" />
-            </div>
           </div>
-          <Button onClick={handleCreate}>Criar Página</Button>
+          <Button onClick={handleCreate}>Criar e Editar</Button>
         </div>
       )}
 
-      {/* Main Page Section */}
+      {/* Main Page */}
       <div className="space-y-3">
         <p className="text-sm font-semibold text-muted-foreground flex items-center gap-1">🏠 Página Principal</p>
         {mainPage ? renderPageCard(mainPage, true) : (
@@ -271,6 +256,9 @@ const LandingPagesList = () => {
           <div className="surface-card rounded-lg p-6 text-center space-y-3">
             <p className="text-sm text-muted-foreground">Nenhuma landing page</p>
             <div className="flex gap-2 justify-center">
+              <Button variant="outline" size="sm" onClick={() => setShowAIGenerator(true)} className="border-primary/30">
+                <Bot className="h-4 w-4 mr-1 text-primary" /> Criar com IA
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)}>Usar Template</Button>
               <Button size="sm" onClick={() => setShowForm(true)}>Criar do Zero</Button>
             </div>
