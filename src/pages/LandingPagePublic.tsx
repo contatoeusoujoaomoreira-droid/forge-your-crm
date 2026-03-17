@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -217,16 +217,72 @@ const sectionRenderers: Record<string, React.FC<{ config: any }>> = {
 };
 
 const FullHTMLPage = ({ html, page }: { html: string; page: PageData }) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   useEffect(() => {
     if (page.meta_title) document.title = page.meta_title;
     else document.title = page.title;
+
+    // Inject pixel tracking
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (page.meta_description) {
+      if (metaDesc) metaDesc.setAttribute("content", page.meta_description);
+      else {
+        const meta = document.createElement("meta");
+        meta.name = "description";
+        meta.content = page.meta_description;
+        document.head.appendChild(meta);
+      }
+    }
+  }, [page]);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const handleLoad = () => {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          // Inject pixels into iframe
+          if (page.pixel_meta_id) {
+            const script = iframeDoc.createElement("script");
+            script.textContent = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${page.pixel_meta_id}');fbq('track','PageView');`;
+            iframeDoc.head.appendChild(script);
+          }
+          if (page.pixel_google_id) {
+            const script = iframeDoc.createElement("script");
+            script.src = `https://www.googletagmanager.com/gtag/js?id=${page.pixel_google_id}`;
+            script.async = true;
+            iframeDoc.head.appendChild(script);
+            const script2 = iframeDoc.createElement("script");
+            script2.textContent = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${page.pixel_google_id}');`;
+            iframeDoc.head.appendChild(script2);
+          }
+        }
+      } catch {}
+    };
+
+    iframe.addEventListener("load", handleLoad);
+    return () => iframe.removeEventListener("load", handleLoad);
   }, [page]);
 
   return (
-    <div
-      className="min-h-screen"
-      dangerouslySetInnerHTML={{ __html: html }}
-      style={{ all: "initial" }}
+    <iframe
+      ref={iframeRef}
+      srcDoc={html}
+      title={page.title}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        border: "none",
+        margin: 0,
+        padding: 0,
+      }}
+      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
     />
   );
 };
@@ -247,7 +303,6 @@ const LandingPagePublic = () => {
 
       setPage(pageData as any);
 
-      // Only load sections if no full HTML
       if (!(pageData as any).html_content) {
         const { data: sectionData } = await supabase.from("landing_page_sections").select("*").eq("page_id", pageData.id).order("order", { ascending: true });
         setSections((sectionData || []).filter((s: any) => s.is_visible !== false) as Section[]);
@@ -289,17 +344,9 @@ const LandingPagePublic = () => {
     );
   }
 
-  // Full HTML page
+  // Full HTML page - render via dedicated component
   if (page.html_content) {
-    return (
-      <iframe
-        srcDoc={page.html_content}
-        title={page.title}
-        className="w-full min-h-screen border-0"
-        style={{ height: "100vh", width: "100%" }}
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-      />
-    );
+    return <FullHTMLPage html={page.html_content} page={page} />;
   }
 
   // Section-based rendering
