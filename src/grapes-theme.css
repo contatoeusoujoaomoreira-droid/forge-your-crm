@@ -1,16 +1,16 @@
-/* GrapesJS Dark Theme Override */
+/* GrapesJS ClickMax Dark Theme */
 .gjs-one-bg {
-  background-color: #1a1a1a !important;
+  background-color: #080D14 !important;
 }
 .gjs-two-color {
-  color: #e0e0e0 !important;
+  color: #E8F1FF !important;
 }
 .gjs-three-bg {
-  background-color: #111 !important;
+  background-color: #020408 !important;
 }
 .gjs-four-color,
 .gjs-four-color-h:hover {
-  color: #84CC16 !important;
+  color: #0EA5E9 !important;
 }
 
 /* Panels */
@@ -23,68 +23,75 @@
   background: transparent !important;
 }
 .gjs-block {
-  background: #222 !important;
-  border: 1px solid #333 !important;
-  border-radius: 8px !important;
-  color: #ccc !important;
-  min-height: 70px !important;
-  padding: 8px !important;
-  margin: 4px !important;
-  transition: all 0.15s ease !important;
-  width: calc(50% - 8px) !important;
+  background: #0C1420 !important;
+  border: 1px solid #141E2E !important;
+  border-radius: 12px !important;
+  color: #7A98B8 !important;
+  min-height: 72px !important;
+  padding: 10px !important;
+  margin: 3px !important;
+  transition: all 0.2s ease !important;
+  width: calc(50% - 6px) !important;
 }
 .gjs-block:hover {
-  border-color: #84CC16 !important;
-  background: #2a2a2a !important;
+  border-color: rgba(14,165,233,0.3) !important;
+  background: #141E2E !important;
+  transform: translateY(-1px);
 }
 .gjs-block svg {
-  width: 28px !important;
-  height: 28px !important;
+  width: 24px !important;
+  height: 24px !important;
   fill: none !important;
-  stroke: #84CC16 !important;
+  stroke: #0EA5E9 !important;
 }
 .gjs-block__media {
   margin-bottom: 4px !important;
 }
 .gjs-block-label {
-  font-size: 11px !important;
-  font-weight: 500 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
 }
 .gjs-block-category .gjs-title {
-  background: #1a1a1a !important;
-  border-bottom: 1px solid #2a2a2a !important;
-  color: #84CC16 !important;
-  font-size: 11px !important;
+  background: #080D14 !important;
+  border-bottom: 1px solid #141E2E !important;
+  color: #0EA5E9 !important;
+  font-size: 10px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  padding: 8px 12px !important;
+  letter-spacing: 0.1em !important;
+  padding: 10px 14px !important;
+  font-weight: 700 !important;
 }
 
 /* Style Manager */
 .gjs-sm-sector .gjs-sm-sector-title {
-  background: #1a1a1a !important;
-  border: 1px solid #2a2a2a !important;
-  color: #84CC16 !important;
-  font-size: 11px !important;
+  background: #080D14 !important;
+  border: 1px solid #141E2E !important;
+  color: #0EA5E9 !important;
+  font-size: 10px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.1em !important;
+  font-weight: 700 !important;
 }
 .gjs-sm-property {
-  color: #ccc !important;
+  color: #7A98B8 !important;
 }
 .gjs-sm-label {
-  font-size: 11px !important;
-  color: #999 !important;
+  font-size: 10px !important;
+  color: #4A6080 !important;
 }
 .gjs-field {
-  background: #222 !important;
-  border: 1px solid #333 !important;
-  border-radius: 4px !important;
-  color: #e0e0e0 !important;
+  background: #0C1420 !important;
+  border: 1px solid #141E2E !important;
+  border-radius: 6px !important;
+  color: #E8F1FF !important;
+}
+.gjs-field:focus-within {
+  border-color: rgba(14,165,233,0.3) !important;
 }
 .gjs-field input,
 .gjs-field select {
-  color: #e0e0e0 !important;
+  color: #E8F1FF !important;
 }
 
 /* Layer Manager */
@@ -92,103 +99,123 @@
   background: transparent !important;
 }
 .gjs-layer-title {
-  background: #1a1a1a !important;
-  border-bottom: 1px solid #2a2a2a !important;
+  background: #080D14 !important;
+  border-bottom: 1px solid #141E2E !important;
 }
 .gjs-layer.gjs-selected .gjs-layer-title {
-  background: rgba(132, 204, 22, 0.1) !important;
+  background: rgba(14,165,233,0.06) !important;
 }
 .gjs-layer-name {
-  color: #ccc !important;
-  font-size: 12px !important;
+  color: #7A98B8 !important;
+  font-size: 11px !important;
 }
 
 /* Canvas */
 .gjs-cv-canvas {
-  background: #222 !important;
+  background: #0C1420 !important;
 }
 .gjs-frame-wrapper {
-  background: #222 !important;
+  background: #0C1420 !important;
 }
 
 /* Selection & Hover */
 .gjs-selected {
-  outline: 2px solid #84CC16 !important;
+  outline: 2px solid #0EA5E9 !important;
   outline-offset: -2px !important;
 }
 .gjs-hovered {
-  outline: 1px dashed #84CC16 !important;
+  outline: 1px dashed rgba(14,165,233,0.5) !important;
 }
 
 /* Toolbar */
 .gjs-toolbar {
-  background: #111 !important;
-  border: 1px solid #333 !important;
-  border-radius: 6px !important;
+  background: #080D14 !important;
+  border: 1px solid #141E2E !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
 }
 .gjs-toolbar-item {
-  color: #ccc !important;
+  color: #7A98B8 !important;
 }
 .gjs-toolbar-item:hover {
-  color: #84CC16 !important;
+  color: #0EA5E9 !important;
 }
 
 /* RTE */
 .gjs-rte-toolbar {
-  background: #111 !important;
-  border: 1px solid #333 !important;
-  border-radius: 6px !important;
+  background: #080D14 !important;
+  border: 1px solid #141E2E !important;
+  border-radius: 8px !important;
 }
 .gjs-rte-actionbar .gjs-rte-action {
-  color: #ccc !important;
+  color: #7A98B8 !important;
 }
 
 /* Badge */
 .gjs-badge {
-  background: #84CC16 !important;
-  color: #000 !important;
-  font-weight: 600 !important;
+  background: #0EA5E9 !important;
+  color: white !important;
+  font-weight: 700 !important;
   border-radius: 4px !important;
+  font-size: 10px !important;
 }
 
 /* Resizer */
 .gjs-resizer-h {
-  border-color: #84CC16 !important;
+  border-color: #0EA5E9 !important;
 }
 
 /* Modal */
 .gjs-mdl-dialog {
-  background: #1a1a1a !important;
-  border: 1px solid #333 !important;
-  border-radius: 12px !important;
+  background: #080D14 !important;
+  border: 1px solid #141E2E !important;
+  border-radius: 16px !important;
 }
 .gjs-mdl-header {
-  border-bottom: 1px solid #2a2a2a !important;
+  border-bottom: 1px solid #141E2E !important;
 }
 .gjs-mdl-title {
-  color: #e0e0e0 !important;
+  color: #E8F1FF !important;
 }
 
-/* Component toolbar */
+/* Component badge */
 .gjs-com-badge {
-  background: rgba(132, 204, 22, 0.2) !important;
-  color: #84CC16 !important;
+  background: rgba(14,165,233,0.15) !important;
+  color: #0EA5E9 !important;
+}
+
+/* Trait Manager */
+.gjs-trt-trait {
+  padding: 6px 8px !important;
+}
+.gjs-trt-trait .gjs-label-wrp {
+  min-width: 80px !important;
+}
+.gjs-trt-trait .gjs-label {
+  color: #4A6080 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
 }
 
 /* Scrollbar */
 #gjs-blocks::-webkit-scrollbar,
 #gjs-styles::-webkit-scrollbar,
-#gjs-layers::-webkit-scrollbar {
+#gjs-layers::-webkit-scrollbar,
+#gjs-traits::-webkit-scrollbar {
   width: 4px;
 }
 #gjs-blocks::-webkit-scrollbar-track,
 #gjs-styles::-webkit-scrollbar-track,
-#gjs-layers::-webkit-scrollbar-track {
+#gjs-layers::-webkit-scrollbar-track,
+#gjs-traits::-webkit-scrollbar-track {
   background: transparent;
 }
 #gjs-blocks::-webkit-scrollbar-thumb,
 #gjs-styles::-webkit-scrollbar-thumb,
-#gjs-layers::-webkit-scrollbar-thumb {
-  background: #333;
+#gjs-layers::-webkit-scrollbar-thumb,
+#gjs-traits::-webkit-scrollbar-thumb {
+  background: #141E2E;
   border-radius: 2px;
 }

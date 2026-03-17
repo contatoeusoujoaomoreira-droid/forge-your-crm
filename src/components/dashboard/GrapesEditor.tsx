@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import grapesjs, { Editor } from "grapesjs";
 import "grapesjs/dist/css/grapes.min.css";
-import grapesjsPresetWebpage from "grapesjs-preset-webpage";
 import grapesjsBlocksBasic from "grapesjs-blocks-basic";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  ArrowLeft, Save, Settings, ExternalLink, Monitor, Tablet,
+  ArrowLeft, Save, ExternalLink, Monitor, Tablet,
   Smartphone, Code, Undo2, Redo2, Download, Upload, Layers,
-  Paintbrush, LayoutGrid, Plus, MousePointer, Type, Image,
-  Video, Link2, Square, Minus, AlignCenter,
+  Paintbrush, LayoutGrid, Link2, Eye, EyeOff, X,
+  ChevronDown, ChevronUp, Globe, Search, Tag,
 } from "lucide-react";
 
 interface Props {
@@ -55,6 +54,7 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
   const [activeDevice, setActiveDevice] = useState("desktop");
   const [activePanel, setActivePanel] = useState<string | null>("blocks");
   const [originalHeadContent, setOriginalHeadContent] = useState("");
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -87,7 +87,7 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
     }
 
     const canvasStyles = [
-      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700;800;900&family=Roboto:wght@300;400;500;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800;900&family=Montserrat:wght@300;400;500;600;700;800;900&display=swap",
       ...parsed.links,
     ];
 
@@ -99,9 +99,8 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
       storageManager: false,
       undoManager: { maximumStackLength: 50 },
       canvas: { styles: canvasStyles, scripts: parsed.scripts },
-      plugins: [grapesjsPresetWebpage, grapesjsBlocksBasic],
+      plugins: [grapesjsBlocksBasic],
       pluginsOpts: {
-        [grapesjsPresetWebpage as any]: { modalImportTitle: "Importar HTML", modalImportButton: "Importar", modalImportContent: "" },
         [grapesjsBlocksBasic as any]: { flexGrid: true },
       },
       blockManager: { appendTo: "#gjs-blocks" },
@@ -132,12 +131,11 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
                 defaults: "Inter, sans-serif",
                 options: [
                   { id: "inter", value: "Inter, sans-serif", name: "Inter" },
+                  { id: "jakarta", value: "'Plus Jakarta Sans', sans-serif", name: "Plus Jakarta Sans" },
                   { id: "poppins", value: "Poppins, sans-serif", name: "Poppins" },
                   { id: "montserrat", value: "Montserrat, sans-serif", name: "Montserrat" },
-                  { id: "roboto", value: "Roboto, sans-serif", name: "Roboto" },
-                  { id: "playfair", value: "Playfair Display, serif", name: "Playfair Display" },
-                  { id: "dm-sans", value: "DM Sans, sans-serif", name: "DM Sans" },
-                  { id: "space-grotesk", value: "Space Grotesk, sans-serif", name: "Space Grotesk" },
+                  { id: "space-grotesk", value: "'Space Grotesk', sans-serif", name: "Space Grotesk" },
+                  { id: "dm-sans", value: "'DM Sans', sans-serif", name: "DM Sans" },
                   { id: "georgia", value: "Georgia, serif", name: "Georgia" },
                   { id: "arial", value: "Arial, sans-serif", name: "Arial" },
                   { id: "monospace", value: "monospace", name: "Monospace" },
@@ -146,21 +144,21 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
             ],
           },
           {
-            name: "Decoração",
+            name: "Fundo & Bordas",
             open: false,
             buildProps: ["background-color", "background", "background-image", "border-radius", "border", "box-shadow", "opacity"],
           },
           {
-            name: "Animações",
+            name: "Animação",
             open: false,
-            buildProps: ["transition", "transform", "animation"],
+            buildProps: ["transition", "transform"],
             properties: [
               {
                 name: "Transição",
                 property: "transition",
                 type: "composite",
                 properties: [
-                  { name: "Propriedade", property: "transition-property", type: "select", defaults: "all", options: [{ id: "all", value: "all", name: "Todas" }, { id: "transform", value: "transform", name: "Transform" }, { id: "opacity", value: "opacity", name: "Opacity" }, { id: "background", value: "background", name: "Background" }, { id: "color", value: "color", name: "Color" }] },
+                  { name: "Propriedade", property: "transition-property", type: "select", defaults: "all", options: [{ id: "all", value: "all", name: "Todas" }, { id: "transform", value: "transform", name: "Transform" }, { id: "opacity", value: "opacity", name: "Opacity" }, { id: "background", value: "background", name: "Background" }] },
                   { name: "Duração", property: "transition-duration", type: "text", defaults: "0.3s" },
                   { name: "Easing", property: "transition-timing-function", type: "select", defaults: "ease", options: [{ id: "ease", value: "ease", name: "Ease" }, { id: "ease-in-out", value: "ease-in-out", name: "Ease In Out" }, { id: "suave", value: "cubic-bezier(0.4,0,0.2,1)", name: "Suave" }] },
                 ],
@@ -168,9 +166,9 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
             ],
           },
           {
-            name: "Extra",
+            name: "Posição",
             open: false,
-            buildProps: ["cursor", "overflow", "position", "top", "right", "bottom", "left", "z-index"],
+            buildProps: ["position", "top", "right", "bottom", "left", "z-index", "overflow", "cursor"],
           },
         ],
       },
@@ -183,13 +181,13 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
       },
     });
 
-    // Add link traits to all components with href
+    // Link traits
     editor.DomComponents.addType("link", {
       isComponent: (el) => el.tagName === "A",
       model: {
         defaults: {
           traits: [
-            { type: "text", name: "href", label: "URL / Link", placeholder: "https://... ou https://wa.me/5511..." },
+            { type: "text", name: "href", label: "URL / Link", placeholder: "https://... ou https://wa.me/55..." },
             { type: "select", name: "target", label: "Abrir em", options: [{ id: "same", value: "", name: "Mesma aba" }, { id: "blank", value: "_blank", name: "Nova aba" }] },
             { type: "text", name: "title", label: "Título" },
             { type: "select", name: "data-action", label: "Ação", options: [
@@ -197,14 +195,13 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
               { id: "whatsapp", value: "whatsapp", name: "WhatsApp" },
               { id: "phone", value: "phone", name: "Ligar" },
               { id: "email", value: "email", name: "Email" },
-              { id: "scroll", value: "scroll", name: "Scroll para seção" },
+              { id: "scroll", value: "scroll", name: "Scroll p/ seção" },
             ]},
           ],
         },
       },
     });
 
-    // Add traits to buttons
     editor.DomComponents.addType("button", {
       isComponent: (el) => el.tagName === "BUTTON",
       model: {
@@ -223,44 +220,52 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
       },
     });
 
-    // Custom blocks
+    // === BLOCKS ===
     const bm = editor.Blocks;
 
-    // === SEÇÕES ===
     bm.add("section-hero", {
-      label: "Hero Section",
+      label: "Hero",
       category: "Seções",
-      content: `<section style="padding: 100px 20px; text-align: center; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%); color: white; min-height: 600px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(ellipse at center, rgba(132,204,22,0.05) 0%, transparent 70%); pointer-events: none;"></div>
-        <span style="display: inline-block; padding: 8px 20px; border-radius: 24px; background: rgba(132, 204, 22, 0.12); color: #84CC16; font-size: 13px; margin-bottom: 28px; font-weight: 500; letter-spacing: 0.5px; border: 1px solid rgba(132,204,22,0.2);">🔥 Oferta Exclusiva</span>
-        <h1 style="font-size: 56px; font-weight: 800; margin: 0 0 20px; max-width: 800px; line-height: 1.05; letter-spacing: -0.02em;">Título Principal da Sua Página</h1>
-        <p style="font-size: 19px; opacity: 0.7; margin: 0 0 40px; max-width: 600px; line-height: 1.6;">Subtítulo com a proposta de valor clara e objetiva do seu produto ou serviço.</p>
-        <a href="#" style="display: inline-block; padding: 16px 40px; background: #84CC16; color: #000; font-weight: 700; border-radius: 10px; text-decoration: none; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 20px rgba(132,204,22,0.3);">Começar Agora →</a>
+      content: `<section style="padding:100px 20px;text-align:center;background:linear-gradient(135deg,#020408 0%,#0C1420 50%,#020408 100%);color:#E8F1FF;min-height:600px;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at center,rgba(14,165,233,0.06) 0%,transparent 70%);pointer-events:none;"></div>
+        <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 18px;border-radius:100px;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.2);color:#0EA5E9;font-size:13px;font-weight:600;letter-spacing:0.02em;margin-bottom:32px;">🔥 Oferta Exclusiva</span>
+        <h1 style="font-size:clamp(2.8rem,6vw,4.5rem);font-weight:800;margin:0 0 20px;max-width:860px;line-height:1.05;letter-spacing:-0.04em;">Título Principal da <span style="background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Sua Página</span></h1>
+        <p style="font-size:clamp(1rem,2vw,1.2rem);color:#7A98B8;margin:0 0 48px;max-width:600px;line-height:1.6;">Subtítulo com a proposta de valor clara e objetiva do seu produto ou serviço.</p>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
+          <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 32px;background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;font-weight:700;border-radius:10px;text-decoration:none;font-size:0.95rem;transition:all 0.25s;">Começar Agora →</a>
+          <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 32px;background:#080D14;color:#E8F1FF;border:1px solid #141E2E;border-radius:10px;text-decoration:none;font-size:0.95rem;font-weight:600;transition:all 0.25s;">Saiba Mais</a>
+        </div>
       </section>`,
     });
 
     bm.add("section-features", {
-      label: "Features Grid",
+      label: "Features Bento",
       category: "Seções",
-      content: `<section style="padding: 80px 20px; background: #0f0f0f; color: white;">
-        <div style="max-width: 1100px; margin: 0 auto;">
-          <h2 style="text-align: center; font-size: 40px; font-weight: 700; margin: 0 0 16px; letter-spacing: -0.02em;">Nossos Recursos</h2>
-          <p style="text-align: center; font-size: 16px; opacity: 0.5; margin: 0 0 56px; max-width: 500px; margin-left: auto; margin-right: auto;">Tudo que você precisa em um só lugar</p>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
-            <div style="padding: 36px 28px; background: #1a1a1a; border-radius: 16px; border: 1px solid #222; transition: all 0.3s ease;">
-              <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(132,204,22,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 24px;">📊</div>
-              <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 10px;">Recurso 1</h3>
-              <p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Descrição breve e clara do recurso com detalhes relevantes.</p>
+      content: `<section style="padding:100px 20px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="max-width:1200px;margin:0 auto;">
+          <p style="font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0EA5E9;margin:0 0 16px;text-align:center;">RECURSOS</p>
+          <h2 style="text-align:center;font-size:clamp(2rem,3.5vw,3rem);font-weight:800;letter-spacing:-0.04em;margin:0 0 16px;">Tudo que você precisa</h2>
+          <p style="text-align:center;color:#7A98B8;max-width:540px;margin:0 auto 60px;font-size:1.05rem;">Uma plataforma completa para escalar seu negócio</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:36px 32px;transition:all 0.3s;grid-column:span 2;">
+              <div style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.2);">📊</div>
+              <h3 style="font-weight:700;font-size:1.1rem;margin:0 0 10px;letter-spacing:-0.02em;">Analytics Avançado</h3>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0;">Acompanhe todas as métricas do seu negócio em tempo real com dashboards inteligentes.</p>
             </div>
-            <div style="padding: 36px 28px; background: #1a1a1a; border-radius: 16px; border: 1px solid #222; transition: all 0.3s ease;">
-              <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 24px;">⚡</div>
-              <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 10px;">Recurso 2</h3>
-              <p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Descrição breve e clara do recurso com detalhes relevantes.</p>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:36px 32px;transition:all 0.3s;">
+              <div style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;background:#0C1420;border:1px solid #141E2E;">⚡</div>
+              <h3 style="font-weight:700;font-size:1.1rem;margin:0 0 10px;letter-spacing:-0.02em;">Automação</h3>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0;">Automatize processos e economize tempo.</p>
             </div>
-            <div style="padding: 36px 28px; background: #1a1a1a; border-radius: 16px; border: 1px solid #222; transition: all 0.3s ease;">
-              <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(168,85,247,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 24px;">🎯</div>
-              <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 10px;">Recurso 3</h3>
-              <p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Descrição breve e clara do recurso com detalhes relevantes.</p>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:36px 32px;transition:all 0.3s;">
+              <div style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;background:#0C1420;border:1px solid #141E2E;">🎯</div>
+              <h3 style="font-weight:700;font-size:1.1rem;margin:0 0 10px;letter-spacing:-0.02em;">Segmentação</h3>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0;">Segmente seu público com precisão.</p>
+            </div>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:36px 32px;transition:all 0.3s;grid-column:span 2;">
+              <div style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:20px;background:#0C1420;border:1px solid #141E2E;">🚀</div>
+              <h3 style="font-weight:700;font-size:1.1rem;margin:0 0 10px;letter-spacing:-0.02em;">Performance</h3>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0;">Otimize cada aspecto do seu funil de vendas.</p>
             </div>
           </div>
         </div>
@@ -270,101 +275,228 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
     bm.add("section-testimonials", {
       label: "Depoimentos",
       category: "Seções",
-      content: `<section style="padding: 80px 20px; background: #111; color: white;"><div style="max-width: 1000px; margin: 0 auto; text-align: center;"><h2 style="font-size: 36px; font-weight: 700; margin: 0 0 12px;">O que nossos clientes dizem</h2><p style="font-size: 15px; opacity: 0.5; margin: 0 0 48px;">Resultados reais de pessoas reais</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;"><div style="padding: 28px; background: #1a1a1a; border-radius: 16px; text-align: left; border: 1px solid #222;"><div style="display: flex; gap: 4px; margin-bottom: 16px; color: #fbbf24;">★★★★★</div><p style="font-size: 14px; opacity: 0.8; margin: 0 0 20px; line-height: 1.6;">"Resultado incrível, superou minhas expectativas. Recomendo muito!"</p><div style="display: flex; align-items: center; gap: 12px;"><div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #84CC16, #22d3ee);"></div><div><p style="font-size: 14px; font-weight: 600; margin: 0;">Maria Silva</p><p style="font-size: 12px; opacity: 0.4; margin: 0;">CEO, Empresa</p></div></div></div><div style="padding: 28px; background: #1a1a1a; border-radius: 16px; text-align: left; border: 1px solid #222;"><div style="display: flex; gap: 4px; margin-bottom: 16px; color: #fbbf24;">★★★★★</div><p style="font-size: 14px; opacity: 0.8; margin: 0 0 20px; line-height: 1.6;">"A melhor decisão que tomei para meu negócio. Resultados fantásticos."</p><div style="display: flex; align-items: center; gap: 12px;"><div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #a855f7);"></div><div><p style="font-size: 14px; font-weight: 600; margin: 0;">João Santos</p><p style="font-size: 12px; opacity: 0.4; margin: 0;">Diretor</p></div></div></div></div></div></section>`,
-    });
-
-    bm.add("section-cta", {
-      label: "CTA Section",
-      category: "Seções",
-      content: `<section style="padding: 100px 20px; background: linear-gradient(135deg, #84CC16 0%, #65a30d 100%); text-align: center; position: relative; overflow: hidden;"><div style="position: absolute; inset: 0; background: radial-gradient(ellipse at top, rgba(255,255,255,0.15), transparent 70%); pointer-events: none;"></div><div style="max-width: 700px; margin: 0 auto; position: relative;"><h2 style="font-size: 42px; font-weight: 800; color: #000; margin: 0 0 16px; letter-spacing: -0.02em;">Pronto para Começar?</h2><p style="font-size: 18px; color: rgba(0,0,0,0.6); margin: 0 0 36px;">Junte-se a milhares de clientes satisfeitos.</p><a href="#" style="display: inline-block; padding: 18px 48px; background: #000; color: white; font-weight: 700; border-radius: 12px; text-decoration: none; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">Começar Agora →</a></div></section>`,
+      content: `<section style="padding:100px 20px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="max-width:1200px;margin:0 auto;">
+          <p style="font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0EA5E9;margin:0 0 16px;text-align:center;">DEPOIMENTOS</p>
+          <h2 style="text-align:center;font-size:clamp(2rem,3.5vw,3rem);font-weight:800;letter-spacing:-0.04em;margin:0 0 60px;">O que nossos clientes dizem</h2>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:16px;padding:28px;transition:all 0.3s;">
+              <div style="font-size:2rem;color:#0EA5E9;line-height:1;margin-bottom:12px;opacity:0.5;">"</div>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0 0 20px;">Resultado incrível, superou todas as minhas expectativas. A plataforma é simplesmente excelente.</p>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#0EA5E9,#6366F1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:white;">M</div>
+                <div><p style="font-weight:700;font-size:0.9rem;margin:0;">Maria Silva</p><p style="color:#4A6080;font-size:0.75rem;margin:0;">CEO, Empresa</p></div>
+              </div>
+            </div>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:16px;padding:28px;transition:all 0.3s;">
+              <div style="font-size:2rem;color:#0EA5E9;line-height:1;margin-bottom:12px;opacity:0.5;">"</div>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0 0 20px;">A melhor decisão que tomei para meu negócio. Resultados fantásticos desde o primeiro dia.</p>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#EC4899);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:white;">J</div>
+                <div><p style="font-weight:700;font-size:0.9rem;margin:0;">João Santos</p><p style="color:#4A6080;font-size:0.75rem;margin:0;">Diretor</p></div>
+              </div>
+            </div>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:16px;padding:28px;transition:all 0.3s;">
+              <div style="font-size:2rem;color:#0EA5E9;line-height:1;margin-bottom:12px;opacity:0.5;">"</div>
+              <p style="color:#7A98B8;font-size:0.9rem;line-height:1.7;margin:0 0 20px;">Plataforma intuitiva e com resultados comprovados. Recomendo para todo empreendedor.</p>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#10B981,#0EA5E9);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:white;">A</div>
+                <div><p style="font-weight:700;font-size:0.9rem;margin:0;">Ana Costa</p><p style="color:#4A6080;font-size:0.75rem;margin:0;">Empreendedora</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>`,
     });
 
     bm.add("section-pricing", {
       label: "Preços",
       category: "Seções",
-      content: `<section style="padding: 80px 20px; background: #0a0a0a; color: white;"><div style="max-width: 1000px; margin: 0 auto; text-align: center;"><h2 style="font-size: 40px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.02em;">Planos e Preços</h2><p style="font-size: 15px; opacity: 0.5; margin: 0 0 56px;">Escolha o plano ideal para você</p><div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start;"><div style="padding: 36px; background: #1a1a1a; border-radius: 20px; border: 1px solid #222;"><h3 style="font-size: 18px; margin: 0 0 8px; opacity: 0.8;">Básico</h3><p style="font-size: 42px; font-weight: 800; margin: 0 0 24px;">R$49<span style="font-size: 14px; opacity: 0.4; font-weight: 400;">/mês</span></p><ul style="list-style: none; padding: 0; margin: 0 0 28px; text-align: left;"><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid #222;">✓ Feature 1</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid #222;">✓ Feature 2</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7;">✓ Feature 3</li></ul><a href="#" style="display: block; padding: 14px; background: #222; color: white; border-radius: 10px; text-decoration: none; font-weight: 600; transition: all 0.3s ease;">Escolher</a></div><div style="padding: 36px; background: linear-gradient(135deg, #1a2e0a, #1a1a2e); border-radius: 20px; border: 2px solid #84CC16; transform: scale(1.03); position: relative;"><span style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 4px 16px; background: #84CC16; color: #000; border-radius: 20px; font-size: 11px; font-weight: 700;">POPULAR</span><h3 style="font-size: 18px; margin: 16px 0 8px; opacity: 0.8;">Pro</h3><p style="font-size: 42px; font-weight: 800; margin: 0 0 24px;">R$99<span style="font-size: 14px; opacity: 0.4; font-weight: 400;">/mês</span></p><ul style="list-style: none; padding: 0; margin: 0 0 28px; text-align: left;"><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid rgba(132,204,22,0.2);">✓ Tudo do Básico</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid rgba(132,204,22,0.2);">✓ Feature Pro 1</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7;">✓ Feature Pro 2</li></ul><a href="#" style="display: block; padding: 14px; background: #84CC16; color: #000; border-radius: 10px; text-decoration: none; font-weight: 700; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(132,204,22,0.3);">Escolher</a></div><div style="padding: 36px; background: #1a1a1a; border-radius: 20px; border: 1px solid #222;"><h3 style="font-size: 18px; margin: 0 0 8px; opacity: 0.8;">Enterprise</h3><p style="font-size: 42px; font-weight: 800; margin: 0 0 24px;">R$199<span style="font-size: 14px; opacity: 0.4; font-weight: 400;">/mês</span></p><ul style="list-style: none; padding: 0; margin: 0 0 28px; text-align: left;"><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid #222;">✓ Tudo do Pro</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7; border-bottom: 1px solid #222;">✓ Suporte Priority</li><li style="padding: 8px 0; font-size: 14px; opacity: 0.7;">✓ SLA dedicado</li></ul><a href="#" style="display: block; padding: 14px; background: #222; color: white; border-radius: 10px; text-decoration: none; font-weight: 600; transition: all 0.3s ease;">Escolher</a></div></div></div></section>`,
+      content: `<section style="padding:100px 20px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="max-width:1000px;margin:0 auto;">
+          <p style="font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0EA5E9;margin:0 0 16px;text-align:center;">PREÇOS</p>
+          <h2 style="text-align:center;font-size:clamp(2rem,3.5vw,3rem);font-weight:800;letter-spacing:-0.04em;margin:0 0 60px;">Escolha seu plano</h2>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:40px 32px;text-align:left;transition:all 0.3s;">
+              <p style="font-size:0.8rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4A6080;margin:0 0 12px;">BÁSICO</p>
+              <p style="font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;line-height:1;margin:0 0 4px;">R$49</p>
+              <p style="color:#4A6080;font-size:0.8rem;margin:0 0 24px;">/mês</p>
+              <a href="#" style="display:block;width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:0.95rem;text-align:center;text-decoration:none;border:1px solid #141E2E;color:#E8F1FF;background:transparent;margin-bottom:28px;transition:all 0.25s;">Começar</a>
+              <ul style="list-style:none;padding:0;margin:0;"><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Feature 1</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Feature 2</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:0.875rem;color:#7A98B8;">✓ Feature 3</li></ul>
+            </div>
+            <div style="background:linear-gradient(135deg,#080D14 0%,rgba(14,165,233,0.04) 100%);border:1px solid rgba(14,165,233,0.3);border-radius:20px;padding:40px 32px;text-align:left;position:relative;transition:all 0.3s;">
+              <span style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;font-size:0.65rem;font-weight:800;padding:4px 16px;border-radius:0 0 8px 8px;letter-spacing:0.1em;">POPULAR</span>
+              <p style="font-size:0.8rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4A6080;margin:12px 0 12px;">PRO</p>
+              <p style="font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;line-height:1;margin:0 0 4px;">R$99</p>
+              <p style="color:#4A6080;font-size:0.8rem;margin:0 0 24px;">/mês</p>
+              <a href="#" style="display:block;width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:0.95rem;text-align:center;text-decoration:none;background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;margin-bottom:28px;border:none;transition:all 0.25s;">Começar</a>
+              <ul style="list-style:none;padding:0;margin:0;"><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Tudo do Básico</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Feature Pro 1</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:0.875rem;color:#7A98B8;">✓ Feature Pro 2</li></ul>
+            </div>
+            <div style="background:#080D14;border:1px solid #141E2E;border-radius:20px;padding:40px 32px;text-align:left;transition:all 0.3s;">
+              <p style="font-size:0.8rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4A6080;margin:0 0 12px;">ENTERPRISE</p>
+              <p style="font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;line-height:1;margin:0 0 4px;">R$199</p>
+              <p style="color:#4A6080;font-size:0.8rem;margin:0 0 24px;">/mês</p>
+              <a href="#" style="display:block;width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:0.95rem;text-align:center;text-decoration:none;border:1px solid #141E2E;color:#E8F1FF;background:transparent;margin-bottom:28px;transition:all 0.25s;">Começar</a>
+              <ul style="list-style:none;padding:0;margin:0;"><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Tudo do Pro</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #141E2E;font-size:0.875rem;color:#7A98B8;">✓ Suporte Priority</li><li style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:0.875rem;color:#7A98B8;">✓ SLA dedicado</li></ul>
+            </div>
+          </div>
+        </div>
+      </section>`,
+    });
+
+    bm.add("section-cta", {
+      label: "CTA Final",
+      category: "Seções",
+      content: `<section style="padding:100px 20px;background:#080D14;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="background:linear-gradient(135deg,rgba(14,165,233,0.06) 0%,rgba(99,102,241,0.06) 100%);border:1px solid rgba(14,165,233,0.15);border-radius:24px;padding:80px 60px;max-width:800px;margin:0 auto;">
+          <h2 style="font-size:clamp(2rem,4vw,3.2rem);font-weight:800;letter-spacing:-0.04em;margin:0 0 16px;color:#E8F1FF;">Pronto para <span style="background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">começar?</span></h2>
+          <p style="color:#7A98B8;margin:0 0 40px;font-size:1.05rem;">Junte-se a milhares de profissionais que já transformaram seus negócios.</p>
+          <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 40px;background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;font-weight:700;border-radius:10px;text-decoration:none;font-size:0.95rem;transition:all 0.25s;">Começar Agora →</a>
+        </div>
+      </section>`,
     });
 
     bm.add("section-faq", {
       label: "FAQ",
       category: "Seções",
-      content: `<section style="padding: 80px 20px; background: #111; color: white;"><div style="max-width: 700px; margin: 0 auto;"><h2 style="text-align: center; font-size: 36px; font-weight: 700; margin: 0 0 48px;">Perguntas Frequentes</h2><div style="border-top: 1px solid #222;"><div style="padding: 24px 0; border-bottom: 1px solid #222;"><h4 style="font-size: 16px; font-weight: 600; margin: 0 0 10px; cursor: pointer;">Pergunta frequente 1?</h4><p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Resposta detalhada e clara para a pergunta do cliente.</p></div><div style="padding: 24px 0; border-bottom: 1px solid #222;"><h4 style="font-size: 16px; font-weight: 600; margin: 0 0 10px; cursor: pointer;">Pergunta frequente 2?</h4><p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Resposta detalhada e clara para a pergunta do cliente.</p></div><div style="padding: 24px 0; border-bottom: 1px solid #222;"><h4 style="font-size: 16px; font-weight: 600; margin: 0 0 10px; cursor: pointer;">Pergunta frequente 3?</h4><p style="font-size: 14px; opacity: 0.6; margin: 0; line-height: 1.6;">Resposta detalhada e clara para a pergunta do cliente.</p></div></div></div></section>`,
+      content: `<section style="padding:100px 20px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="max-width:700px;margin:0 auto;">
+          <p style="font-size:0.75rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0EA5E9;margin:0 0 16px;text-align:center;">FAQ</p>
+          <h2 style="text-align:center;font-size:clamp(2rem,3.5vw,3rem);font-weight:800;letter-spacing:-0.04em;margin:0 0 48px;">Perguntas Frequentes</h2>
+          <div style="border-top:1px solid #141E2E;">
+            <div style="padding:24px 0;border-bottom:1px solid #141E2E;"><h4 style="font-size:16px;font-weight:600;margin:0 0 10px;cursor:pointer;">Pergunta frequente 1?</h4><p style="font-size:14px;color:#7A98B8;margin:0;line-height:1.6;">Resposta detalhada e clara para a pergunta.</p></div>
+            <div style="padding:24px 0;border-bottom:1px solid #141E2E;"><h4 style="font-size:16px;font-weight:600;margin:0 0 10px;cursor:pointer;">Pergunta frequente 2?</h4><p style="font-size:14px;color:#7A98B8;margin:0;line-height:1.6;">Resposta detalhada e clara para a pergunta.</p></div>
+            <div style="padding:24px 0;border-bottom:1px solid #141E2E;"><h4 style="font-size:16px;font-weight:600;margin:0 0 10px;cursor:pointer;">Pergunta frequente 3?</h4><p style="font-size:14px;color:#7A98B8;margin:0;line-height:1.6;">Resposta detalhada e clara para a pergunta.</p></div>
+          </div>
+        </div>
+      </section>`,
     });
 
     bm.add("section-form", {
       label: "Formulário",
       category: "Seções",
-      content: `<section style="padding: 80px 20px; background: #0a0a0a; color: white;"><div style="max-width: 480px; margin: 0 auto;"><h2 style="text-align: center; font-size: 28px; font-weight: 700; margin: 0 0 12px;">Entre em Contato</h2><p style="text-align: center; font-size: 14px; opacity: 0.5; margin: 0 0 36px;">Preencha o formulário abaixo</p><form style="display: flex; flex-direction: column; gap: 14px;"><input type="text" placeholder="Seu nome" style="padding: 14px 18px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; color: white; font-size: 14px; outline: none; transition: border-color 0.3s;" /><input type="email" placeholder="Seu email" style="padding: 14px 18px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; color: white; font-size: 14px; outline: none; transition: border-color 0.3s;" /><input type="tel" placeholder="WhatsApp" style="padding: 14px 18px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; color: white; font-size: 14px; outline: none; transition: border-color 0.3s;" /><button type="submit" style="padding: 16px; background: #84CC16; color: #000; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(132,204,22,0.3);">Enviar →</button></form></div></section>`,
+      content: `<section style="padding:80px 20px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="max-width:480px;margin:0 auto;">
+          <h2 style="text-align:center;font-size:28px;font-weight:700;margin:0 0 12px;">Entre em Contato</h2>
+          <p style="text-align:center;font-size:14px;color:#7A98B8;margin:0 0 36px;">Preencha o formulário abaixo</p>
+          <form style="display:flex;flex-direction:column;gap:14px;">
+            <input type="text" placeholder="Seu nome" style="padding:14px 18px;background:#080D14;border:1px solid #141E2E;border-radius:10px;color:#E8F1FF;font-size:14px;outline:none;" />
+            <input type="email" placeholder="Seu email" style="padding:14px 18px;background:#080D14;border:1px solid #141E2E;border-radius:10px;color:#E8F1FF;font-size:14px;outline:none;" />
+            <input type="tel" placeholder="WhatsApp" style="padding:14px 18px;background:#080D14;border:1px solid #141E2E;border-radius:10px;color:#E8F1FF;font-size:14px;outline:none;" />
+            <button type="submit" style="padding:16px;background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-size:16px;transition:all 0.3s;">Enviar →</button>
+          </form>
+        </div>
+      </section>`,
     });
 
     bm.add("section-footer", {
       label: "Footer",
       category: "Seções",
-      content: `<footer style="padding: 48px 20px 24px; background: #050505; color: white;"><div style="max-width: 1000px; margin: 0 auto;"><div style="display: flex; justify-content: center; gap: 28px; margin-bottom: 32px;"><a href="#" style="color: #84CC16; text-decoration: none; font-size: 14px; font-weight: 500;">Início</a><a href="#" style="color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; transition: color 0.3s;">Recursos</a><a href="#" style="color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; transition: color 0.3s;">Preços</a><a href="#" style="color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; transition: color 0.3s;">Contato</a></div><div style="width: 100%; height: 1px; background: #1a1a1a; margin-bottom: 24px;"></div><p style="font-size: 12px; opacity: 0.3; margin: 0; text-align: center;">© 2026 Sua Empresa. Todos os direitos reservados.</p></div></footer>`,
+      content: `<footer style="padding:48px 20px 24px;background:#020408;color:#E8F1FF;font-family:'Plus Jakarta Sans',sans-serif;border-top:1px solid #141E2E;">
+        <div style="max-width:1000px;margin:0 auto;">
+          <div style="display:flex;justify-content:center;gap:28px;margin-bottom:32px;">
+            <a href="#" style="color:#0EA5E9;text-decoration:none;font-size:14px;font-weight:500;">Início</a>
+            <a href="#" style="color:#7A98B8;text-decoration:none;font-size:14px;">Recursos</a>
+            <a href="#" style="color:#7A98B8;text-decoration:none;font-size:14px;">Preços</a>
+            <a href="#" style="color:#7A98B8;text-decoration:none;font-size:14px;">Contato</a>
+          </div>
+          <div style="width:100%;height:1px;background:#141E2E;margin-bottom:24px;"></div>
+          <p style="font-size:12px;color:#4A6080;margin:0;text-align:center;">© 2026 Sua Empresa. Todos os direitos reservados.</p>
+        </div>
+      </footer>`,
     });
 
-    // === ELEMENTOS ===
-    bm.add("gradient-heading", {
-      label: "Título Gradiente",
+    // Elements
+    bm.add("stats-bar", {
+      label: "Estatísticas",
       category: "Elementos",
-      content: `<h2 style="font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #84CC16, #22d3ee, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin: 0; padding: 20px; letter-spacing: -0.02em;">Texto com Gradiente</h2>`,
-    });
-
-    bm.add("button-whatsapp", {
-      label: "Botão WhatsApp",
-      category: "Elementos",
-      content: `<div style="text-align: center; padding: 20px;"><a href="https://wa.me/5511999999999?text=Olá!" target="_blank" style="display: inline-flex; align-items: center; gap: 10px; padding: 16px 36px; background: #25D366; color: white; font-weight: 700; border-radius: 12px; text-decoration: none; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(37,211,102,0.3);">💬 Falar no WhatsApp</a></div>`,
+      content: `<div style="display:grid;grid-template-columns:repeat(4,1fr);background:#080D14;border:1px solid #141E2E;border-radius:20px;overflow:hidden;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="padding:40px 32px;border-right:1px solid #141E2E;text-align:center;"><p style="font-size:2.5rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin:0 0 8px;">10K+</p><p style="color:#7A98B8;font-size:0.85rem;margin:0;">Usuários</p></div>
+        <div style="padding:40px 32px;border-right:1px solid #141E2E;text-align:center;"><p style="font-size:2.5rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin:0 0 8px;">98%</p><p style="color:#7A98B8;font-size:0.85rem;margin:0;">Satisfação</p></div>
+        <div style="padding:40px 32px;border-right:1px solid #141E2E;text-align:center;"><p style="font-size:2.5rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin:0 0 8px;">24/7</p><p style="color:#7A98B8;font-size:0.85rem;margin:0;">Suporte</p></div>
+        <div style="padding:40px 32px;text-align:center;"><p style="font-size:2.5rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin:0 0 8px;">5★</p><p style="color:#7A98B8;font-size:0.85rem;margin:0;">Avaliação</p></div>
+      </div>`,
     });
 
     bm.add("button-cta", {
       label: "Botão CTA",
       category: "Elementos",
-      content: `<div style="text-align: center; padding: 20px;"><a href="#" style="display: inline-block; padding: 16px 44px; background: linear-gradient(135deg, #84CC16, #65a30d); color: #000; font-weight: 700; border-radius: 12px; text-decoration: none; font-size: 16px; box-shadow: 0 4px 20px rgba(132, 204, 22, 0.3); transition: all 0.3s ease;">Clique Aqui →</a></div>`,
+      content: `<div style="text-align:center;padding:20px;"><a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 40px;background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;font-weight:700;border-radius:10px;text-decoration:none;font-size:0.95rem;transition:all 0.25s;font-family:'Plus Jakarta Sans',sans-serif;">Clique Aqui →</a></div>`,
     });
 
-    bm.add("button-link", {
-      label: "Botão com Link",
+    bm.add("button-whatsapp", {
+      label: "Botão WhatsApp",
       category: "Elementos",
-      content: `<div style="text-align: center; padding: 20px;"><a href="https://exemplo.com" target="_blank" style="display: inline-block; padding: 14px 36px; background: transparent; color: #84CC16; font-weight: 600; border-radius: 10px; text-decoration: none; font-size: 15px; border: 2px solid #84CC16; transition: all 0.3s ease;">Ver Mais ↗</a></div>`,
+      content: `<div style="text-align:center;padding:20px;"><a href="https://wa.me/5511999999999?text=Olá!" target="_blank" style="display:inline-flex;align-items:center;gap:10px;padding:16px 36px;background:#25D366;color:white;font-weight:700;border-radius:12px;text-decoration:none;font-size:16px;transition:all 0.3s;box-shadow:0 4px 15px rgba(37,211,102,0.3);font-family:'Plus Jakarta Sans',sans-serif;">💬 Falar no WhatsApp</a></div>`,
+    });
+
+    bm.add("button-outline", {
+      label: "Botão Outline",
+      category: "Elementos",
+      content: `<div style="text-align:center;padding:20px;"><a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:14px 36px;background:transparent;color:#0EA5E9;font-weight:600;border-radius:10px;text-decoration:none;font-size:15px;border:1px solid rgba(14,165,233,0.3);transition:all 0.3s;font-family:'Plus Jakarta Sans',sans-serif;">Ver Mais ↗</a></div>`,
     });
 
     bm.add("video-embed", {
       label: "Vídeo YouTube",
       category: "Elementos",
-      content: `<div style="max-width: 800px; margin: 0 auto; padding: 20px;"><div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe></div></div>`,
+      content: `<div style="max-width:800px;margin:0 auto;padding:20px;"><div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:16px;border:1px solid #141E2E;"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen></iframe></div></div>`,
     });
 
     bm.add("image-full", {
       label: "Imagem",
       category: "Elementos",
-      content: `<div style="padding: 20px;"><img src="https://placehold.co/1200x600/1a1a2e/84CC16?text=Sua+Imagem" alt="Imagem" style="width: 100%; height: auto; border-radius: 16px; display: block;" /></div>`,
-    });
-
-    bm.add("divider", { label: "Divisor", category: "Elementos", content: `<hr style="border: none; height: 1px; background: linear-gradient(90deg, transparent, #84CC16, transparent); margin: 40px auto; max-width: 600px;" />` });
-    bm.add("spacer", { label: "Espaçador", category: "Elementos", content: `<div style="height: 60px;"></div>` });
-
-    bm.add("countdown", {
-      label: "Contador",
-      category: "Elementos",
-      content: `<div style="display: flex; justify-content: center; gap: 16px; padding: 40px 20px;"><div style="text-align: center; background: #1a1a1a; padding: 24px 16px; border-radius: 16px; min-width: 80px; border: 1px solid #222;"><span style="font-size: 40px; font-weight: 800; color: #84CC16; display: block; line-height: 1;">07</span><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; color: white; margin-top: 4px; display: block;">Dias</span></div><div style="text-align: center; background: #1a1a1a; padding: 24px 16px; border-radius: 16px; min-width: 80px; border: 1px solid #222;"><span style="font-size: 40px; font-weight: 800; color: #84CC16; display: block; line-height: 1;">12</span><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; color: white; margin-top: 4px; display: block;">Horas</span></div><div style="text-align: center; background: #1a1a1a; padding: 24px 16px; border-radius: 16px; min-width: 80px; border: 1px solid #222;"><span style="font-size: 40px; font-weight: 800; color: #84CC16; display: block; line-height: 1;">45</span><span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; color: white; margin-top: 4px; display: block;">Min</span></div></div>`,
+      content: `<div style="padding:20px;"><img src="https://placehold.co/1200x600/080D14/0EA5E9?text=Sua+Imagem" alt="Imagem" style="width:100%;height:auto;border-radius:16px;display:block;border:1px solid #141E2E;" /></div>`,
     });
 
     bm.add("social-proof", {
       label: "Prova Social",
       category: "Elementos",
-      content: `<div style="display: flex; align-items: center; justify-content: center; gap: 12px; padding: 20px;"><div style="display: flex;"><div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #84CC16, #22d3ee); border: 2px solid #0a0a0a;"></div><div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #a855f7); border: 2px solid #0a0a0a; margin-left: -10px;"></div><div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); border: 2px solid #0a0a0a; margin-left: -10px;"></div></div><div><p style="font-size: 14px; font-weight: 600; color: white; margin: 0;">+2.500 clientes</p><p style="font-size: 11px; color: rgba(255,255,255,0.4); margin: 0;">já usam nossa plataforma</p></div></div>`,
+      content: `<div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:20px;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="display:flex;">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#0EA5E9,#6366F1);border:2px solid #020408;"></div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#EC4899);border:2px solid #020408;margin-left:-10px;"></div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#10B981,#0EA5E9);border:2px solid #020408;margin-left:-10px;"></div>
+        </div>
+        <div><p style="font-size:14px;font-weight:600;color:#E8F1FF;margin:0;">+2.500 clientes</p><p style="font-size:11px;color:#4A6080;margin:0;">já usam nossa plataforma</p></div>
+      </div>`,
     });
 
-    bm.add("badge-strip", {
-      label: "Faixa de Logos",
+    bm.add("integrations-chips", {
+      label: "Integrações",
       category: "Elementos",
-      content: `<div style="padding: 40px 20px; background: #0a0a0a; text-align: center;"><p style="font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.3; color: white; margin: 0 0 24px;">Empresas que confiam em nós</p><div style="display: flex; justify-content: center; align-items: center; gap: 48px; flex-wrap: wrap; opacity: 0.4;"><span style="font-size: 20px; font-weight: 700; color: white;">Logo 1</span><span style="font-size: 20px; font-weight: 700; color: white;">Logo 2</span><span style="font-size: 20px; font-weight: 700; color: white;">Logo 3</span><span style="font-size: 20px; font-weight: 700; color: white;">Logo 4</span></div></div>`,
+      content: `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:40px 20px;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="display:flex;align-items:center;gap:8px;background:#080D14;border:1px solid #141E2E;padding:10px 20px;border-radius:100px;font-size:0.85rem;font-weight:500;color:#7A98B8;"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;"></span>Stripe</div>
+        <div style="display:flex;align-items:center;gap:8px;background:#080D14;border:1px solid #141E2E;padding:10px 20px;border-radius:100px;font-size:0.85rem;font-weight:500;color:#7A98B8;"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;"></span>Hotmart</div>
+        <div style="display:flex;align-items:center;gap:8px;background:#080D14;border:1px solid #141E2E;padding:10px 20px;border-radius:100px;font-size:0.85rem;font-weight:500;color:#7A98B8;"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;"></span>Google Ads</div>
+        <div style="display:flex;align-items:center;gap:8px;background:#080D14;border:1px solid #141E2E;padding:10px 20px;border-radius:100px;font-size:0.85rem;font-weight:500;color:#7A98B8;"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;"></span>Meta Ads</div>
+        <div style="display:flex;align-items:center;gap:8px;background:#080D14;border:1px solid #141E2E;padding:10px 20px;border-radius:100px;font-size:0.85rem;font-weight:500;color:#7A98B8;"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;"></span>WhatsApp</div>
+      </div>`,
     });
 
-    bm.add("animated-stats", {
-      label: "Estatísticas",
+    bm.add("divider", { label: "Divisor", category: "Elementos", content: `<hr style="border:none;height:1px;background:linear-gradient(90deg,transparent,#0EA5E9,transparent);margin:40px auto;max-width:600px;" />` });
+    bm.add("spacer", { label: "Espaçador", category: "Elementos", content: `<div style="height:60px;"></div>` });
+
+    bm.add("gradient-heading", {
+      label: "Título Gradiente",
       category: "Elementos",
-      content: `<div style="display: flex; justify-content: center; gap: 48px; padding: 60px 20px; background: #111; flex-wrap: wrap;"><div style="text-align: center;"><p style="font-size: 48px; font-weight: 800; color: #84CC16; margin: 0; line-height: 1;">10K+</p><p style="font-size: 13px; color: rgba(255,255,255,0.4); margin: 4px 0 0;">Usuários ativos</p></div><div style="text-align: center;"><p style="font-size: 48px; font-weight: 800; color: #22d3ee; margin: 0; line-height: 1;">98%</p><p style="font-size: 13px; color: rgba(255,255,255,0.4); margin: 4px 0 0;">Satisfação</p></div><div style="text-align: center;"><p style="font-size: 48px; font-weight: 800; color: #a855f7; margin: 0; line-height: 1;">24/7</p><p style="font-size: 13px; color: rgba(255,255,255,0.4); margin: 4px 0 0;">Suporte</p></div></div>`,
+      content: `<h2 style="font-size:48px;font-weight:800;background:linear-gradient(135deg,#0EA5E9,#6366F1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin:0;padding:20px;letter-spacing:-0.04em;font-family:'Plus Jakarta Sans',sans-serif;">Texto com Gradiente</h2>`,
+    });
+
+    bm.add("nav-bar", {
+      label: "Navbar",
+      category: "Seções",
+      content: `<nav style="display:flex;align-items:center;justify-content:space-between;padding:20px 5%;background:rgba(2,4,8,0.7);backdrop-filter:blur(24px);border-bottom:1px solid #141E2E;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="font-weight:800;font-size:1.4rem;letter-spacing:-0.04em;color:#E8F1FF;">Sua<span style="color:#0EA5E9;">Marca</span></div>
+        <div style="display:flex;gap:2rem;">
+          <a href="#" style="color:#7A98B8;text-decoration:none;font-size:0.9rem;font-weight:500;">Recursos</a>
+          <a href="#" style="color:#7A98B8;text-decoration:none;font-size:0.9rem;font-weight:500;">Preços</a>
+          <a href="#" style="color:#7A98B8;text-decoration:none;font-size:0.9rem;font-weight:500;">Contato</a>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <a href="#" style="color:#7A98B8;text-decoration:none;font-size:0.9rem;font-weight:500;padding:8px 16px;border-radius:8px;border:1px solid #141E2E;">Login</a>
+          <a href="#" style="background:linear-gradient(135deg,#0EA5E9,#6366F1);color:white;padding:10px 22px;border-radius:8px;font-weight:700;font-size:0.85rem;text-decoration:none;">Começar</a>
+        </div>
+      </nav>`,
     });
 
     // Load content
@@ -389,15 +521,16 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
       });
     }
 
-    // On component select, show traits panel
-    editor.on("component:selected", () => {
-      const selected = editor.getSelected();
-      if (selected) {
-        const tag = selected.get("tagName");
-        if (tag === "a" || tag === "button") {
-          setActivePanel("traits");
-        }
+    editor.on("component:selected", (comp: any) => {
+      const tag = comp?.get?.("tagName");
+      setSelectedComponent(tag || null);
+      if (tag === "a" || tag === "button") {
+        setActivePanel("traits");
       }
+    });
+
+    editor.on("component:deselected", () => {
+      setSelectedComponent(null);
     });
 
     editorRef.current = editor;
@@ -436,7 +569,7 @@ ${metaDescription ? `<meta name="description" content="${metaDescription}">` : "
     } as any).eq("id", pageId);
     setSaving(false);
     if (error) toast({ title: error.message, variant: "destructive" });
-    else toast({ title: "Página salva com sucesso!" });
+    else toast({ title: "Salvo!" });
   };
 
   const handleExportHTML = () => {
@@ -498,61 +631,71 @@ ${metaDescription ? `<meta name="description" content="${metaDescription}">` : "
 
   const systemUrl = typeof window !== "undefined" ? `${window.location.origin}/p/${slug}` : `/p/${slug}`;
 
+  const panels = [
+    { id: "blocks", icon: LayoutGrid, label: "Blocos" },
+    { id: "styles", icon: Paintbrush, label: "Design" },
+    { id: "traits", icon: Tag, label: "Ações" },
+    { id: "layers", icon: Layers, label: "Camadas" },
+  ] as const;
+
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col" style={{ background: "#111" }}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 flex-wrap z-50" style={{ borderBottom: "1px solid #1e1e1e", background: "#0a0a0a" }}>
+    <div className="h-[calc(100vh-3.5rem)] flex flex-col" style={{ background: "#020408" }}>
+      {/* Top Bar */}
+      <div className="flex items-center justify-between gap-2 px-3 h-11 shrink-0 z-50" style={{ borderBottom: "1px solid #141E2E", background: "#020408" }}>
+        {/* Left */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack} className="h-7 px-2" style={{ color: "rgba(255,255,255,0.7)" }}>
+          <button onClick={onBack} className="flex items-center justify-center h-7 w-7 rounded-md transition-colors hover:bg-white/5" style={{ color: "#7A98B8" }}>
             <ArrowLeft className="h-3.5 w-3.5" />
-          </Button>
-          <div className="w-px h-4" style={{ background: "rgba(255,255,255,0.1)" }} />
-          <span className="text-xs font-medium truncate max-w-[180px]" style={{ color: "rgba(255,255,255,0.8)" }}>{title}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: isPublished ? "rgba(132,204,22,0.15)" : "rgba(255,255,255,0.06)", color: isPublished ? "#a3e635" : "rgba(255,255,255,0.4)" }}>
-            {isPublished ? "Live" : "Draft"}
+          </button>
+          <div className="w-px h-4" style={{ background: "#141E2E" }} />
+          <span className="text-xs font-semibold truncate max-w-[160px]" style={{ color: "#E8F1FF" }}>{title}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: isPublished ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.04)", color: isPublished ? "#10B981" : "#4A6080" }}>
+            {isPublished ? "LIVE" : "DRAFT"}
           </span>
         </div>
-        <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="sm" onClick={handleUndo} className="h-7 px-1.5" style={{ color: "rgba(255,255,255,0.5)" }} title="Desfazer (Ctrl+Z)"><Undo2 className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" onClick={handleRedo} className="h-7 px-1.5" style={{ color: "rgba(255,255,255,0.5)" }} title="Refazer"><Redo2 className="h-3.5 w-3.5" /></Button>
-          <div className="w-px h-4 mx-1" style={{ background: "rgba(255,255,255,0.08)" }} />
+
+        {/* Center - Devices */}
+        <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "#080D14", border: "1px solid #141E2E" }}>
           {(["desktop", "tablet", "mobile"] as const).map(d => (
-            <Button key={d} variant="ghost" size="sm" onClick={() => handleDevice(d)} className="h-7 px-1.5" style={{ color: activeDevice === d ? "#a3e635" : "rgba(255,255,255,0.3)" }}>
+            <button key={d} onClick={() => handleDevice(d)} className="h-6 w-7 rounded-md flex items-center justify-center transition-all" style={{ color: activeDevice === d ? "#0EA5E9" : "#4A6080", background: activeDevice === d ? "rgba(14,165,233,0.1)" : "transparent" }}>
               {d === "desktop" ? <Monitor className="h-3.5 w-3.5" /> : d === "tablet" ? <Tablet className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
-            </Button>
+            </button>
           ))}
-          <div className="w-px h-4 mx-1" style={{ background: "rgba(255,255,255,0.08)" }} />
-          <Button variant="ghost" size="sm" onClick={handleViewCode} className="h-7 px-1.5" style={{ color: "rgba(255,255,255,0.5)" }} title="Código"><Code className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" onClick={handleExportHTML} className="h-7 px-1.5" style={{ color: "rgba(255,255,255,0.5)" }} title="Exportar"><Download className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} className="h-7 px-1.5" style={{ color: "rgba(255,255,255,0.5)" }} title="Importar"><Upload className="h-3.5 w-3.5" /></Button>
+        </div>
+
+        {/* Right */}
+        <div className="flex items-center gap-1">
+          <button onClick={handleUndo} className="h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/5" style={{ color: "#4A6080" }} title="Desfazer"><Undo2 className="h-3.5 w-3.5" /></button>
+          <button onClick={handleRedo} className="h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/5" style={{ color: "#4A6080" }} title="Refazer"><Redo2 className="h-3.5 w-3.5" /></button>
+          <div className="w-px h-4 mx-0.5" style={{ background: "#141E2E" }} />
+          <button onClick={handleViewCode} className="h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/5" style={{ color: "#4A6080" }} title="Código"><Code className="h-3.5 w-3.5" /></button>
+          <button onClick={handleExportHTML} className="h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/5" style={{ color: "#4A6080" }} title="Exportar"><Download className="h-3.5 w-3.5" /></button>
+          <button onClick={() => fileInputRef.current?.click()} className="h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/5" style={{ color: "#4A6080" }} title="Importar"><Upload className="h-3.5 w-3.5" /></button>
           <input ref={fileInputRef} type="file" accept=".html,.htm" onChange={handleImportHTML} className="hidden" />
-          <div className="w-px h-4 mx-1" style={{ background: "rgba(255,255,255,0.08)" }} />
-          <Button variant="ghost" size="sm" onClick={() => setShowSettings(!showSettings)} className="h-7 px-2" style={{ color: showSettings ? "#a3e635" : "rgba(255,255,255,0.5)" }}>
-            <Settings className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 font-semibold ml-1" style={{ background: "#84CC16", color: "#000" }}>
-            <Save className="h-3.5 w-3.5 mr-1" /> {saving ? "..." : "Salvar"}
-          </Button>
+          <div className="w-px h-4 mx-0.5" style={{ background: "#141E2E" }} />
+          <button onClick={() => setShowSettings(!showSettings)} className="h-7 px-2 rounded-md flex items-center gap-1 text-[11px] font-medium transition-colors hover:bg-white/5" style={{ color: showSettings ? "#0EA5E9" : "#4A6080" }}>
+            <Globe className="h-3.5 w-3.5" /> SEO
+          </button>
+          <button onClick={handleSave} disabled={saving} className="h-7 px-3 rounded-md flex items-center gap-1.5 text-[11px] font-bold transition-all" style={{ background: "linear-gradient(135deg,#0EA5E9,#6366F1)", color: "white" }}>
+            <Save className="h-3 w-3" /> {saving ? "..." : "Salvar"}
+          </button>
         </div>
       </div>
 
-      {/* Settings */}
+      {/* Settings Panel */}
       {showSettings && (
-        <div className="px-4 py-3 space-y-3 z-40" style={{ borderBottom: "1px solid #1e1e1e", background: "#0d0d0d" }}>
+        <div className="px-4 py-3 space-y-3 z-40 shrink-0" style={{ borderBottom: "1px solid #141E2E", background: "#080D14" }}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Título</label>
-              <Input value={title} onChange={e => setTitle(e.target.value)} className="text-sm" style={{ background: "#1a1a1a", borderColor: "#222", color: "white" }} />
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Slug (URL)</label>
-              <Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} className="text-sm" style={{ background: "#1a1a1a", borderColor: "#222", color: "white" }} />
-              <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>{systemUrl}</p>
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Domínio Próprio</label>
-              <Input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="seudominio.com" className="text-sm" style={{ background: "#1a1a1a", borderColor: "#222", color: "white" }} />
-            </div>
+            {[
+              { label: "Título", val: title, set: setTitle },
+              { label: "Slug (URL)", val: slug, set: (v: string) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, "")) },
+              { label: "Domínio Próprio", val: customDomain, set: setCustomDomain, placeholder: "seudominio.com" },
+            ].map(f => (
+              <div key={f.label}>
+                <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "#4A6080" }}>{f.label}</label>
+                <Input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder || ""} className="text-sm h-8" style={{ background: "#0C1420", borderColor: "#141E2E", color: "#E8F1FF" }} />
+              </div>
+            ))}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {[
@@ -560,20 +703,20 @@ ${metaDescription ? `<meta name="description" content="${metaDescription}">` : "
               { label: "Meta Description", val: metaDescription, set: setMetaDescription },
               { label: "Pixel Meta", val: pixelMeta, set: setPixelMeta },
               { label: "Pixel Google", val: pixelGoogle, set: setPixelGoogle },
-            ].map((f) => (
+            ].map(f => (
               <div key={f.label}>
-                <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>{f.label}</label>
-                <Input value={f.val} onChange={e => f.set(e.target.value)} className="text-sm" style={{ background: "#1a1a1a", borderColor: "#222", color: "white" }} />
+                <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: "#4A6080" }}>{f.label}</label>
+                <Input value={f.val} onChange={e => f.set(e.target.value)} className="text-sm h-8" style={{ background: "#0C1420", borderColor: "#141E2E", color: "#E8F1FF" }} />
               </div>
             ))}
           </div>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "white" }}>
-              <Switch checked={isPublished} onCheckedChange={setIsPublished} /> Publicada
+            <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "#E8F1FF" }}>
+              <Switch checked={isPublished} onCheckedChange={setIsPublished} /> Publicar
             </label>
             {isPublished && slug && (
-              <a href={`/p/${slug}`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 hover:underline" style={{ color: "#a3e635" }}>
-                <ExternalLink className="h-3 w-3" /> Abrir
+              <a href={`/p/${slug}`} target="_blank" rel="noopener noreferrer" className="text-[11px] flex items-center gap-1 hover:underline" style={{ color: "#0EA5E9" }}>
+                <ExternalLink className="h-3 w-3" /> {systemUrl}
               </a>
             )}
           </div>
@@ -582,67 +725,65 @@ ${metaDescription ? `<meta name="description" content="${metaDescription}">` : "
 
       {/* Code Overlay */}
       {showCode && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "rgba(0,0,0,0.95)" }}>
-          <div className="flex items-center justify-between px-4 py-2" style={{ background: "#0a0a0a", borderBottom: "1px solid #1e1e1e" }}>
-            <span className="text-sm font-semibold" style={{ color: "white" }}>Código HTML</span>
-            <Button variant="ghost" size="sm" onClick={() => setShowCode(false)} style={{ color: "white" }}>Fechar</Button>
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "rgba(2,4,8,0.98)" }}>
+          <div className="flex items-center justify-between px-4 h-10" style={{ background: "#080D14", borderBottom: "1px solid #141E2E" }}>
+            <span className="text-xs font-semibold" style={{ color: "#E8F1FF" }}>Código HTML</span>
+            <button onClick={() => setShowCode(false)} className="text-xs font-medium" style={{ color: "#7A98B8" }}>Fechar</button>
           </div>
           <textarea
             value={codeContent}
             onChange={e => setCodeContent(e.target.value)}
             className="flex-1 w-full resize-none p-4 font-mono text-xs focus:outline-none leading-5"
-            style={{ background: "#050505", color: "#a3e635" }}
+            style={{ background: "#020408", color: "#0EA5E9" }}
             spellCheck={false}
           />
-          <div className="flex gap-2 p-2" style={{ background: "#0a0a0a", borderTop: "1px solid #1e1e1e" }}>
-            <Button size="sm" onClick={() => {
-              loadHtmlIntoEditor(codeContent);
-              setShowCode(false);
-              toast({ title: "HTML aplicado!" });
-            }} style={{ background: "#84CC16", color: "#000" }}>
+          <div className="flex gap-2 p-2" style={{ background: "#080D14", borderTop: "1px solid #141E2E" }}>
+            <button onClick={() => { loadHtmlIntoEditor(codeContent); setShowCode(false); toast({ title: "HTML aplicado!" }); }} className="h-8 px-4 rounded-md text-xs font-bold" style={{ background: "linear-gradient(135deg,#0EA5E9,#6366F1)", color: "white" }}>
               Aplicar Código
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Main Editor */}
+      {/* Main Editor Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar icons */}
-        <div className="w-11 flex flex-col items-center py-2 gap-0.5" style={{ background: "#0a0a0a", borderRight: "1px solid #1e1e1e" }}>
-          {([
-            { id: "blocks", icon: LayoutGrid, label: "Blocos" },
-            { id: "styles", icon: Paintbrush, label: "Estilos" },
-            { id: "traits", icon: Link2, label: "Configurações" },
-            { id: "layers", icon: Layers, label: "Camadas" },
-          ] as const).map(({ id, icon: Icon, label }) => (
+        {/* Sidebar Icons */}
+        <div className="w-12 flex flex-col items-center py-3 gap-1 shrink-0" style={{ background: "#020408", borderRight: "1px solid #141E2E" }}>
+          {panels.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => setActivePanel(activePanel === id ? null : id)}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: activePanel === id ? "#a3e635" : "rgba(255,255,255,0.3)", background: activePanel === id ? "rgba(132,204,22,0.1)" : "transparent" }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center transition-all relative group"
+              style={{ color: activePanel === id ? "#0EA5E9" : "#4A6080", background: activePanel === id ? "rgba(14,165,233,0.08)" : "transparent" }}
               title={label}
             >
               <Icon className="h-4 w-4" />
+              {activePanel === id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-r" style={{ background: "#0EA5E9" }} />}
             </button>
           ))}
         </div>
 
         {/* Side Panel */}
         {activePanel && (
-          <div className="w-64 overflow-y-auto" style={{ background: "#0f0f0f", borderRight: "1px solid #1e1e1e" }}>
-            <div className="px-3 py-2.5" style={{ borderBottom: "1px solid #1e1e1e" }}>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {activePanel === "blocks" ? "Blocos" : activePanel === "styles" ? "Estilos" : activePanel === "traits" ? "Configurações do Elemento" : "Camadas"}
+          <div className="w-[280px] overflow-y-auto shrink-0" style={{ background: "#080D14", borderRight: "1px solid #141E2E" }}>
+            <div className="flex items-center justify-between px-4 h-10" style={{ borderBottom: "1px solid #141E2E" }}>
+              <h3 className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#4A6080" }}>
+                {panels.find(p => p.id === activePanel)?.label}
               </h3>
+              <button onClick={() => setActivePanel(null)} className="h-5 w-5 rounded flex items-center justify-center" style={{ color: "#4A6080" }}>
+                <X className="h-3 w-3" />
+              </button>
             </div>
             <div
               id={activePanel === "blocks" ? "gjs-blocks" : activePanel === "styles" ? "gjs-styles" : activePanel === "traits" ? "gjs-traits" : "gjs-layers"}
-              style={activePanel === "traits" ? { padding: "8px" } : undefined}
+              className="p-1"
             />
             {activePanel === "traits" && (
-              <div className="px-3 py-2 text-[10px]" style={{ color: "rgba(255,255,255,0.3)", borderTop: "1px solid #1e1e1e" }}>
-                Selecione um link ou botão no canvas para editar URL, ação (WhatsApp, telefone, email) e destino.
+              <div className="px-4 py-3 text-[10px] leading-relaxed" style={{ color: "#4A6080", borderTop: "1px solid #141E2E" }}>
+                {selectedComponent === "a" || selectedComponent === "button"
+                  ? "Configure a URL, ação (WhatsApp, telefone, email) e destino do elemento selecionado."
+                  : "Selecione um link ou botão no canvas para configurar ações e destinos."
+                }
               </div>
             )}
           </div>
