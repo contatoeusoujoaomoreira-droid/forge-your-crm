@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import LandingPagePublic from "./pages/LandingPagePublic";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
