@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const links = [
   { label: "Recursos", href: "#recursos" },
@@ -13,6 +14,12 @@ const links = [
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleAuthNavigation = () => {
+    navigate(user ? "/dashboard" : "/auth");
+    setOpen(false);
+  };
 
   return (
     <motion.nav
@@ -26,7 +33,6 @@ const Navbar = () => {
           <span className="text-foreground">AI</span>
         </a>
 
-        {/* Desktop links */}
         <div className="hidden md:flex items-center gap-8">
           {links.map((l) => (
             <a
@@ -43,22 +49,21 @@ const Navbar = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/auth")}
+            onClick={handleAuthNavigation}
             className="text-muted-foreground hover:text-foreground"
           >
             <LogIn className="mr-2 h-4 w-4" />
-            Entrar
+            {user ? "Dashboard" : "Entrar"}
           </Button>
           <Button
             size="sm"
-            onClick={() => navigate("/auth")}
+            onClick={handleAuthNavigation}
             className="bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime"
           >
-            Começar Grátis
+            {user ? "Abrir painel" : "Começar Grátis"}
           </Button>
         </div>
 
-        {/* Mobile menu button */}
         <button
           onClick={() => setOpen(!open)}
           className="md:hidden text-foreground"
@@ -67,7 +72,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile menu */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -89,10 +93,10 @@ const Navbar = () => {
               ))}
               <Button
                 size="sm"
-                onClick={() => { navigate("/auth"); setOpen(false); }}
+                onClick={handleAuthNavigation}
                 className="bg-gradient-lime text-primary-foreground w-full mt-2"
               >
-                Começar Grátis
+                {user ? "Abrir painel" : "Começar Grátis"}
               </Button>
             </div>
           </motion.div>
