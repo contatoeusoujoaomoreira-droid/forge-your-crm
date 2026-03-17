@@ -39,6 +39,7 @@ const Dashboard = () => {
   };
 
   const crmTabs = tabs.filter((t) => t.group === "crm");
+  const toolsTabs = tabs.filter((t) => t.group === "tools");
 
   return (
     <div className="min-h-screen bg-background flex">
