@@ -1,15 +1,61 @@
 import { X, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export interface PageTemplate {
   name: string;
   description: string;
   preview: string;
   category: string;
+  isFullHTML?: boolean;
+  htmlFile?: string;
   sections: { section_type: string; order: number; config: any }[];
 }
 
 const templates: PageTemplate[] = [
+  {
+    name: "LAKS Company — Assessoria",
+    description: "Dark mode com verde-lima neon. Estilo corporativo para agências e assessorias de marketing digital.",
+    preview: "🏢",
+    category: "Agência",
+    isFullHTML: true,
+    htmlFile: "/templates/laks-company.html",
+    sections: [],
+  },
+  {
+    name: "Funil Eterno — Infoproduto",
+    description: "Tema laranja/dourado com urgência e escassez. Perfeito para cursos e métodos digitais.",
+    preview: "🔥",
+    category: "Infoproduto",
+    isFullHTML: true,
+    htmlFile: "/templates/funil-eterno.html",
+    sections: [],
+  },
+  {
+    name: "Clickmax — SaaS Platform",
+    description: "Azul/roxo com grid pattern. Estilo moderno para plataformas SaaS e ferramentas digitais.",
+    preview: "⚡",
+    category: "SaaS",
+    isFullHTML: true,
+    htmlFile: "/templates/clickmax.html",
+    sections: [],
+  },
+  {
+    name: "MAV Mentoria — High Ticket",
+    description: "Tema dourado elegante com serif fonts. Ideal para mentorias e serviços high-ticket.",
+    preview: "👑",
+    category: "Mentoria",
+    isFullHTML: true,
+    htmlFile: "/templates/mav-mentoria.html",
+    sections: [],
+  },
+  {
+    name: "Perpétuo Lucrativo — Templates",
+    description: "Verde neon com scanlines. Estilo tech para venda de templates e materiais digitais.",
+    preview: "🚀",
+    category: "Templates",
+    isFullHTML: true,
+    htmlFile: "/templates/perpetuo-lucrativo.html",
+    sections: [],
+  },
   {
     name: "VSL — Vídeo de Vendas",
     description: "Página com vídeo de vendas, headline forte, urgência e escassez. Ideal para lançamentos.",
@@ -43,18 +89,6 @@ const templates: PageTemplate[] = [
       { section_type: "cta", order: 2, config: { headline: "⚠️ Vagas Limitadas", description: "Apenas 500 vagas disponíveis. Não deixe para depois.", ctaText: "QUERO PARTICIPAR →" } },
     ],
   },
-  {
-    name: "Forge — Estilo Corporativo Tech",
-    description: "Dark mode moderno com verde lima neon. Estilo Linear/Vercel para SaaS.",
-    preview: "⚡",
-    category: "SaaS",
-    sections: [
-      { section_type: "hero", order: 0, config: { headline: "Construa. Escale. Domine.", subtitle: "A plataforma all-in-one para acelerar suas vendas com automação inteligente.", ctaText: "Começar Gratuitamente →", badge: "✨ Novo: AI Copilot" } },
-      { section_type: "features", order: 1, config: { title: "Tudo que você precisa", items: [{ icon: "📊", title: "Analytics em Tempo Real", description: "Dashboards com métricas que importam." }, { icon: "🤖", title: "Automação Inteligente", description: "Fluxos automatizados de follow-up." }, { icon: "🌐", title: "Landing Pages em Minutos", description: "Builder com templates de alta conversão." }] } },
-      { section_type: "pricing", order: 2, config: { title: "Planos Transparentes", plans: [{ name: "Starter", price: "0", features: ["100 leads", "1 landing page", "Analytics básico"], ctaText: "Começar Grátis", highlight: false }, { name: "Pro", price: "97", features: ["Leads ilimitados", "Pages ilimitadas", "CRM completo"], ctaText: "Assinar Pro →", highlight: true }] } },
-      { section_type: "cta", order: 3, config: { headline: "Pronto para acelerar?", description: "Comece gratuitamente e escale conforme cresce.", ctaText: "Criar Conta Grátis →" } },
-    ],
-  },
 ];
 
 interface Props {
@@ -65,7 +99,7 @@ interface Props {
 const TemplatesModal = ({ onSelect, onClose }: Props) => {
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-xl max-w-3xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card border border-border rounded-xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -78,10 +112,30 @@ const TemplatesModal = ({ onSelect, onClose }: Props) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {templates.map((t, i) => (
+        <p className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">⚡ Templates Premium (HTML completo)</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {templates.filter(t => t.isFullHTML).map((t, i) => (
             <button
-              key={i}
+              key={`full-${i}`}
+              onClick={() => onSelect(t)}
+              className="text-left p-5 rounded-lg border border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all group bg-primary/[0.02]"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{t.preview}</span>
+                <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">{t.category}</span>
+              </div>
+              <p className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm">{t.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
+              <p className="text-[10px] text-primary mt-2 font-medium">✨ Página completa editável</p>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">📦 Templates por seções</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.filter(t => !t.isFullHTML).map((t, i) => (
+            <button
+              key={`sec-${i}`}
               onClick={() => onSelect(t)}
               className="text-left p-5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-all group"
             >
@@ -89,7 +143,7 @@ const TemplatesModal = ({ onSelect, onClose }: Props) => {
                 <span className="text-2xl">{t.preview}</span>
                 <span className="text-[10px] uppercase tracking-wider text-primary font-semibold">{t.category}</span>
               </div>
-              <p className="font-semibold text-foreground group-hover:text-primary transition-colors">{t.name}</p>
+              <p className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm">{t.name}</p>
               <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
               <p className="text-[10px] text-muted-foreground mt-2">{t.sections.length} seções pré-configuradas</p>
             </button>

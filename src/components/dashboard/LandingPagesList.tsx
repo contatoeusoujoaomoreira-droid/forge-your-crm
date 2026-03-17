@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Globe, Pencil, Copy, Trash2, ExternalLink, BarChart3, X, Sparkles, Home } from "lucide-react";
+import { Plus, Globe, Pencil, Copy, Trash2, ExternalLink, BarChart3, X, Sparkles, Home, Code } from "lucide-react";
 import PageAnalytics from "@/components/dashboard/PageAnalytics";
+import PageHTMLEditor from "@/components/dashboard/PageHTMLEditor";
 import TemplatesModal, { type PageTemplate } from "@/components/dashboard/TemplatesModal";
 
 interface LandingPage {
@@ -18,6 +19,8 @@ interface LandingPage {
   meta_description: string | null;
   pixel_meta_id: string | null;
   pixel_google_id: string | null;
+  custom_domain: string | null;
+  html_content: string | null;
   created_at: string;
   _viewCount?: number;
 }
@@ -30,6 +33,7 @@ const LandingPagesList = () => {
   const [showForm, setShowForm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState<string | null>(null);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", slug: "", meta_title: "", meta_description: "", pixel_meta_id: "", pixel_google_id: "" });
   const { toast } = useToast();
 
@@ -65,6 +69,27 @@ const LandingPagesList = () => {
 
   const handleCreateFromTemplate = async (template: PageTemplate) => {
     const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Date.now().toString(36);
+
+    if (template.isFullHTML && template.htmlFile) {
+      // Fetch the HTML file content
+      try {
+        const response = await fetch(template.htmlFile);
+        const htmlContent = await response.text();
+        const { data, error } = await supabase.from("landing_pages").insert({
+          title: template.name, slug, is_published: false, html_content: htmlContent,
+        } as any).select("id").single();
+        if (error) { toast({ title: error.message, variant: "destructive" }); return; }
+        toast({ title: `Página criada a partir do template "${template.name}"!` });
+        setShowTemplates(false);
+        fetchPages();
+        // Open editor
+        if (data) setEditingPageId(data.id);
+      } catch {
+        toast({ title: "Erro ao carregar template", variant: "destructive" });
+      }
+      return;
+    }
+
     const { data, error } = await supabase.from("landing_pages").insert({
       title: template.name, slug, is_published: false,
     }).select("id").single();
@@ -95,11 +120,14 @@ const LandingPagesList = () => {
     const { data, error } = await supabase.from("landing_pages").insert({
       title: `${page.title} (Cópia)`, slug: newSlug, is_published: false,
       meta_title: page.meta_title, meta_description: page.meta_description, pixel_meta_id: page.pixel_meta_id, pixel_google_id: page.pixel_google_id,
-    }).select("id").single();
+      html_content: page.html_content, custom_domain: null,
+    } as any).select("id").single();
     if (error) { toast({ title: error.message, variant: "destructive" }); return; }
-    const { data: sections } = await supabase.from("landing_page_sections").select("*").eq("page_id", page.id);
-    if (sections && sections.length > 0) {
-      await supabase.from("landing_page_sections").insert(sections.map((s: any) => ({ page_id: data.id, section_type: s.section_type, order: s.order, config: s.config, is_visible: s.is_visible })));
+    if (!page.html_content) {
+      const { data: sections } = await supabase.from("landing_page_sections").select("*").eq("page_id", page.id);
+      if (sections && sections.length > 0) {
+        await supabase.from("landing_page_sections").insert(sections.map((s: any) => ({ page_id: data.id, section_type: s.section_type, order: s.order, config: s.config, is_visible: s.is_visible })));
+      }
     }
     toast({ title: "Página duplicada!" });
     fetchPages();
@@ -117,6 +145,11 @@ const LandingPagesList = () => {
     fetchPages();
   };
 
+  // Show editor
+  if (editingPageId) {
+    return <PageHTMLEditor pageId={editingPageId} onBack={() => { setEditingPageId(null); fetchPages(); }} />;
+  }
+
   if (showAnalytics) {
     return (
       <div className="space-y-4">
@@ -132,22 +165,41 @@ const LandingPagesList = () => {
   const renderPageCard = (page: LandingPage, isMain = false) => (
     <div key={page.id} className="surface-card rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-foreground flex items-center gap-2">
-          {isMain && <Home className="h-4 w-4 text-primary" />} {page.title}
+        <h3 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+          {isMain && <Home className="h-4 w-4 text-primary" />}
+          {page.html_content && <Code className="h-3 w-3 text-primary" />}
+          {page.title}
         </h3>
         <Switch checked={page.is_published} onCheckedChange={() => handleTogglePublish(page.id, page.is_published)} />
       </div>
-      <p className="text-xs text-muted-foreground">{isMain ? "/" : `/p/${page.slug}`}</p>
+      <div className="space-y-0.5">
+        <p className="text-xs text-muted-foreground">{isMain ? "/" : `/p/${page.slug}`}</p>
+        {page.custom_domain && (
+          <p className="text-xs text-primary flex items-center gap-1"><Globe className="h-3 w-3" /> {page.custom_domain}</p>
+        )}
+      </div>
       <div className="flex items-center gap-2 text-xs">
         <span className={page.is_published ? "text-primary" : "text-muted-foreground"}>
           {page.is_published ? "Live" : "Draft"}
         </span>
         <span className="text-muted-foreground">•</span>
         <span className="text-muted-foreground">{page._viewCount} views</span>
+        {page.html_content && <>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-primary text-[10px]">HTML</span>
+        </>}
       </div>
       <div className="flex items-center gap-1 flex-wrap">
+        <Button variant="ghost" size="sm" onClick={() => setEditingPageId(page.id)} title="Editar">
+          <Pencil className="h-3 w-3" />
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => setShowAnalytics(page.id)}><BarChart3 className="h-3 w-3" /></Button>
         <Button variant="ghost" size="sm" onClick={() => handleDuplicate(page)} title="Duplicar"><Copy className="h-3 w-3" /></Button>
+        {page.is_published && (
+          <Button variant="ghost" size="sm" asChild>
+            <a href={`/p/${page.slug}`} target="_blank" rel="noopener noreferrer" title="Abrir"><ExternalLink className="h-3 w-3" /></a>
+          </Button>
+        )}
         {!isMain && <Button variant="ghost" size="sm" onClick={() => handleDelete(page.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>}
       </div>
     </div>
