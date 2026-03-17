@@ -90,6 +90,28 @@ const Dashboard = () => {
               </button>
             );
           })}
+
+          <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+            {sidebarCollapsed ? "—" : "Ferramentas"}
+          </p>
+          {toolsTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
+                  active
+                    ? "bg-sidebar-accent text-lime"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!sidebarCollapsed && <span>{tab.label}</span>}
+              </button>
+            );
+          })}
         </nav>
 
         {/* User/Logout */}
