@@ -157,6 +157,9 @@ const Dashboard = () => {
             {activeTab === "leads" && <LeadsList />}
             {activeTab === "bookings" && <BookingsList />}
             {activeTab === "analytics" && <Analytics />}
+            {activeTab === "pages" && <LandingPagesList />}
+            {activeTab === "quizzes" && <QuizList />}
+            {activeTab === "booking-editor" && <BookingPageEditor />}
           </motion.div>
         </div>
       </main>
