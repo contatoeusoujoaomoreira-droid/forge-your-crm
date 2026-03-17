@@ -99,6 +99,89 @@ export type Database = {
           },
         ]
       }
+      landing_page_sections: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_visible: boolean
+          order: number
+          page_id: string
+          section_type: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          order?: number
+          page_id: string
+          section_type: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          order?: number
+          page_id?: string
+          section_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_sections_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_pages: {
+        Row: {
+          created_at: string
+          custom_css: string | null
+          id: string
+          is_published: boolean
+          meta_description: string | null
+          meta_title: string | null
+          pixel_google_id: string | null
+          pixel_meta_id: string | null
+          slug: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_css?: string | null
+          id?: string
+          is_published?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          pixel_google_id?: string | null
+          pixel_meta_id?: string | null
+          slug: string
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          custom_css?: string | null
+          id?: string
+          is_published?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          pixel_google_id?: string | null
+          pixel_meta_id?: string | null
+          slug?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           company: string | null
@@ -158,6 +241,44 @@ export type Database = {
           },
         ]
       }
+      page_views: {
+        Row: {
+          created_at: string
+          id: string
+          page_id: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_id: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_id?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_views_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_stages: {
         Row: {
           color: string | null
@@ -208,6 +329,78 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quiz_responses: {
+        Row: {
+          completed_at: string
+          id: string
+          lead_id: string | null
+          quiz_id: string
+          responses: Json
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          lead_id?: string | null
+          quiz_id: string
+          responses?: Json
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          lead_id?: string | null
+          quiz_id?: string
+          responses?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_responses_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_responses_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          questions: Json
+          slug: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          questions?: Json
+          slug: string
+          title: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          questions?: Json
+          slug?: string
+          title?: string
           user_id?: string
         }
         Relationships: []
