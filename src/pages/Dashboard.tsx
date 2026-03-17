@@ -11,12 +11,18 @@ import CRMKanban from "@/components/dashboard/CRMKanban";
 import Analytics from "@/components/dashboard/Analytics";
 import BookingsList from "@/components/dashboard/BookingsList";
 import LeadsList from "@/components/dashboard/LeadsList";
+import LandingPagesList from "@/components/dashboard/LandingPagesList";
+import QuizList from "@/components/dashboard/QuizList";
+import BookingPageEditor from "@/components/dashboard/BookingPageEditor";
 
 const tabs = [
   { id: "kanban", label: "Pipeline", icon: LayoutDashboard, group: "crm" },
   { id: "leads", label: "Leads", icon: Users, group: "crm" },
   { id: "bookings", label: "Reservas", icon: Calendar, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
+  { id: "pages", label: "Pages", icon: Globe, group: "tools" },
+  { id: "quizzes", label: "Quizzes", icon: FileQuestion, group: "tools" },
+  { id: "booking-editor", label: "Pg. Reservas", icon: CalendarCog, group: "tools" },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
