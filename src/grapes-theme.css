@@ -1,0 +1,194 @@
+/* GrapesJS Dark Theme Override */
+.gjs-one-bg {
+  background-color: #1a1a1a !important;
+}
+.gjs-two-color {
+  color: #e0e0e0 !important;
+}
+.gjs-three-bg {
+  background-color: #111 !important;
+}
+.gjs-four-color,
+.gjs-four-color-h:hover {
+  color: #84CC16 !important;
+}
+
+/* Panels */
+.gjs-pn-panels {
+  display: none !important;
+}
+
+/* Blocks */
+.gjs-blocks-cs {
+  background: transparent !important;
+}
+.gjs-block {
+  background: #222 !important;
+  border: 1px solid #333 !important;
+  border-radius: 8px !important;
+  color: #ccc !important;
+  min-height: 70px !important;
+  padding: 8px !important;
+  margin: 4px !important;
+  transition: all 0.15s ease !important;
+  width: calc(50% - 8px) !important;
+}
+.gjs-block:hover {
+  border-color: #84CC16 !important;
+  background: #2a2a2a !important;
+}
+.gjs-block svg {
+  width: 28px !important;
+  height: 28px !important;
+  fill: none !important;
+  stroke: #84CC16 !important;
+}
+.gjs-block__media {
+  margin-bottom: 4px !important;
+}
+.gjs-block-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+.gjs-block-category .gjs-title {
+  background: #1a1a1a !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  color: #84CC16 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding: 8px 12px !important;
+}
+
+/* Style Manager */
+.gjs-sm-sector .gjs-sm-sector-title {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  color: #84CC16 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+.gjs-sm-property {
+  color: #ccc !important;
+}
+.gjs-sm-label {
+  font-size: 11px !important;
+  color: #999 !important;
+}
+.gjs-field {
+  background: #222 !important;
+  border: 1px solid #333 !important;
+  border-radius: 4px !important;
+  color: #e0e0e0 !important;
+}
+.gjs-field input,
+.gjs-field select {
+  color: #e0e0e0 !important;
+}
+
+/* Layer Manager */
+.gjs-layer {
+  background: transparent !important;
+}
+.gjs-layer-title {
+  background: #1a1a1a !important;
+  border-bottom: 1px solid #2a2a2a !important;
+}
+.gjs-layer.gjs-selected .gjs-layer-title {
+  background: rgba(132, 204, 22, 0.1) !important;
+}
+.gjs-layer-name {
+  color: #ccc !important;
+  font-size: 12px !important;
+}
+
+/* Canvas */
+.gjs-cv-canvas {
+  background: #222 !important;
+}
+.gjs-frame-wrapper {
+  background: #222 !important;
+}
+
+/* Selection & Hover */
+.gjs-selected {
+  outline: 2px solid #84CC16 !important;
+  outline-offset: -2px !important;
+}
+.gjs-hovered {
+  outline: 1px dashed #84CC16 !important;
+}
+
+/* Toolbar */
+.gjs-toolbar {
+  background: #111 !important;
+  border: 1px solid #333 !important;
+  border-radius: 6px !important;
+}
+.gjs-toolbar-item {
+  color: #ccc !important;
+}
+.gjs-toolbar-item:hover {
+  color: #84CC16 !important;
+}
+
+/* RTE */
+.gjs-rte-toolbar {
+  background: #111 !important;
+  border: 1px solid #333 !important;
+  border-radius: 6px !important;
+}
+.gjs-rte-actionbar .gjs-rte-action {
+  color: #ccc !important;
+}
+
+/* Badge */
+.gjs-badge {
+  background: #84CC16 !important;
+  color: #000 !important;
+  font-weight: 600 !important;
+  border-radius: 4px !important;
+}
+
+/* Resizer */
+.gjs-resizer-h {
+  border-color: #84CC16 !important;
+}
+
+/* Modal */
+.gjs-mdl-dialog {
+  background: #1a1a1a !important;
+  border: 1px solid #333 !important;
+  border-radius: 12px !important;
+}
+.gjs-mdl-header {
+  border-bottom: 1px solid #2a2a2a !important;
+}
+.gjs-mdl-title {
+  color: #e0e0e0 !important;
+}
+
+/* Component toolbar */
+.gjs-com-badge {
+  background: rgba(132, 204, 22, 0.2) !important;
+  color: #84CC16 !important;
+}
+
+/* Scrollbar */
+#gjs-blocks::-webkit-scrollbar,
+#gjs-styles::-webkit-scrollbar,
+#gjs-layers::-webkit-scrollbar {
+  width: 4px;
+}
+#gjs-blocks::-webkit-scrollbar-track,
+#gjs-styles::-webkit-scrollbar-track,
+#gjs-layers::-webkit-scrollbar-track {
+  background: transparent;
+}
+#gjs-blocks::-webkit-scrollbar-thumb,
+#gjs-styles::-webkit-scrollbar-thumb,
+#gjs-layers::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
