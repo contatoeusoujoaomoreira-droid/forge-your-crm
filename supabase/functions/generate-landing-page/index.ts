@@ -119,6 +119,13 @@ serve(async (req) => {
       if (!response.ok) {
         const t = await response.text();
         console.error(`${externalProvider} error:`, response.status, t);
+        
+        if (response.status === 429) {
+          return new Response(JSON.stringify({ error: `Rate limit excedido no provedor ${externalProvider}. Aguarde alguns segundos ou troque para o Forge AI (Nativo).` }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        
         return new Response(JSON.stringify({ error: `Erro no provedor ${externalProvider}: ${response.status}` }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
