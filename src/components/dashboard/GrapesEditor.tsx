@@ -190,14 +190,14 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
         defaults: {
           traits: [
             { type: "text", name: "href", label: "URL / Link", placeholder: "https://... ou https://wa.me/5511..." },
-            { type: "select", name: "target", label: "Abrir em", options: [{ value: "", name: "Mesma aba" }, { value: "_blank", name: "Nova aba" }] },
+            { type: "select", name: "target", label: "Abrir em", options: [{ id: "same", value: "", name: "Mesma aba" }, { id: "blank", value: "_blank", name: "Nova aba" }] },
             { type: "text", name: "title", label: "Título" },
             { type: "select", name: "data-action", label: "Ação", options: [
-              { value: "", name: "Nenhuma" },
-              { value: "whatsapp", name: "WhatsApp" },
-              { value: "phone", name: "Ligar" },
-              { value: "email", name: "Email" },
-              { value: "scroll", name: "Scroll para seção" },
+              { id: "none", value: "", name: "Nenhuma" },
+              { id: "whatsapp", value: "whatsapp", name: "WhatsApp" },
+              { id: "phone", value: "phone", name: "Ligar" },
+              { id: "email", value: "email", name: "Email" },
+              { id: "scroll", value: "scroll", name: "Scroll para seção" },
             ]},
           ],
         },
