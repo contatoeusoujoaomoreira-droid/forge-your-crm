@@ -212,11 +212,11 @@ const GrapesEditor = ({ pageId, onBack }: Props) => {
           traits: [
             { type: "text", name: "data-href", label: "Link destino" },
             { type: "select", name: "data-action", label: "Ação", options: [
-              { value: "", name: "Nenhuma" },
-              { value: "whatsapp", name: "WhatsApp" },
-              { value: "phone", name: "Ligar" },
-              { value: "email", name: "Email" },
-              { value: "submit", name: "Enviar form" },
+              { id: "none", value: "", name: "Nenhuma" },
+              { id: "whatsapp", value: "whatsapp", name: "WhatsApp" },
+              { id: "phone", value: "phone", name: "Ligar" },
+              { id: "email", value: "email", name: "Email" },
+              { id: "submit", value: "submit", name: "Enviar form" },
             ]},
           ],
         },
