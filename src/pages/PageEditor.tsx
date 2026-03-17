@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, ExternalLink, Settings, GripVertical } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, Settings, GripVertical } from "lucide-react";
 import SectionPreview from "@/components/page-builder/SectionPreview";
 import SectionEditor from "@/components/page-builder/SectionEditor";
 import AddSectionModal from "@/components/page-builder/AddSectionModal";
@@ -32,6 +32,18 @@ interface PageData {
   html_content: string | null;
   custom_domain: string | null;
 }
+
+const sectionIcons: Record<string, string> = {
+  hero: "🎯", benefits: "✅", pricing: "💰", cta: "🚀",
+  testimonials: "💬", faq: "❓", features: "⚡", gallery: "🖼️",
+  contact_form: "📝", custom_html: "🧩",
+};
+
+const sectionLabels: Record<string, string> = {
+  hero: "Hero", benefits: "Benefícios", pricing: "Preços", cta: "CTA",
+  testimonials: "Depoimentos", faq: "FAQ", features: "Features", gallery: "Galeria",
+  contact_form: "Formulário", custom_html: "HTML Livre",
+};
 
 const PageEditor = () => {
   const { id } = useParams<{ id: string }>();
@@ -212,29 +224,29 @@ const PageEditor = () => {
         </div>
       )}
 
-      {/* Main Layout */}
+      {/* 3-Column Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sections List - Left */}
-        <div className="w-56 border-r border-border bg-card overflow-y-auto shrink-0 flex flex-col">
+        {/* LEFT — Sections List */}
+        <div className="w-60 border-r border-border bg-card overflow-y-auto shrink-0 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Seções</h3>
-            <button onClick={() => setShowAddModal(true)} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-primary transition-colors">
-              <Plus className="h-4 w-4" />
-            </button>
           </div>
+
           <div className="flex-1 p-2 space-y-0.5">
             {sections.map((section, idx) => (
               <div
                 key={section.id}
                 onClick={() => setSelectedSectionId(section.id)}
-                className={`flex items-center gap-1.5 px-2 py-2 rounded-lg cursor-pointer text-xs transition-all group ${
+                className={`flex items-center gap-2 px-2.5 py-2.5 rounded-lg cursor-pointer text-xs transition-all group ${
                   selectedSectionId === section.id
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "hover:bg-secondary text-foreground"
+                    ? "bg-primary/10 border border-primary/20 text-primary font-semibold"
+                    : "hover:bg-secondary/80 text-foreground border border-transparent"
                 }`}
               >
-                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                <span className="truncate flex-1 capitalize">{section.section_type.replace("_", " ")}</span>
+                <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0 cursor-grab" />
+                <span className="text-base shrink-0">{sectionIcons[section.section_type] || "📄"}</span>
+                <span className="truncate flex-1">{sectionLabels[section.section_type] || section.section_type}</span>
+
                 <div className="flex items-center gap-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={(e) => { e.stopPropagation(); handleMoveSection(section.id, "up"); }} className="p-0.5 hover:bg-background rounded" disabled={idx === 0}>
                     <ChevronUp className="h-3 w-3" />
@@ -251,38 +263,45 @@ const PageEditor = () => {
                 </div>
               </div>
             ))}
+
             {sections.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-xs text-muted-foreground mb-2">Nenhuma seção</p>
-                <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)} className="text-xs h-7">
-                  <Plus className="h-3 w-3 mr-1" /> Adicionar
+              <div className="text-center py-12">
+                <p className="text-xs text-muted-foreground mb-3">Nenhuma seção ainda</p>
+                <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)} className="text-xs h-8 gap-1.5 border-primary/20 text-primary hover:bg-primary/10">
+                  <Plus className="h-3.5 w-3.5" /> Adicionar Seção
                 </Button>
               </div>
             )}
           </div>
-          {sections.length > 0 && (
-            <div className="p-2 border-t border-border">
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Adicionar
-              </button>
-            </div>
-          )}
+
+          {/* Add Section Button — always at bottom */}
+          <div className="p-3 border-t border-border">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Adicionar Seção
+            </button>
+          </div>
         </div>
 
-        {/* Preview - Center */}
-        <div className="flex-1 overflow-y-auto bg-muted/20">
+        {/* CENTER — Preview */}
+        <div className="flex-1 overflow-y-auto bg-background">
           <SectionPreview sections={visibleSections} selectedId={selectedSectionId} onSelect={setSelectedSectionId} />
         </div>
 
-        {/* Section Editor - Right */}
-        {selectedSection && (
-          <div className="w-72 border-l border-border bg-card overflow-y-auto shrink-0">
+        {/* RIGHT — Section Editor */}
+        <div className="w-80 border-l border-border bg-card overflow-y-auto shrink-0">
+          {selectedSection ? (
             <SectionEditor section={selectedSection} onChange={(config) => handleUpdateSection(selectedSection.id, config)} />
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <div className="text-3xl mb-3">👆</div>
+              <p className="text-sm font-medium text-foreground mb-1">Selecione uma seção</p>
+              <p className="text-xs text-muted-foreground">Clique em uma seção no preview ou na lista à esquerda para editar suas propriedades.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {showAddModal && <AddSectionModal onAdd={handleAddSection} onClose={() => setShowAddModal(false)} />}
