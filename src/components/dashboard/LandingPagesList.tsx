@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Globe, Pencil, Copy, Trash2, ExternalLink, BarChart3, X, Sparkles, Home, Code } from "lucide-react";
 import PageAnalytics from "@/components/dashboard/PageAnalytics";
-import PageHTMLEditor from "@/components/dashboard/PageHTMLEditor";
+import GrapesEditor from "@/components/dashboard/GrapesEditor";
 import TemplatesModal, { type PageTemplate } from "@/components/dashboard/TemplatesModal";
 
 interface LandingPage {
