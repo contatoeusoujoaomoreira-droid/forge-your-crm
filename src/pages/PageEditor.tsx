@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, Globe, ExternalLink, Settings, Code } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, ExternalLink, Settings, GripVertical } from "lucide-react";
 import SectionPreview from "@/components/page-builder/SectionPreview";
 import SectionEditor from "@/components/page-builder/SectionEditor";
 import AddSectionModal from "@/components/page-builder/AddSectionModal";
@@ -47,7 +47,6 @@ const PageEditor = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Settings form
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [metaTitle, setMetaTitle] = useState("");
@@ -58,9 +57,7 @@ const PageEditor = () => {
   const [isPublished, setIsPublished] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
+    if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
 
   const fetchPage = useCallback(async () => {
@@ -86,7 +83,6 @@ const PageEditor = () => {
 
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
-  // If HTML page, render GrapesEditor
   if (!loading && page?.html_content !== null && page?.html_content !== undefined) {
     return <GrapesEditor pageId={id!} onBack={() => navigate("/dashboard")} />;
   }
@@ -173,46 +169,44 @@ const PageEditor = () => {
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Top Bar */}
-      <div className="flex items-center justify-between gap-2 px-4 h-12 shrink-0 border-b border-border bg-background">
+      <div className="flex items-center justify-between gap-2 px-4 h-12 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="h-8 px-2">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <button onClick={() => navigate("/dashboard")} className="p-1.5 hover:bg-secondary rounded-lg transition-colors">
+            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
           <span className="text-sm font-semibold truncate max-w-[200px]">{title}</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isPublished ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-            {isPublished ? "LIVE" : "DRAFT"}
+          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold tracking-wider ${isPublished ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {isPublished ? "Live" : "Draft"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setShowSettings(!showSettings)} className={`h-8 ${showSettings ? "text-primary" : ""}`}>
-            <Settings className="h-4 w-4 mr-1" /> SEO
-          </Button>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-lg transition-colors ${showSettings ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"}`}>
+            <Settings className="h-4 w-4" />
+          </button>
           {isPublished && slug && (
-            <Button variant="ghost" size="sm" asChild className="h-8">
-              <a href={slug === "_main_page" ? "/" : `/p/${slug}`} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Visualizar
-              </a>
-            </Button>
+            <a href={slug === "_main_page" ? "/" : `/p/${slug}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors">
+              <Eye className="h-4 w-4" />
+            </a>
           )}
-          <Button size="sm" onClick={handleSaveSettings} disabled={saving} className="h-8">
-            <Save className="h-3.5 w-3.5 mr-1" /> {saving ? "..." : "Salvar"}
+          <Button size="sm" onClick={handleSaveSettings} disabled={saving} className="h-8 px-4 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs gap-1.5">
+            <Save className="h-3.5 w-3.5" /> Salvar
           </Button>
         </div>
       </div>
 
-      {/* Settings */}
+      {/* Settings Panel */}
       {showSettings && (
-        <div className="px-4 py-3 space-y-3 border-b border-border bg-muted/30 shrink-0">
+        <div className="px-4 py-3 space-y-3 border-b border-border bg-card shrink-0">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Título</label><Input value={title} onChange={e => setTitle(e.target.value)} className="h-8 text-sm" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Slug</label><Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))} className="h-8 text-sm" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Domínio</label><Input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="seudominio.com" className="h-8 text-sm" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Título</label><Input value={title} onChange={e => setTitle(e.target.value)} className="h-8 text-xs bg-secondary border-border" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Slug</label><Input value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))} className="h-8 text-xs bg-secondary border-border" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Domínio</label><Input value={customDomain} onChange={e => setCustomDomain(e.target.value)} placeholder="seudominio.com" className="h-8 text-xs bg-secondary border-border" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Title</label><Input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} className="h-8 text-sm" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Description</label><Input value={metaDescription} onChange={e => setMetaDescription(e.target.value)} className="h-8 text-sm" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Meta</label><Input value={pixelMeta} onChange={e => setPixelMeta(e.target.value)} className="h-8 text-sm" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Google</label><Input value={pixelGoogle} onChange={e => setPixelGoogle(e.target.value)} className="h-8 text-sm" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Title</label><Input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} className="h-8 text-xs bg-secondary border-border" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Description</label><Input value={metaDescription} onChange={e => setMetaDescription(e.target.value)} className="h-8 text-xs bg-secondary border-border" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Meta</label><Input value={pixelMeta} onChange={e => setPixelMeta(e.target.value)} className="h-8 text-xs bg-secondary border-border" /></div>
+            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Google</label><Input value={pixelGoogle} onChange={e => setPixelGoogle(e.target.value)} className="h-8 text-xs bg-secondary border-border" /></div>
           </div>
           <label className="flex items-center gap-2 text-xs"><Switch checked={isPublished} onCheckedChange={setIsPublished} /> Publicar</label>
         </div>
@@ -221,22 +215,27 @@ const PageEditor = () => {
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sections List - Left */}
-        <div className="w-64 border-r border-border bg-background overflow-y-auto shrink-0">
+        <div className="w-56 border-r border-border bg-card overflow-y-auto shrink-0 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Seções</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddModal(true)} className="h-7 px-2">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Seções</h3>
+            <button onClick={() => setShowAddModal(true)} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground hover:text-primary transition-colors">
+              <Plus className="h-4 w-4" />
+            </button>
           </div>
-          <div className="p-2 space-y-1">
+          <div className="flex-1 p-2 space-y-0.5">
             {sections.map((section, idx) => (
               <div
                 key={section.id}
                 onClick={() => setSelectedSectionId(section.id)}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-xs transition-colors ${selectedSectionId === section.id ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                className={`flex items-center gap-1.5 px-2 py-2 rounded-lg cursor-pointer text-xs transition-all group ${
+                  selectedSectionId === section.id
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "hover:bg-secondary text-foreground"
+                }`}
               >
-                <span className="truncate font-medium capitalize">{section.section_type.replace("_", " ")}</span>
-                <div className="flex items-center gap-0.5 shrink-0">
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                <span className="truncate flex-1 capitalize">{section.section_type.replace("_", " ")}</span>
+                <div className="flex items-center gap-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={(e) => { e.stopPropagation(); handleMoveSection(section.id, "up"); }} className="p-0.5 hover:bg-background rounded" disabled={idx === 0}>
                     <ChevronUp className="h-3 w-3" />
                   </button>
@@ -261,6 +260,16 @@ const PageEditor = () => {
               </div>
             )}
           </div>
+          {sections.length > 0 && (
+            <div className="p-2 border-t border-border">
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" /> Adicionar
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Preview - Center */}
@@ -270,11 +279,7 @@ const PageEditor = () => {
 
         {/* Section Editor - Right */}
         {selectedSection && (
-          <div className="w-80 border-l border-border bg-background overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Configurações</h3>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedSectionId(null)} className="h-6 px-1.5 text-xs">✕</Button>
-            </div>
+          <div className="w-72 border-l border-border bg-card overflow-y-auto shrink-0">
             <SectionEditor section={selectedSection} onChange={(config) => handleUpdateSection(selectedSection.id, config)} />
           </div>
         )}
