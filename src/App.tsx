@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import LandingPagePublic from "./pages/LandingPagePublic";
+import QuizPublic from "./pages/QuizPublic";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
               }
             />
             <Route path="/p/:slug" element={<LandingPagePublic />} />
+            <Route path="/quiz/:slug" element={<QuizPublic />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
