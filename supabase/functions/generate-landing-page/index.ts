@@ -126,6 +126,12 @@ serve(async (req) => {
           });
         }
         
+        if (response.status === 413) {
+          return new Response(JSON.stringify({ error: `Payload muito grande para o provedor ${externalProvider}. Use o Forge AI (Nativo) para edições com contexto HTML.` }), {
+            status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        
         return new Response(JSON.stringify({ error: `Erro no provedor ${externalProvider}: ${response.status}` }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

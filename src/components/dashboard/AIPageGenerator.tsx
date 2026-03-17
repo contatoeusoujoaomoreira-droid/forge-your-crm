@@ -88,15 +88,27 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
 
     // If editing existing page, include previous HTML context
     const contextMessages = [...newMessages];
+    const selectedKey = selectedKeyId !== "builtin" ? apiKeys.find(k => k.id === selectedKeyId) : null;
+    
     if (previewHtml && newMessages.length > 2) {
-      // Add the current HTML as context for edits
       const lastUserMsg = contextMessages[contextMessages.length - 1];
-      lastUserMsg.content = `[CONTEXTO: A página atual tem o seguinte HTML]\n\`\`\`html\n${previewHtml}\n\`\`\`\n\n[INSTRUÇÃO DO USUÁRIO]: ${lastUserMsg.content}\n\nIMPORTANTE: Retorne o HTML COMPLETO da página com as alterações solicitadas. Mantenha tudo que não foi pedido para alterar.`;
+      // Truncate HTML for providers with small context windows
+      const maxHtmlLen = selectedKey ? 4000 : 50000;
+      const htmlContext = previewHtml.length > maxHtmlLen 
+        ? previewHtml.slice(0, maxHtmlLen) + "\n<!-- ... HTML TRUNCADO ... -->"
+        : previewHtml;
+      lastUserMsg.content = `[CONTEXTO: A página atual tem o seguinte HTML]\n\`\`\`html\n${htmlContext}\n\`\`\`\n\n[INSTRUÇÃO DO USUÁRIO]: ${lastUserMsg.content}\n\nIMPORTANTE: Retorne o HTML COMPLETO da página com as alterações solicitadas. Mantenha tudo que não foi pedido para alterar.`;
+    }
+    
+    // Also limit conversation history for external providers
+    if (selectedKey && contextMessages.length > 4) {
+      const first = contextMessages[0];
+      const lastTwo = contextMessages.slice(-2);
+      contextMessages.length = 0;
+      contextMessages.push(first, ...lastTwo);
     }
 
     try {
-      // Determine which key/endpoint to use
-      const selectedKey = selectedKeyId !== "builtin" ? apiKeys.find(k => k.id === selectedKeyId) : null;
 
       const resp = await fetch(CHAT_URL, {
         method: "POST",
