@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clickmax – A plataforma dos infoprodutores que faturam de verdade</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Clash+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020408;
+    --surface: #080D14;
+    --surface2: #0C1420;
+    --border: #141E2E;
+    --accent: #0EA5E9;
+    --accent2: #6366F1;
+    --accent3: #10B981;
+    --text: #E8F1FF;
+    --text-muted: #4A6080;
+    --text-sub: #7A98B8;
+    --gradient: linear-gradient(135deg, #0EA5E9 0%, #6366F1 100%);
+    --glow-blue: rgba(14,165,233,0.12);
+    --glow-purple: rgba(99,102,241,0.1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* GRID BG PATTERN */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* GLOW ORBS */
+  .orb1 {
+    position: fixed;
+    top: -100px; left: -100px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, var(--glow-blue) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb2 {
+    position: fixed;
+    bottom: -150px; right: -100px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, var(--glow-purple) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 5%;
+    background: rgba(2,4,8,0.7);
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: -0.04em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-logo .dot {
+    width: 8px; height: 8px;
+    background: var(--gradient);
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0EA5E9, #6366F1);
+  }
+  .nav-logo .click { color: var(--accent); }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { color: var(--text-sub); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; font-weight: 500; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-right { display: flex; gap: 12px; align-items: center; }
+  .nav-login {
+    color: var(--text-sub);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.2s;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .nav-login:hover { color: var(--text); border-color: rgba(14,165,233,0.3); }
+  .nav-cta {
+    background: var(--gradient);
+    color: white;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  .nav-cta:hover { opacity: 0.85; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(14,165,233,0.3); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 5% 80px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; }
+  .hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(14,165,233,0.08);
+    border: 1px solid rgba(14,165,233,0.2);
+    color: var(--accent);
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 32px;
+    animation: fadeDown 0.5s ease both;
+  }
+  .hero-chip .chip-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .hero h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(2.8rem, 6vw, 5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+    animation: fadeUp 0.7s 0.1s ease both;
+  }
+  .hero h1 .gradient-text {
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--text-sub);
+    max-width: 600px;
+    margin: 0 auto 48px;
+    animation: fadeUp 0.7s 0.2s ease both;
+    line-height: 1.6;
+  }
+  .hero-ctas {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    animation: fadeUp 0.7s 0.3s ease both;
+  }
+  .btn-primary {
+    background: var(--gradient);
+    color: white;
+    padding: 16px 32px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(14,165,233,0.35); }
+  .btn-ghost {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 16px 32px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s;
+  }
+  .btn-ghost:hover { border-color: rgba(14,165,233,0.3); background: var(--surface2); }
+
+  /* HERO SOCIAL PROOF */
+  .hero-proof {
+    margin-top: 60px;
+    animation: fadeUp 0.7s 0.4s ease both;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .proof-avatars { display: flex; }
+  .proof-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    margin-left: -10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+  }
+  .proof-avatar:first-child { margin-left: 0; }
+  .proof-text { font-size: 0.85rem; color: var(--text-sub); }
+  .proof-text strong { color: var(--text); }
+  .proof-divider { width: 1px; height: 24px; background: var(--border); }
+  .proof-stars { color: #fbbf24; font-size: 0.85rem; }
+
+  /* FEATURES BENTO */
+  section { padding: 100px 5%; position: relative; z-index: 1; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .section-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .section-title .grad { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .section-sub { text-align: center; color: var(--text-sub); max-width: 540px; margin: 0 auto 60px; font-size: 1.05rem; }
+
+  /* BENTO GRID */
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+  .bento-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 32px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .bento-card:hover { border-color: rgba(14,165,233,0.2); transform: translateY(-3px); }
+  .bento-card.featured {
+    grid-column: span 2;
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(14,165,233,0.05) 100%);
+    border-color: rgba(14,165,233,0.15);
+  }
+  .bento-card.tall { grid-row: span 2; }
+  .bento-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .bento-card.featured .bento-icon { background: rgba(14,165,233,0.1); border-color: rgba(14,165,233,0.2); }
+  .bento-card h3 {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+  }
+  .bento-card p { color: var(--text-sub); font-size: 0.9rem; line-height: 1.7; }
+  .bento-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+  .bento-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-sub);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .bento-tag:hover { border-color: rgba(14,165,233,0.3); color: var(--accent); }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    margin-top: 60px;
+  }
+  .stat-item {
+    padding: 40px 32px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+    transition: background 0.3s;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-item:hover { background: var(--surface2); }
+  .stat-val {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat-label { color: var(--text-sub); font-size: 0.85rem; }
+
+  /* INTEGRATIONS */
+  .integrations-section { background: var(--surface); }
+  .int-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 40px; }
+  .int-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: 100px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .int-chip:hover { border-color: rgba(14,165,233,0.3); color: var(--accent); }
+  .int-chip .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent3);
+  }
+
+  /* PRICING SECTION */
+  .pricing-section { text-align: center; }
+  .pricing-tabs { display: flex; justify-content: center; gap: 4px; background: var(--surface); border: 1px solid var(--border); padding: 4px; border-radius: 12px; width: fit-content; margin: 0 auto 48px; }
+  .ptab { padding: 8px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; color: var(--text-sub); border: none; background: transparent; }
+  .ptab.active { background: var(--gradient); color: white; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1000px; margin: 0 auto; }
+  .pricing-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px 32px;
+    text-align: left;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .pricing-card.popular {
+    border-color: rgba(14,165,233,0.3);
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(14,165,233,0.04) 100%);
+  }
+  .pricing-card.popular::before {
+    content: 'MAIS POPULAR';
+    position: absolute;
+    top: -1px; left: 50%; transform: translateX(-50%);
+    background: var(--gradient);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 4px 16px;
+    border-radius: 0 0 8px 8px;
+    letter-spacing: 0.1em;
+  }
+  .pricing-card:hover { transform: translateY(-4px); }
+  .plan-name { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+  .plan-price {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .plan-price .currency { font-size: 1.2rem; vertical-align: top; margin-top: 8px; display: inline-block; }
+  .plan-period { color: var(--text-muted); font-size: 0.8rem; margin-bottom: 24px; }
+  .plan-desc { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 28px; line-height: 1.6; }
+  .plan-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.25s;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+    border: none;
+    margin-bottom: 28px;
+  }
+  .plan-btn.primary { background: var(--gradient); color: white; }
+  .plan-btn.primary:hover { box-shadow: 0 8px 24px rgba(14,165,233,0.3); transform: translateY(-1px); }
+  .plan-btn.outline { border: 1px solid var(--border); color: var(--text); background: transparent; }
+  .plan-btn.outline:hover { border-color: rgba(14,165,233,0.3); }
+  .plan-features { list-style: none; }
+  .plan-features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+    color: var(--text-sub);
+  }
+  .plan-features li:last-child { border-bottom: none; }
+  .plan-features li::before { content: '✓'; color: var(--accent3); font-weight: 900; flex-shrink: 0; }
+  .plan-features li.disabled { opacity: 0.3; }
+  .plan-features li.disabled::before { content: '—'; color: var(--text-muted); }
+
+  /* TESTIMONIALS */
+  .testi-carousel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .testi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.3s;
+  }
+  .testi-card:hover { border-color: rgba(14,165,233,0.15); }
+  .testi-quote { font-size: 2rem; color: var(--accent); line-height: 1; margin-bottom: 12px; opacity: 0.5; }
+  .testi-text { color: var(--text-sub); font-size: 0.9rem; line-height: 1.7; margin-bottom: 20px; }
+  .testi-footer { display: flex; align-items: center; gap: 12px; }
+  .testi-av {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: white;
+    flex-shrink: 0;
+  }
+  .testi-name { font-weight: 700; font-size: 0.9rem; }
+  .testi-role { color: var(--text-muted); font-size: 0.75rem; }
+
+  /* CTA SECTION */
+  .cta-section {
+    text-align: center;
+    background: var(--surface);
+  }
+  .cta-card {
+    background: linear-gradient(135deg, rgba(14,165,233,0.06) 0%, rgba(99,102,241,0.06) 100%);
+    border: 1px solid rgba(14,165,233,0.15);
+    border-radius: 24px;
+    padding: 80px 60px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .cta-card h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(2rem,4vw,3.2rem); font-weight: 800; letter-spacing: -0.04em; margin-bottom: 16px; }
+  .cta-card p { color: var(--text-sub); margin-bottom: 40px; font-size: 1.05rem; }
+  .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+  /* FOOTER */
+  footer {
+    padding: 60px 5%;
+    border-top: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+  }
+  .footer-inner { max-width: 1200px; margin: 0 auto; }
+  .footer-top { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 60px; margin-bottom: 60px; }
+  .footer-brand .logo {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    letter-spacing: -0.04em;
+    margin-bottom: 12px;
+  }
+  .footer-brand .logo span { color: var(--accent); }
+  .footer-brand p { color: var(--text-muted); font-size: 0.85rem; line-height: 1.7; }
+  .footer-col h4 { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-sub); margin-bottom: 16px; }
+  .footer-col ul { list-style: none; }
+  .footer-col li { margin-bottom: 10px; }
+  .footer-col a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+  .footer-col a:hover { color: var(--accent); }
+  .footer-bottom { display: flex; justify-content: space-between; align-items: center; padding-top: 30px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }
+  .footer-copy { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* REVEAL */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  @media(max-width: 768px) {
+    .nav-links { display: none; }
+    .bento-grid { grid-template-columns: 1fr; }
+    .bento-card.featured { grid-column: span 1; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2,1fr); }
+    .testi-carousel { grid-template-columns: 1fr; }
+    .footer-top { grid-template-columns: 1fr 1fr; }
+    .cta-card { padding: 40px 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="orb1"></div>
+<div class="orb2"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="dot"></div>
+    <span class="click">Click</span>max
+  </div>
+  <ul class="nav-links">
+    <li><a href="#features">Funcionalidades</a></li>
+    <li><a href="#pricing">Preços</a></li>
+    <li><a href="#integrations">Integrações</a></li>
+    <li><a href="#testimonials">Cases</a></li>
+  </ul>
+  <div class="nav-right">
+    <a href="#" class="nav-login">Entrar</a>
+    <a href="#pricing" class="nav-cta">Começar grátis →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-chip">
+      <span class="chip-dot"></span>
+      O ecossistema completo para infoprodutores
+    </div>
+    <h1>A plataforma dos infoprodutores que <span class="gradient-text">faturam de verdade</span></h1>
+    <p>O único ecossistema onde funis, páginas, mensagens, CRM e checkout trabalham juntos para multiplicar seu faturamento — tudo em um só lugar.</p>
+    <div class="hero-ctas">
+      <a href="#pricing" class="btn-primary">Começar grátis por 14 dias →</a>
+      <a href="#features" class="btn-ghost">▶ Ver demonstração</a>
+    </div>
+    <div class="hero-proof">
+      <div class="proof-avatars">
+        <div class="proof-avatar" style="background:linear-gradient(135deg,#0EA5E9,#6366F1)">A</div>
+        <div class="proof-avatar" style="background:linear-gradient(135deg,#6366F1,#10B981)">B</div>
+        <div class="proof-avatar" style="background:linear-gradient(135deg,#10B981,#0EA5E9)">C</div>
+        <div class="proof-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">D</div>
+      </div>
+      <div class="proof-text"><strong>+15.000</strong> infoprodutores usam o Clickmax</div>
+      <div class="proof-divider"></div>
+      <div class="proof-stars">★★★★★ <span style="color:var(--text-sub)">4.9/5 avaliação</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Funcionalidades</div>
+      <h2 class="section-title">Tudo que você precisa para <span class="grad">faturar mais</span></h2>
+      <p class="section-sub">Funis, páginas, e-mails, CRM e checkout integrados em um único ecossistema inteligente.</p>
+    </div>
+    <div class="bento-grid">
+      <div class="bento-card featured reveal">
+        <div class="bento-icon">⚡</div>
+        <h3>Construtor de Funis de Alta Conversão</h3>
+        <p>Crie funis completos de vendas com drag & drop intuitivo. Páginas de captura, vendas, upsell, downsell e order bumps — tudo conectado e otimizado para converter.</p>
+        <div class="bento-tags">
+          <span class="bento-tag">Drag & Drop</span>
+          <span class="bento-tag">Templates prontos</span>
+          <span class="bento-tag">A/B Testing</span>
+          <span class="bento-tag">Mobile First</span>
+        </div>
+      </div>
+      <div class="bento-card tall reveal">
+        <div class="bento-icon">📊</div>
+        <h3>CRM Integrado</h3>
+        <p>Gerencie todos os seus leads e clientes em um painel visual. Acompanhe o pipeline, automações de follow-up e conversão em tempo real.</p>
+        <div style="margin-top:24px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px">
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">LEADS HOJE</div>
+            <div style="font-size:1.8rem;font-weight:800;letter-spacing:-0.03em;color:var(--accent)">247</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">TAXA DE CONVERSÃO</div>
+            <div style="font-size:1.8rem;font-weight:800;letter-spacing:-0.03em;color:var(--accent3)">12.4%</div>
+          </div>
+        </div>
+      </div>
+      <div class="bento-card reveal">
+        <div class="bento-icon">✉️</div>
+        <h3>E-mail Marketing Inteligente</h3>
+        <p>Sequências automatizadas que convertem. Segmentação avançada por comportamento e métricas de entregabilidade premium.</p>
+      </div>
+      <div class="bento-card reveal">
+        <div class="bento-icon">💳</div>
+        <h3>Checkout Otimizado</h3>
+        <p>Checkout com múltiplas formas de pagamento, recuperação automática de boletos e PIX expirados.</p>
+      </div>
+      <div class="bento-card reveal">
+        <div class="bento-icon">🔗</div>
+        <h3>Automações Poderosas</h3>
+        <p>Workflows visuais que conectam todas as suas ferramentas e automatizam ações baseadas no comportamento do usuário.</p>
+      </div>
+      <div class="bento-card reveal">
+        <div class="bento-icon">📱</div>
+        <h3>Mensageria Multicanal</h3>
+        <p>WhatsApp, SMS e push notification integrados. Alcance seus clientes onde eles estão, na hora certa.</p>
+      </div>
+    </div>
+    <div class="stats-bar reveal">
+      <div class="stat-item">
+        <div class="stat-val">+15K</div>
+        <div class="stat-label">Infoprodutores ativos</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">R$2B+</div>
+        <div class="stat-label">Processados na plataforma</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">99.9%</div>
+        <div class="stat-label">Uptime garantido</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-val">24/7</div>
+        <div class="stat-label">Suporte especializado</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INTEGRATIONS -->
+<section class="integrations-section" id="integrations">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Integrações</div>
+      <h2 class="section-title">Conecta com as ferramentas que você já usa</h2>
+      <p class="section-sub">+50 integrações nativas para que seu negócio funcione sem fricção.</p>
+    </div>
+    <div class="int-grid reveal">
+      <div class="int-chip"><span class="dot"></span>Hotmart</div>
+      <div class="int-chip"><span class="dot"></span>Kiwify</div>
+      <div class="int-chip"><span class="dot"></span>Eduzz</div>
+      <div class="int-chip"><span class="dot"></span>PerfectPay</div>
+      <div class="int-chip"><span class="dot"></span>Google Ads</div>
+      <div class="int-chip"><span class="dot"></span>Meta Ads</div>
+      <div class="int-chip"><span class="dot"></span>Stripe</div>
+      <div class="int-chip"><span class="dot"></span>PagSeguro</div>
+      <div class="int-chip"><span class="dot"></span>Mercado Pago</div>
+      <div class="int-chip"><span class="dot"></span>ActiveCampaign</div>
+      <div class="int-chip"><span class="dot"></span>Mailchimp</div>
+      <div class="int-chip"><span class="dot"></span>Zapier</div>
+      <div class="int-chip"><span class="dot"></span>Webhook</div>
+      <div class="int-chip"><span class="dot"></span>API REST</div>
+      <div class="int-chip"><span class="dot" style="background:#25D366"></span>WhatsApp</div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="background:var(--surface2);">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Planos</div>
+      <h2 class="section-title">Comece grátis, <span class="grad">escale sem limites</span></h2>
+      <p class="section-sub">14 dias grátis em qualquer plano. Sem cartão de crédito obrigatório.</p>
+    </div>
+    <div class="pricing-tabs reveal">
+      <button class="ptab active">Mensal</button>
+      <button class="ptab">Anual (-40%)</button>
+    </div>
+    <div class="pricing-grid">
+      <div class="pricing-card reveal">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price"><span class="currency">R$</span>97</div>
+        <div class="plan-period">por mês</div>
+        <p class="plan-desc">Para quem está começando a construir sua operação digital.</p>
+        <a href="#" class="plan-btn outline">Começar grátis</a>
+        <ul class="plan-features">
+          <li>3 funis ativos</li>
+          <li>Até 1.000 leads</li>
+          <li>E-mail marketing básico</li>
+          <li>Checkout integrado</li>
+          <li class="disabled">CRM avançado</li>
+          <li class="disabled">Automações ilimitadas</li>
+        </ul>
+      </div>
+      <div class="pricing-card popular reveal">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price"><span class="currency">R$</span>297</div>
+        <div class="plan-period">por mês</div>
+        <p class="plan-desc">Para infoprodutores que querem escalar suas vendas no automático.</p>
+        <a href="#" class="plan-btn primary">Começar grátis →</a>
+        <ul class="plan-features">
+          <li>Funis ilimitados</li>
+          <li>Até 25.000 leads</li>
+          <li>E-mail + SMS marketing</li>
+          <li>Checkout avançado</li>
+          <li>CRM completo</li>
+          <li>Automações ilimitadas</li>
+        </ul>
+      </div>
+      <div class="pricing-card reveal">
+        <div class="plan-name">Scale</div>
+        <div class="plan-price"><span class="currency">R$</span>697</div>
+        <div class="plan-period">por mês</div>
+        <p class="plan-desc">Para operações consolidadas que precisam de performance máxima.</p>
+        <a href="#" class="plan-btn outline">Falar com vendas</a>
+        <ul class="plan-features">
+          <li>Tudo do Pro</li>
+          <li>Leads ilimitados</li>
+          <li>WhatsApp integrado</li>
+          <li>API completa</li>
+          <li>Gerente de conta dedicado</li>
+          <li>SLA garantido</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Depoimentos</div>
+      <h2 class="section-title">Resultados reais de quem usa o <span class="grad">Clickmax</span></h2>
+    </div>
+    <div class="testi-carousel">
+      <div class="testi-card reveal">
+        <div class="testi-quote">"</div>
+        <p class="testi-text">O Clickmax unificou tudo que eu usava em 5 ferramentas diferentes. Economizei dinheiro e aumentei minha conversão em 35% em 2 meses.</p>
+        <div class="testi-footer">
+          <div class="testi-av">AM</div>
+          <div><div class="testi-name">Ana M.</div><div class="testi-role">Infoprodutora — R$80k/mês</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="testi-quote">"</div>
+        <p class="testi-text">A recuperação automática de boletos e PIX que o Clickmax faz praticamente pagou a mensalidade da plataforma no primeiro mês.</p>
+        <div class="testi-footer">
+          <div class="testi-av">RC</div>
+          <div><div class="testi-name">Rafael C.</div><div class="testi-role">Coach digital — R$120k/mês</div></div>
+        </div>
+      </div>
+      <div class="testi-card reveal">
+        <div class="testi-quote">"</div>
+        <p class="testi-text">Escalar de 6 para 7 dígitos seria impossível sem uma plataforma como o Clickmax. O CRM e as automações são game changers.</p>
+        <div class="testi-footer">
+          <div class="testi-av">JP</div>
+          <div><div class="testi-name">João P.</div><div class="testi-role">Mentor — R$250k/mês</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="cta-card reveal">
+      <h2>Pronto para <span style="background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">multiplicar seu faturamento</span>?</h2>
+      <p>Comece grátis por 14 dias. Sem cartão de crédito. Cancele quando quiser.</p>
+      <div class="cta-btns">
+        <a href="#" class="btn-primary">Criar conta grátis →</a>
+        <a href="#" class="btn-ghost">Agendar demonstração</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="logo"><span>Click</span>max</div>
+        <p>O ecossistema completo para infoprodutores que querem faturar de verdade, com funis, CRM e checkout integrados.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Produto</h4>
+        <ul>
+          <li><a href="#">Funis</a></li>
+          <li><a href="#">Checkout</a></li>
+          <li><a href="#">E-mail</a></li>
+          <li><a href="#">CRM</a></li>
+          <li><a href="#">Automações</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Empresa</h4>
+        <ul>
+          <li><a href="#">Sobre</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Afiliados</a></li>
+          <li><a href="#">Carreiras</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Suporte</h4>
+        <ul>
+          <li><a href="#">Central de Ajuda</a></li>
+          <li><a href="#">Status</a></li>
+          <li><a href="#">Termos de Uso</a></li>
+          <li><a href="#">Privacidade</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">© 2025 Clickmax · Todos os direitos reservados</div>
+      <div class="footer-copy">CNPJ: 00.000.000/0001-00</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // REVEAL
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 60);
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // PRICING TABS
+  document.querySelectorAll('.ptab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

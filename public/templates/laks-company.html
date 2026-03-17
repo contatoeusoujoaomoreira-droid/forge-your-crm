@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAKS Company – Assessoria de Marketing</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080A0D;
+    --surface: #0F1115;
+    --surface2: #151820;
+    --border: #1E2330;
+    --accent: #C8F03C;
+    --accent2: #3CF07A;
+    --text: #F0F2F5;
+    --text-muted: #6B7385;
+    --text-sub: #9AA3B5;
+    --gradient: linear-gradient(135deg, #C8F03C 0%, #3CF07A 100%);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* NAVBAR */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 5%;
+    background: rgba(8,10,13,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+  .nav-logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a {
+    color: var(--text-sub);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-cta {
+    background: var(--accent);
+    color: #080A0D;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .nav-cta:hover { background: #d4f54a; transform: translateY(-1px); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 120px 5% 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: 0; right: -200px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(200,240,60,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 1200px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(200,240,60,0.08);
+    border: 1px solid rgba(200,240,60,0.2);
+    color: var(--accent);
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .hero-tag::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.3)} }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.8rem, 5vw, 4.2rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    animation: fadeUp 0.8s ease both;
+  }
+  .hero h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.1rem, 2vw, 1.4rem);
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 20px;
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+  .hero p {
+    color: var(--text-sub);
+    font-size: 1.05rem;
+    margin-bottom: 40px;
+    animation: fadeUp 0.8s 0.2s ease both;
+    max-width: 500px;
+  }
+  .hero-btns { display: flex; gap: 16px; flex-wrap: wrap; animation: fadeUp 0.8s 0.3s ease both; }
+  .btn-primary {
+    background: var(--gradient);
+    color: #080A0D;
+    padding: 16px 32px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.25s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(200,240,60,0.3); }
+  .btn-ghost {
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 16px 32px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.25s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: rgba(200,240,60,0.04); }
+  
+  /* HERO STATS */
+  .hero-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    animation: fadeUp 0.8s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--gradient);
+  }
+  .stat-card:nth-child(1){ animation-delay: 0.1s; }
+  .stat-card:nth-child(2){ animation-delay: 0.2s; }
+  .stat-card:nth-child(3){ animation-delay: 0.3s; }
+  .stat-card:nth-child(4){ animation-delay: 0.4s; }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+
+  /* CLIENTS MARQUEE */
+  .marquee-section {
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .marquee-track {
+    display: flex;
+    gap: 60px;
+    animation: marquee 25s linear infinite;
+    width: max-content;
+  }
+  .marquee-track:hover { animation-play-state: paused; }
+  @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  .client-logo {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .client-logo:hover { color: var(--accent); border-color: rgba(200,240,60,0.3); }
+
+  /* SECTION BASE */
+  section { padding: 100px 5%; position: relative; z-index: 1; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::before { content: ''; width: 24px; height: 1px; background: var(--accent); }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .section-sub { color: var(--text-sub); font-size: 1.05rem; max-width: 560px; }
+
+  /* CONSULTORIA */
+  .consulting-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; margin-top: 60px; }
+  .consulting-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px 28px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .consulting-card:hover { border-color: rgba(200,240,60,0.3); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+  .consulting-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gradient);
+    transform: scaleX(0);
+    transition: transform 0.3s;
+  }
+  .consulting-card:hover::after { transform: scaleX(1); }
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    background: rgba(200,240,60,0.1);
+    border: 1px solid rgba(200,240,60,0.3);
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+  .consulting-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .consulting-card p { color: var(--text-sub); font-size: 0.95rem; line-height: 1.7; }
+
+  /* PROCESS / FORM SECTION */
+  .process-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+  }
+  .process-steps { list-style: none; }
+  .process-step {
+    display: flex;
+    gap: 24px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+    transition: all 0.2s;
+  }
+  .process-step:last-child { border-bottom: none; }
+  .step-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    padding-top: 4px;
+    min-width: 36px;
+  }
+  .step-content h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+  .step-content p { color: var(--text-sub); font-size: 0.9rem; line-height: 1.7; }
+
+  /* FORM */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    position: sticky;
+    top: 100px;
+  }
+  .form-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  .form-card > p { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 28px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-sub); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus,
+  .form-group select:focus { border-color: rgba(200,240,60,0.4); }
+  .form-group select option { background: var(--surface2); }
+  .form-submit {
+    width: 100%;
+    background: var(--gradient);
+    color: #080A0D;
+    border: none;
+    padding: 16px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.25s;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+  .form-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(200,240,60,0.3); }
+
+  /* METHODOLOGY */
+  .methodology {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .methodology-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .meth-steps { margin-top: 40px; }
+  .meth-step {
+    display: flex;
+    gap: 20px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .meth-step:last-child { border-bottom: none; }
+  .meth-step:hover .meth-arrow { transform: translateX(4px); color: var(--accent); }
+  .meth-step-tag {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    padding-top: 4px;
+    min-width: 80px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .meth-step-tag::before {
+    content: '→';
+    font-size: 0.85rem;
+  }
+  .meth-step-text h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 6px;
+  }
+  .meth-step-text p { color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; }
+  .meth-visual {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+  }
+  .meth-circle {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 30px;
+  }
+  .circle-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+  }
+  .circle-ring:nth-child(2) { inset: 20px; border-color: rgba(200,240,60,0.15); }
+  .circle-ring:nth-child(3) { inset: 40px; border-color: rgba(200,240,60,0.25); }
+  .circle-center {
+    position: absolute;
+    inset: 60px;
+    background: var(--gradient);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #080A0D;
+    text-align: center;
+    line-height: 1.2;
+    animation: rotateSlow 8s linear infinite;
+  }
+  @keyframes rotateSlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .meth-nodes {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: 12px;
+  }
+  .meth-node {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .meth-node:hover { background: rgba(200,240,60,0.08); border-color: rgba(200,240,60,0.3); }
+
+  /* NUMBERS */
+  .numbers-section { text-align: center; }
+  .numbers-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 2px; margin-top: 60px; }
+  .number-item {
+    padding: 48px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+    position: relative;
+  }
+  .number-item:hover { background: var(--surface2); z-index: 1; }
+  .number-item:hover .num-val { color: var(--accent); }
+  .num-val {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 3vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    transition: color 0.2s;
+    margin-bottom: 8px;
+  }
+  .num-label { color: var(--text-muted); font-size: 0.85rem; }
+
+  /* CHECKLIST */
+  .checklist-section { background: var(--surface2); }
+  .checklist-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .checklist { list-style: none; margin-top: 32px; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+    color: var(--text-sub);
+    transition: color 0.2s;
+  }
+  .checklist li:hover { color: var(--text); }
+  .checklist li::before {
+    content: '✓';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    background: rgba(200,240,60,0.1);
+    border: 1px solid rgba(200,240,60,0.3);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .checklist-cta { margin-top: 40px; }
+  .cta-visual {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px;
+    text-align: center;
+  }
+  .cta-visual .big-text {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.5rem, 4vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    margin-bottom: 20px;
+  }
+  .cta-visual .big-text span { color: var(--accent); }
+  .cta-visual p { color: var(--text-sub); margin-bottom: 32px; }
+
+  /* ABOUT */
+  .about-section { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .about-content p { color: var(--text-sub); margin-bottom: 16px; line-height: 1.8; }
+  .about-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(200,240,60,0.06);
+    border: 1px solid rgba(200,240,60,0.15);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    margin-top: 20px;
+  }
+  .about-badge .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .about-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.3s;
+  }
+  .about-card:hover { border-color: rgba(200,240,60,0.2); }
+  .about-card .icon { font-size: 1.8rem; margin-bottom: 12px; }
+  .about-card h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  .about-card p { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* FOOTER */
+  footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 60px 5%;
+  }
+  .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; }
+  .footer-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: -0.02em;
+  }
+  .footer-logo span { color: var(--accent); }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
+  .footer-links a:hover { color: var(--accent); }
+  .footer-socials { display: flex; gap: 12px; }
+  .social-btn {
+    width: 38px; height: 38px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    color: var(--text-sub);
+  }
+  .social-btn:hover { border-color: rgba(200,240,60,0.3); color: var(--accent); }
+  .footer-copy { width: 100%; text-align: center; color: var(--text-muted); font-size: 0.8rem; padding-top: 40px; border-top: 1px solid var(--border); margin-top: 16px; }
+
+  /* SCROLL REVEAL */
+  .reveal { opacity: 0; transform: translateY(32px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* RESPONSIVE */
+  @media(max-width: 768px) {
+    .hero-inner { grid-template-columns: 1fr; gap: 60px; }
+    .hero-stats { grid-template-columns: repeat(2,1fr); }
+    .consulting-grid { grid-template-columns: 1fr; }
+    .process-form { grid-template-columns: 1fr; }
+    .methodology-inner { grid-template-columns: 1fr; }
+    .numbers-grid { grid-template-columns: repeat(2,1fr); }
+    .checklist-inner { grid-template-columns: 1fr; }
+    .about-section { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">LAKS<span>.</span></div>
+  <ul class="nav-links">
+    <li><a href="#comofunciona">Como funciona</a></li>
+    <li><a href="#casesdesucesso">Cases</a></li>
+    <li><a href="#quemsomos">Quem somos</a></li>
+  </ul>
+  <a href="#forms" class="nav-cta">Diagnóstico gratuito</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-tag">Marketing & Vendas</div>
+      <h1>Precisando vender mais?</h1>
+      <h2>Aumentamos o faturamento da sua empresa</h2>
+      <p>Combinamos estratégia, tecnologia e execução para atrair demanda qualificada, alinhar marketing e comercial e escalar sua geração de receita.</p>
+      <div class="hero-btns">
+        <a href="#forms" class="btn-primary">Quero saber mais →</a>
+        <a href="#casesdesucesso" class="btn-ghost">Ver cases</a>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-num">+500</div>
+        <div class="stat-label">Empresas aceleradas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">R$50M+</div>
+        <div class="stat-label">Investidos em anúncios</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">R$110M+</div>
+        <div class="stat-label">Em vendas geradas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">+40</div>
+        <div class="stat-label">Pessoas no time</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-section">
+  <div class="marquee-track" id="marquee">
+    <div class="client-logo">Cliente 01</div>
+    <div class="client-logo">Cliente 02</div>
+    <div class="client-logo">Cliente 03</div>
+    <div class="client-logo">Cliente 04</div>
+    <div class="client-logo">Cliente 05</div>
+    <div class="client-logo">Cliente 06</div>
+    <div class="client-logo">Cliente 07</div>
+    <div class="client-logo">Cliente 08</div>
+    <div class="client-logo">Cliente 09</div>
+    <div class="client-logo">Cliente 10</div>
+    <div class="client-logo">Cliente 11</div>
+    <!-- DUPLICATE for infinite loop -->
+    <div class="client-logo">Cliente 01</div>
+    <div class="client-logo">Cliente 02</div>
+    <div class="client-logo">Cliente 03</div>
+    <div class="client-logo">Cliente 04</div>
+    <div class="client-logo">Cliente 05</div>
+    <div class="client-logo">Cliente 06</div>
+    <div class="client-logo">Cliente 07</div>
+    <div class="client-logo">Cliente 08</div>
+    <div class="client-logo">Cliente 09</div>
+    <div class="client-logo">Cliente 10</div>
+    <div class="client-logo">Cliente 11</div>
+  </div>
+</div>
+
+<!-- CONSULTORIA -->
+<section id="comofunciona">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">O que você recebe</div>
+      <h2 class="section-title">Nossa consultoria gratuita</h2>
+      <p class="section-sub">Receba um plano de ação claro e estratégico, criado especialmente para que sua empresa possa escalar cada vez mais.</p>
+    </div>
+    <div class="consulting-grid">
+      <div class="consulting-card reveal">
+        <div class="step-badge">01</div>
+        <h3>Entendendo onde você está</h3>
+        <p>Começamos com uma análise completa da sua situação atual e juntos identificamos os desafios e os gargalos que estão limitando seu crescimento.</p>
+      </div>
+      <div class="consulting-card reveal">
+        <div class="step-badge">02</div>
+        <h3>O que sua empresa realmente precisa</h3>
+        <p>Depois de entendermos onde sua empresa está, iremos te mostrar exatamente o que precisa ser feito e qual o próximo passo que sua empresa precisa dar.</p>
+      </div>
+      <div class="consulting-card reveal">
+        <div class="step-badge">03</div>
+        <h3>Plano de ação estratégico</h3>
+        <p>Vamos criar um plano de ação estratégico para você aumentar a demanda qualificada e aumentar o número de vendas de forma consistente.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROCESS + FORM -->
+<section id="forms" style="background: var(--surface2);">
+  <div class="container">
+    <div class="process-form">
+      <div>
+        <div class="reveal">
+          <div class="section-label">Vamos acelerar?</div>
+          <h2 class="section-title">Dar o próximo passo leva apenas um minuto</h2>
+        </div>
+        <ul class="process-steps">
+          <li class="process-step reveal">
+            <div class="step-num">01</div>
+            <div class="step-content">
+              <h4>Preencha o formulário</h4>
+              <p>Envie suas informações de contato. Todos os seus dados estarão seguros, vamos cuidar bem deles.</p>
+            </div>
+          </li>
+          <li class="process-step reveal">
+            <div class="step-num">02</div>
+            <div class="step-content">
+              <h4>Receba uma ligação de nossos especialistas</h4>
+              <p>Em até 12 horas, um dos nossos especialistas fará uma ligação para agendar a reunião mais importante para a sua empresa.</p>
+            </div>
+          </li>
+          <li class="process-step reveal">
+            <div class="step-num">03</div>
+            <div class="step-content">
+              <h4>Receba seu plano personalizado</h4>
+              <p>Juntos iremos criar um Plano Completo para ter Leads qualificados todos os dias e aumentar suas vendas.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <div class="form-card reveal">
+          <h3>Diagnóstico gratuito</h3>
+          <p>Preencha abaixo para dar o primeiro passo</p>
+          <form>
+            <div class="form-group">
+              <label>Nome</label>
+              <input type="text" placeholder="Seu nome completo">
+            </div>
+            <div class="form-group">
+              <label>WhatsApp</label>
+              <input type="tel" placeholder="(00) 00000-0000">
+            </div>
+            <div class="form-group">
+              <label>Já investiu em tráfego pago?</label>
+              <select>
+                <option>Nunca fiz Anúncios</option>
+                <option>Já fiz anúncios por conta própria</option>
+                <option>Já contratei uma agência</option>
+                <option>Estou com uma agência, porém insatisfeito</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Faturamento mensal da empresa</label>
+              <select>
+                <option>Abaixo de R$10 mil</option>
+                <option>R$10 mil a R$30 mil</option>
+                <option>R$30 mil a R$50 mil</option>
+                <option>R$50 mil a R$100 mil</option>
+                <option>R$100 mil a R$200 mil</option>
+                <option>R$200 mil a R$500 mil</option>
+                <option>R$500 mil a R$1 Milhão</option>
+                <option>Acima de R$1 Milhão</option>
+              </select>
+            </div>
+            <button type="submit" class="form-submit">Quero mais informações →</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- METHODOLOGY -->
+<section class="methodology" id="casesdesucesso">
+  <div class="container">
+    <div class="methodology-inner">
+      <div>
+        <div class="reveal">
+          <div class="section-label">Metodologia</div>
+          <h2 class="section-title">Conheça a Metodologia LAKS Company</h2>
+        </div>
+        <div class="meth-steps">
+          <div class="meth-step reveal">
+            <div class="meth-step-tag">PASSO 01</div>
+            <div class="meth-step-text">
+              <h4>Captação</h4>
+              <p>Definimos exatamente quem é o seu público-alvo e geramos demanda qualificada para o seu negócio através de estrutura desenvolvida pelo nosso time.</p>
+            </div>
+          </div>
+          <div class="meth-step reveal">
+            <div class="meth-step-tag">PASSO 02</div>
+            <div class="meth-step-text">
+              <h4>Receita</h4>
+              <p>Depois que captamos esses leads, nosso foco é transformar esse interesse em vendas concretas, acompanhando de perto os passos do comercial.</p>
+            </div>
+          </div>
+          <div class="meth-step reveal">
+            <div class="meth-step-tag">PASSO 03</div>
+            <div class="meth-step-text">
+              <h4>Engajamento</h4>
+              <p>Utilizando comunicações contínuas que criam um relacionamento sólido com seus clientes e incentivamos a recompra, fortalecendo a fidelidade à sua marca.</p>
+            </div>
+          </div>
+          <div class="meth-step reveal">
+            <div class="meth-step-tag">PASSO 04</div>
+            <div class="meth-step-text">
+              <h4>Monetização</h4>
+              <p>Fazemos com que cada interação gere mais lucro, trabalhando para maximizar o valor de cada cliente e aumentar a lucratividade.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="meth-visual reveal">
+        <div class="meth-circle">
+          <div class="circle-ring"></div>
+          <div class="circle-ring"></div>
+          <div class="circle-ring"></div>
+          <div class="circle-center">MÉTODO<br>LAKS</div>
+        </div>
+        <div class="meth-nodes">
+          <div class="meth-node">Captação</div>
+          <div class="meth-node">Receita</div>
+          <div class="meth-node">Engajamento</div>
+          <div class="meth-node">Monetização</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NUMBERS -->
+<section class="numbers-section">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label" style="justify-content:center">Resultados</div>
+      <h2 class="section-title" style="text-align:center">Nossos números falam por si</h2>
+    </div>
+  </div>
+  <div class="numbers-grid reveal">
+    <div class="number-item">
+      <div class="num-val">+500</div>
+      <div class="num-label">Empresas aceleradas</div>
+    </div>
+    <div class="number-item">
+      <div class="num-val">R$50M+</div>
+      <div class="num-label">Investidos em anúncios</div>
+    </div>
+    <div class="number-item">
+      <div class="num-val">R$110M+</div>
+      <div class="num-label">Em vendas para clientes</div>
+    </div>
+    <div class="number-item">
+      <div class="num-val">+40</div>
+      <div class="num-label">Pessoas no time</div>
+    </div>
+  </div>
+</section>
+
+<!-- CHECKLIST -->
+<section class="checklist-section" style="padding-top:100px;padding-bottom:100px;">
+  <div class="container">
+    <div class="checklist-inner">
+      <div>
+        <div class="reveal">
+          <div class="section-label">Ainda na dúvida?</div>
+          <h2 class="section-title">A LAKS é a escolha ideal para você?</h2>
+          <p style="color:var(--text-sub);margin-top:12px">Marque as alternativas que mais condizem com a sua necessidade atual:</p>
+        </div>
+        <ul class="checklist">
+          <li class="reveal">Aumentar o retorno dos seus investimentos em anúncios pagos</li>
+          <li class="reveal">Atrair mais leads qualificados e aumentar o volume de conversões</li>
+          <li class="reveal">Elevar a performance do seu time de vendas</li>
+          <li class="reveal">Conectar-se de forma eficaz com seu público-alvo para vender cada vez mais</li>
+          <li class="reveal">Criar anúncios que se destacam e geram resultados reais</li>
+        </ul>
+        <div class="checklist-cta reveal">
+          <p style="color:var(--text-sub);font-size:0.9rem;margin-bottom:20px">Se você marcou pelo menos 3 alternativas, entre em contato conosco!</p>
+          <a href="#forms" class="btn-primary">A LAKS está pronta para te ajudar →</a>
+        </div>
+      </div>
+      <div class="cta-visual reveal">
+        <div class="big-text">O propósito da LAKS é<br><span>IMPULSIONAR</span><br>sua empresa</div>
+        <p>Um time preparado para receber o seu negócio e levar ao próximo nível.</p>
+        <a href="#forms" class="btn-primary" style="width:100%;justify-content:center">Diagnóstico gratuito agora →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="quemsomos">
+  <div class="container">
+    <div class="about-section">
+      <div class="about-content reveal">
+        <div class="section-label">Quem somos</div>
+        <h2 class="section-title">Um time preparado para receber o seu negócio</h2>
+        <p>Na LAKS Company, vivemos aquilo que ensinamos. Somos especialistas em impulsionar, educar e acelerar empresas, unindo estratégias de marketing digital, tráfego pago e estruturação de processos de vendas para gerar crescimento real.</p>
+        <p>Nosso time é movido por resultados e trabalha lado a lado com nossos clientes para criar soluções sob medida, que transformam desafios em oportunidades.</p>
+        <div class="about-badge">
+          <span class="dot"></span>
+          <span>Sede física em Balneário Camboriú — SC</span>
+        </div>
+      </div>
+      <div class="about-grid reveal">
+        <div class="about-card">
+          <div class="icon">📈</div>
+          <h4>Tráfego Pago</h4>
+          <p>Campanhas de alta performance no Meta e Google Ads</p>
+        </div>
+        <div class="about-card">
+          <div class="icon">🎯</div>
+          <h4>Estratégia</h4>
+          <p>Planejamento completo para escalar seu negócio</p>
+        </div>
+        <div class="about-card">
+          <div class="icon">🤝</div>
+          <h4>Comercial</h4>
+          <p>Alinhamento entre marketing e time de vendas</p>
+        </div>
+        <div class="about-card">
+          <div class="icon">🚀</div>
+          <h4>Escala</h4>
+          <p>Crescimento previsível e sustentável do faturamento</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">LAKS<span>.</span></div>
+    <div class="footer-links">
+      <a href="#">Termos de uso</a>
+      <a href="#">Políticas de privacidade</a>
+    </div>
+    <div class="footer-socials">
+      <a href="#" class="social-btn">YT</a>
+      <a href="#" class="social-btn">IN</a>
+      <a href="#" class="social-btn">IG</a>
+      <a href="#" class="social-btn">WA</a>
+    </div>
+    <div class="footer-copy">Copyright © 2025 Laks Company · Todos os direitos reservados</div>
+  </div>
+</footer>
+
+<script>
+  // SCROLL REVEAL
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 60);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+
+  // NAV SCROLL EFFECT
+  window.addEventListener('scroll', () => {
+    const nav = document.querySelector('nav');
+    if(window.scrollY > 50) nav.style.padding = '14px 5%';
+    else nav.style.padding = '20px 5%';
+  });
+
+  // COUNTER ANIMATION
+  function animateCounter(el, target, suffix) {
+    let start = 0;
+    const step = target / 60;
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) {
+        el.textContent = suffix === 'M+' ? 'R$' + target + 'M+' : '+' + target;
+        clearInterval(timer);
+      } else {
+        const val = Math.floor(start);
+        el.textContent = suffix === 'M+' ? 'R$' + val + 'M+' : '+' + val;
+      }
+    }, 16);
+  }
+</script>
+</body>
+</html>

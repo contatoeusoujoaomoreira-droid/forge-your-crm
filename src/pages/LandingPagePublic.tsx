@@ -20,6 +20,7 @@ interface PageData {
   meta_description: string | null;
   pixel_meta_id: string | null;
   pixel_google_id: string | null;
+  html_content: string | null;
 }
 
 const animations = {
@@ -39,29 +40,20 @@ const HeroSection = ({ config }: { config: any }) => (
       fontFamily: config.fontFamily || "Inter",
     }}
   >
-    {config.bgPattern === "dots" && <div className="absolute inset-0 dot-grid opacity-30" />}
-    {config.bgPattern === "mesh" && <div className="absolute inset-0 grid-bg opacity-20" />}
     <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
       {config.badge && (
         <span className="inline-block text-xs font-semibold px-4 py-1.5 rounded-full mb-6 border" style={{ borderColor: `${config.accentColor || "#84CC16"}40`, color: config.accentColor || "#84CC16" }}>
           {config.badge}
         </span>
       )}
-      <h1
-        className={`font-black leading-tight mb-6 ${config.gradientText ? "text-gradient-lime" : ""}`}
-        style={{ fontSize: `${config.headingSize || 48}px`, fontWeight: config.headingWeight || 800 }}
-      >
+      <h1 className="font-black leading-tight mb-6" style={{ fontSize: `${config.headingSize || 48}px`, fontWeight: config.headingWeight || 800 }}>
         {config.headline}
       </h1>
       <p className="text-lg opacity-80 max-w-2xl mx-auto mb-8 whitespace-pre-line" style={{ fontSize: `${config.subtitleSize || 18}px` }}>
         {config.subtitle}
       </p>
       {config.ctaText && (
-        <a
-          href={config.ctaUrl || "#"}
-          className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105"
-          style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}
-        >
+        <a href={config.ctaUrl || "#"} className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105" style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}>
           {config.ctaText}
         </a>
       )}
@@ -71,7 +63,6 @@ const HeroSection = ({ config }: { config: any }) => (
 
 const FeaturesSection = ({ config }: { config: any }) => (
   <section style={{ background: config.bgColor || "#0A0A0A", color: config.textColor || "#fff", padding: `${config.paddingY || 60}px 0` }}>
-    {config.bgPattern === "dots" && <div className="absolute inset-0 dot-grid opacity-20" />}
     <div className="max-w-5xl mx-auto px-6">
       <h2 className="text-3xl font-bold text-center mb-12">{config.title}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -133,7 +124,6 @@ const TestimonialsSection = ({ config }: { config: any }) => (
 
 const PricingSection = ({ config }: { config: any }) => (
   <section style={{ background: config.bgColor || "#000", color: config.textColor || "#fff", padding: `${config.paddingY || 60}px 0` }}>
-    {config.bgPattern === "dots" && <div className="absolute inset-0 dot-grid opacity-20" />}
     <div className="relative z-10 max-w-5xl mx-auto px-6">
       <h2 className="text-3xl font-bold text-center mb-2">{config.title}</h2>
       {config.subtitle && <p className="text-center opacity-70 mb-10">{config.subtitle}</p>}
@@ -178,14 +168,7 @@ const FAQSection = ({ config }: { config: any }) => (
 );
 
 const CTASection = ({ config }: { config: any }) => (
-  <section
-    style={{
-      background: config.bgGradient || config.bgColor || "#000",
-      color: config.textColor || "#fff",
-      padding: `${config.paddingY || 80}px 0`,
-    }}
-  >
-    {config.bgPattern === "dots" && <div className="absolute inset-0 dot-grid opacity-20" />}
+  <section style={{ background: config.bgGradient || config.bgColor || "#000", color: config.textColor || "#fff", padding: `${config.paddingY || 80}px 0` }}>
     <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
       <h2 className="text-3xl font-bold mb-4">{config.headline}</h2>
       <p className="opacity-80 mb-8">{config.description}</p>
@@ -200,13 +183,12 @@ const CTASection = ({ config }: { config: any }) => (
 
 const ContactFormSection = ({ config }: { config: any }) => (
   <section style={{ background: config.bgColor || "#000", color: config.textColor || "#fff", padding: `${config.paddingY || 60}px 0` }}>
-    {config.bgPattern === "dots" && <div className="absolute inset-0 dot-grid opacity-20" />}
     <div className="relative z-10 max-w-md mx-auto px-6 text-center">
       <h2 className="text-2xl font-bold mb-2">{config.title}</h2>
       {config.subtitle && <p className="text-sm opacity-70 mb-6">{config.subtitle}</p>}
       <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
         {(config.fields || ["name", "email"]).map((f: string) => (
-          <input key={f} type={f === "email" ? "email" : "text"} placeholder={f === "name" ? "Seu nome" : f === "email" ? "Seu email" : "Seu telefone"} className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-sm placeholder:opacity-50 focus:outline-none focus:border-opacity-100" style={{ borderColor: `${config.accentColor || "#84CC16"}50` }} />
+          <input key={f} type={f === "email" ? "email" : "text"} placeholder={f === "name" ? "Seu nome" : f === "email" ? "Seu email" : "Seu telefone"} className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-sm placeholder:opacity-50 focus:outline-none" style={{ borderColor: `${config.accentColor || "#84CC16"}50` }} />
         ))}
         <button type="submit" className="w-full py-3 rounded-lg font-bold text-sm" style={{ background: config.accentColor || "#84CC16", color: "#000" }}>
           {config.ctaText || "Enviar"}
@@ -234,6 +216,21 @@ const sectionRenderers: Record<string, React.FC<{ config: any }>> = {
   custom_html: CustomHTMLSection,
 };
 
+const FullHTMLPage = ({ html, page }: { html: string; page: PageData }) => {
+  useEffect(() => {
+    if (page.meta_title) document.title = page.meta_title;
+    else document.title = page.title;
+  }, [page]);
+
+  return (
+    <div
+      className="min-h-screen"
+      dangerouslySetInnerHTML={{ __html: html }}
+      style={{ all: "initial" }}
+    />
+  );
+};
+
 const LandingPagePublic = () => {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<PageData | null>(null);
@@ -250,8 +247,11 @@ const LandingPagePublic = () => {
 
       setPage(pageData as any);
 
-      const { data: sectionData } = await supabase.from("landing_page_sections").select("*").eq("page_id", pageData.id).order("order", { ascending: true });
-      setSections((sectionData || []).filter((s: any) => s.is_visible !== false) as Section[]);
+      // Only load sections if no full HTML
+      if (!(pageData as any).html_content) {
+        const { data: sectionData } = await supabase.from("landing_page_sections").select("*").eq("page_id", pageData.id).order("order", { ascending: true });
+        setSections((sectionData || []).filter((s: any) => s.is_visible !== false) as Section[]);
+      }
 
       // Track page view
       const visitorId = localStorage.getItem("_vid") || Math.random().toString(36).substring(2);
@@ -265,7 +265,6 @@ const LandingPagePublic = () => {
         utm_campaign: params.get("utm_campaign") || null,
       });
 
-      // SEO
       if (pageData.meta_title) document.title = pageData.meta_title;
       else document.title = pageData.title;
 
@@ -290,6 +289,20 @@ const LandingPagePublic = () => {
     );
   }
 
+  // Full HTML page
+  if (page.html_content) {
+    return (
+      <iframe
+        srcDoc={page.html_content}
+        title={page.title}
+        className="w-full min-h-screen border-0"
+        style={{ height: "100vh", width: "100%" }}
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+      />
+    );
+  }
+
+  // Section-based rendering
   return (
     <div className="min-h-screen" style={{ fontFamily: "Inter, sans-serif" }}>
       {sections.map((section, i) => {

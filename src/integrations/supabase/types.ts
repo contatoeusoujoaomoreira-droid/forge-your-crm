@@ -141,6 +141,8 @@ export type Database = {
         Row: {
           created_at: string
           custom_css: string | null
+          custom_domain: string | null
+          html_content: string | null
           id: string
           is_published: boolean
           meta_description: string | null
@@ -155,6 +157,8 @@ export type Database = {
         Insert: {
           created_at?: string
           custom_css?: string | null
+          custom_domain?: string | null
+          html_content?: string | null
           id?: string
           is_published?: boolean
           meta_description?: string | null
@@ -169,6 +173,8 @@ export type Database = {
         Update: {
           created_at?: string
           custom_css?: string | null
+          custom_domain?: string | null
+          html_content?: string | null
           id?: string
           is_published?: boolean
           meta_description?: string | null
