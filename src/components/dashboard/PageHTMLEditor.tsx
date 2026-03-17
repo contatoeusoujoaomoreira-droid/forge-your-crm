@@ -159,7 +159,7 @@ const PageHTMLEditor = ({ pageId, onBack }: Props) => {
 
   const handleSearchReplace = () => {
     if (!searchTerm) return;
-    const newHtml = html.replaceAll(searchTerm, replaceTerm);
+    const newHtml = html.split(searchTerm).join(replaceTerm);
     setHtml(newHtml);
     const count = (html.match(new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length;
     toast({ title: `${count} ocorrência(s) substituída(s)` });
