@@ -11,12 +11,18 @@ import CRMKanban from "@/components/dashboard/CRMKanban";
 import Analytics from "@/components/dashboard/Analytics";
 import BookingsList from "@/components/dashboard/BookingsList";
 import LeadsList from "@/components/dashboard/LeadsList";
+import LandingPagesList from "@/components/dashboard/LandingPagesList";
+import QuizList from "@/components/dashboard/QuizList";
+import BookingPageEditor from "@/components/dashboard/BookingPageEditor";
 
 const tabs = [
   { id: "kanban", label: "Pipeline", icon: LayoutDashboard, group: "crm" },
   { id: "leads", label: "Leads", icon: Users, group: "crm" },
   { id: "bookings", label: "Reservas", icon: Calendar, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
+  { id: "pages", label: "Pages", icon: Globe, group: "tools" },
+  { id: "quizzes", label: "Quizzes", icon: FileQuestion, group: "tools" },
+  { id: "booking-editor", label: "Pg. Reservas", icon: CalendarCog, group: "tools" },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
@@ -33,6 +39,7 @@ const Dashboard = () => {
   };
 
   const crmTabs = tabs.filter((t) => t.group === "crm");
+  const toolsTabs = tabs.filter((t) => t.group === "tools");
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -66,6 +73,28 @@ const Dashboard = () => {
             {sidebarCollapsed ? "—" : "CRM"}
           </p>
           {crmTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
+                  active
+                    ? "bg-sidebar-accent text-lime"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!sidebarCollapsed && <span>{tab.label}</span>}
+              </button>
+            );
+          })}
+
+          <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+            {sidebarCollapsed ? "—" : "Ferramentas"}
+          </p>
+          {toolsTabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
@@ -128,6 +157,9 @@ const Dashboard = () => {
             {activeTab === "leads" && <LeadsList />}
             {activeTab === "bookings" && <BookingsList />}
             {activeTab === "analytics" && <Analytics />}
+            {activeTab === "pages" && <LandingPagesList />}
+            {activeTab === "quizzes" && <QuizList />}
+            {activeTab === "booking-editor" && <BookingPageEditor />}
           </motion.div>
         </div>
       </main>
