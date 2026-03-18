@@ -3,10 +3,11 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
-  FileText, Calendar, ShoppingCart,
+  FileText, Calendar, ShoppingCart, Shield,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import Analytics from "@/components/dashboard/Analytics";
@@ -16,8 +17,9 @@ import FormsList from "@/components/dashboard/FormsList";
 import SchedulesList from "@/components/dashboard/SchedulesList";
 import CheckoutsList from "@/components/dashboard/CheckoutsList";
 import SettingsPage from "@/components/dashboard/SettingsPage";
+import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 
-const tabs = [
+const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
@@ -26,12 +28,13 @@ const tabs = [
   { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
   { id: "checkout", label: "Checkout", icon: ShoppingCart, group: "tools" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
+  { id: "admin", label: "Super Admin", icon: Shield, group: "system" },
 ] as const;
 
-type Tab = (typeof tabs)[number]["id"];
+type Tab = (typeof allTabs)[number]["id"];
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("crm");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -41,11 +44,20 @@ const Dashboard = () => {
     navigate("/");
   };
 
+  // Filter tabs based on permissions
+  const tabs = allTabs.filter(tab => {
+    if (tab.id === "admin") return isSuperAdmin;
+    if (tab.id === "settings") return true;
+    if (isSuperAdmin) return true;
+    if (!userPermissions) return true;
+    return userPermissions[tab.id] !== false;
+  });
+
   const crmTabs = tabs.filter((t) => t.group === "crm");
   const toolsTabs = tabs.filter((t) => t.group === "tools");
   const systemTabs = tabs.filter((t) => t.group === "system");
 
-  const renderTabGroup = (groupTabs: typeof tabs extends readonly (infer T)[] ? T[] : never[]) =>
+  const renderTabGroup = (groupTabs: typeof tabs) =>
     groupTabs.map((tab) => {
       const Icon = tab.icon;
       const active = activeTab === tab.id;
@@ -88,10 +100,14 @@ const Dashboard = () => {
           </p>
           {renderTabGroup(crmTabs)}
 
-          <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
-            {sidebarCollapsed ? "—" : "Ferramentas"}
-          </p>
-          {renderTabGroup(toolsTabs)}
+          {toolsTabs.length > 0 && (
+            <>
+              <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+                {sidebarCollapsed ? "—" : "Ferramentas"}
+              </p>
+              {renderTabGroup(toolsTabs)}
+            </>
+          )}
 
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "Sistema"}
@@ -103,10 +119,13 @@ const Dashboard = () => {
           {!sidebarCollapsed && (
             <p className="text-xs text-sidebar-foreground truncate mb-2 px-1">{user?.email}</p>
           )}
-          <Button variant="ghost" size="sm" onClick={handleSignOut} className={`text-sidebar-foreground hover:text-destructive w-full ${sidebarCollapsed ? "px-2" : ""}`}>
-            <LogOut className="h-4 w-4 shrink-0" />
-            {!sidebarCollapsed && <span className="ml-2">Sair</span>}
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle className="text-sidebar-foreground" />
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className={`text-sidebar-foreground hover:text-destructive flex-1 ${sidebarCollapsed ? "px-2" : ""}`}>
+              <LogOut className="h-4 w-4 shrink-0" />
+              {!sidebarCollapsed && <span className="ml-2">Sair</span>}
+            </Button>
+          </div>
         </div>
       </motion.aside>
 
@@ -127,6 +146,7 @@ const Dashboard = () => {
             {activeTab === "schedules" && <SchedulesList />}
             {activeTab === "checkout" && <CheckoutsList />}
             {activeTab === "settings" && <SettingsPage />}
+            {activeTab === "admin" && <SuperAdminPanel />}
           </motion.div>
         </div>
       </main>

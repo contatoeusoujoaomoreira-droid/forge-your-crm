@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,28 +26,30 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/editor/:id" element={<ProtectedRoute><PageEditor /></ProtectedRoute>} />
-            <Route path="/p/:slug" element={<LandingPagePublic />} />
-            <Route path="/quiz/:slug" element={<QuizPublic />} />
-            <Route path="/form/:slug" element={<FormPublic />} />
-            <Route path="/agendar/:slug" element={<SchedulePublic />} />
-            <Route path="/checkout/:slug" element={<CheckoutPublic />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/editor/:id" element={<ProtectedRoute><PageEditor /></ProtectedRoute>} />
+              <Route path="/p/:slug" element={<LandingPagePublic />} />
+              <Route path="/quiz/:slug" element={<QuizPublic />} />
+              <Route path="/form/:slug" element={<FormPublic />} />
+              <Route path="/agendar/:slug" element={<SchedulePublic />} />
+              <Route path="/checkout/:slug" element={<CheckoutPublic />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

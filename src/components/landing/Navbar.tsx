@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const links = [
   { label: "Recursos", href: "#recursos" },
   { label: "Planos", href: "#planos" },
+  { label: "Depoimentos", href: "#depoimentos" },
   { label: "Contato", href: "#contato" },
 ];
 
@@ -35,68 +37,42 @@ const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-8">
           {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <a key={l.label} href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {l.label}
             </a>
           ))}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleAuthNavigation}
-            className="text-muted-foreground hover:text-foreground"
-          >
+          <ThemeToggle />
+          <Button variant="ghost" size="sm" onClick={handleAuthNavigation} className="text-muted-foreground hover:text-foreground">
             <LogIn className="mr-2 h-4 w-4" />
             {user ? "Dashboard" : "Entrar"}
           </Button>
-          <Button
-            size="sm"
-            onClick={handleAuthNavigation}
-            className="bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime"
-          >
-            {user ? "Abrir painel" : "Começar Grátis"}
+          <Button size="sm" onClick={handleAuthNavigation} className="bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime">
+            {user ? "Abrir painel" : "Começar Agora"}
           </Button>
         </div>
 
-        <button
-          onClick={() => setOpen(!open)}
-          className="md:hidden text-foreground"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button onClick={() => setOpen(!open)} className="text-foreground">
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-border bg-background"
-          >
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="md:hidden border-t border-border bg-background">
             <div className="container py-4 flex flex-col gap-3">
               {links.map((l) => (
-                <a
-                  key={l.label}
-                  href={l.href}
-                  onClick={() => setOpen(false)}
-                  className="text-sm text-muted-foreground hover:text-foreground py-2"
-                >
+                <a key={l.label} href={l.href} onClick={() => setOpen(false)} className="text-sm text-muted-foreground hover:text-foreground py-2">
                   {l.label}
                 </a>
               ))}
-              <Button
-                size="sm"
-                onClick={handleAuthNavigation}
-                className="bg-gradient-lime text-primary-foreground w-full mt-2"
-              >
-                {user ? "Abrir painel" : "Começar Grátis"}
+              <Button size="sm" onClick={handleAuthNavigation} className="bg-gradient-lime text-primary-foreground w-full mt-2">
+                {user ? "Abrir painel" : "Começar Agora"}
               </Button>
             </div>
           </motion.div>
