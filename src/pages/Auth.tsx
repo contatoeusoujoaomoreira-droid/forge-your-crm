@@ -9,12 +9,11 @@ import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/contexts/AuthContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -25,64 +24,23 @@ const Auth = () => {
     if (user) navigate("/dashboard");
   }, [user, navigate]);
 
-  const getErrorMessage = (error: any): string => {
-    const msg = error?.message || "";
-    if (msg.includes("Invalid login credentials")) {
-      return "E-mail ou senha incorretos. Se você entrou antes com Google, continue com Google em vez de usar senha.";
-    }
-    if (msg.includes("Email not confirmed")) {
-      return "E-mail não confirmado. Verifique sua caixa de entrada e spam.";
-    }
-    if (msg.includes("User already registered")) {
-      return "Este e-mail já está cadastrado. Tente fazer login.";
-    }
-    if (msg.includes("Password should be at least")) {
-      return "A senha deve ter pelo menos 6 caracteres.";
-    }
-    return error.message || "Ocorreu um erro. Tente novamente.";
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        toast({ title: "Bem-vindo de volta!", description: "Login realizado com sucesso." });
-        navigate("/dashboard");
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-
-        if (data.session) {
-          toast({
-            title: "Conta criada!",
-            description: "Seu acesso já está ativo.",
-          });
-          navigate("/dashboard");
-        } else {
-          toast({
-            title: "Conta criada!",
-            description: "Confirme seu e-mail para entrar.",
-          });
-          setIsLogin(true);
-        }
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      toast({ title: "Bem-vindo de volta!", description: "Login realizado com sucesso." });
+      navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
+      const msg = error?.message || "";
+      let description = "Ocorreu um erro. Tente novamente.";
+      if (msg.includes("Invalid login credentials")) {
+        description = "E-mail ou senha incorretos. Se você entrou antes com Google, use o botão Google abaixo.";
+      } else if (msg.includes("Email not confirmed")) {
+        description = "E-mail não confirmado. Verifique sua caixa de entrada.";
+      }
+      toast({ title: "Erro", description, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -94,54 +52,31 @@ const Auth = () => {
         redirect_uri: `${window.location.origin}/dashboard`,
       });
       if (error) {
-        toast({
-          title: "Erro",
-          description: "Falha ao entrar com Google. Tente novamente.",
-          variant: "destructive",
-        });
+        toast({ title: "Erro", description: "Falha ao entrar com Google.", variant: "destructive" });
       }
-    } catch (_err: any) {
-      toast({
-        title: "Erro",
-        description: "Falha ao entrar com Google. Se estiver no preview, teste na URL publicada.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Erro", description: "Falha ao entrar com Google. Tente na URL publicada.", variant: "destructive" });
     }
   };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
       <div className="absolute inset-0 grid-bg-subtle" />
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative z-10"
-      >
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 text-sm transition-colors"
-        >
+      <div className="absolute top-4 right-4 z-20"><ThemeToggle /></div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md relative z-10">
+        <button onClick={() => navigate("/")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 text-sm transition-colors">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
         <div className="surface-card rounded-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold">
-              <span className="text-gradient-lime">Forge</span>{" "}
-              <span className="text-foreground">AI</span>
+              <span className="text-gradient-lime">Forge</span> <span className="text-foreground">AI</span>
             </h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              {isLogin ? "Acesse sua conta" : "Crie sua conta"}
-            </p>
+            <p className="text-muted-foreground mt-2 text-sm">Acesse sua conta</p>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleGoogleLogin}
-            className="w-full mb-6 border-border hover:bg-secondary/50"
-          >
+          <Button type="button" variant="outline" onClick={handleGoogleLogin} className="w-full mb-6 border-border hover:bg-secondary/50">
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -152,83 +87,31 @@ const Auth = () => {
           </Button>
 
           <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">ou</span>
-            </div>
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">ou</span></div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <Label htmlFor="fullName">Nome completo</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Seu nome"
-                  required
-                  className="mt-1.5 bg-secondary/50 border-border"
-                />
-              </div>
-            )}
-
             <div>
               <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-                className="mt-1.5 bg-secondary/50 border-border"
-              />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required className="mt-1.5 bg-secondary/50 border-border" />
             </div>
-
             <div>
               <Label htmlFor="password">Senha</Label>
               <div className="relative mt-1.5">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  className="bg-secondary/50 border-border pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
+                <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="bg-secondary/50 border-border pr-10" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime"
-            >
-              {loading ? "Carregando..." : isLogin ? "Entrar" : "Criar Conta"}
+            <Button type="submit" disabled={loading} className="w-full bg-gradient-lime text-primary-foreground hover:opacity-90 shadow-lime">
+              {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-lime hover:text-lime-light transition-colors font-medium"
-            >
-              {isLogin ? "Criar conta" : "Fazer login"}
-            </button>
+          <p className="text-center text-xs text-muted-foreground mt-6">
+            Acesso exclusivo por convite. Contate o administrador.
           </p>
         </div>
       </motion.div>

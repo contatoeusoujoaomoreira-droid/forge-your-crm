@@ -119,10 +119,7 @@ const PageEditor = () => {
               variant={editMode === "sections" ? "default" : "outline"}
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={async () => {
-                // Switch to sections mode — clear html_content
-                await supabase.from("landing_pages").update({ html_content: null } as any).eq("id", id!);
-                setPage({ ...page, html_content: null });
+              onClick={() => {
                 setEditMode("sections");
                 toast({ title: "Modo alterado para Seções" });
               }}
@@ -244,15 +241,8 @@ const PageEditor = () => {
               <Layers className="h-3 w-3 inline mr-1" />Seções
             </button>
             <button
-              onClick={async () => {
+              onClick={() => {
                 setEditMode("html");
-                // Ensure html_content is set if switching from sections for the first time
-                if (!page?.html_content) {
-                  await supabase.from("landing_pages").update({
-                    html_content: "<section style='padding:80px 20px;text-align:center;background:#000;color:#fff;min-height:400px;display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;'><div><h1 style='font-size:3rem;font-weight:800;'>Edite esta página</h1><p style='color:#999;margin-top:16px;'>Use o editor visual para personalizar</p></div></section>"
-                  } as any).eq("id", id!);
-                  setPage(p => p ? { ...p, html_content: "set" } : p);
-                }
               }}
               className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${editMode === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >

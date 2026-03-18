@@ -1,0 +1,96 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: { user } } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: roleData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .single();
+
+    if (!roleData) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const body = await req.json();
+    const { action } = body;
+
+    if (action === "create_user") {
+      const { email, password, full_name, permissions, ai_credits } = body;
+      const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role: "user" });
+      await supabaseAdmin.from("managed_users").insert({
+        email, full_name, user_id: newUser.user.id,
+        permissions: permissions || { pages: true, forms: true, quiz: true, crm: true, checkout: true, schedules: true, analytics: true },
+        ai_credits: ai_credits || 100,
+        created_by: user.id,
+      });
+
+      return new Response(JSON.stringify({ success: true, user_id: newUser.user.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "list_users") {
+      const { data } = await supabaseAdmin.from("managed_users").select("*").order("created_at", { ascending: false });
+      return new Response(JSON.stringify({ users: data || [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "update_user") {
+      const { managed_user_id, is_active, permissions, ai_credits, full_name } = body;
+      const updates: any = {};
+      if (is_active !== undefined) updates.is_active = is_active;
+      if (permissions !== undefined) updates.permissions = permissions;
+      if (ai_credits !== undefined) updates.ai_credits = ai_credits;
+      if (full_name !== undefined) updates.full_name = full_name;
+      await supabaseAdmin.from("managed_users").update(updates).eq("id", managed_user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "delete_user") {
+      const { managed_user_id } = body;
+      const { data: mu } = await supabaseAdmin.from("managed_users").select("user_id").eq("id", managed_user_id).single();
+      if (mu?.user_id) {
+        await supabaseAdmin.auth.admin.deleteUser(mu.user_id);
+      }
+      await supabaseAdmin.from("managed_users").delete().eq("id", managed_user_id);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "reset_password") {
+      const { managed_user_id, new_password } = body;
+      const { data: mu } = await supabaseAdmin.from("managed_users").select("user_id").eq("id", managed_user_id).single();
+      if (mu?.user_id) {
+        await supabaseAdmin.auth.admin.updateUserById(mu.user_id, { password: new_password });
+      }
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+});
