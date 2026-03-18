@@ -287,6 +287,43 @@ const CheckoutsList = () => {
               ))}
             </div>
 
+            {/* Order Type */}
+            <div className="surface-card rounded-lg p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">📋 Tipo de Operação</p>
+              <div className="flex gap-2">
+                {["pedido", "reserva", "agendamento"].map(type => (
+                  <button key={type} onClick={() => setEditing({ ...editing, style: { ...s, orderType: type } })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${s.orderType === type ? "bg-primary/10 border-primary/30 text-primary" : "bg-secondary/50 border-border text-muted-foreground"}`}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <Label className="text-[10px]">Texto do botão final (opcional)</Label>
+                <Input value={s.submitButtonText || ""} onChange={e => setEditing({ ...editing, style: { ...s, submitButtonText: e.target.value } })} placeholder={`Enviar ${(s.orderType || "pedido").charAt(0).toUpperCase() + (s.orderType || "pedido").slice(1)} via WhatsApp`} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" />
+              </div>
+            </div>
+
+            {/* PIX Payment */}
+            <div className="surface-card rounded-lg p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">💳 Pagamento PIX</p>
+              <label className="flex items-center gap-2 text-xs">
+                <Switch checked={s.pixEnabled || false} onCheckedChange={v => setEditing({ ...editing, style: { ...s, pixEnabled: v } })} />
+                Habilitar pagamento via PIX
+              </label>
+              {s.pixEnabled && (
+                <div className="space-y-2">
+                  <div><Label className="text-[10px]">Chave PIX</Label><Input value={s.pixKey || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixKey: e.target.value } })} placeholder="CPF, CNPJ, e-mail ou chave aleatória" className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-[10px]">Nome do titular</Label><Input value={s.pixName || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixName: e.target.value } })} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                    <div><Label className="text-[10px]">Banco</Label><Input value={s.pixBank || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixBank: e.target.value } })} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                  </div>
+                  <div><Label className="text-[10px]">URL da imagem QR Code (opcional)</Label><Input value={s.pixQrCode || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixQrCode: e.target.value } })} placeholder="https://..." className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                  <div><Label className="text-[10px]">Desconto PIX % (opcional)</Label><Input value={s.pixDiscount || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixDiscount: e.target.value } })} placeholder="10" className="h-7 text-xs bg-secondary/50 border-border mt-0.5 w-24" /></div>
+                </div>
+              )}
+            </div>
+
             {/* Conversion Elements */}
             <div className="surface-card rounded-lg p-4 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🚀 Elementos de Conversão</p>
@@ -313,6 +350,17 @@ const CheckoutsList = () => {
                 <label className="flex items-center gap-2 text-xs">
                   <Switch checked={s.showRatings || false} onCheckedChange={v => setEditing({ ...editing, style: { ...s, showRatings: v } })} />
                   <Star className="h-3.5 w-3.5 text-muted-foreground" /> Avaliações flutuantes
+                </label>
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={s.showGuarantee || false} onCheckedChange={v => setEditing({ ...editing, style: { ...s, showGuarantee: v } })} />
+                  🛡️ Selo de garantia
+                </label>
+                {s.showGuarantee && (
+                  <div><Label className="text-[10px]">Texto da garantia</Label><Input value={s.guaranteeText || "Garantia de 7 dias"} onChange={e => setEditing({ ...editing, style: { ...s, guaranteeText: e.target.value } })} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                )}
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={s.showSecurityBadges || false} onCheckedChange={v => setEditing({ ...editing, style: { ...s, showSecurityBadges: v } })} />
+                  🔒 Selos de segurança
                 </label>
               </div>
             </div>
