@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Globe, Key, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   Info, AlertCircle, CheckCircle2, RefreshCw, ExternalLink, Shield,
-  Loader2,
+  Loader2, Lock,
 } from "lucide-react";
 
 interface Domain {
