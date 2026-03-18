@@ -105,10 +105,9 @@ const PageEditor = () => {
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
   // If user is in HTML mode, render GrapesEditor
-  if (!loading && editMode as string === "html" && page) {
+  if (!loading && editMode === "html" && page) {
     return (
       <div className="h-screen flex flex-col bg-background">
-        {/* Mode toggle bar */}
         <div className="flex items-center gap-2 px-4 h-10 shrink-0 border-b border-border bg-card">
           <button onClick={() => navigate("/dashboard")} className="p-1.5 hover:bg-secondary rounded-lg transition-colors">
             <ArrowLeft className="h-4 w-4 text-muted-foreground" />
@@ -116,21 +115,14 @@ const PageEditor = () => {
           <span className="text-sm font-semibold truncate max-w-[200px]">{title}</span>
           <div className="ml-auto flex items-center gap-1">
             <Button
-              variant={editMode === "sections" ? "default" : "outline"}
+              variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={() => {
-                setEditMode("sections");
-                toast({ title: "Modo alterado para Seções" });
-              }}
+              onClick={() => setEditMode("sections")}
             >
               <Layers className="h-3 w-3" /> Seções
             </Button>
-            <Button
-              variant={editMode === "html" ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs gap-1"
-            >
+            <Button variant="default" size="sm" className="h-7 text-xs gap-1">
               <Code className="h-3 w-3" /> HTML
             </Button>
           </div>
