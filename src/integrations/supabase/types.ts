@@ -49,6 +49,63 @@ export type Database = {
           },
         ]
       }
+      appointments: {
+        Row: {
+          created_at: string
+          date: string
+          guest_email: string | null
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          schedule_id: string
+          status: string
+          time: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          guest_email?: string | null
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          schedule_id: string
+          status?: string
+          time: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          guest_email?: string | null
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          schedule_id?: string
+          status?: string
+          time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string
@@ -98,6 +155,138 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      checkouts: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_published: boolean
+          items: Json
+          slug: string
+          style: Json
+          title: string
+          user_id: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          items?: Json
+          slug: string
+          style?: Json
+          title: string
+          user_id?: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          items?: Json
+          slug?: string
+          style?: Json
+          title?: string
+          user_id?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      form_responses: {
+        Row: {
+          completed_at: string
+          form_id: string
+          id: string
+          lead_id: string | null
+          responses: Json
+        }
+        Insert: {
+          completed_at?: string
+          form_id: string
+          id?: string
+          lead_id?: string | null
+          responses?: Json
+        }
+        Update: {
+          completed_at?: string
+          form_id?: string
+          id?: string
+          lead_id?: string | null
+          responses?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_responses_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_responses_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          created_at: string
+          description: string | null
+          fields: Json
+          id: string
+          is_active: boolean
+          is_published: boolean
+          pipeline_id: string | null
+          settings: Json
+          slug: string
+          stage_id: string | null
+          style: Json
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          pipeline_id?: string | null
+          settings?: Json
+          slug: string
+          stage_id?: string | null
+          style?: Json
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          fields?: Json
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          pipeline_id?: string | null
+          settings?: Json
+          slug?: string
+          stage_id?: string | null
+          style?: Json
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       landing_page_sections: {
         Row: {
@@ -243,6 +432,63 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "pipeline_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          checkout_id: string
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          id: string
+          items: Json
+          lead_id: string | null
+          notes: string | null
+          status: string
+          total: number
+        }
+        Insert: {
+          checkout_id: string
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          id?: string
+          items?: Json
+          lead_id?: string | null
+          notes?: string | null
+          status?: string
+          total?: number
+        }
+        Update: {
+          checkout_id?: string
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          id?: string
+          items?: Json
+          lead_id?: string | null
+          notes?: string | null
+          status?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -406,6 +652,57 @@ export type Database = {
           is_active?: boolean
           questions?: Json
           slug?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      schedules: {
+        Row: {
+          available_days: Json
+          available_hours: Json
+          created_at: string
+          description: string | null
+          duration: number
+          id: string
+          is_active: boolean
+          is_published: boolean
+          pipeline_id: string | null
+          slug: string
+          stage_id: string | null
+          style: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          available_days?: Json
+          available_hours?: Json
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          pipeline_id?: string | null
+          slug: string
+          stage_id?: string | null
+          style?: Json
+          title: string
+          user_id?: string
+        }
+        Update: {
+          available_days?: Json
+          available_hours?: Json
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          is_active?: boolean
+          is_published?: boolean
+          pipeline_id?: string | null
+          slug?: string
+          stage_id?: string | null
+          style?: Json
           title?: string
           user_id?: string
         }

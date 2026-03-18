@@ -10,6 +10,9 @@ import Dashboard from "./pages/Dashboard";
 import PageEditor from "./pages/PageEditor";
 import LandingPagePublic from "./pages/LandingPagePublic";
 import QuizPublic from "./pages/QuizPublic";
+import FormPublic from "./pages/FormPublic";
+import SchedulePublic from "./pages/SchedulePublic";
+import CheckoutPublic from "./pages/CheckoutPublic";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +38,9 @@ const App = () => (
             <Route path="/editor/:id" element={<ProtectedRoute><PageEditor /></ProtectedRoute>} />
             <Route path="/p/:slug" element={<LandingPagePublic />} />
             <Route path="/quiz/:slug" element={<QuizPublic />} />
+            <Route path="/form/:slug" element={<FormPublic />} />
+            <Route path="/agendar/:slug" element={<SchedulePublic />} />
+            <Route path="/checkout/:slug" element={<CheckoutPublic />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
