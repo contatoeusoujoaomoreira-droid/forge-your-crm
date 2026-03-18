@@ -78,6 +78,11 @@ const CheckoutsList = () => {
       notificationMessages: ["João acabou de comprar!", "Maria garantiu o desconto!"],
       showRatings: false,
       logoUrl: "",
+      orderType: "pedido",
+      submitButtonText: "",
+      pixEnabled: false, pixKey: "", pixName: "", pixBank: "", pixQrCode: "", pixDiscount: "",
+      showGuarantee: false, guaranteeText: "Garantia de 7 dias",
+      showSecurityBadges: false,
     },
     created_at: "",
   });
