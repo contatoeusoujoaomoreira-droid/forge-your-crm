@@ -48,6 +48,10 @@ const statusOptions = [
 
 const isWonStage = (stageName: string) => WON_STAGE_PATTERNS.some(p => stageName.toLowerCase().includes(p));
 
+interface Pipeline {
+  id: string; name: string; created_at: string;
+}
+
 const CRMKanban = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -56,6 +60,10 @@ const CRMKanban = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("kanban");
+  const [pipelines, setPipelines] = useState<Pipeline[]>([{ id: "default", name: "Pipeline Principal", created_at: "" }]);
+  const [activePipeline, setActivePipeline] = useState("default");
+  const [newPipelineName, setNewPipelineName] = useState("");
+  const [showPipelineDialog, setShowPipelineDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
