@@ -386,10 +386,12 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          pipeline_id: string | null
           position: number
           source: string | null
           stage_id: string | null
           status: string
+          tags: string[] | null
           updated_at: string
           user_id: string
           value: number | null
@@ -402,10 +404,12 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          pipeline_id?: string | null
           position?: number
           source?: string | null
           stage_id?: string | null
           status?: string
+          tags?: string[] | null
           updated_at?: string
           user_id: string
           value?: number | null
@@ -418,10 +422,12 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          pipeline_id?: string | null
           position?: number
           source?: string | null
           stage_id?: string | null
           status?: string
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
           value?: number | null
@@ -630,8 +636,11 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          is_published: boolean | null
           questions: Json
+          settings: Json | null
           slug: string
+          style: Json | null
           title: string
           user_id: string
         }
@@ -640,8 +649,11 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_published?: boolean | null
           questions?: Json
+          settings?: Json | null
           slug: string
+          style?: Json | null
           title: string
           user_id?: string
         }
@@ -650,8 +662,11 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_published?: boolean | null
           questions?: Json
+          settings?: Json | null
           slug?: string
+          style?: Json | null
           title?: string
           user_id?: string
         }
