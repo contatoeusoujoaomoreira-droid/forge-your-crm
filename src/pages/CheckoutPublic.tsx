@@ -12,6 +12,68 @@ interface CheckoutItem {
   image?: string;
 }
 
+const generatePixQr = (pixKey: string): string => {
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(pixKey);
+    qr.make();
+    return qr.createDataURL(6, 0);
+  } catch { return ""; }
+};
+
+const PixScreen = ({ style, total, customer, checkout, onDone, pixCopied, handleCopyPix }: any) => {
+  const autoQr = style.pixKey ? generatePixQr(style.pixKey) : "";
+  const qrSrc = style.pixQrCode || autoQr;
+  const showQr = style.showQrCode !== false;
+
+  return (
+    <div className="max-w-lg mx-auto p-4 space-y-6">
+      <div className="text-center space-y-3">
+        <div className="text-4xl">💳</div>
+        <h2 className="text-xl font-bold">Pagamento via PIX</h2>
+        <p className="text-sm opacity-70">Pague via PIX para garantir seu desconto</p>
+      </div>
+      <div className="rounded-xl p-6 space-y-4" style={{ background: `${style.textColor || "#fff"}08`, border: `1px solid ${style.textColor || "#fff"}15` }}>
+        <div className="text-center">
+          <p className="text-3xl font-bold" style={{ color: style.accentColor || "#84CC16" }}>R$ {total.toFixed(2)}</p>
+          {style.pixDiscount && <p className="text-xs opacity-60 mt-1">Com {style.pixDiscount}% de desconto no PIX</p>}
+        </div>
+        {showQr && qrSrc && (
+          <div className="flex justify-center">
+            <img src={qrSrc} alt="QR Code PIX" className="h-48 w-48 rounded-lg bg-white p-2" />
+          </div>
+        )}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold opacity-70">Chave PIX:</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-lg px-4 py-3 text-sm font-mono truncate" style={{ background: `${style.textColor || "#fff"}10` }}>{style.pixKey}</div>
+            <button onClick={handleCopyPix} className="px-4 py-3 rounded-lg text-sm font-bold flex items-center gap-1" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
+              {pixCopied ? <><Check className="h-4 w-4" /> Copiado</> : <><Copy className="h-4 w-4" /> Copiar</>}
+            </button>
+          </div>
+        </div>
+        {(style.pixName || style.pixBank) && (
+          <div className="text-xs opacity-60 space-y-1">
+            {style.pixName && <p><strong>Nome:</strong> {style.pixName}</p>}
+            {style.pixBank && <p><strong>Banco:</strong> {style.pixBank}</p>}
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-center opacity-50">Após o pagamento, envie o comprovante pelo WhatsApp</p>
+      <button onClick={() => {
+        const whatsNumber = checkout.whatsapp_number;
+        if (whatsNumber) {
+          const msg = encodeURIComponent(`✅ Pagamento PIX realizado!\n\n👤 ${customer.name}\n💰 R$ ${total.toFixed(2)}\n\nComprovante em anexo.`);
+          window.open(`https://wa.me/${whatsNumber}?text=${msg}`, "_blank");
+        }
+        onDone();
+      }} className="w-full py-3 rounded-lg font-semibold text-sm transition-transform hover:scale-105" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
+        Enviar Comprovante via WhatsApp
+      </button>
+    </div>
+  );
+};
+
 const CheckoutPublic = () => {
   const { slug } = useParams<{ slug: string }>();
   const [checkout, setCheckout] = useState<any>(null);
