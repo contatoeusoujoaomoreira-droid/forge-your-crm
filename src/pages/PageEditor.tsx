@@ -105,7 +105,7 @@ const PageEditor = () => {
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
   // If user is in HTML mode, render GrapesEditor
-  if (!loading && editMode === "html" && page) {
+  if (!loading && editMode as string === "html" && page) {
     return (
       <div className="h-screen flex flex-col bg-background">
         {/* Mode toggle bar */}
