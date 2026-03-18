@@ -124,7 +124,14 @@ const FormsList = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const { toast } = useToast();
+
+  const fetchLeads = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("leads").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    setLeads((data || []).map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
+  };
 
   const fetchForms = async () => {
     const { data } = await supabase.from("forms").select("*").order("created_at", { ascending: false });
