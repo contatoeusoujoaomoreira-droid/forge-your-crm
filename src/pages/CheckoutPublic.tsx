@@ -25,7 +25,7 @@ const CheckoutPublic = () => {
       const { data } = await supabase.from("checkouts").select("*").eq("slug", slug).eq("is_active", true).eq("is_published", true).maybeSingle();
       if (data) {
         setCheckout(data);
-        setItems(Array.isArray(data.items) ? data.items as CheckoutItem[] : []);
+        setItems(Array.isArray(data.items) ? (data.items as unknown as CheckoutItem[]) : []);
       }
       setLoading(false);
     };

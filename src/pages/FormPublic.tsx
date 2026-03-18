@@ -24,7 +24,7 @@ const FormPublic = () => {
       const { data } = await supabase.from("forms").select("*").eq("slug", slug).eq("is_active", true).eq("is_published", true).maybeSingle();
       if (data) {
         setForm(data);
-        setFields(Array.isArray(data.fields) ? data.fields as FormField[] : []);
+        setFields(Array.isArray(data.fields) ? (data.fields as unknown as FormField[]) : []);
       }
       setLoading(false);
     };
