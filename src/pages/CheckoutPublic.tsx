@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ShoppingCart, Plus, Minus, Star, Timer, Copy, Check } from "lucide-react";
+import qrcode from "qrcode-generator";
 
 interface CheckoutItem {
   id: string;
