@@ -1,1 +1,7 @@
 project_id = "jdsomjwynxetccrcdszt"
+
+[functions.manage-users]
+verify_jwt = false
+
+[functions.generate-landing-page]
+verify_jwt = false
