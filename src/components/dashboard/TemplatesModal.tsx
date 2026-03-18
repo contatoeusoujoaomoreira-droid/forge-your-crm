@@ -12,6 +12,20 @@ export interface PageTemplate {
 
 const templates: PageTemplate[] = [
   {
+    name: "FORGE AI — Landing Page",
+    description: "Template oficial do Forge AI. Dark mode com verde-lima, depoimentos, planos e CTA para WhatsApp.",
+    preview: "⚡",
+    category: "SaaS",
+    isFullHTML: false,
+    sections: [
+      { section_type: "hero", order: 0, config: { headline: "Acelere suas Vendas com IA", subtitle: "A plataforma all-in-one para capturar leads, criar landing pages e gerenciar seu pipeline.", ctaText: "Começar Agora →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20conhecer%20o%20Forge%20AI", badge: "⚡ Forge AI CRM", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "100", headingSize: "56", headingWeight: "900", fontFamily: "Inter", gradientText: true } },
+      { section_type: "features", order: 1, config: { title: "Tudo que você precisa", bgColor: "#0A0A0A", textColor: "#ffffff", accentColor: "#84CC16", animation: "slide-up", paddingY: "60", items: [{ icon: "📊", title: "CRM Inteligente", description: "Pipeline visual com drag-and-drop." }, { icon: "🌐", title: "Landing Pages", description: "Crie páginas de alta conversão." }, { icon: "📝", title: "Quiz Builder", description: "Qualifique leads com quizzes." }, { icon: "📅", title: "Agendamento", description: "Sistema de reservas nativo." }, { icon: "🛒", title: "Checkout", description: "Vendas com PIX e WhatsApp." }, { icon: "📋", title: "Formulários", description: "Captura estilo Typeform." }] } },
+      { section_type: "testimonials", order: 2, config: { title: "Quem usa, recomenda", bgColor: "#000000", textColor: "#ffffff", animation: "fade-in", paddingY: "60", items: [{ name: "Camila F.", role: "CEO, Lumiar Digital", text: "Minhas vendas triplicaram em 3 meses." }, { name: "Rafael O.", role: "Founder, Growth Lab", text: "O quiz capturou 4x mais leads qualificados." }, { name: "Juliana C.", role: "CMO, Vetta Marketing", text: "CRM intuitivo, sem precisar de manual." }] } },
+      { section_type: "pricing", order: 3, config: { title: "Planos", bgColor: "#0A0A0A", textColor: "#ffffff", accentColor: "#84CC16", animation: "scale-in", paddingY: "60", plans: [{ name: "Básico", price: "67", features: ["CRM", "Landing Pages", "Formulários", "1 Domínio"], ctaText: "Começar →", highlight: false }, { name: "Pro", price: "97", features: ["Tudo do Básico", "Quiz Builder", "Agenda", "Checkout", "IA Nativa"], ctaText: "Assinar Pro →", highlight: true }, { name: "Enterprise", price: "Sob Consulta", features: ["Tudo do Pro", "Multi-usuários", "API Completa", "Suporte Prioritário"], ctaText: "Falar com Consultor →", highlight: false }] } },
+      { section_type: "cta", order: 4, config: { headline: "Pronto para acelerar suas vendas?", description: "Comece agora e veja resultados em dias.", ctaText: "Falar com Especialista →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20o%20Forge%20AI", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "80" } },
+    ],
+  },
+  {
     name: "LAKS Company — Assessoria",
     description: "Dark mode com verde-lima neon. Estilo corporativo para agências e assessorias de marketing digital.",
     preview: "🏢",
@@ -58,14 +72,14 @@ const templates: PageTemplate[] = [
   },
   {
     name: "VSL — Vídeo de Vendas",
-    description: "Página com vídeo de vendas, headline forte, urgência e escassez. Ideal para lançamentos.",
+    description: "Página com vídeo de vendas, headline forte, urgência e escassez.",
     preview: "🎬",
     category: "Vendas",
     sections: [
-      { section_type: "hero", order: 0, config: { headline: "Descubra o Método que Já Transformou +10.000 Vidas", subtitle: "Assista ao vídeo abaixo e veja como funciona — antes que a oferta expire.", ctaText: "QUERO ACESSO AGORA →", ctaUrl: "#pricing", badge: "🔥 OFERTA POR TEMPO LIMITADO", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16" } },
-      { section_type: "benefits", order: 1, config: { title: "Por Que Este Método Funciona?", items: [{ icon: "✅", title: "Resultado em 7 dias", description: "Veja as primeiras mudanças na primeira semana." }, { icon: "🎯", title: "100% Prático", description: "Passo a passo direto ao ponto." }, { icon: "🔒", title: "Garantia de 30 Dias", description: "Devolvemos seu dinheiro se não gostar." }] } },
-      { section_type: "pricing", order: 2, config: { title: "Escolha Seu Plano", plans: [{ name: "Essencial", price: "97", features: ["Acesso completo", "Suporte 30 dias", "Comunidade"], ctaText: "QUERO ESSE →", highlight: false }, { name: "Premium", price: "197", features: ["Tudo do Essencial", "Mentoria em grupo", "Acesso vitalício"], ctaText: "QUERO ESSE →", highlight: true }] } },
-      { section_type: "cta", order: 3, config: { headline: "⏰ Essa Oferta Expira em Breve", description: "Garanta seu acesso agora com desconto exclusivo.", ctaText: "GARANTIR MINHA VAGA →" } },
+      { section_type: "hero", order: 0, config: { headline: "Descubra o Método que Já Transformou +10.000 Vidas", subtitle: "Assista ao vídeo abaixo e veja como funciona.", ctaText: "QUERO ACESSO AGORA →", ctaUrl: "#pricing", badge: "🔥 OFERTA POR TEMPO LIMITADO", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16" } },
+      { section_type: "benefits", order: 1, config: { title: "Por Que Este Método Funciona?", items: [{ icon: "✅", title: "Resultado em 7 dias", description: "Veja mudanças na primeira semana." }, { icon: "🎯", title: "100% Prático", description: "Passo a passo direto ao ponto." }, { icon: "🔒", title: "Garantia de 30 Dias", description: "Devolvemos seu dinheiro." }] } },
+      { section_type: "pricing", order: 2, config: { title: "Escolha Seu Plano", plans: [{ name: "Essencial", price: "97", features: ["Acesso completo", "Suporte 30 dias"], ctaText: "QUERO ESSE →", highlight: false }, { name: "Premium", price: "197", features: ["Tudo do Essencial", "Mentoria", "Acesso vitalício"], ctaText: "QUERO ESSE →", highlight: true }] } },
+      { section_type: "cta", order: 3, config: { headline: "⏰ Essa Oferta Expira em Breve", description: "Garanta seu acesso agora.", ctaText: "GARANTIR MINHA VAGA →" } },
     ],
   },
   {
@@ -74,19 +88,19 @@ const templates: PageTemplate[] = [
     preview: "🧲",
     category: "Captura",
     sections: [
-      { section_type: "hero", order: 0, config: { headline: "E-book Grátis: Guia Completo", subtitle: "Baixe agora o guia com estratégias comprovadas. 100% gratuito.", ctaText: "BAIXAR AGORA — É GRÁTIS →", badge: "📚 MATERIAL GRATUITO" } },
-      { section_type: "benefits", order: 1, config: { title: "O Que Você Vai Aprender:", items: [{ icon: "📖", title: "Fundamentos", description: "A base que todo profissional precisa." }, { icon: "🎯", title: "Estratégias", description: "Táticas que geram resultados reais." }, { icon: "🚀", title: "Escala", description: "Como multiplicar seus resultados." }] } },
+      { section_type: "hero", order: 0, config: { headline: "E-book Grátis: Guia Completo", subtitle: "Baixe agora o guia com estratégias comprovadas.", ctaText: "BAIXAR AGORA — É GRÁTIS →", badge: "📚 MATERIAL GRATUITO" } },
+      { section_type: "benefits", order: 1, config: { title: "O Que Você Vai Aprender:", items: [{ icon: "📖", title: "Fundamentos", description: "A base que todo profissional precisa." }, { icon: "🎯", title: "Estratégias", description: "Táticas que geram resultados." }, { icon: "🚀", title: "Escala", description: "Como multiplicar resultados." }] } },
     ],
   },
   {
     name: "Webinar — Evento Online",
-    description: "Página de inscrição para evento ao vivo com urgência. Ideal para lançamentos.",
+    description: "Página de inscrição para evento ao vivo com urgência.",
     preview: "🎙️",
     category: "Evento",
     sections: [
-      { section_type: "hero", order: 0, config: { headline: "Masterclass Gratuita: Como Alcançar Resultados", subtitle: "Evento ao vivo — Vagas limitadas a 500 participantes.", ctaText: "GARANTIR MINHA VAGA GRÁTIS →", badge: "🔴 AO VIVO E GRATUITO" } },
-      { section_type: "benefits", order: 1, config: { title: "Nesta Masterclass Você Vai Aprender:", items: [{ icon: "🎯", title: "Estratégia #1", description: "O framework completo para resultados." }, { icon: "⚡", title: "Estratégia #2", description: "Como eliminar problemas da sua rotina." }, { icon: "💰", title: "Estratégia #3", description: "O método que gera resultados." }] } },
-      { section_type: "cta", order: 2, config: { headline: "⚠️ Vagas Limitadas", description: "Apenas 500 vagas disponíveis. Não deixe para depois.", ctaText: "QUERO PARTICIPAR →" } },
+      { section_type: "hero", order: 0, config: { headline: "Masterclass Gratuita: Como Alcançar Resultados", subtitle: "Evento ao vivo — Vagas limitadas.", ctaText: "GARANTIR MINHA VAGA GRÁTIS →", badge: "🔴 AO VIVO E GRATUITO" } },
+      { section_type: "benefits", order: 1, config: { title: "Nesta Masterclass Você Vai Aprender:", items: [{ icon: "🎯", title: "Estratégia #1", description: "O framework completo." }, { icon: "⚡", title: "Estratégia #2", description: "Como eliminar problemas." }, { icon: "💰", title: "Estratégia #3", description: "O método que gera resultados." }] } },
+      { section_type: "cta", order: 2, config: { headline: "⚠️ Vagas Limitadas", description: "Apenas 500 vagas. Não deixe para depois.", ctaText: "QUERO PARTICIPAR →" } },
     ],
   },
 ];

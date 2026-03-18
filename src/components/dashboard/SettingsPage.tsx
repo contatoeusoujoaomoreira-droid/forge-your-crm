@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Globe, Key, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   Info, AlertCircle, CheckCircle2, RefreshCw, ExternalLink, Shield,
-  Loader2,
+  Loader2, Lock,
 } from "lucide-react";
 
 interface Domain {
@@ -252,9 +253,47 @@ const SettingsPage = () => {
     }
   };
 
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [changingPwd, setChangingPwd] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!newPwd || newPwd.length < 6) { toast({ title: "Senha deve ter no mínimo 6 caracteres", variant: "destructive" }); return; }
+    if (newPwd !== confirmPwd) { toast({ title: "Senhas não conferem", variant: "destructive" }); return; }
+    setChangingPwd(true);
+    const { error } = await supabase.auth.updateUser({ password: newPwd });
+    setChangingPwd(false);
+    if (error) { toast({ title: "Erro ao alterar senha", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Senha alterada com sucesso!" });
+    setNewPwd(""); setConfirmPwd("");
+  };
+
   return (
     <div className="space-y-8 max-w-4xl">
-      {/* Domains Section */}
+      {/* Password Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Lock className="h-5 w-5 text-primary" /> Alterar Senha
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">Atualize a senha da sua conta.</p>
+        </div>
+        <div className="surface-card rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Nova Senha</label>
+              <Input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Mínimo 6 caracteres" className="bg-secondary/50 border-border" />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Confirmar Senha</label>
+              <Input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="Repita a senha" className="bg-secondary/50 border-border" />
+            </div>
+          </div>
+          <Button onClick={handleChangePassword} disabled={changingPwd} size="sm">
+            {changingPwd ? "Alterando..." : "Alterar Senha"}
+          </Button>
+        </div>
+      </section>
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
