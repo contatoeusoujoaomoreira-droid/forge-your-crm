@@ -12,11 +12,14 @@ import {
   Plus, GripVertical, DollarSign, Mail, Phone, Pencil, Trash2, X,
   Users, TrendingUp, Target, BarChart3, Tag, MessageSquare, Building,
   ChevronDown, ChevronUp, Download, Search, Filter, Clock, History,
-  MessageCircle, PhoneCall, CheckSquare, StickyNote,
+  MessageCircle, PhoneCall, CheckSquare, StickyNote, ExternalLink,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
+
+// Stages whose names match these patterns count as "won"
+const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
 
 interface Stage { id: string; name: string; position: number; color: string; }
 interface Lead {
@@ -43,6 +46,8 @@ const statusOptions = [
   { value: "won", label: "Ganho" }, { value: "lost", label: "Perdido" },
 ];
 
+const isWonStage = (stageName: string) => WON_STAGE_PATTERNS.some(p => stageName.toLowerCase().includes(p));
+
 const CRMKanban = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -55,9 +60,11 @@ const CRMKanban = () => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
 
+  // Global add lead dialog (top-right button)
+  const [globalAddOpen, setGlobalAddOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addStageId, setAddStageId] = useState<string | null>(null);
-  const [newLead, setNewLead] = useState({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "" });
+  const [newLead, setNewLead] = useState({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "" });
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editTab, setEditTab] = useState<"info" | "activity">("info");
@@ -97,21 +104,24 @@ const CRMKanban = () => {
 
   const sources = useMemo(() => [...new Set(leads.map(l => l.source).filter(Boolean))], [leads]);
 
-  const handleAddLead = async () => {
-    if (!user || !newLead.name || !addStageId) return;
-    const stageLeads = leads.filter(l => l.stage_id === addStageId);
+  const handleAddLead = async (stageId?: string) => {
+    if (!user || !newLead.name) return;
+    const targetStageId = stageId || newLead.stage_id || addStageId || (stages[0]?.id);
+    if (!targetStageId) return;
+    const stageLeads = leads.filter(l => l.stage_id === targetStageId);
     const tags = newLead.tags ? newLead.tags.split(",").map(t => t.trim()).filter(Boolean) : [];
     const { error } = await supabase.from("leads").insert({
       user_id: user.id, name: newLead.name, email: newLead.email || null,
       phone: newLead.phone || null, company: newLead.company || null,
-      value: parseFloat(newLead.value) || 0, stage_id: addStageId,
+      value: parseFloat(newLead.value) || 0, stage_id: targetStageId,
       position: stageLeads.length, notes: newLead.notes || null,
       source: newLead.source || null, tags,
     } as any);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Lead adicionado!" });
-    setNewLead({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "" });
+    setNewLead({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "" });
     setAddOpen(false);
+    setGlobalAddOpen(false);
     fetchData();
   };
 
@@ -121,6 +131,7 @@ const CRMKanban = () => {
       name: editLead.name, email: editLead.email, phone: editLead.phone,
       company: editLead.company, value: editLead.value, notes: editLead.notes,
       source: editLead.source, status: editLead.status, tags: editLead.tags,
+      stage_id: editLead.stage_id,
     } as any).eq("id", editLead.id);
     if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
     toast({ title: "Lead atualizado!" });
@@ -147,9 +158,24 @@ const CRMKanban = () => {
 
   const handleDrop = async (stageId: string) => {
     if (!draggedLead) return;
-    await supabase.from("leads").update({ stage_id: stageId }).eq("id", draggedLead);
-    setLeads(prev => prev.map(l => l.id === draggedLead ? { ...l, stage_id: stageId } : l));
+    const lead = leads.find(l => l.id === draggedLead);
+    const stage = stages.find(s => s.id === stageId);
+
+    // Update lead stage
+    const updates: any = { stage_id: stageId };
+
+    // If dropping into a "won" stage and lead has value, mark as won
+    if (stage && isWonStage(stage.name) && lead && lead.value > 0) {
+      updates.status = "won";
+    }
+
+    await supabase.from("leads").update(updates).eq("id", draggedLead);
+    setLeads(prev => prev.map(l => l.id === draggedLead ? { ...l, ...updates } : l));
     setDraggedLead(null);
+
+    if (stage && isWonStage(stage.name) && lead && lead.value > 0) {
+      toast({ title: `🎉 Lead "${lead.name}" marcado como ganho! R$ ${lead.value.toLocaleString("pt-BR")}` });
+    }
   };
 
   const handleAddStage = async () => {
@@ -193,6 +219,13 @@ const CRMKanban = () => {
     toast({ title: "Leads exportados!" });
   };
 
+  const openWhatsApp = (lead: Lead) => {
+    if (!lead.phone) { toast({ title: "Lead sem WhatsApp", variant: "destructive" }); return; }
+    const phone = lead.phone.replace(/\D/g, "");
+    const msg = encodeURIComponent(`Olá ${lead.name}! `);
+    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+  };
+
   const addTagToLead = () => {
     if (!editLead || !newTag.trim()) return;
     if (!editLead.tags.includes(newTag.trim())) {
@@ -210,7 +243,9 @@ const CRMKanban = () => {
 
   const totalLeads = leads.length;
   const totalValue = leads.reduce((s, l) => s + (l.value || 0), 0);
-  const wonLeads = leads.filter(l => l.status === "won");
+  // Won = leads in stages whose name matches won patterns AND have value > 0
+  const wonStageIds = stages.filter(s => isWonStage(s.name)).map(s => s.id);
+  const wonLeads = leads.filter(l => (l.status === "won" || (l.stage_id && wonStageIds.includes(l.stage_id))) && l.value > 0);
   const wonValue = wonLeads.reduce((s, l) => s + (l.value || 0), 0);
   const conversionRate = totalLeads > 0 ? ((wonLeads.length / totalLeads) * 100).toFixed(1) : "0";
   const stageData = stages.map(stage => ({ name: stage.name, count: leads.filter(l => l.stage_id === stage.id).length, value: leads.filter(l => l.stage_id === stage.id).reduce((s, l) => s + (l.value || 0), 0) }));
@@ -218,7 +253,7 @@ const CRMKanban = () => {
   leads.forEach(l => { statusCounts[l.status] = (statusCounts[l.status] || 0) + 1; });
   const statusData = Object.entries(statusCounts).map(([k, v]) => ({ name: statusOptions.find(s => s.value === k)?.label || k, value: v }));
 
-  const leadFormFields = (data: any, setData: (d: any) => void, isNew = false) => (
+  const leadFormFields = (data: any, setData: (d: any) => void, isNew = false, showStageSelect = false) => (
     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
       <div className="grid grid-cols-2 gap-3">
         <div><Label className="text-xs">Nome *</Label><Input value={data.name} onChange={e => setData({ ...data, name: e.target.value })} placeholder="Nome completo" className="mt-1 bg-secondary/50 border-border" /></div>
@@ -226,24 +261,27 @@ const CRMKanban = () => {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label className="text-xs">E-mail</Label><Input value={data.email || ""} onChange={e => setData({ ...data, email: e.target.value })} placeholder="email@ex.com" className="mt-1 bg-secondary/50 border-border" /></div>
-        <div><Label className="text-xs">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="(11) 99999-9999" className="mt-1 bg-secondary/50 border-border" /></div>
+        <div><Label className="text-xs">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="5511999999999" className="mt-1 bg-secondary/50 border-border" /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><Label className="text-xs">Valor (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
         <div><Label className="text-xs">Fonte</Label><Input value={data.source || ""} onChange={e => setData({ ...data, source: e.target.value })} placeholder="Instagram, Google..." className="mt-1 bg-secondary/50 border-border" /></div>
       </div>
-      {data.status !== undefined && (
+      {(data.status !== undefined || showStageSelect) && (
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Status</Label>
-            <select value={data.status} onChange={e => setData({ ...data, status: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-              {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
+          {data.status !== undefined && (
+            <div>
+              <Label className="text-xs">Status</Label>
+              <select value={data.status} onChange={e => setData({ ...data, status: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+                {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <Label className="text-xs">Etapa</Label>
             <select value={data.stage_id || ""} onChange={e => setData({ ...data, stage_id: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-              {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {!data.stage_id && <option value="">Selecione...</option>}
+              {stages.map(s => <option key={s.id} value={s.id}>{s.name} {isWonStage(s.name) ? "🏆" : ""}</option>)}
             </select>
           </div>
         </div>
@@ -286,10 +324,22 @@ const CRMKanban = () => {
             <DialogContent className="bg-card border-border">
               <DialogHeader><DialogTitle>Nova Etapa</DialogTitle></DialogHeader>
               <div className="space-y-3 mt-2">
-                <div><Label>Nome</Label><Input value={newStageName} onChange={e => setNewStageName(e.target.value)} className="mt-1 bg-secondary/50 border-border" /></div>
+                <div><Label>Nome</Label><Input value={newStageName} onChange={e => setNewStageName(e.target.value)} className="mt-1 bg-secondary/50 border-border" placeholder="Ex: Fechado, Convertido, Venda..." /></div>
+                <p className="text-[10px] text-muted-foreground">💡 Etapas com nomes como "Fechado", "Convertido", "Venda" ou "Ganho" contabilizam automaticamente como receita ganha.</p>
                 <div><Label>Cor</Label><div className="flex items-center gap-2 mt-1"><input type="color" value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="h-10 w-10 rounded border border-border cursor-pointer" /><Input value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="bg-secondary/50 border-border" /></div></div>
                 <Button onClick={handleAddStage} className="w-full">Criar Etapa</Button>
               </div>
+            </DialogContent>
+          </Dialog>
+          {/* Global Add Lead Button */}
+          <Dialog open={globalAddOpen} onOpenChange={setGlobalAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-8 gap-1"><Plus className="h-3.5 w-3.5" /> Novo Lead</Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader><DialogTitle>Novo Lead</DialogTitle></DialogHeader>
+              {leadFormFields(newLead, setNewLead, true, true)}
+              <Button onClick={() => handleAddLead()} className="w-full">Adicionar Lead</Button>
             </DialogContent>
           </Dialog>
         </div>
@@ -325,12 +375,14 @@ const CRMKanban = () => {
           {stages.map((stage, sIdx) => {
             const stageLeads = filteredLeads.filter(l => l.stage_id === stage.id);
             const stageValue = stageLeads.reduce((s, l) => s + (l.value || 0), 0);
+            const isWon = isWonStage(stage.name);
             return (
               <div key={stage.id} className="flex-shrink-0 w-72 flex flex-col" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
                     <h3 className="text-sm font-semibold text-foreground">{stage.name}</h3>
+                    {isWon && <span className="text-xs">🏆</span>}
                     <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{stageLeads.length}</span>
                   </div>
                   <div className="flex items-center gap-0.5">
@@ -355,7 +407,14 @@ const CRMKanban = () => {
                             {lead.company && <p className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Building className="h-2.5 w-2.5" />{lead.company}</p>}
                           </div>
                         </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {lead.phone && (
+                            <button onClick={(e) => { e.stopPropagation(); openWhatsApp(lead); }} className="p-1 hover:bg-primary/10 rounded" title="WhatsApp">
+                              <MessageCircle className="h-3 w-3 text-primary" />
+                            </button>
+                          )}
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         {lead.email && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-0.5"><Mail className="h-2.5 w-2.5" /></span>}
@@ -380,7 +439,7 @@ const CRMKanban = () => {
                     <DialogContent className="bg-card border-border">
                       <DialogHeader><DialogTitle>Novo Lead — {stage.name}</DialogTitle></DialogHeader>
                       {leadFormFields(newLead, setNewLead, true)}
-                      <Button onClick={handleAddLead} className="w-full">Adicionar Lead</Button>
+                      <Button onClick={() => handleAddLead(stage.id)} className="w-full">Adicionar Lead</Button>
                     </DialogContent>
                   </Dialog>
                 </div>
@@ -398,7 +457,12 @@ const CRMKanban = () => {
               <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
                 {editLead?.name.charAt(0).toUpperCase()}
               </div>
-              {editLead?.name}
+              <span className="flex-1">{editLead?.name}</span>
+              {editLead?.phone && (
+                <button onClick={() => openWhatsApp(editLead!)} className="p-2 hover:bg-primary/10 rounded-lg transition-colors" title="Abrir WhatsApp">
+                  <MessageCircle className="h-4 w-4 text-primary" />
+                </button>
+              )}
             </DialogTitle>
           </DialogHeader>
           {editLead && (
@@ -480,6 +544,7 @@ const CRMKanban = () => {
           {editingStage && (
             <div className="space-y-3 mt-2">
               <div><Label>Nome</Label><Input value={editingStage.name} onChange={e => setEditingStage({ ...editingStage, name: e.target.value })} className="mt-1 bg-secondary/50 border-border" /></div>
+              <p className="text-[10px] text-muted-foreground">💡 Nomes como "Fechado", "Convertido", "Venda" contam como receita ganha automaticamente.</p>
               <div><Label>Cor</Label><div className="flex items-center gap-2 mt-1"><input type="color" value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="h-10 w-10 rounded border border-border cursor-pointer" /><Input value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="bg-secondary/50 border-border" /></div></div>
               <Button onClick={handleUpdateStage} className="w-full">Salvar Etapa</Button>
             </div>

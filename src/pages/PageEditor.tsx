@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, Settings, GripVertical } from "lucide-react";
+import { ArrowLeft, Plus, Save, Eye, EyeOff, ChevronUp, ChevronDown, Trash2, Settings, GripVertical, Code, Layers } from "lucide-react";
 import SectionPreview from "@/components/page-builder/SectionPreview";
 import SectionEditor from "@/components/page-builder/SectionEditor";
 import AddSectionModal from "@/components/page-builder/AddSectionModal";
@@ -58,6 +58,8 @@ const PageEditor = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Edit mode: "sections" or "html" — user can toggle
+  const [editMode, setEditMode] = useState<"sections" | "html">("sections");
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -86,17 +88,61 @@ const PageEditor = () => {
     setCustomDomain((data as any).custom_domain || "");
     setIsPublished(data.is_published);
 
-    if (!(data as any).html_content) {
-      const { data: secs } = await supabase.from("landing_page_sections").select("*").eq("page_id", id).order("order", { ascending: true });
-      setSections((secs || []) as Section[]);
+    // Determine initial edit mode
+    if ((data as any).html_content) {
+      setEditMode("html");
+    } else {
+      setEditMode("sections");
     }
+
+    // Always fetch sections too
+    const { data: secs } = await supabase.from("landing_page_sections").select("*").eq("page_id", id).order("order", { ascending: true });
+    setSections((secs || []) as Section[]);
+
     setLoading(false);
   }, [id, navigate]);
 
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
-  if (!loading && page?.html_content !== null && page?.html_content !== undefined) {
-    return <GrapesEditor pageId={id!} onBack={() => navigate("/dashboard")} />;
+  // If user is in HTML mode, render GrapesEditor
+  if (!loading && editMode === "html" && page) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        {/* Mode toggle bar */}
+        <div className="flex items-center gap-2 px-4 h-10 shrink-0 border-b border-border bg-card">
+          <button onClick={() => navigate("/dashboard")} className="p-1.5 hover:bg-secondary rounded-lg transition-colors">
+            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <span className="text-sm font-semibold truncate max-w-[200px]">{title}</span>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant={editMode === "sections" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={async () => {
+                // Switch to sections mode — clear html_content
+                await supabase.from("landing_pages").update({ html_content: null } as any).eq("id", id!);
+                setPage({ ...page, html_content: null });
+                setEditMode("sections");
+                toast({ title: "Modo alterado para Seções" });
+              }}
+            >
+              <Layers className="h-3 w-3" /> Seções
+            </Button>
+            <Button
+              variant={editMode === "html" ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1"
+            >
+              <Code className="h-3 w-3" /> HTML
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1">
+          <GrapesEditor pageId={id!} onBack={() => navigate("/dashboard")} />
+        </div>
+      </div>
+    );
   }
 
   const selectedSection = sections.find(s => s.id === selectedSectionId);
@@ -192,6 +238,27 @@ const PageEditor = () => {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Mode toggle */}
+          <div className="flex items-center gap-0.5 bg-secondary/50 rounded-lg p-0.5">
+            <button onClick={() => setEditMode("sections")} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${editMode === "sections" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              <Layers className="h-3 w-3 inline mr-1" />Seções
+            </button>
+            <button
+              onClick={async () => {
+                setEditMode("html");
+                // Ensure html_content is set if switching from sections for the first time
+                if (!page?.html_content) {
+                  await supabase.from("landing_pages").update({
+                    html_content: "<section style='padding:80px 20px;text-align:center;background:#000;color:#fff;min-height:400px;display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif;'><div><h1 style='font-size:3rem;font-weight:800;'>Edite esta página</h1><p style='color:#999;margin-top:16px;'>Use o editor visual para personalizar</p></div></section>"
+                  } as any).eq("id", id!);
+                  setPage(p => p ? { ...p, html_content: "set" } : p);
+                }
+              }}
+              className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${editMode === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <Code className="h-3 w-3 inline mr-1" />HTML
+            </button>
+          </div>
           <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-lg transition-colors ${showSettings ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"}`}>
             <Settings className="h-4 w-4" />
           </button>
@@ -274,7 +341,6 @@ const PageEditor = () => {
             )}
           </div>
 
-          {/* Add Section Button — always at bottom */}
           <div className="p-3 border-t border-border">
             <button
               onClick={() => setShowAddModal(true)}

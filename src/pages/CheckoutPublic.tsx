@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ShoppingCart, Plus, Minus } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Star, Timer } from "lucide-react";
 
 interface CheckoutItem {
   id: string;
@@ -19,6 +19,10 @@ const CheckoutPublic = () => {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [step, setStep] = useState<"menu" | "checkout">("menu");
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [notification, setNotification] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const notifInterval = useRef<any>(null);
+  const countdownInterval = useRef<any>(null);
 
   useEffect(() => {
     const fetchCheckout = async () => {
@@ -26,11 +30,41 @@ const CheckoutPublic = () => {
       if (data) {
         setCheckout(data);
         setItems(Array.isArray(data.items) ? (data.items as unknown as CheckoutItem[]) : []);
+        const s = (data.style || {}) as any;
+        // Start countdown
+        if (s.showCountdown) {
+          setCountdown((s.countdownMinutes || 15) * 60);
+        }
       }
       setLoading(false);
     };
     fetchCheckout();
   }, [slug]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (countdown > 0) {
+      countdownInterval.current = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
+      return () => clearInterval(countdownInterval.current);
+    }
+  }, [countdown > 0]);
+
+  // Notification rotator
+  useEffect(() => {
+    const style = checkout?.style || {};
+    if (style.showNotifications && style.notificationMessages?.length) {
+      const msgs = style.notificationMessages;
+      let idx = 0;
+      const show = () => {
+        setNotification(msgs[idx % msgs.length]);
+        idx++;
+        setTimeout(() => setNotification(null), 4000);
+      };
+      notifInterval.current = setInterval(show, (style.notificationInterval || 8) * 1000);
+      setTimeout(show, 3000);
+      return () => clearInterval(notifInterval.current);
+    }
+  }, [checkout]);
 
   const addToCart = (itemId: string) => setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
   const removeFromCart = (itemId: string) => setCart(prev => {
@@ -52,7 +86,6 @@ const CheckoutPublic = () => {
     e.preventDefault();
     if (!checkout || !customer.name || cartItems.length === 0) return;
 
-    // Save order
     await supabase.from("orders").insert({
       checkout_id: checkout.id,
       customer_name: customer.name,
@@ -64,7 +97,6 @@ const CheckoutPublic = () => {
       notes: customer.notes || null,
     });
 
-    // Redirect to WhatsApp
     const whatsNumber = checkout.whatsapp_number;
     if (whatsNumber) {
       const itemsText = cartItems.map(i => `• ${i.quantity}x ${i.name} — R$ ${i.subtotal.toFixed(2)}`).join("\n");
@@ -88,14 +120,25 @@ const CheckoutPublic = () => {
   if (!checkout) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><p>Checkout não encontrado</p></div>;
 
   const style = checkout.style || {};
+  const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
-    <div className="min-h-screen" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff", fontFamily: "Inter" }}>
+    <div className="min-h-screen relative" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff", fontFamily: "Inter" }}>
+      {/* Countdown Banner */}
+      {style.showCountdown && countdown > 0 && (
+        <div className="text-center py-2 px-4 text-sm font-bold flex items-center justify-center gap-2" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
+          <Timer className="h-4 w-4" /> Oferta expira em {formatTime(countdown)}
+        </div>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-10 backdrop-blur-lg border-b border-white/10 px-4 py-3 flex items-center justify-between" style={{ background: `${style.bgColor || "#000"}CC` }}>
-        <div>
-          <h1 className="text-lg font-bold">{checkout.title}</h1>
-          {checkout.description && <p className="text-xs opacity-60">{checkout.description}</p>}
+        <div className="flex items-center gap-3">
+          {style.logoUrl && <img src={style.logoUrl} alt="" className="h-8 object-contain" />}
+          <div>
+            <h1 className="text-lg font-bold">{checkout.title}</h1>
+            {checkout.description && <p className="text-xs opacity-60">{checkout.description}</p>}
+          </div>
         </div>
         {totalItems > 0 && step === "menu" && (
           <button onClick={() => setStep("checkout")} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-transform hover:scale-105" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
@@ -105,6 +148,14 @@ const CheckoutPublic = () => {
           </button>
         )}
       </div>
+
+      {/* Floating Ratings */}
+      {style.showRatings && (
+        <div className="flex items-center justify-center gap-1 py-2">
+          {[1,2,3,4,5].map(i => <Star key={i} className="h-4 w-4" style={{ color: style.accentColor || "#84CC16", fill: style.accentColor || "#84CC16" }} />)}
+          <span className="text-xs ml-1 opacity-60">4.9 (1.247 avaliações)</span>
+        </div>
+      )}
 
       {step === "menu" ? (
         <div className="max-w-lg mx-auto p-4 space-y-3">
@@ -158,6 +209,15 @@ const CheckoutPublic = () => {
               {checkout.whatsapp_number ? "Enviar Pedido via WhatsApp" : "Finalizar Pedido"}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Floating Notification */}
+      {notification && (
+        <div className="fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-50 animate-in slide-in-from-bottom-4">
+          <div className="rounded-xl px-4 py-3 text-sm font-medium shadow-2xl" style={{ background: `${style.bgColor || "#000"}F0`, border: `1px solid ${style.accentColor || "#84CC16"}30`, color: style.textColor || "#fff" }}>
+            🛒 {notification}
+          </div>
         </div>
       )}
     </div>

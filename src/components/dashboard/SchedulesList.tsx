@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight, BarChart3, TrendingUp, Target } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Schedule {
   id: string; title: string; slug: string; description: string | null;
@@ -24,7 +26,6 @@ interface Appointment {
 }
 
 const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const dayNamesFull = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 type CalendarView = "month" | "week" | "day";
 
@@ -38,7 +39,10 @@ const SchedulesList = () => {
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [manualBooking, setManualBooking] = useState(false);
+  const [newBooking, setNewBooking] = useState({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
   const { toast } = useToast();
 
   const fetchSchedules = async () => {
@@ -93,6 +97,26 @@ const SchedulesList = () => {
   const fetchAppointments = async (scheduleId: string) => { setShowAppointments(scheduleId); const { data } = await supabase.from("appointments").select("*").eq("schedule_id", scheduleId).order("date", { ascending: false }); setAppointments((data || []) as Appointment[]); };
   const toggleDay = (day: number) => { if (!editing) return; const days = editing.available_days.includes(day) ? editing.available_days.filter(d => d !== day) : [...editing.available_days, day].sort(); setEditing({ ...editing, available_days: days }); };
 
+  const handleManualBooking = async () => {
+    if (!newBooking.guest_name || !newBooking.date || !newBooking.time || !newBooking.schedule_id) {
+      toast({ title: "Preencha nome, data, horário e agenda", variant: "destructive" }); return;
+    }
+    await supabase.from("appointments").insert({
+      schedule_id: newBooking.schedule_id,
+      guest_name: newBooking.guest_name,
+      guest_email: newBooking.guest_email || null,
+      guest_phone: newBooking.guest_phone || null,
+      date: newBooking.date,
+      time: newBooking.time,
+      notes: newBooking.notes || null,
+      status: "confirmed",
+    });
+    toast({ title: "Agendamento criado!" });
+    setNewBooking({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
+    setManualBooking(false);
+    fetchAllAppointments();
+  };
+
   // Calendar helpers
   const getMonthDays = () => {
     const y = calendarDate.getFullYear(), m = calendarDate.getMonth();
@@ -114,6 +138,57 @@ const SchedulesList = () => {
     setCalendarDate(d);
   };
 
+  // Analytics
+  if (showAnalytics) {
+    const totalAppts = allAppointments.length;
+    const confirmed = allAppointments.filter(a => a.status === "confirmed").length;
+    // Group by day of week
+    const dayCount: Record<string, number> = {};
+    allAppointments.forEach(a => {
+      const d = new Date(a.date).getDay();
+      const name = dayNames[d];
+      dayCount[name] = (dayCount[name] || 0) + 1;
+    });
+    const dayData = Object.entries(dayCount).map(([name, count]) => ({ name, agendamentos: count }));
+    // Group by hour
+    const hourCount: Record<string, number> = {};
+    allAppointments.forEach(a => { hourCount[a.time] = (hourCount[a.time] || 0) + 1; });
+    const hourData = Object.entries(hourCount).sort().slice(0, 10).map(([name, count]) => ({ name, agendamentos: count }));
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">📊 Analytics de Agendamentos</h2>
+          <Button variant="ghost" size="sm" onClick={() => setShowAnalytics(false)}>← Voltar</Button>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Total Agendas", value: schedules.length, icon: Calendar, color: "text-blue-400" },
+            { label: "Total Agendamentos", value: totalAppts, icon: Users, color: "text-primary" },
+            { label: "Confirmados", value: confirmed, icon: Target, color: "text-emerald-400" },
+            { label: "Taxa Confirmação", value: totalAppts > 0 ? `${Math.round((confirmed / totalAppts) * 100)}%` : "0%", icon: TrendingUp, color: "text-purple-400" },
+          ].map(m => (
+            <Card key={m.label} className="surface-card border-border"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">{m.label}</p><p className="text-2xl font-bold text-foreground mt-1">{m.value}</p></div><m.icon className={`h-8 w-8 ${m.color} opacity-60`} /></div></CardContent></Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="surface-card border-border">
+            <CardHeader><CardTitle className="text-sm">Agendamentos por Dia da Semana</CardTitle></CardHeader>
+            <CardContent>
+              {dayData.length > 0 ? <ResponsiveContainer width="100%" height={200}><BarChart data={dayData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 12%)" /><XAxis dataKey="name" stroke="hsl(0 0% 45%)" fontSize={11} /><YAxis stroke="hsl(0 0% 45%)" fontSize={11} /><Tooltip contentStyle={{ background: "hsl(0 0% 4%)", border: "1px solid hsl(0 0% 12%)", borderRadius: 8 }} /><Bar dataKey="agendamentos" fill="hsl(84 81% 44%)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="text-muted-foreground text-sm text-center py-8">Sem dados</p>}
+            </CardContent>
+          </Card>
+          <Card className="surface-card border-border">
+            <CardHeader><CardTitle className="text-sm">Horários mais escolhidos</CardTitle></CardHeader>
+            <CardContent>
+              {hourData.length > 0 ? <ResponsiveContainer width="100%" height={200}><BarChart data={hourData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 12%)" /><XAxis dataKey="name" stroke="hsl(0 0% 45%)" fontSize={11} /><YAxis stroke="hsl(0 0% 45%)" fontSize={11} /><Tooltip contentStyle={{ background: "hsl(0 0% 4%)", border: "1px solid hsl(0 0% 12%)", borderRadius: 8 }} /><Bar dataKey="agendamentos" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="text-muted-foreground text-sm text-center py-8">Sem dados</p>}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // Calendar view
   if (showCalendar) {
     const monthDays = getMonthDays();
@@ -125,12 +200,38 @@ const SchedulesList = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-foreground">📅 Calendário</h2>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setManualBooking(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Novo Agendamento</Button>
             {(["month", "week", "day"] as CalendarView[]).map(v => (
               <Button key={v} variant={calendarView === v ? "default" : "outline"} size="sm" onClick={() => setCalendarView(v)} className="text-xs capitalize">{v === "month" ? "Mês" : v === "week" ? "Semana" : "Dia"}</Button>
             ))}
             <Button variant="ghost" size="sm" onClick={() => setShowCalendar(false)}>← Voltar</Button>
           </div>
         </div>
+
+        {/* Manual booking dialog */}
+        {manualBooking && (
+          <div className="surface-card rounded-lg p-4 space-y-3">
+            <p className="text-sm font-semibold text-foreground">Novo Agendamento Manual</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-[10px]">Nome *</Label><Input value={newBooking.guest_name} onChange={e => setNewBooking({ ...newBooking, guest_name: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+              <div><Label className="text-[10px]">Agenda *</Label>
+                <select value={newBooking.schedule_id} onChange={e => setNewBooking({ ...newBooking, schedule_id: e.target.value })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                  <option value="">Selecione...</option>
+                  {schedules.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label className="text-[10px]">Data *</Label><Input type="date" value={newBooking.date} onChange={e => setNewBooking({ ...newBooking, date: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+              <div><Label className="text-[10px]">Horário *</Label><Input type="time" value={newBooking.time} onChange={e => setNewBooking({ ...newBooking, time: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+              <div><Label className="text-[10px]">Telefone</Label><Input value={newBooking.guest_phone} onChange={e => setNewBooking({ ...newBooking, guest_phone: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleManualBooking}>Criar</Button>
+              <Button variant="ghost" size="sm" onClick={() => setManualBooking(false)}>Cancelar</Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => navigateCalendar(-1)}><ChevronLeft className="h-4 w-4" /></Button>
@@ -174,8 +275,7 @@ const SchedulesList = () => {
                     <p className={`text-xs font-semibold mb-2 ${isToday ? "text-primary" : "text-foreground"}`}>{dayNames[i]} {d.getDate()}</p>
                     {appts.map(a => (
                       <div key={a.id} className="text-xs bg-primary/10 text-primary px-2 py-1.5 rounded mb-1">
-                        <p className="font-medium">{a.time}</p>
-                        <p className="text-[10px] opacity-80">{a.guest_name}</p>
+                        <p className="font-medium">{a.time}</p><p className="text-[10px] opacity-80">{a.guest_name}</p>
                       </div>
                     ))}
                   </div>
@@ -277,6 +377,7 @@ const SchedulesList = () => {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-foreground">Agenda</h2>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)}><BarChart3 className="h-4 w-4 mr-1" /> Analytics</Button>
           <Button variant="outline" size="sm" onClick={() => setShowCalendar(true)}><Calendar className="h-4 w-4 mr-1" /> Calendário</Button>
           <Button size="sm" onClick={startNew}><Plus className="h-4 w-4 mr-1" /> Nova Agenda</Button>
         </div>
