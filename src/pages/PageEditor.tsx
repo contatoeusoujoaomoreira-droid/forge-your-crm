@@ -119,10 +119,7 @@ const PageEditor = () => {
               variant={editMode === "sections" ? "default" : "outline"}
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={async () => {
-                // Switch to sections mode — clear html_content
-                await supabase.from("landing_pages").update({ html_content: null } as any).eq("id", id!);
-                setPage({ ...page, html_content: null });
+              onClick={() => {
                 setEditMode("sections");
                 toast({ title: "Modo alterado para Seções" });
               }}
