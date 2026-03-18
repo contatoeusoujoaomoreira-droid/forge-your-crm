@@ -148,7 +148,7 @@ const FormsList = () => {
     if (data) setStages(data);
   };
 
-  useEffect(() => { fetchForms(); fetchStages(); }, [user]);
+  useEffect(() => { fetchForms(); fetchStages(); fetchLeads(); }, [user]);
 
   const startNew = () => setEditing({
     id: "", title: "", description: "", slug: "", is_active: true, is_published: false,
