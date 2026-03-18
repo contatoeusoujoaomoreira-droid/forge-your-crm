@@ -241,14 +241,21 @@ const FormsList = () => {
     );
   }
 
-  // Responses view
+  // Responses view with LeadViewer
   if (showResponses) {
+    const formLeads = leads.filter(l => l.source === `form`);
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-foreground">Respostas do Formulário</h2>
           <Button variant="ghost" size="sm" onClick={() => setShowResponses(null)}>← Voltar</Button>
         </div>
+
+        {/* Lead Viewer */}
+        {stages.length > 0 && (
+          <LeadViewer leads={leads} stages={stages.map((s: any) => ({ ...s, position: 0, color: "#84cc16" }))} onRefresh={fetchLeads} title="Leads do Formulário" />
+        )}
+
         {responses.length === 0 ? (
           <div className="surface-card rounded-lg p-8 text-center"><p className="text-muted-foreground">Nenhuma resposta</p></div>
         ) : (
