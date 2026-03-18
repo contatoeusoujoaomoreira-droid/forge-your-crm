@@ -4,26 +4,27 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  LogOut, LayoutDashboard, Users, Calendar, BarChart3,
-  Globe, FileQuestion, CalendarCog, ChevronLeft, ChevronRight, Settings,
+  LogOut, LayoutDashboard, BarChart3,
+  Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
+  FileText, Calendar, ShoppingCart,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import Analytics from "@/components/dashboard/Analytics";
-import BookingsList from "@/components/dashboard/BookingsList";
-import LeadsList from "@/components/dashboard/LeadsList";
 import LandingPagesList from "@/components/dashboard/LandingPagesList";
 import QuizList from "@/components/dashboard/QuizList";
-import BookingPageEditor from "@/components/dashboard/BookingPageEditor";
+import FormsList from "@/components/dashboard/FormsList";
+import SchedulesList from "@/components/dashboard/SchedulesList";
+import CheckoutsList from "@/components/dashboard/CheckoutsList";
 import SettingsPage from "@/components/dashboard/SettingsPage";
 
 const tabs = [
-  { id: "kanban", label: "Pipeline", icon: LayoutDashboard, group: "crm" },
-  { id: "leads", label: "Leads", icon: Users, group: "crm" },
-  { id: "bookings", label: "Reservas", icon: Calendar, group: "crm" },
+  { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
-  { id: "quizzes", label: "Quizzes", icon: FileQuestion, group: "tools" },
-  { id: "booking-editor", label: "Pg. Reservas", icon: CalendarCog, group: "tools" },
+  { id: "forms", label: "Forms", icon: FileText, group: "tools" },
+  { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
+  { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
+  { id: "checkout", label: "Checkout", icon: ShoppingCart, group: "tools" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
 ] as const;
 
@@ -32,7 +33,7 @@ type Tab = (typeof tabs)[number]["id"];
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("kanban");
+  const [activeTab, setActiveTab] = useState<Tab>("crm");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleSignOut = async () => {
@@ -44,9 +45,26 @@ const Dashboard = () => {
   const toolsTabs = tabs.filter((t) => t.group === "tools");
   const systemTabs = tabs.filter((t) => t.group === "system");
 
+  const renderTabGroup = (groupTabs: typeof tabs extends readonly (infer T)[] ? T[] : never[]) =>
+    groupTabs.map((tab) => {
+      const Icon = tab.icon;
+      const active = activeTab === tab.id;
+      return (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id)}
+          className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
+            active ? "bg-sidebar-accent text-lime" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          {!sidebarCollapsed && <span>{tab.label}</span>}
+        </button>
+      );
+    });
+
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <motion.aside
         animate={{ width: sidebarCollapsed ? 64 : 240 }}
         transition={{ duration: 0.2 }}
@@ -59,12 +77,7 @@ const Dashboard = () => {
               <span className="text-sidebar-accent-foreground">AI</span>
             </a>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="h-8 w-8 text-sidebar-foreground hover:text-sidebar-accent-foreground"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="h-8 w-8 text-sidebar-foreground hover:text-sidebar-accent-foreground">
             {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </Button>
         </div>
@@ -73,86 +86,31 @@ const Dashboard = () => {
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "CRM"}
           </p>
-          {crmTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
-                  active ? "bg-sidebar-accent text-lime" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>{tab.label}</span>}
-              </button>
-            );
-          })}
+          {renderTabGroup(crmTabs)}
 
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "Ferramentas"}
           </p>
-          {toolsTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
-                  active ? "bg-sidebar-accent text-lime" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>{tab.label}</span>}
-              </button>
-            );
-          })}
+          {renderTabGroup(toolsTabs)}
 
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "Sistema"}
           </p>
-          {systemTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${
-                  active ? "bg-sidebar-accent text-lime" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>{tab.label}</span>}
-              </button>
-            );
-          })}
+          {renderTabGroup(systemTabs)}
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
           {!sidebarCollapsed && (
-            <p className="text-xs text-sidebar-foreground truncate mb-2 px-1">
-              {user?.email}
-            </p>
+            <p className="text-xs text-sidebar-foreground truncate mb-2 px-1">{user?.email}</p>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSignOut}
-            className={`text-sidebar-foreground hover:text-destructive w-full ${sidebarCollapsed ? "px-2" : ""}`}
-          >
+          <Button variant="ghost" size="sm" onClick={handleSignOut} className={`text-sidebar-foreground hover:text-destructive w-full ${sidebarCollapsed ? "px-2" : ""}`}>
             <LogOut className="h-4 w-4 shrink-0" />
             {!sidebarCollapsed && <span className="ml-2">Sair</span>}
           </Button>
         </div>
       </motion.aside>
 
-      <main
-        className="flex-1 transition-all duration-200"
-        style={{ marginLeft: sidebarCollapsed ? 64 : 240 }}
-      >
+      <main className="flex-1 transition-all duration-200" style={{ marginLeft: sidebarCollapsed ? 64 : 240 }}>
         <header className="sticky top-0 z-30 h-14 flex items-center justify-between px-6 border-b border-border bg-background/80 backdrop-blur-sm">
           <h1 className="text-lg font-semibold text-foreground">
             {tabs.find((t) => t.id === activeTab)?.label}
@@ -160,19 +118,14 @@ const Dashboard = () => {
         </header>
 
         <div className="p-6">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === "kanban" && <CRMKanban />}
-            {activeTab === "leads" && <LeadsList />}
-            {activeTab === "bookings" && <BookingsList />}
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            {activeTab === "crm" && <CRMKanban />}
             {activeTab === "analytics" && <Analytics />}
             {activeTab === "pages" && <LandingPagesList />}
-            {activeTab === "quizzes" && <QuizList />}
-            {activeTab === "booking-editor" && <BookingPageEditor />}
+            {activeTab === "forms" && <FormsList />}
+            {activeTab === "quiz" && <QuizList />}
+            {activeTab === "schedules" && <SchedulesList />}
+            {activeTab === "checkout" && <CheckoutsList />}
             {activeTab === "settings" && <SettingsPage />}
           </motion.div>
         </div>
@@ -182,13 +135,7 @@ const Dashboard = () => {
         {tabs.filter(t => t.group !== "system").map((tab) => {
           const Icon = tab.icon;
           return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center py-3 text-[10px] ${
-                activeTab === tab.id ? "text-lime" : "text-muted-foreground"
-              }`}
-            >
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 flex flex-col items-center py-3 text-[10px] ${activeTab === tab.id ? "text-lime" : "text-muted-foreground"}`}>
               <Icon className="h-5 w-5 mb-1" />
               {tab.label}
             </button>
