@@ -48,6 +48,10 @@ const statusOptions = [
 
 const isWonStage = (stageName: string) => WON_STAGE_PATTERNS.some(p => stageName.toLowerCase().includes(p));
 
+interface Pipeline {
+  id: string; name: string; created_at: string;
+}
+
 const CRMKanban = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -56,6 +60,10 @@ const CRMKanban = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("kanban");
+  const [pipelines, setPipelines] = useState<Pipeline[]>([{ id: "default", name: "Pipeline Principal", created_at: "" }]);
+  const [activePipeline, setActivePipeline] = useState("default");
+  const [newPipelineName, setNewPipelineName] = useState("");
+  const [showPipelineDialog, setShowPipelineDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
@@ -297,6 +305,28 @@ const CRMKanban = () => {
 
   return (
     <div className="space-y-4">
+      {/* Pipeline Selector */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {pipelines.map(p => (
+          <Button key={p.id} variant={activePipeline === p.id ? "default" : "outline"} size="sm" onClick={() => setActivePipeline(p.id)} className="text-xs">{p.name}</Button>
+        ))}
+        <Dialog open={showPipelineDialog} onOpenChange={setShowPipelineDialog}>
+          <DialogTrigger asChild><Button variant="ghost" size="sm" className="h-8 text-xs"><Plus className="h-3 w-3 mr-1" /> Pipeline</Button></DialogTrigger>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader><DialogTitle>Novo Pipeline</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Input value={newPipelineName} onChange={e => setNewPipelineName(e.target.value)} placeholder="Nome do pipeline" className="bg-secondary/50 border-border" />
+              <Button onClick={() => {
+                if (!newPipelineName.trim()) return;
+                setPipelines(prev => [...prev, { id: `pipe-${Date.now()}`, name: newPipelineName, created_at: new Date().toISOString() }]);
+                setNewPipelineName(""); setShowPipelineDialog(false);
+                toast({ title: "Pipeline criado!" });
+              }} className="w-full">Criar Pipeline</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">

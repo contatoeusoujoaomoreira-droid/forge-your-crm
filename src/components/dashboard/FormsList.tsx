@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, FileText, Copy, Pencil, Trash2, Eye, Sparkles, ChevronUp, ChevronDown, BarChart3, ExternalLink, Users, TrendingUp, Target } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import LeadViewer from "./LeadViewer";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 
@@ -123,7 +124,14 @@ const FormsList = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const { toast } = useToast();
+
+  const fetchLeads = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("leads").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    setLeads((data || []).map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
+  };
 
   const fetchForms = async () => {
     const { data } = await supabase.from("forms").select("*").order("created_at", { ascending: false });
@@ -140,7 +148,7 @@ const FormsList = () => {
     if (data) setStages(data);
   };
 
-  useEffect(() => { fetchForms(); fetchStages(); }, [user]);
+  useEffect(() => { fetchForms(); fetchStages(); fetchLeads(); }, [user]);
 
   const startNew = () => setEditing({
     id: "", title: "", description: "", slug: "", is_active: true, is_published: false,
@@ -240,14 +248,21 @@ const FormsList = () => {
     );
   }
 
-  // Responses view
+  // Responses view with LeadViewer
   if (showResponses) {
+    const formLeads = leads.filter(l => l.source === `form`);
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-foreground">Respostas do Formulário</h2>
           <Button variant="ghost" size="sm" onClick={() => setShowResponses(null)}>← Voltar</Button>
         </div>
+
+        {/* Lead Viewer */}
+        {stages.length > 0 && (
+          <LeadViewer leads={leads} stages={stages.map((s: any) => ({ ...s, position: 0, color: "#84cc16" }))} onRefresh={fetchLeads} title="Leads do Formulário" />
+        )}
+
         {responses.length === 0 ? (
           <div className="surface-card rounded-lg p-8 text-center"><p className="text-muted-foreground">Nenhuma resposta</p></div>
         ) : (

@@ -318,7 +318,11 @@ const CheckoutsList = () => {
                     <div><Label className="text-[10px]">Nome do titular</Label><Input value={s.pixName || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixName: e.target.value } })} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
                     <div><Label className="text-[10px]">Banco</Label><Input value={s.pixBank || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixBank: e.target.value } })} className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
                   </div>
-                  <div><Label className="text-[10px]">URL da imagem QR Code (opcional)</Label><Input value={s.pixQrCode || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixQrCode: e.target.value } })} placeholder="https://..." className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                  <div><Label className="text-[10px]">URL da imagem QR Code (opcional - gera automaticamente da chave)</Label><Input value={s.pixQrCode || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixQrCode: e.target.value } })} placeholder="https://..." className="h-7 text-xs bg-secondary/50 border-border mt-0.5" /></div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <Switch checked={s.showQrCode !== false} onCheckedChange={v => setEditing({ ...editing, style: { ...s, showQrCode: v } })} />
+                    Exibir QR Code na tela de pagamento
+                  </label>
                   <div><Label className="text-[10px]">Desconto PIX % (opcional)</Label><Input value={s.pixDiscount || ""} onChange={e => setEditing({ ...editing, style: { ...s, pixDiscount: e.target.value } })} placeholder="10" className="h-7 text-xs bg-secondary/50 border-border mt-0.5 w-24" /></div>
                 </div>
               )}
