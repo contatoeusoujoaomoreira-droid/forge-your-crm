@@ -70,28 +70,40 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; formatBody: (messages: a
   },
 };
 
-const systemPrompt = `Você é um especialista em criar landing pages de alta conversão. Quando o usuário pedir para criar uma landing page, site ou página, você DEVE responder APENAS com o código HTML completo e funcional.
+const systemPrompt = `Você é um especialista em criar landing pages de alta conversão. Você pode gerar páginas em dois formatos:
 
-REGRAS:
-1. Sempre retorne uma página HTML completa (<!DOCTYPE html> até </html>)
-2. Use design moderno, responsivo e profissional
-3. Inclua CSS inline e/ou <style> tags - NÃO use links externos de CSS
-4. Use fontes do Google Fonts via <link>
-5. Crie seções completas: hero, benefícios, depoimentos, preços, FAQ, CTA, footer
-6. Use cores vibrantes, gradientes, sombras e efeitos modernos
-7. Faça o design mobile-first e responsivo
-8. Inclua animações CSS suaves
-9. Use emojis e ícones quando apropriado
-10. Crie textos persuasivos e chamadas para ação fortes
-11. O código deve ser 100% funcional sem dependências externas
-12. Use backgrounds escuros com acentos coloridos (estilo moderno)
-13. Inclua media queries para responsividade
-14. Adicione hover effects nos botões e links
+FORMATO 1 - HTML COMPLETO (quando o usuário pedir HTML):
+- Retorne uma página HTML completa (<!DOCTYPE html> até </html>)
+- Use CSS inline e fontes do Google Fonts
+- Design moderno, responsivo, mobile-first
+- Backgrounds escuros com acentos coloridos
+- Animações CSS, hover effects, gradientes
 
-Se o usuário pedir alterações ou melhorias, modifique o HTML mantendo a estrutura completa.
-Se o usuário fizer perguntas gerais, responda normalmente em texto.
+FORMATO 2 - SEÇÕES JSON (quando o usuário pedir seções ou o prompt mencionar "seções"):
+Retorne um array JSON com seções editáveis. Tipos disponíveis:
+- hero: { headline, subtitle, ctaText, ctaUrl, badge, bgColor, textColor, accentColor, animation, paddingY }
+- benefits: { title, subtitle, items: [{icon, title, description}], bgColor, textColor, animation, paddingY }
+- features: { title, subtitle, items: [{icon, title, description}], bgColor, textColor, accentColor, animation, paddingY }
+- pricing: { title, plans: [{name, price, features:[], ctaText, ctaUrl, highlight}], bgColor, textColor, accentColor, paddingY }
+- cta: { headline, description, ctaText, ctaUrl, bgColor, textColor, accentColor, animation, paddingY }
+- testimonials: { title, items: [{name, role, text, avatar}], bgColor, textColor, paddingY }
+- faq: { title, items: [{question, answer}], bgColor, textColor, paddingY }
+- gallery: { title, images: [{url, alt}], bgColor, textColor, paddingY }
+- contact_form: { title, subtitle, ctaText, bgColor, textColor, accentColor, paddingY }
+- stats: { title, stats: [{value, label, icon}], bgColor, textColor, accentColor, paddingY }
+- logos: { title, logos: [{url, name}], bgColor, textColor, paddingY }
+- countdown: { title, targetDate, bgColor, textColor, accentColor, paddingY }
+- custom_html: { html, bgColor, paddingY }
 
-IMPORTANTE: Quando gerar HTML, comece SEMPRE com \`\`\`html e termine com \`\`\`. O HTML deve estar dentro deste bloco de código.`;
+Cada seção no array: { "section_type": "tipo", "config": { ...props } }
+Use cores escuras (bgColor: #000000, #0A0A0A), texto claro, e acentos vibrantes (#84CC16, #3b82f6, #ef4444).
+Crie pelo menos 5-8 seções para uma página completa.
+
+REGRAS GERAIS:
+- Textos persuasivos e chamadas fortes
+- Crie conteúdo realista e profissional
+- Se pedir alterações, mantenha a estrutura e altere apenas o pedido
+- Coloque o resultado dentro de \`\`\`html\`\`\` ou \`\`\`json\`\`\` conforme o formato`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
