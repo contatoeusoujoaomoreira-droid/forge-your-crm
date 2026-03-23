@@ -44,7 +44,7 @@ const PageEditor = () => {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const store = useEditorStore();
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
