@@ -1,19 +1,19 @@
-import { useState, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  ArrowLeft, Send, Bot, User, Loader2, Save, Eye,
-  Monitor, Tablet, Smartphone, Sparkles, Key, ChevronDown,
-  Upload, Image, FileText, X,
+  Send, Loader2, Monitor, Tablet, Smartphone, Save, Paperclip, X,
+  FileText, Image, Sparkles, Code2, Layers, ChevronDown, ChevronUp,
+  Wand2, RefreshCw, Eye, Key,
 } from "lucide-react";
 
-interface Props {
-  onPageCreated: (pageId: string) => void;
-  onBack: () => void;
-}
-
-type Message = { role: "user" | "assistant"; content: string; attachments?: { type: string; name: string; url?: string }[] };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  attachments?: { type: string; name: string; url?: string }[];
+};
 
 interface ApiKeyConfig {
   id: string;
@@ -23,7 +23,81 @@ interface ApiKeyConfig {
   isActive: boolean;
 }
 
+interface Props {
+  onPageCreated: (pageId: string) => void;
+  onBack: () => void;
+}
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-landing-page`;
+
+const ALL_SECTION_TYPES = [
+  "hero", "benefits", "features", "pricing", "cta", "testimonials", "faq",
+  "gallery", "contact_form", "custom_html", "video", "image_banner", "countdown",
+  "logos", "stats", "divider", "marquee", "accordion", "tabs_section",
+  "timeline", "comparison", "social_proof",
+];
+
+const buildSystemPrompt = () => `Você é um expert em criação de landing pages de alta conversão para o mercado brasileiro.
+Você cria páginas usando um sistema de seções JSON estruturado.
+
+TIPOS DE SEÇÃO DISPONÍVEIS: ${ALL_SECTION_TYPES.join(", ")}
+
+ESTRUTURA DE CADA SEÇÃO:
+{ "section_type": "<tipo>", "config": { "bgColor": "#hex", "bgGradient": "linear-gradient(...)", "textColor": "#hex", "accentColor": "#hex", "paddingY": 80, "fontFamily": "Inter", "animation": "fade-in|slide-up|slide-left|scale-in|bounce-in|rotate-in|none", ...campos específicos } }
+
+CAMPOS POR TIPO:
+hero: headline, subtitle, badge, ctaText, ctaUrl, ctaAction(link|scroll|whatsapp), cta2Text, cta2Url, headingSize, headingWeight, subtitleSize, gradientText(bool), bgPattern(dots|squares|none), imageUrl
+benefits: headline, subtitle, items[{icon,title,desc}], columns(2|3|4)
+features: headline, subtitle, items[{icon,title,desc}], layout(grid|list|alternating)
+pricing: headline, subtitle, plans[{name,price,period,description,features[],cta,ctaUrl,highlighted,badge}]
+cta: headline, subtitle, ctaText, ctaUrl, ctaAction, layout(centered|split|banner)
+testimonials: headline, subtitle, items[{name,role,text,avatar,rating}], layout(grid|carousel|masonry)
+faq: headline, subtitle, items[{question,answer}]
+gallery: headline, subtitle, items[{url,alt}], columns(2|3|4)
+contact_form: headline, subtitle, fields(name|email|phone|message|company), ctaText
+video: headline, subtitle, videoUrl(embed URL), aspectRatio(16/9|4/3)
+image_banner: imageUrl, alt, height(px), overlay(bool), overlayColor, headline
+countdown: headline, subtitle, targetDate(ISO), ctaText, ctaUrl
+logos: headline, items[{name,url}], grayscale(bool)
+stats: headline, items[{value,label}]
+divider: style(line|dots|wave), color, height
+marquee: items(string[]), speed, direction(left|right), bgColor, textColor, fontSize, fontWeight, gap, pauseOnHover
+accordion: headline, subtitle, items[{title,content}], allowMultiple(bool)
+tabs_section: headline, subtitle, tabs[{label,icon,content}]
+timeline: headline, subtitle, items[{year,title,desc}], layout(vertical|horizontal)
+comparison: headline, subtitle, ourLabel, theirLabel, items[{feature,ours(string|bool),theirs(string|bool)}]
+social_proof: headline, items[{type(badge|logo|number),text,icon,value}]
+
+REGRAS:
+1. Retorne APENAS o JSON dentro de \`\`\`json\`\`\`
+2. O JSON deve ser um array de seções
+3. Use cores harmoniosas e design profissional
+4. Crie pelo menos 5-8 seções para uma landing page completa
+5. Use gradientes em bgGradient quando quiser efeitos visuais ricos
+6. Sempre inclua animações para melhor UX
+7. Adapte o conteúdo ao nicho/produto descrito
+8. Use emojis relevantes nos ícones
+9. Crie textos persuasivos e específicos para o produto
+10. Para imagens, use URLs do Unsplash relevantes ao tema`;
+
+function extractJsonSections(text: string): any[] | null {
+  const match = text.match(/```json\s*([\s\S]*?)```/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed.sections && Array.isArray(parsed.sections)) return parsed.sections;
+    } catch {}
+  }
+  const rawMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+  if (rawMatch) {
+    try {
+      const parsed = JSON.parse(rawMatch[0]);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return null;
+}
 
 function extractHtmlFromMarkdown(text: string): string | null {
   const match = text.match(/```html\s*([\s\S]*?)```/);
@@ -32,17 +106,98 @@ function extractHtmlFromMarkdown(text: string): string | null {
   return null;
 }
 
-function extractJsonSections(text: string): any[] | null {
-  const match = text.match(/```json\s*([\s\S]*?)```/);
-  if (match) {
-    try {
-      const parsed = JSON.parse(match[1].trim());
-      if (Array.isArray(parsed)) return parsed;
-      if (parsed.sections) return parsed.sections;
-    } catch {}
-  }
-  return null;
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
+
+function getFileIcon(type: string) {
+  if (type.startsWith("image/")) return <Image className="h-3 w-3" />;
+  return <FileText className="h-3 w-3" />;
+}
+
+const SectionPreviewMini = ({ config, type }: { config: any; type: string }) => {
+  const c = config;
+  const bg = c.bgGradient || c.bgColor || "#0a0a0a";
+  const text = c.textColor || "#fff";
+  const accent = c.accentColor || "#84CC16";
+  const py = c.paddingY || 40;
+  return (
+    <div style={{ background: bg, color: text, padding: `${py}px ${c.paddingX || 24}px`, fontFamily: c.fontFamily || "Inter, sans-serif" }}>
+      <div className="max-w-4xl mx-auto text-center">
+        {c.badge && <span className="inline-block text-xs px-3 py-1 rounded-full mb-4 border" style={{ borderColor: `${accent}40`, color: accent }}>{c.badge}</span>}
+        {(c.headline || c.title) && <h2 className="text-2xl font-bold mb-2">{c.headline || c.title}</h2>}
+        {(c.subtitle || c.description) && <p className="text-sm opacity-70 mb-4">{c.subtitle || c.description}</p>}
+        {c.ctaText && <span className="inline-block px-6 py-2 rounded-lg text-sm font-bold" style={{ background: accent, color: c.bgColor || "#000" }}>{c.ctaText}</span>}
+        {c.items && Array.isArray(c.items) && c.items.length > 0 && type !== "timeline" && (
+          <div className="grid grid-cols-2 gap-3 mt-4 text-left">
+            {c.items.slice(0, 4).map((item: any, i: number) => (
+              <div key={i} className="p-3 rounded-lg border" style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)" }}>
+                {item.icon && <span className="text-lg">{item.icon}</span>}
+                <p className="font-semibold text-xs mt-1">{item.title || item.name || item.question || item.label || item.feature}</p>
+                <p className="text-[10px] opacity-60">{item.desc || item.description || item.text || item.answer || item.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {c.plans && Array.isArray(c.plans) && (
+          <div className="flex gap-3 mt-4 justify-center flex-wrap">
+            {c.plans.slice(0, 3).map((plan: any, i: number) => (
+              <div key={i} className="p-4 rounded-lg border" style={{ borderColor: plan.highlighted ? accent : "rgba(255,255,255,0.15)", background: plan.highlighted ? `${accent}15` : "rgba(255,255,255,0.05)" }}>
+                {plan.badge && <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: accent, color: "#000" }}>{plan.badge}</span>}
+                <p className="font-bold text-sm mt-1">{plan.name}</p>
+                <p className="text-xl font-bold mt-1" style={{ color: accent }}>{plan.price}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {c.tabs && Array.isArray(c.tabs) && (
+          <div className="flex gap-2 mt-4 justify-center flex-wrap">
+            {c.tabs.map((tab: any, i: number) => (
+              <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: i === 0 ? accent : "rgba(255,255,255,0.1)", color: i === 0 ? "#000" : text }}>{tab.icon} {tab.label}</span>
+            ))}
+          </div>
+        )}
+        {type === "timeline" && c.items && (
+          <div className="mt-4 space-y-2 text-left">
+            {c.items.slice(0, 3).map((item: any, i: number) => (
+              <div key={i} className="flex gap-3 items-start">
+                <span className="text-xs font-bold px-2 py-1 rounded" style={{ background: accent, color: "#000", minWidth: 40 }}>{item.year}</span>
+                <div><p className="text-xs font-semibold">{item.title}</p><p className="text-[10px] opacity-60">{item.desc}</p></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {type === "comparison" && c.items && (
+          <div className="mt-4 space-y-1 text-left text-xs">
+            <div className="flex gap-2 font-bold opacity-60 text-[10px] mb-2">
+              <span className="flex-1">Recurso</span>
+              <span className="w-24 text-center" style={{ color: accent }}>{c.ourLabel || "Nós"}</span>
+              <span className="w-24 text-center opacity-50">{c.theirLabel || "Concorrência"}</span>
+            </div>
+            {c.items.slice(0, 4).map((item: any, i: number) => (
+              <div key={i} className="flex gap-2 items-center py-1 border-b border-white/5">
+                <span className="flex-1 text-[10px]">{item.feature}</span>
+                <span className="w-24 text-center text-[10px] font-semibold" style={{ color: accent }}>{typeof item.ours === "boolean" ? (item.ours ? "✓" : "✗") : item.ours}</span>
+                <span className="w-24 text-center text-[10px] opacity-50">{typeof item.theirs === "boolean" ? (item.theirs ? "✓" : "✗") : item.theirs}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {type === "marquee" && c.items && (
+          <div className="flex gap-4 mt-2 overflow-hidden">
+            {c.items.slice(0, 5).map((item: string, i: number) => <span key={i} className="text-sm font-semibold whitespace-nowrap">{item}</span>)}
+          </div>
+        )}
+        <div className="mt-3 text-[9px] opacity-30 uppercase tracking-widest">{type}</div>
+      </div>
+    </div>
+  );
+};
 
 const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -53,11 +208,13 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [savingPage, setSavingPage] = useState(false);
-  const [showKeySelector, setShowKeySelector] = useState(false);
   const [selectedKeyId, setSelectedKeyId] = useState<string>("builtin");
   const [apiKeys, setApiKeys] = useState<ApiKeyConfig[]>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [outputMode, setOutputMode] = useState<"html" | "sections">("sections");
+  const [outputMode, setOutputMode] = useState<"sections" | "html">("sections");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [processingFiles, setProcessingFiles] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -66,9 +223,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
 
   useEffect(() => {
     const saved = localStorage.getItem("forge_api_keys");
-    if (saved) {
-      try { setApiKeys(JSON.parse(saved).filter((k: any) => k.isActive)); } catch {}
-    }
+    if (saved) { try { setApiKeys(JSON.parse(saved).filter((k: any) => k.isActive)); } catch {} }
   }, []);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -80,12 +235,6 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
     }
   }, [previewHtml, showPreview]);
 
-  const getSelectedKeyInfo = () => {
-    if (selectedKeyId === "builtin") return { name: "Forge AI (Nativo)", provider: "builtin" };
-    const key = apiKeys.find(k => k.id === selectedKeyId);
-    return key ? { name: key.name, provider: key.provider } : { name: "Forge AI (Nativo)", provider: "builtin" };
-  };
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setAttachments(prev => [...prev, ...files].slice(0, 5));
@@ -94,10 +243,34 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
 
   const removeAttachment = (idx: number) => setAttachments(prev => prev.filter((_, i) => i !== idx));
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
+    setProcessingFiles(attachments.length > 0);
 
-    const attachmentInfo = attachments.map(f => ({ type: f.type, name: f.name }));
+    let fileContext = "";
+    const attachmentInfo: { type: string; name: string; url?: string }[] = [];
+    const imageVisionItems: { type: string; image_url: { url: string; detail: string } }[] = [];
+
+    for (const file of attachments) {
+      try {
+        if (file.type.startsWith("image/")) {
+          const b64 = await fileToBase64(file);
+          attachmentInfo.push({ type: file.type, name: file.name, url: b64 });
+          imageVisionItems.push({ type: "image_url", image_url: { url: b64, detail: "low" } });
+          fileContext += `\n[IMAGEM: ${file.name}] Use como referência visual para o design.\n`;
+        } else if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+          attachmentInfo.push({ type: file.type, name: file.name });
+          fileContext += `\n[PDF: ${file.name}] Extraia a estrutura de conteúdo para criar a página.\n`;
+        } else {
+          const text = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsText(file); });
+          attachmentInfo.push({ type: file.type, name: file.name });
+          fileContext += `\n[ARQUIVO: ${file.name}]\n${text.slice(0, 3000)}\n`;
+        }
+      } catch (err) { console.error("File error:", err); }
+    }
+
+    setProcessingFiles(false);
+
     const userMsg: Message = { role: "user", content: input.trim(), attachments: attachmentInfo.length > 0 ? attachmentInfo : undefined };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -106,43 +279,40 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
     setIsLoading(true);
 
     let assistantContent = "";
-
-    const contextMessages = [...newMessages].map(m => ({ role: m.role, content: m.content }));
     const selectedKey = selectedKeyId !== "builtin" ? apiKeys.find(k => k.id === selectedKeyId) : null;
 
-    // Add output mode instruction
-    const modeInstruction = outputMode === "sections"
-      ? `\n\nIMPORTANTE: Retorne a página como um array JSON de seções compatíveis com o editor. Cada seção deve ter: { "section_type": "hero|benefits|features|pricing|cta|testimonials|faq|gallery|contact_form|custom_html|video|image_banner|countdown|logos|stats|divider", "config": { ...propriedades } }. Use os tipos disponíveis e configure cores, textos, itens, animações etc. Retorne APENAS o JSON dentro de \`\`\`json\`\`\`.`
-      : `\n\nIMPORTANTE: Retorne o HTML COMPLETO da página. Use Tailwind CSS via CDN, fontes do Google Fonts, e crie um design responsivo e moderno. Retorne APENAS o HTML dentro de \`\`\`html\`\`\`.`;
+    let userContent = input.trim() + (fileContext ? `\n\n${fileContext}` : "");
 
-    if (previewHtml && newMessages.length > 2) {
-      const lastUserMsg = contextMessages[contextMessages.length - 1];
-      const maxHtmlLen = selectedKey ? 4000 : 50000;
-      const htmlContext = previewHtml.length > maxHtmlLen ? previewHtml.slice(0, maxHtmlLen) + "\n<!-- TRUNCADO -->" : previewHtml;
-      lastUserMsg.content = `[CONTEXTO: HTML atual]\n\`\`\`html\n${htmlContext}\n\`\`\`\n\n[INSTRUÇÃO]: ${lastUserMsg.content}\n\nRetorne o HTML COMPLETO com alterações.`;
-    } else if (generatedSections && newMessages.length > 2 && outputMode === "sections") {
-      const lastUserMsg = contextMessages[contextMessages.length - 1];
-      lastUserMsg.content = `[CONTEXTO: Seções atuais]\n\`\`\`json\n${JSON.stringify(generatedSections, null, 2)}\n\`\`\`\n\n[INSTRUÇÃO]: ${lastUserMsg.content}${modeInstruction}`;
-    } else {
-      const lastUserMsg = contextMessages[contextMessages.length - 1];
-      lastUserMsg.content += modeInstruction;
+    if (generatedSections && newMessages.length > 2 && outputMode === "sections") {
+      userContent = `[SEÇÕES ATUAIS]\n\`\`\`json\n${JSON.stringify(generatedSections, null, 2)}\n\`\`\`\n\n[INSTRUÇÃO]: ${userContent}`;
+    } else if (previewHtml && newMessages.length > 2 && outputMode === "html") {
+      const maxLen = 8000;
+      const htmlCtx = previewHtml.length > maxLen ? previewHtml.slice(0, maxLen) + "\n<!-- TRUNCADO -->" : previewHtml;
+      userContent = `[HTML ATUAL]\n\`\`\`html\n${htmlCtx}\n\`\`\`\n\n[INSTRUÇÃO]: ${userContent}`;
     }
 
-    if (selectedKey && contextMessages.length > 4) {
-      const first = contextMessages[0];
-      const lastTwo = contextMessages.slice(-2);
-      contextMessages.length = 0;
-      contextMessages.push(first, ...lastTwo);
+    if (outputMode === "sections") {
+      userContent += `\n\nRETORNE APENAS um array JSON de seções dentro de \`\`\`json\`\`\`. Não inclua texto fora do bloco JSON.`;
+    } else {
+      userContent += `\n\nRETORNE APENAS o HTML COMPLETO dentro de \`\`\`html\`\`\`. Use Tailwind CSS via CDN, Google Fonts. Design responsivo e moderno.`;
+    }
+
+    const contextMessages: any[] = [
+      { role: "system", content: buildSystemPrompt() },
+      ...newMessages.slice(0, -1).slice(-4).map(m => ({ role: m.role, content: m.content })),
+    ];
+
+    if (imageVisionItems.length > 0) {
+      contextMessages.push({ role: "user", content: [{ type: "text", text: userContent }, ...imageVisionItems] });
+    } else {
+      contextMessages.push({ role: "user", content: userContent });
     }
 
     try {
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({
-          messages: contextMessages,
-          ...(selectedKey ? { externalKey: selectedKey.key, externalProvider: selectedKey.provider } : {}),
-        }),
+        body: JSON.stringify({ messages: contextMessages, ...(selectedKey ? { externalKey: selectedKey.key, externalProvider: selectedKey.provider } : {}) }),
       });
 
       if (!resp.ok) {
@@ -179,21 +349,18 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
                 return [...prev, { role: "assistant", content: assistantContent }];
               });
             }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
-          }
+          } catch { buffer = line + "\n" + buffer; break; }
         }
       }
 
-      // Try to extract sections first, then HTML
       const sections = extractJsonSections(assistantContent);
-      if (sections) {
+      if (sections && sections.length > 0) {
         setGeneratedSections(sections);
         setShowPreview(true);
+        toast({ title: `✅ ${sections.length} seções geradas!` });
       } else {
         const html = extractHtmlFromMarkdown(assistantContent);
-        if (html) { setPreviewHtml(html); setShowPreview(true); }
+        if (html) { setPreviewHtml(html); setShowPreview(true); toast({ title: "✅ Página HTML gerada!" }); }
       }
     } catch (e: any) {
       toast({ title: e.message || "Erro ao gerar", variant: "destructive" });
@@ -201,219 +368,172 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, isLoading, attachments, messages, generatedSections, previewHtml, outputMode, selectedKeyId, apiKeys]);
 
   const handleSaveAsPage = async () => {
+    if (!generatedSections && !previewHtml) return;
     setSavingPage(true);
-    const slug = "ai-page-" + Date.now().toString(36);
-
-    if (generatedSections && generatedSections.length > 0) {
-      // Save as sections-based page
-      const { data, error } = await supabase.from("landing_pages").insert({
-        title: "Página gerada com IA", slug, is_published: false,
-      } as any).select("id").single();
-      if (error) { toast({ title: error.message, variant: "destructive" }); setSavingPage(false); return; }
-
-      // Insert sections
-      const sectionInserts = generatedSections.map((s, i) => ({
-        page_id: data.id, section_type: s.section_type || "custom_html", order: i,
-        config: s.config || s, is_visible: true,
-      }));
-      await supabase.from("landing_page_sections").insert(sectionInserts);
-      toast({ title: "Página salva com seções editáveis!" });
-      onPageCreated(data.id);
-    } else if (previewHtml) {
-      const { data, error } = await supabase.from("landing_pages").insert({
-        title: "Página gerada com IA", slug, is_published: false, html_content: previewHtml,
-      } as any).select("id").single();
-      if (error) { toast({ title: error.message, variant: "destructive" }); setSavingPage(false); return; }
-      toast({ title: "Página salva! Abrindo no editor..." });
-      onPageCreated(data.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+      const slug = `page-${Date.now()}`;
+      const title = generatedSections ? (generatedSections[0]?.config?.headline || "Nova Página").slice(0, 100) : "Nova Página HTML";
+      const { data: page, error } = await supabase.from("landing_pages").insert({ user_id: user.id, title, slug, is_published: false, html_content: previewHtml || null } as any).select().single();
+      if (error) throw error;
+      if (generatedSections && page) {
+        const sectionsToInsert = generatedSections.map((sec, i) => ({ page_id: page.id, section_type: sec.section_type, order: i, config: sec.config || {}, is_visible: true }));
+        const { error: secError } = await supabase.from("page_sections").insert(sectionsToInsert);
+        if (secError) throw secError;
+      }
+      toast({ title: "✅ Página salva com sucesso!" });
+      onPageCreated(page.id);
+    } catch (e: any) {
+      toast({ title: e.message || "Erro ao salvar", variant: "destructive" });
+    } finally {
+      setSavingPage(false);
     }
-    setSavingPage(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
-
-  const previewWidth = previewDevice === "mobile" ? "375px" : previewDevice === "tablet" ? "768px" : "100%";
-  const keyInfo = getSelectedKeyInfo();
-
-  const suggestions = [
-    "Crie uma landing page de alta conversão para um curso de marketing digital com hero, benefícios, depoimentos, preços e CTA",
-    "Crie uma página para agência de design minimalista com tons escuros e neon",
-    "Crie uma squeeze page para capturar emails com countdown e prova social",
-    "Crie uma página de vendas completa com hero, features, pricing e FAQ",
+  const quickPrompts = [
+    { label: "Landing Page SaaS", icon: "🚀", prompt: "Crie uma landing page completa para um produto SaaS de gestão de projetos. Design dark moderno com gradientes verdes. Inclua hero, benefícios, features, pricing, testimonials, FAQ e CTA." },
+    { label: "Curso Online", icon: "🎓", prompt: "Crie uma landing page para um curso online de marketing digital. Inclua hero com countdown, módulos, depoimentos, FAQ e CTA com urgência." },
+    { label: "Consultoria", icon: "💼", prompt: "Crie uma landing page para consultoria de negócios premium. Design profissional com tons escuros e dourado. Timeline, comparação e social proof." },
+    { label: "E-commerce", icon: "🛍️", prompt: "Crie uma landing page para venda de produto físico premium. Galeria, comparação, depoimentos, countdown de oferta e marquee com benefícios." },
   ];
 
+  const previewWidth = previewDevice === "mobile" ? "375px" : previewDevice === "tablet" ? "768px" : "100%";
+
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex bg-background">
+    <div className="flex h-full overflow-hidden">
       {/* Chat Panel */}
-      <div className="flex flex-col border-r border-border" style={{ width: showPreview ? "420px" : "100%", maxWidth: showPreview ? "420px" : "800px", margin: showPreview ? 0 : "0 auto" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack} className="h-7 px-2">
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </Button>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold">Forge AI Builder</h3>
-              <p className="text-[10px] text-muted-foreground">{previewHtml || generatedSections ? "Peça alterações ou gere nova" : "Descreva a página"}</p>
-            </div>
+      <div className="w-[420px] shrink-0 flex flex-col border-r border-border bg-card h-full">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors text-xs">← Voltar</button>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-sm font-bold">Forge AI</span>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Output mode */}
-            <div className="flex items-center gap-0.5 bg-secondary/50 rounded-lg p-0.5 mr-1">
-              <button onClick={() => setOutputMode("sections")} className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${outputMode === "sections" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Seções</button>
-              <button onClick={() => setOutputMode("html")} className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${outputMode === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>HTML</button>
-            </div>
-            {/* Key selector */}
-            <div className="relative">
-              <button onClick={() => setShowKeySelector(!showKeySelector)} className="flex items-center gap-1 h-7 px-2 rounded text-[10px] bg-secondary/50 border border-border text-muted-foreground hover:text-foreground transition-colors">
-                <Key className="h-3 w-3" />
-                <span className="max-w-[80px] truncate">{keyInfo.name}</span>
-                <ChevronDown className="h-3 w-3" />
-              </button>
-              {showKeySelector && (
-                <div className="absolute right-0 top-full mt-1 w-56 rounded-lg shadow-xl z-50 bg-card border border-border overflow-hidden">
-                  <div className="p-1">
-                    <button onClick={() => { setSelectedKeyId("builtin"); setShowKeySelector(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded text-xs transition-colors ${selectedKeyId === "builtin" ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"}`}>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <div><p className="font-medium">Forge AI (Nativo)</p><p className="text-[10px] text-muted-foreground">Gemini & GPT</p></div>
-                    </button>
-                    {apiKeys.map(key => (
-                      <button key={key.id} onClick={() => { setSelectedKeyId(key.id); setShowKeySelector(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded text-xs transition-colors ${selectedKeyId === key.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"}`}>
-                        <Key className="h-3.5 w-3.5" />
-                        <div><p className="font-medium">{key.name}</p><p className="text-[10px] text-muted-foreground">{key.provider}</p></div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            {(previewHtml || generatedSections) && (
-              <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} className="h-7 text-primary">
-                <Eye className="h-3.5 w-3.5 mr-1" /> {showPreview ? "Ocultar" : "Preview"}
-              </Button>
-            )}
+          <div className="flex items-center gap-1 ml-2">
+            <button onClick={() => setOutputMode("sections")} className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-semibold transition-colors ${outputMode === "sections" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              <Layers className="h-3 w-3" /> Seções
+            </button>
+            <button onClick={() => setOutputMode("html")} className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-semibold transition-colors ${outputMode === "html" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              <Code2 className="h-3 w-3" /> HTML
+            </button>
           </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-6 py-8">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center">
-                <Sparkles className="h-8 w-8 text-primary-foreground" />
+          {messages.length === 0 ? (
+            <div className="space-y-4">
+              <div className="text-center py-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                  <Wand2 className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="font-bold text-base mb-1">Forge AI Page Builder</h3>
+                <p className="text-xs text-muted-foreground max-w-xs mx-auto">Descreva sua página e a IA criará uma landing page completa com seções editáveis.</p>
               </div>
-              <div className="text-center">
-                <h3 className="text-lg font-bold mb-2">Crie páginas com IA</h3>
-                <p className="text-sm text-muted-foreground max-w-md">Descreva a landing page que deseja. A IA gera {outputMode === "sections" ? "seções editáveis no editor visual" : "HTML completo"}.</p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 w-full max-w-md">
-                {suggestions.map((s, i) => (
-                  <button key={i} onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                    className="text-left px-4 py-3 rounded-lg text-xs bg-secondary/50 border border-border hover:border-primary/30 transition-all text-foreground/70">
-                    {s}
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold px-1">Início Rápido</p>
+                {quickPrompts.map((qp, i) => (
+                  <button key={i} onClick={() => { setInput(qp.prompt); inputRef.current?.focus(); }} className="w-full text-left p-3 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{qp.icon}</span>
+                      <div>
+                        <p className="text-xs font-semibold group-hover:text-primary transition-colors">{qp.label}</p>
+                        <p className="text-[10px] text-muted-foreground line-clamp-1">{qp.prompt.slice(0, 60)}...</p>
+                      </div>
+                    </div>
                   </button>
                 ))}
               </div>
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                <p className="text-[10px] font-semibold text-primary mb-1">💡 Dica Pro</p>
+                <p className="text-[10px] text-muted-foreground">Anexe imagens de referência ou PDFs. A IA usará como base visual para criar sua página.</p>
+              </div>
             </div>
-          )}
-
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              {msg.role === "assistant" && (
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center shrink-0 mt-1">
-                  <Bot className="h-3.5 w-3.5 text-primary-foreground" />
-                </div>
-              )}
-              <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary border border-border text-foreground"}`}>
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="flex gap-1 mb-2 flex-wrap">
-                    {msg.attachments.map((a, j) => (
-                      <span key={j} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-background/20">
-                        {a.type.startsWith("image") ? <Image className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
-                        {a.name}
-                      </span>
-                    ))}
+          ) : (
+            messages.map((msg, i) => (
+              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "assistant" && (
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="h-3 w-3 text-primary" />
                   </div>
                 )}
-                {msg.content
-                  .replace(/```html[\s\S]*?```/g, "📄 [HTML gerado — veja no preview →]")
-                  .replace(/```json[\s\S]*?```/g, "📋 [Seções geradas — veja no preview →]")}
-              </div>
-              {msg.role === "user" && (
-                <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-1">
-                  <User className="h-3.5 w-3.5" />
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-secondary text-foreground rounded-tl-sm"}`}>
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {msg.attachments.map((a, j) => (
+                        <span key={j} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-black/20">{getFileIcon(a.type)} {a.name}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {msg.role === "assistant" && msg.content.length > 400 ? msg.content.slice(0, 200) + "... [processado]" : msg.content}
+                  </p>
                 </div>
-              )}
-            </div>
-          ))}
-
-          {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <div className="flex gap-3">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-cyan-400 flex items-center justify-center shrink-0">
-                <Bot className="h-3.5 w-3.5 text-primary-foreground" />
               </div>
-              <div className="px-4 py-3 rounded-xl bg-secondary border border-border">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            ))
+          )}
+          {isLoading && (
+            <div className="flex gap-2 justify-start">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Sparkles className="h-3 w-3 text-primary animate-pulse" />
+              </div>
+              <div className="bg-secondary rounded-2xl rounded-tl-sm px-3 py-2">
+                <div className="flex gap-1 items-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="text-[10px] text-muted-foreground ml-1">Gerando...</span>
+                </div>
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Edit hints */}
-        {(previewHtml || generatedSections) && !isLoading && messages.length > 0 && (
-          <div className="px-4 pb-2">
-            <div className="flex gap-1.5 flex-wrap">
-              {["Mude as cores", "Adicione depoimentos", "Melhore o CTA", "Adicione animações", "Troque textos"].map(hint => (
-                <button key={hint} onClick={() => { setInput(hint); inputRef.current?.focus(); }}
-                  className="text-[10px] px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
-                  {hint}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Attachments preview */}
         {attachments.length > 0 && (
-          <div className="px-4 pb-2 flex gap-2 flex-wrap">
+          <div className="px-3 py-2 border-t border-border flex flex-wrap gap-1.5">
             {attachments.map((f, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5">
-                {f.type.startsWith("image") ? <Image className="h-3 w-3 text-primary" /> : <FileText className="h-3 w-3 text-primary" />}
-                <span className="truncate max-w-[100px]">{f.name}</span>
-                <button onClick={() => removeAttachment(i)} className="p-0.5 hover:bg-destructive/20 rounded"><X className="h-3 w-3" /></button>
+              <div key={i} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-secondary border border-border">
+                {getFileIcon(f.type)}
+                <span className="max-w-[80px] truncate">{f.name}</span>
+                <button onClick={() => removeAttachment(i)} className="text-muted-foreground hover:text-destructive ml-0.5"><X className="h-2.5 w-2.5" /></button>
               </div>
             ))}
           </div>
         )}
 
-        {/* Input */}
-        <div className="p-3 border-t border-border">
-          <div className="flex gap-2 items-end">
-            <div className="flex gap-1 shrink-0">
-              <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.html" onChange={handleFileSelect} className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-lg bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" title="Anexar arquivo">
-                <Upload className="h-4 w-4" />
-              </button>
-            </div>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={previewHtml || generatedSections ? "Peça alterações..." : "Descreva a página..."}
-              rows={1}
-              className="flex-1 resize-none rounded-xl px-4 py-3 text-sm bg-secondary border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              style={{ minHeight: "44px", maxHeight: "120px" }}
-              onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
+        <div className="p-3 border-t border-border shrink-0">
+          <div className="mb-2">
+            <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              {showAdvanced ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              Opções avançadas
+            </button>
+            {showAdvanced && (
+              <div className="mt-2 p-2 rounded-lg bg-secondary space-y-2">
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1">Modelo de IA</p>
+                  <select value={selectedKeyId} onChange={(e) => setSelectedKeyId(e.target.value)} className="w-full text-[10px] bg-background border border-border rounded-md px-2 py-1">
+                    <option value="builtin">Forge AI (Nativo)</option>
+                    {apiKeys.map(k => <option key={k.id} value={k.id}>{k.name} ({k.provider})</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.txt,.md" multiple className="hidden" onChange={handleFileSelect} />
+            <button onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0" title="Anexar arquivo">
+              {processingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </button>
+            <Textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Descreva sua página... (Enter para enviar)"
+              className="flex-1 min-h-[44px] max-h-[120px] text-xs resize-none bg-secondary border-border rounded-xl" rows={1}
+              onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
             />
             <Button onClick={sendMessage} disabled={!input.trim() || isLoading} className="h-11 w-11 rounded-xl shrink-0">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -423,82 +543,54 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
       </div>
 
       {/* Preview Panel */}
-      {showPreview && (previewHtml || generatedSections) && (
-        <div className="flex-1 flex flex-col bg-muted/30">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
+      {showPreview && (previewHtml || generatedSections) ? (
+        <div className="flex-1 flex flex-col bg-muted/30 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">PREVIEW</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</span>
               {generatedSections && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">{generatedSections.length} seções</span>}
-              {(["desktop", "tablet", "mobile"] as const).map(d => (
-                <button key={d} onClick={() => setPreviewDevice(d)} className={`p-1 rounded ${previewDevice === d ? "text-primary" : "text-muted-foreground"}`}>
-                  {d === "desktop" ? <Monitor className="h-3.5 w-3.5" /> : d === "tablet" ? <Tablet className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
-                </button>
-              ))}
+              <div className="flex items-center gap-0.5 ml-2">
+                {(["desktop", "tablet", "mobile"] as const).map(d => (
+                  <button key={d} onClick={() => setPreviewDevice(d)} className={`p-1.5 rounded-md transition-colors ${previewDevice === d ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                    {d === "desktop" ? <Monitor className="h-3.5 w-3.5" /> : d === "tablet" ? <Tablet className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
+                  </button>
+                ))}
+              </div>
             </div>
-            <Button size="sm" onClick={handleSaveAsPage} disabled={savingPage} className="h-7 font-semibold text-xs gap-1">
-              <Save className="h-3.5 w-3.5" /> {savingPage ? "..." : generatedSections ? "Salvar como Seções" : "Salvar & Editar"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setGeneratedSections(null); setPreviewHtml(null); setShowPreview(false); }} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <RefreshCw className="h-3 w-3" /> Resetar
+              </button>
+              <Button size="sm" onClick={handleSaveAsPage} disabled={savingPage} className="h-7 font-semibold text-xs gap-1">
+                <Save className="h-3.5 w-3.5" />
+                {savingPage ? "Salvando..." : generatedSections ? "Abrir no Editor" : "Salvar & Editar"}
+              </Button>
+            </div>
           </div>
-          <div className="flex-1 flex items-start justify-center overflow-auto p-4">
+          <div className="flex-1 overflow-auto flex items-start justify-center p-4">
             {generatedSections ? (
-              <div className="bg-background rounded-lg shadow-2xl overflow-hidden" style={{ width: previewWidth, maxWidth: "100%" }}>
+              <div className="bg-background rounded-xl shadow-2xl overflow-hidden transition-all duration-300" style={{ width: previewWidth, maxWidth: "100%" }}>
                 {generatedSections.map((sec, i) => (
-                  <div key={i} className="relative border-b border-border/20">
-                    <div className="absolute top-1 left-1 z-10 text-[9px] px-1.5 py-0.5 rounded bg-black/50 text-white backdrop-blur-sm">
-                      {sec.section_type}
-                    </div>
+                  <div key={i} className="relative border-b border-border/10">
+                    <div className="absolute top-1.5 left-1.5 z-10 text-[9px] px-2 py-0.5 rounded-md bg-black/60 text-white backdrop-blur-sm font-mono">{i + 1}. {sec.section_type}</div>
                     <SectionPreviewMini config={sec.config || sec} type={sec.section_type} />
                   </div>
                 ))}
               </div>
             ) : (
-              <iframe ref={iframeRef} title="Preview" className="bg-white rounded-lg shadow-2xl" style={{ width: previewWidth, height: "100%", border: "none" }} />
+              <iframe ref={iframeRef} title="Preview HTML" className="bg-white rounded-xl shadow-2xl" style={{ width: previewWidth, height: "100%", minHeight: "600px", border: "none" }} />
             )}
           </div>
         </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="text-center space-y-3">
+            <Eye className="h-12 w-12 mx-auto opacity-20" />
+            <p className="text-sm font-medium opacity-40">O preview aparecerá aqui</p>
+            <p className="text-xs opacity-30">Envie uma mensagem para gerar sua página</p>
+          </div>
+        </div>
       )}
-    </div>
-  );
-};
-
-// Mini section preview for AI-generated sections
-const SectionPreviewMini = ({ config, type }: { config: any; type: string }) => {
-  const c = config;
-  return (
-    <div style={{ background: c.bgGradient || c.bgColor || "#0a0a0a", color: c.textColor || "#fff", padding: `${c.paddingY || 40}px ${c.paddingX || 24}px`, fontFamily: c.fontFamily || "Inter, sans-serif" }}>
-      <div className="max-w-4xl mx-auto text-center">
-        {c.badge && <span className="inline-block text-xs px-3 py-1 rounded-full mb-4 border border-white/20">{c.badge}</span>}
-        {c.headline && <h2 className="text-2xl font-bold mb-2">{c.headline}</h2>}
-        {c.title && <h2 className="text-2xl font-bold mb-2">{c.title}</h2>}
-        {c.subtitle && <p className="text-sm opacity-70 mb-4">{c.subtitle}</p>}
-        {c.description && <p className="text-sm opacity-70 mb-4">{c.description}</p>}
-        {c.ctaText && (
-          <span className="inline-block px-6 py-2 rounded-lg text-sm font-bold" style={{ background: c.accentColor || "#84CC16", color: c.bgColor || "#000" }}>
-            {c.ctaText}
-          </span>
-        )}
-        {c.items && (
-          <div className="grid grid-cols-2 gap-3 mt-4 text-left">
-            {c.items.slice(0, 4).map((item: any, i: number) => (
-              <div key={i} className="p-3 rounded-lg bg-white/5 border border-white/10">
-                {item.icon && <span className="text-lg">{item.icon}</span>}
-                <p className="font-semibold text-xs mt-1">{item.title || item.name}</p>
-                <p className="text-[10px] opacity-60">{item.description || item.text}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {c.plans && (
-          <div className="flex gap-3 mt-4 justify-center">
-            {c.plans.slice(0, 3).map((plan: any, i: number) => (
-              <div key={i} className={`p-4 rounded-lg border ${plan.highlight ? "border-primary bg-primary/10" : "border-white/10 bg-white/5"}`}>
-                <p className="font-bold text-sm">{plan.name}</p>
-                <p className="text-xl font-bold mt-1">R${plan.price}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 };

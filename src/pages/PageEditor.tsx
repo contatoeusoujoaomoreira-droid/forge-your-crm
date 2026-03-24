@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Save, Eye, Settings, Code, Layers, Undo2, Redo2, Sparkles } from "lucide-react";
-import { useEditorStore, Section } from "@/stores/useEditorStore";
+import { useEditorStore, Section, SECTION_DEFAULTS, useEditorHistory } from "@/stores/useEditorStore";
 import SectionLibrary from "@/components/page-builder/SectionLibrary";
 import EditorCanvas from "@/components/page-builder/EditorCanvas";
 import PropertyInspector from "@/components/page-builder/PropertyInspector";
@@ -44,6 +44,7 @@ const PageEditor = () => {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const store = useEditorStore();
+  const { undo, redo, canUndo, canRedo } = useEditorHistory();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -52,6 +53,22 @@ const PageEditor = () => {
 
   // Cleanup on unmount
   useEffect(() => () => { store.reset(); }, []);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
 
   const fetchPage = useCallback(async () => {
     if (!id) return;
@@ -100,7 +117,7 @@ const PageEditor = () => {
     if (!id) return;
     const maxOrder = store.sections.length > 0 ? Math.max(...store.sections.map(s => s.order)) + 1 : 0;
     const { data, error } = await supabase.from("landing_page_sections").insert({
-      page_id: id, section_type: type, order: maxOrder, config: defaultConfigs[type] || { bgColor: "#0a0a0a", textColor: "#fff", paddingY: "60" }, is_visible: true,
+      page_id: id, section_type: type, order: maxOrder, config: SECTION_DEFAULTS[type] || { bgColor: "#0a0a0a", textColor: "#fff", paddingY: 60 }, is_visible: true,
     }).select("*").single();
     if (error) { toast({ title: error.message, variant: "destructive" }); return; }
     store.addSection(data as Section);
@@ -200,6 +217,25 @@ const PageEditor = () => {
             </button>
           </div>
 
+          {/* Undo/Redo */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              title="Desfazer (Ctrl+Z)"
+              className="p-1.5 rounded-lg transition-colors disabled:opacity-30 hover:bg-secondary text-muted-foreground disabled:cursor-not-allowed"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              title="Refazer (Ctrl+Y)"
+              className="p-1.5 rounded-lg transition-colors disabled:opacity-30 hover:bg-secondary text-muted-foreground disabled:cursor-not-allowed"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <button onClick={() => store.setShowSettings(!store.showSettings)} className={`p-1.5 rounded-lg transition-colors ${store.showSettings ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"}`}>
             <Settings className="h-4 w-4" />
           </button>

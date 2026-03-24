@@ -305,10 +305,29 @@ const ContentEditor = ({ section, set, c }: { section: Section; set: (k: string,
 
       {(type === "comparison") && (
         <>
-          <div><Label className="text-xs text-muted-foreground">Título</Label><Input value={c.title || ""} onChange={(e) => set("title", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
-          <div><Label className="text-xs text-muted-foreground">Coluna Esquerda</Label><Input value={c.leftLabel || ""} onChange={(e) => set("leftLabel", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
-          <div><Label className="text-xs text-muted-foreground">Coluna Direita</Label><Input value={c.rightLabel || ""} onChange={(e) => set("rightLabel", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
-          {renderListItems("rows", [{ name: "left", label: "Esquerda" }, { name: "right", label: "Direita" }])}
+          <div><Label className="text-xs text-muted-foreground">Título</Label><Input value={c.headline || c.title || ""} onChange={(e) => set("headline", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <div><Label className="text-xs text-muted-foreground">Subtítulo</Label><Input value={c.subtitle || ""} onChange={(e) => set("subtitle", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <div><Label className="text-xs text-muted-foreground">Rótulo "Nós"</Label><Input value={c.ourLabel || c.leftLabel || ""} onChange={(e) => set("ourLabel", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <div><Label className="text-xs text-muted-foreground">Rótulo "Concorrência"</Label><Input value={c.theirLabel || c.rightLabel || ""} onChange={(e) => set("theirLabel", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          {renderListItems("items", [{ name: "feature", label: "Recurso" }, { name: "ours", label: "Nós" }, { name: "theirs", label: "Concorrência" }])}
+        </>
+      )}
+      {(type === "accordion") && (
+        <>
+          <div><Label className="text-xs text-muted-foreground">Título</Label><Input value={c.headline || c.title || ""} onChange={(e) => set("headline", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <div><Label className="text-xs text-muted-foreground">Subtítulo</Label><Input value={c.subtitle || ""} onChange={(e) => set("subtitle", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <label className="flex items-center gap-2 text-xs text-foreground">
+            <input type="checkbox" checked={c.allowMultiple || false} onChange={(e) => set("allowMultiple", e.target.checked)} className="rounded accent-primary" />
+            Permitir múltiplos abertos
+          </label>
+          {renderListItems("items", [{ name: "title", label: "Pergunta" }, { name: "content", label: "Resposta", type: "textarea" }])}
+        </>
+      )}
+      {(type === "tabs_section") && (
+        <>
+          <div><Label className="text-xs text-muted-foreground">Título</Label><Input value={c.headline || c.title || ""} onChange={(e) => set("headline", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          <div><Label className="text-xs text-muted-foreground">Subtítulo</Label><Input value={c.subtitle || ""} onChange={(e) => set("subtitle", e.target.value)} className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+          {renderListItems("tabs", [{ name: "icon", label: "Ícone" }, { name: "label", label: "Rótulo" }, { name: "content", label: "Conteúdo", type: "textarea" }])}
         </>
       )}
     </>
