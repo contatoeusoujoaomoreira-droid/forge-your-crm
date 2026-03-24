@@ -298,7 +298,7 @@ const LandingPagePublic = () => {
     const fetchPage = async () => {
       if (!slug) { setNotFound(true); setLoading(false); return; }
 
-      const { data: pageData } = await supabase.from("landing_pages").select("*").eq("slug", slug).eq("is_published", true).maybeSingle();
+      const { data: pageData } = await supabase.from("landing_pages").select("*").eq("slug", slug).maybeSingle();
       if (!pageData) { setNotFound(true); setLoading(false); return; }
 
       setPage(pageData as any);

@@ -294,7 +294,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
     if (outputMode === "sections") {
       userContent += `\n\nRETORNE APENAS um array JSON de seções dentro de \`\`\`json\`\`\`. Não inclua texto fora do bloco JSON.`;
     } else {
-      userContent += `\n\nRETORNE APENAS o HTML COMPLETO dentro de \`\`\`html\`\`\`. Use Tailwind CSS via CDN, Google Fonts. Design responsivo e moderno.`;
+      userContent += `\n\nRETORNE APENAS o HTML COMPLETO dentro de \`\`\`html\`\`\`. Use Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>), Google Fonts (Plus Jakarta Sans e Inter). Design responsivo e moderno. O HTML deve ser auto-contido e pronto para visualização.`;
     }
 
     const contextMessages: any[] = [
@@ -382,7 +382,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
       if (error) throw error;
       if (generatedSections && page) {
         const sectionsToInsert = generatedSections.map((sec, i) => ({ page_id: page.id, section_type: sec.section_type, order: i, config: sec.config || {}, is_visible: true }));
-        const { error: secError } = await supabase.from("page_sections").insert(sectionsToInsert);
+        const { error: secError } = await supabase.from("landing_page_sections").insert(sectionsToInsert);
         if (secError) throw secError;
       }
       toast({ title: "✅ Página salva com sucesso!" });
