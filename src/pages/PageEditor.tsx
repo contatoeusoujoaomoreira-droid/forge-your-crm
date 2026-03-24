@@ -12,6 +12,9 @@ import SectionLibrary from "@/components/page-builder/SectionLibrary";
 import EditorCanvas from "@/components/page-builder/EditorCanvas";
 import PropertyInspector from "@/components/page-builder/PropertyInspector";
 import GrapesEditor from "@/components/dashboard/GrapesEditor";
+import { LayoutControls } from "@/components/page-builder/LayoutControls";
+import { AnimationPresets } from "@/components/page-builder/AnimationPresets";
+import { SectionAIAssistant } from "@/components/page-builder/SectionAIAssistant";
 
 const defaultConfigs: Record<string, any> = {
   hero: { headline: "Título Principal", subtitle: "Subtítulo aqui", ctaText: "Comece Agora", ctaUrl: "#", badge: "🔥 Novo", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "80" },
@@ -276,7 +279,77 @@ const PageEditor = () => {
         <EditorCanvas onDropNewSection={handleAddSection} />
         <PropertyInspector />
       </div>
-    </div>
+    
+        {/* Layout Controls */}
+        {selectedId && (
+          <LayoutControls
+            selectedId={selectedId}
+            onPaddingChange={(dir, val) => {
+              // Handle padding change
+            }}
+            onMarginChange={(dir, val) => {
+              // Handle margin change
+            }}
+            onDuplicate={() => {
+              // Handle duplicate
+            }}
+            onDelete={() => {
+              store.deleteSection(selectedId);
+            }}
+            onToggleVisibility={() => {
+              // Handle visibility toggle
+            }}
+            onToggleLock={() => {
+              // Handle lock toggle
+            }}
+            isVisible={true}
+            isLocked={false}
+            padding={{ top: 0, bottom: 0, left: 0, right: 0 }}
+            margin={{ top: 0, bottom: 0, left: 0, right: 0 }}
+          />
+        )}
+
+        {/* Animation Presets */}
+        {selectedId && (
+          <AnimationPresets
+            onSelect={(preset) => {
+              const section = store.sections.find(s => s.id === selectedId);
+              if (section) {
+                store.updateSection(selectedId, {
+                  ...section,
+                  config: {
+                    ...section.config,
+                    animation: preset.id
+                  }
+                });
+              }
+            }}
+            selectedAnimation={store.sections.find(s => s.id === selectedId)?.config?.animation}
+          />
+        )}
+
+        {/* AI Assistant */}
+        {selectedId && (
+          <button
+            onClick={() => {
+              setSelectedSectionType(store.sections.find(s => s.id === selectedId)?.section_type || 'hero');
+              setShowAIAssistant(!showAIAssistant);
+            }}
+            className="w-full px-4 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg transition text-sm font-medium flex items-center gap-2 justify-center"
+          >
+            <Sparkles className="h-4 w-4" />
+            Sugestões de IA
+          </button>
+        )}
+
+        <SectionAIAssistant
+          sectionType={selectedSectionType}
+          isOpen={showAIAssistant}
+          onClose={() => setShowAIAssistant(false)}
+          onApplySuggestion={handleAISuggestion}
+        />
+
+</div>
   );
 };
 

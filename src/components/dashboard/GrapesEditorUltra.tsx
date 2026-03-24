@@ -16,6 +16,7 @@ import {
 import grapesjs from "grapesjs";
 import grapesjsBlocksBasic from "grapesjs-blocks-basic";
 import { PROFESSIONAL_BLOCKS } from "./BlocksLibrary";
+import { AIEditorChat } from './AIEditorChat';
 
 const GrapesEditorUltra = () => {
   const { id: pageId } = useParams();
@@ -352,7 +353,16 @@ ${html}
             >
               <Monitor className="h-4 w-4" />
             </button>
-          </div>
+          
+            <button
+              onClick={() => setShowAIChat(!showAIChat)}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg transition text-sm font-medium"
+              title="Assistente de IA"
+            >
+              <Sparkles className="h-4 w-4" />
+              IA
+            </button>
+</div>
 
           {/* Zoom */}
           <div className="flex items-center gap-2 bg-slate-800/50 rounded-lg px-3 py-1 border border-slate-700/50">
@@ -609,7 +619,24 @@ ${html}
           </div>
         </div>
       )}
-    </div>
+    
+      {/* AI Chat */}
+      <AIEditorChat
+        isOpen={showAIChat}
+        onClose={() => setShowAIChat(false)}
+        selectedElement={selectedElement}
+        onApplyChange={(code) => {
+          // Aplicar mudança ao elemento selecionado
+          if (selectedElement) {
+            const element = document.querySelector(selectedElement);
+            if (element) {
+              element.style.cssText = code;
+            }
+          }
+        }}
+      />
+
+</div>
   );
 };
 

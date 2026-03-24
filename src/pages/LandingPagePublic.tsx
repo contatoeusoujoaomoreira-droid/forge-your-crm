@@ -1,3 +1,4 @@
+import { GlobalStyleInjector } from '@/components/page-builder/GlobalStyleInjector';
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -268,22 +269,25 @@ const FullHTMLPage = ({ html, page }: { html: string; page: PageData }) => {
   }, [page]);
 
   return (
-    <iframe
-      ref={iframeRef}
-      srcDoc={html}
-      title={page.title}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        border: "none",
-        margin: 0,
-        padding: 0,
-      }}
-      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-    />
+    <>
+      <GlobalStyleInjector />
+      <iframe
+        ref={iframeRef}
+        srcDoc={html}
+        title={page.title}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          border: "none",
+          margin: 0,
+          padding: 0,
+        }}
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+      />
+    </>
   );
 };
 
