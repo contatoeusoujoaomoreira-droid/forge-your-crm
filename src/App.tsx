@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import PageEditor from "./pages/PageEditor";
-import GrapesEditorPro from "./components/dashboard/GrapesEditorPro";
+import GrapesEditorUltra from "./components/dashboard/GrapesEditorUltra";
 import LandingPagePublic from "./pages/LandingPagePublic";
 import QuizPublic from "./pages/QuizPublic";
 import FormPublic from "./pages/FormPublic";
@@ -39,7 +39,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/editor/:id" element={<ProtectedRoute><PageEditor /></ProtectedRoute>} />
-              <Route path="/editor-html/:id" element={<ProtectedRoute><GrapesEditorPro /></ProtectedRoute>} />
+              <Route path="/editor-html/:id" element={<ProtectedRoute><GrapesEditorUltra /></ProtectedRoute>} />
               <Route path="/p/:slug" element={<LandingPagePublic />} />
               <Route path="/quiz/:slug" element={<QuizPublic />} />
               <Route path="/form/:slug" element={<FormPublic />} />
