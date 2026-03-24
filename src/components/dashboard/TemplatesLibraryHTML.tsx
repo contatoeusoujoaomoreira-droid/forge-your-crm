@@ -795,6 +795,290 @@ export const HTML_TEMPLATES_LIBRARY = {
 </body>
 </html>`,
   },
+
+  // ===== FINANÇAS / INVESTIMENTOS =====
+  finance_invest: {
+    name: "Finanças & Investimentos",
+    category: "Finanças",
+    description: "Landing page para consultoria financeira ou corretora",
+    thumbnail: "💰",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InvestSmart - Seu Futuro Financeiro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-950 font-inter text-slate-100">
+  <section class="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+    <div class="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(30,58,138,0.3),transparent)] pointer-events-none"></div>
+    <div class="max-w-4xl mx-auto text-center relative z-10">
+      <div class="inline-block px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">Novo: Consultoria de Cripto Ativos</div>
+      <h1 class="text-6xl md:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Multiplique seu Patrimônio</h1>
+      <p class="text-xl text-slate-400 mb-10 max-w-2xl mx-auto">Estratégias de investimento personalizadas para alcançar sua liberdade financeira.</p>
+      <div class="flex gap-4 justify-center">
+        <button class="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">Começar Agora</button>
+        <button class="px-8 py-4 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition border border-slate-700">Falar com Consultor</button>
+      </div>
+    </div>
+  </section>
+  <section class="py-24 bg-slate-900/50 border-y border-slate-800">
+    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-500 mb-2">+R$ 2Bi</div>
+        <p class="text-slate-400">Sob Gestão</p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-500 mb-2">15k+</div>
+        <p class="text-slate-400">Clientes Ativos</p>
+      </div>
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-500 mb-2">12 Anos</div>
+        <p class="text-slate-400">De Experiência</p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== VIAGENS / TURISMO =====
+  travel_agency: {
+    name: "Agência de Viagens",
+    category: "Viagens",
+    description: "Landing page para pacotes turísticos e destinos",
+    thumbnail: "✈️",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore o Mundo - Destinos Inesquecíveis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="bg-white font-['Plus_Jakarta_Sans']">
+  <section class="relative h-screen flex items-center justify-center overflow-hidden">
+    <div class="absolute inset-0 bg-black/40 z-10"></div>
+    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80')] bg-cover bg-center"></div>
+    <div class="relative z-20 text-center px-4">
+      <h1 class="text-6xl md:text-8xl font-extrabold text-white mb-6 drop-shadow-2xl">Explore o Mundo</h1>
+      <p class="text-xl md:text-2xl text-white/90 mb-10 max-w-3xl mx-auto">Pacotes exclusivos para os destinos mais desejados do planeta.</p>
+      <div class="bg-white p-4 rounded-2xl shadow-2xl max-w-4xl mx-auto flex flex-wrap gap-4 items-end">
+        <div class="flex-1 min-w-[200px] text-left">
+          <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Destino</label>
+          <input type="text" placeholder="Para onde você quer ir?" class="w-full p-3 bg-slate-50 rounded-lg border-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex-1 min-w-[200px] text-left">
+          <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Data</label>
+          <input type="date" class="w-full p-3 bg-slate-50 rounded-lg border-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <button class="px-10 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition">Buscar</button>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== EVENTOS / CONFERÊNCIAS =====
+  event_conference: {
+    name: "Conferência Tech",
+    category: "Eventos",
+    description: "Página de inscrição para eventos e workshops",
+    thumbnail: "🎟️",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TechConf 2026 - O Futuro da Tecnologia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-black font-['Space_Grotesk'] text-white">
+  <section class="min-h-screen flex flex-col items-center justify-center px-4 py-20 border-b border-white/10">
+    <div class="text-blue-500 font-bold tracking-widest mb-4">24-26 DE MARÇO • SÃO PAULO</div>
+    <h1 class="text-7xl md:text-9xl font-bold text-center mb-8 tracking-tighter">TECH<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">CONF</span></h1>
+    <p class="text-xl text-slate-400 text-center max-w-2xl mb-12">A maior conferência de tecnologia da América Latina. 3 dias de imersão total no futuro.</p>
+    <div class="flex gap-6">
+      <button class="px-12 py-5 bg-white text-black font-bold rounded-full hover:bg-blue-500 hover:text-white transition-all duration-300">Garantir Ingresso</button>
+      <button class="px-12 py-5 border border-white/20 rounded-full hover:bg-white/5 transition">Ver Agenda</button>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== PET SHOP / VETERINÁRIA =====
+  pet_shop: {
+    name: "Pet Care & Shop",
+    category: "Pet",
+    description: "Landing page para pet shops e clínicas veterinárias",
+    thumbnail: "🐾",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PetLove - Cuidado com Carinho</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-orange-50 font-['Quicksand']">
+  <section class="py-20 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12">
+      <div class="flex-1">
+        <h1 class="text-5xl md:text-6xl font-bold text-orange-900 mb-6">Tudo que seu pet precisa em um só lugar</h1>
+        <p class="text-xl text-orange-800/70 mb-8">Banho e tosa, veterinário 24h e os melhores produtos para o seu melhor amigo.</p>
+        <div class="flex gap-4">
+          <button class="px-8 py-4 bg-orange-500 text-white font-bold rounded-2xl hover:bg-orange-600 transition shadow-lg shadow-orange-500/30">Agendar Banho</button>
+          <button class="px-8 py-4 bg-white text-orange-900 font-bold rounded-2xl hover:bg-orange-100 transition border border-orange-200">Ver Loja</button>
+        </div>
+      </div>
+      <div class="flex-1 bg-orange-200 rounded-[40px] h-[500px] w-full relative overflow-hidden">
+        <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center"></div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== ARQUITETURA / DESIGN INTERIORES =====
+  architecture_studio: {
+    name: "Estúdio de Arquitetura",
+    category: "Arquitetura",
+    description: "Portfolio minimalista para arquitetos e designers",
+    thumbnail: "📐",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal Arch - Arquitetura Contemporânea</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body class="bg-[#f8f7f4] font-['Outfit'] text-[#1a1a1a]">
+  <header class="p-8 flex justify-between items-center">
+    <div class="text-2xl font-bold tracking-tighter">MINIMAL.</div>
+    <div class="space-x-8 text-sm font-medium uppercase tracking-widest">
+      <a href="#" class="hover:opacity-50">Projetos</a>
+      <a href="#" class="hover:opacity-50">O Estúdio</a>
+      <a href="#" class="hover:opacity-50">Contato</a>
+    </div>
+  </header>
+  <section class="px-8 py-20">
+    <div class="max-w-7xl mx-auto">
+      <h1 class="text-8xl md:text-[12rem] font-light leading-[0.8] tracking-tighter mb-20">DESIGN<br>PUREZA.</h1>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-20 items-end">
+        <div class="aspect-[4/5] bg-neutral-200 overflow-hidden">
+          <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80" class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700">
+        </div>
+        <div class="max-w-md">
+          <p class="text-2xl mb-10 leading-relaxed">Criamos espaços que respiram. Arquitetura focada na essência, luz e materialidade.</p>
+          <button class="group flex items-center gap-4 text-sm font-bold uppercase tracking-widest">
+            Ver Projetos 
+            <span class="w-12 h-[1px] bg-black group-hover:w-20 transition-all"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== APP LANDING PAGE =====
+  app_landing: {
+    name: "App Showcase",
+    category: "App",
+    description: "Landing page para lançamento de aplicativos mobile",
+    thumbnail: "📱",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppFlow - Organize sua Vida</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="bg-white font-inter">
+  <section class="py-24 px-4 overflow-hidden">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-20">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-6xl font-extrabold text-slate-900 mb-6 leading-tight">O app que vai mudar sua rotina.</h1>
+        <p class="text-xl text-slate-600 mb-10">Gerencie tarefas, tempo e projetos em um só lugar com design intuitivo.</p>
+        <div class="flex flex-wrap gap-4 justify-center md:justify-start">
+          <button class="px-8 py-4 bg-black text-white font-bold rounded-2xl hover:bg-slate-800 transition flex items-center gap-3">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.05 20.28c-.96.95-2.04 1.9-3.3 1.9-1.24 0-1.63-.76-3.1-.76-1.48 0-1.92.74-3.1.76-1.2.02-2.43-1.07-3.4-2.48-1.98-2.86-3.5-8.05-1.46-11.58 1.02-1.74 2.8-2.85 4.74-2.88 1.48-.02 2.88 1 3.78 1 .9 0 2.6-1.24 4.37-1.06 1.74.07 3.3.7 4.37 2.26-3.57 2.1-3 6.57.55 8.1-.7 1.74-1.6 3.46-3.05 4.74zM12.72 4.1c-.8-1-1.34-2.4-1.2-3.8 1.2.05 2.66.8 3.53 1.8.78.9 1.45 2.3 1.3 3.7-1.34.1-2.83-.7-3.63-1.7z"/></svg>
+            App Store
+          </button>
+          <button class="px-8 py-4 bg-black text-white font-bold rounded-2xl hover:bg-slate-800 transition flex items-center gap-3">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3.609 1.814L13.792 12 3.61 22.186c-.18.18-.29.43-.29.71 0 .55.45 1 1 1 .28 0 .53-.11.71-.29l10.89-10.89c.18-.18.29-.43.29-.71 0-.28-.11-.53-.29-.71L5.03 1.104c-.18-.18-.43-.29-.71-.29-.55 0-1 .45-1 1 0 .28.11.53.29.71z"/></svg>
+            Google Play
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 relative">
+        <div class="w-[300px] h-[600px] bg-slate-900 rounded-[3rem] border-[8px] border-slate-800 shadow-2xl mx-auto relative overflow-hidden">
+          <div class="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-2xl z-20"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 p-6 flex flex-col justify-center">
+            <div class="w-full h-4 bg-white/20 rounded-full mb-4"></div>
+            <div class="w-2/3 h-4 bg-white/20 rounded-full mb-8"></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="aspect-square bg-white/10 rounded-2xl"></div>
+              <div class="aspect-square bg-white/10 rounded-2xl"></div>
+              <div class="aspect-square bg-white/10 rounded-2xl"></div>
+              <div class="aspect-square bg-white/10 rounded-2xl"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
+
+  // ===== EDUCAÇÃO / INFOPRODUTO =====
+  infoproduct_masterclass: {
+    name: "Masterclass Infoproduto",
+    category: "Educação",
+    description: "Landing page de alta conversão para cursos e mentorias",
+    thumbnail: "🎓",
+    html: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masterclass - O Caminho para o Sucesso</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 font-inter">
+  <section class="py-20 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <div class="text-red-600 font-bold mb-4 uppercase tracking-widest">Aula Gratuita e Exclusiva</div>
+      <h1 class="text-5xl md:text-7xl font-black text-slate-900 mb-8 leading-tight">Como faturar seus primeiros R$ 10k online</h1>
+      <p class="text-xl text-slate-600 mb-12">Descubra o método passo a passo que já ajudou mais de 5.000 pessoas a mudarem de vida.</p>
+      <div class="bg-white p-8 rounded-3xl shadow-2xl border border-slate-200">
+        <h3 class="text-2xl font-bold mb-6">Garanta sua vaga agora!</h3>
+        <form class="space-y-4">
+          <input type="text" placeholder="Seu melhor e-mail" class="w-full p-4 bg-slate-50 rounded-xl border border-slate-200 focus:ring-2 focus:ring-red-500 outline-none">
+          <button class="w-full py-5 bg-red-600 text-white font-black text-xl rounded-xl hover:bg-red-700 transition-all transform hover:scale-[1.02]">QUERO ACESSAR A AULA AGORA!</button>
+        </form>
+        <p class="text-xs text-slate-400 mt-4">🔒 Seus dados estão seguros conosco.</p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>`,
+  },
 };
 
 export const TEMPLATE_CATEGORIES = [
@@ -805,10 +1089,16 @@ export const TEMPLATE_CATEGORIES = [
   { id: "saude", label: "Saúde", count: 1 },
   { id: "real-estate", label: "Real Estate", count: 1 },
   { id: "restaurante", label: "Restaurante", count: 1 },
-  { id: "educacao", label: "Educação", count: 1 },
+  { id: "educacao", label: "Educação", count: 2 },
   { id: "advocacia", label: "Advocacia", count: 1 },
   { id: "fitness", label: "Fitness", count: 1 },
   { id: "hospedagem", label: "Hospedagem", count: 1 },
   { id: "portfolio", label: "Portfolio", count: 1 },
   { id: "startup", label: "Startup", count: 1 },
+  { id: "financas", label: "Finanças", count: 1 },
+  { id: "viagens", label: "Viagens", count: 1 },
+  { id: "eventos", label: "Eventos", count: 1 },
+  { id: "pet", label: "Pet", count: 1 },
+  { id: "arquitetura", label: "Arquitetura", count: 1 },
+  { id: "app", label: "App", count: 1 },
 ];
