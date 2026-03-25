@@ -170,7 +170,7 @@ const PageEditor = () => {
             </Button>
           </div>
         </div>
-        <div className="flex-1"><GrapesEditorUltra /></div>
+        <div className="flex-1"><GrapesEditorUltra pageId={id!} onBack={() => navigate("/dashboard")} /></div>
       </div>
     );
   }
@@ -279,7 +279,7 @@ const PageEditor = () => {
                 onPaddingChange={() => {}}
                 onMarginChange={() => {}}
                 onDuplicate={() => {}}
-                onDelete={() => store.removeSection(store.selectedSectionId!)}
+                onDelete={() => store.deleteSection(store.selectedSectionId!)}
                 onToggleVisibility={() => {}}
                 onToggleLock={() => {}}
                 isVisible={true}
@@ -296,7 +296,10 @@ const PageEditor = () => {
                 onSelect={(preset) => {
                   const section = store.sections.find(s => s.id === store.selectedSectionId);
                   if (section) {
-                    store.updateSectionConfig(store.selectedSectionId!, 'animation', preset.id);
+                    store.updateSection(store.selectedSectionId!, {
+                      ...section,
+                      config: { ...section.config, animation: preset.id }
+                    });
                   }
                 }}
                 selectedAnimation={store.sections.find(s => s.id === store.selectedSectionId)?.config?.animation}

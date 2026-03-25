@@ -28,7 +28,6 @@ const GrapesEditorUltra = () => {
   const [slug, setSlug] = useState("");
   const [saving, setSaving] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false);
   const [activeDevice, setActiveDevice] = useState("desktop");
   const [showCode, setShowCode] = useState(false);
   const [codeContent, setCodeContent] = useState("");
@@ -626,7 +625,6 @@ ${html}
         isOpen={showAIChat}
         onClose={() => setShowAIChat(false)}
         selectedElement={selectedElement}
-        editor={editorRef.current}
         onApplyChange={(code) => {
           // Aplicar mudança ao elemento selecionado
           if (selectedElement) {
