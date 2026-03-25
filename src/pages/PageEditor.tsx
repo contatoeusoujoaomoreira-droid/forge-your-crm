@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import { useEditorStore, Section, SECTION_DEFAULTS, useEditorHistory } from "@/s
 import SectionLibrary from "@/components/page-builder/SectionLibrary";
 import EditorCanvas from "@/components/page-builder/EditorCanvas";
 import PropertyInspector from "@/components/page-builder/PropertyInspector";
-import GrapesEditor from "@/components/dashboard/GrapesEditor";
+import GrapesEditorUltra from "@/components/dashboard/GrapesEditorUltra";
 import { LayoutControls } from "@/components/page-builder/LayoutControls";
 import { AnimationPresets } from "@/components/page-builder/AnimationPresets";
 import { SectionAIAssistant } from "@/components/page-builder/SectionAIAssistant";
@@ -49,15 +49,15 @@ const PageEditor = () => {
   const store = useEditorStore();
   const { undo, redo, canUndo, canRedo } = useEditorHistory();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [selectedSectionType, setSelectedSectionType] = useState<string>("hero");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
 
-  // Cleanup on unmount
   useEffect(() => () => { store.reset(); }, []);
 
-  // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
@@ -79,9 +79,8 @@ const PageEditor = () => {
     if (!data) { navigate("/dashboard"); return; }
     store.setPage(data as any);
 
-    if ((data as any).html_content && !(data as any).html_content.startsWith("<")) {
-      store.setEditMode("sections");
-    } else if ((data as any).html_content) {
+    // Detectar se é HTML ou Sessão
+    if ((data as any).html_content && (data as any).html_content.trim().startsWith("<")) {
       store.setEditMode("html");
     } else {
       store.setEditMode("sections");
@@ -94,7 +93,6 @@ const PageEditor = () => {
 
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
-  // Auto-save section config changes (debounced)
   const autoSaveSection = useCallback((sectionId: string, config: any) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -102,7 +100,6 @@ const PageEditor = () => {
     }, 800);
   }, []);
 
-  // Watch for section config changes and auto-save
   useEffect(() => {
     const unsub = useEditorStore.subscribe((state, prev) => {
       if (state.sections !== prev.sections && state.selectedSectionId) {
@@ -135,7 +132,6 @@ const PageEditor = () => {
       pixel_google_id: store.page.pixel_google_id || null, custom_domain: store.page.custom_domain || null,
       is_published: store.page.is_published,
     } as any).eq("id", id);
-    // Also save section orders & visibility
     await Promise.all(store.sections.map(s =>
       supabase.from("landing_page_sections").update({ order: s.order, is_visible: s.is_visible, config: s.config }).eq("id", s.id)
     ));
@@ -144,26 +140,10 @@ const PageEditor = () => {
     else toast({ title: "Salvo com sucesso!" });
   };
 
-  // Delete section from DB too
   useEffect(() => {
     const unsub = useEditorStore.subscribe((state, prev) => {
       const removed = prev.sections.filter(s => !state.sections.find(ns => ns.id === s.id));
       removed.forEach(s => supabase.from("landing_page_sections").delete().eq("id", s.id).then());
-      // Toggle visibility
-      state.sections.forEach(s => {
-        const old = prev.sections.find(os => os.id === s.id);
-        if (old && old.is_visible !== s.is_visible) {
-          supabase.from("landing_page_sections").update({ is_visible: s.is_visible }).eq("id", s.id).then();
-        }
-      });
-      // Reorder
-      const orderChanged = state.sections.some((s, i) => {
-        const old = prev.sections.find(os => os.id === s.id);
-        return old && old.order !== s.order;
-      });
-      if (orderChanged) {
-        state.sections.forEach(s => supabase.from("landing_page_sections").update({ order: s.order }).eq("id", s.id).then());
-      }
     });
     return unsub;
   }, []);
@@ -172,7 +152,7 @@ const PageEditor = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center"><div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
 
-  // HTML mode
+  // HTML mode - use GrapesEditorUltra
   if (store.editMode === "html" && store.page) {
     return (
       <div className="h-screen flex flex-col bg-background">
@@ -190,11 +170,12 @@ const PageEditor = () => {
             </Button>
           </div>
         </div>
-        <div className="flex-1"><GrapesEditor pageId={id!} onBack={() => navigate("/dashboard")} /></div>
+        <div className="flex-1"><GrapesEditorUltra pageId={id!} onBack={() => navigate("/dashboard")} /></div>
       </div>
     );
   }
 
+  // Sections mode
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Top Bar */}
@@ -239,6 +220,24 @@ const PageEditor = () => {
               <Redo2 className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {/* AI Assistant Button */}
+          <button
+            onClick={() => {
+              if (store.selectedSectionId) {
+                const section = store.sections.find(s => s.id === store.selectedSectionId);
+                if (section) {
+                  setSelectedSectionType(section.section_type);
+                  setShowAIAssistant(!showAIAssistant);
+                }
+              }
+            }}
+            className="p-1.5 rounded-lg transition-colors hover:bg-yellow-600/20 text-yellow-400 flex items-center gap-1"
+            title="Sugestões de IA"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+
           <button onClick={() => store.setShowSettings(!store.showSettings)} className={`p-1.5 rounded-lg transition-colors ${store.showSettings ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground"}`}>
             <Settings className="h-4 w-4" />
           </button>
@@ -249,107 +248,83 @@ const PageEditor = () => {
             </a>
           )}
 
-          <Button size="sm" onClick={handleSaveSettings} disabled={store.saving} className="h-8 px-3 text-xs font-semibold gap-1">
-            <Save className="h-3.5 w-3.5" /> {store.saving ? "..." : "Salvar"}
+          <Button size="sm" onClick={handleSaveSettings} className="h-7 text-xs gap-1">
+            <Save className="h-3 w-3" /> Salvar
           </Button>
         </div>
       </div>
 
-      {/* Settings Panel */}
-      {store.showSettings && store.page && (
-        <div className="px-4 py-3 space-y-3 border-b border-border bg-card shrink-0">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Título</label><Input value={store.page.title} onChange={e => store.updatePage({ title: e.target.value })} className="h-8 text-xs bg-secondary border-border" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Slug</label><Input value={store.page.slug} onChange={e => store.updatePage({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, "") })} className="h-8 text-xs bg-secondary border-border" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Domínio</label><Input value={store.page.custom_domain || ""} onChange={e => store.updatePage({ custom_domain: e.target.value })} placeholder="seudominio.com" className="h-8 text-xs bg-secondary border-border" /></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Title</label><Input value={store.page.meta_title || ""} onChange={e => store.updatePage({ meta_title: e.target.value })} className="h-8 text-xs bg-secondary border-border" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Meta Desc</label><Input value={store.page.meta_description || ""} onChange={e => store.updatePage({ meta_description: e.target.value })} className="h-8 text-xs bg-secondary border-border" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Meta</label><Input value={store.page.pixel_meta_id || ""} onChange={e => store.updatePage({ pixel_meta_id: e.target.value })} className="h-8 text-xs bg-secondary border-border" /></div>
-            <div><label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Pixel Google</label><Input value={store.page.pixel_google_id || ""} onChange={e => store.updatePage({ pixel_google_id: e.target.value })} className="h-8 text-xs bg-secondary border-border" /></div>
-          </div>
-          <label className="flex items-center gap-2 text-xs"><Switch checked={store.page.is_published} onCheckedChange={(v) => store.updatePage({ is_published: v })} /> Publicar</label>
-        </div>
-      )}
-
-      {/* 3-Panel Layout */}
+      {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        <SectionLibrary onAddSection={handleAddSection} />
-        <EditorCanvas onDropNewSection={handleAddSection} />
-        <PropertyInspector />
-      </div>
-    
-        {/* Layout Controls */}
-        {selectedId && (
-          <LayoutControls
-            selectedId={selectedId}
-            onPaddingChange={(dir, val) => {
-              // Handle padding change
-            }}
-            onMarginChange={(dir, val) => {
-              // Handle margin change
-            }}
-            onDuplicate={() => {
-              // Handle duplicate
-            }}
-            onDelete={() => {
-              store.deleteSection(selectedId);
-            }}
-            onToggleVisibility={() => {
-              // Handle visibility toggle
-            }}
-            onToggleLock={() => {
-              // Handle lock toggle
-            }}
-            isVisible={true}
-            isLocked={false}
-            padding={{ top: 0, bottom: 0, left: 0, right: 0 }}
-            margin={{ top: 0, bottom: 0, left: 0, right: 0 }}
-          />
-        )}
+        {/* Left Sidebar - Section Library */}
+        <div className="w-64 border-r border-border overflow-y-auto bg-card/50">
+          <SectionLibrary onAddSection={handleAddSection} />
+        </div>
 
-        {/* Animation Presets */}
-        {selectedId && (
-          <AnimationPresets
-            onSelect={(preset) => {
-              const section = store.sections.find(s => s.id === selectedId);
-              if (section) {
-                store.updateSection(selectedId, {
-                  ...section,
-                  config: {
-                    ...section.config,
-                    animation: preset.id
+        {/* Center - Canvas */}
+        <div className="flex-1 overflow-auto bg-muted/30">
+          <EditorCanvas />
+        </div>
+
+        {/* Right Sidebar - Property Inspector & Controls */}
+        {store.selectedSectionId && (
+          <div className="w-80 border-l border-border overflow-y-auto bg-card/50">
+            <PropertyInspector />
+            
+            {/* Layout Controls */}
+            <div className="p-4 border-t border-border">
+              <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase">Layout</h3>
+              <LayoutControls
+                selectedId={store.selectedSectionId}
+                onPaddingChange={() => {}}
+                onMarginChange={() => {}}
+                onDuplicate={() => {}}
+                onDelete={() => store.deleteSection(store.selectedSectionId!)}
+                onToggleVisibility={() => {}}
+                onToggleLock={() => {}}
+                isVisible={true}
+                isLocked={false}
+                padding={{ top: 0, bottom: 0, left: 0, right: 0 }}
+                margin={{ top: 0, bottom: 0, left: 0, right: 0 }}
+              />
+            </div>
+
+            {/* Animation Presets */}
+            <div className="p-4 border-t border-border">
+              <h3 className="text-xs font-semibold text-muted-foreground mb-3 uppercase">Animações</h3>
+              <AnimationPresets
+                onSelect={(preset) => {
+                  const section = store.sections.find(s => s.id === store.selectedSectionId);
+                  if (section) {
+                    store.updateSection(store.selectedSectionId!, {
+                      ...section,
+                      config: { ...section.config, animation: preset.id }
+                    });
                   }
-                });
-              }
-            }}
-            selectedAnimation={store.sections.find(s => s.id === selectedId)?.config?.animation}
-          />
+                }}
+                selectedAnimation={store.sections.find(s => s.id === store.selectedSectionId)?.config?.animation}
+              />
+            </div>
+
+            {/* AI Assistant */}
+            <div className="p-4 border-t border-border">
+              <SectionAIAssistant
+                sectionType={selectedSectionType}
+                isOpen={showAIAssistant}
+                onClose={() => setShowAIAssistant(false)}
+                onApplySuggestion={(suggestion) => {
+                  // Aplicar sugestão de IA
+                  const section = store.sections.find(s => s.id === store.selectedSectionId);
+                  if (section) {
+                    toast({ title: `Sugestão aplicada: ${suggestion}` });
+                  }
+                }}
+              />
+            </div>
+          </div>
         )}
-
-        {/* AI Assistant */}
-        {selectedId && (
-          <button
-            onClick={() => {
-              setSelectedSectionType(store.sections.find(s => s.id === selectedId)?.section_type || 'hero');
-              setShowAIAssistant(!showAIAssistant);
-            }}
-            className="w-full px-4 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg transition text-sm font-medium flex items-center gap-2 justify-center"
-          >
-            <Sparkles className="h-4 w-4" />
-            Sugestões de IA
-          </button>
-        )}
-
-        <SectionAIAssistant
-          sectionType={selectedSectionType}
-          isOpen={showAIAssistant}
-          onClose={() => setShowAIAssistant(false)}
-          onApplySuggestion={handleAISuggestion}
-        />
-
-</div>
+      </div>
+    </div>
   );
 };
 
