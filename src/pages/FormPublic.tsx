@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-interface FormField { id: string; type: string; label: string; placeholder?: string; required?: boolean; options?: string[]; min?: number; max?: number; }
+interface FormField {
+  id: string; type: string; label: string; placeholder?: string; required?: boolean;
+  options?: string[]; min?: number; max?: number;
+  conditionalField?: string; conditionalValue?: string;
+}
 
 const FormPublic = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -22,11 +26,21 @@ const FormPublic = () => {
     f();
   }, [slug]);
 
+  // Conditional logic: check if a field should be visible
+  const isFieldVisible = (field: FormField) => {
+    if (!field.conditionalField) return true;
+    const depField = fields.find(f => f.id === field.conditionalField);
+    if (!depField) return true;
+    return answers[depField.id] === field.conditionalValue;
+  };
+
+  const visibleFields = fields.filter(isFieldVisible);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!form) return;
     const responses: Record<string, string> = {};
-    fields.forEach(f => { responses[f.label] = answers[f.id] || ""; });
+    visibleFields.forEach(f => { responses[f.label] = answers[f.id] || ""; });
     await supabase.from("form_responses").insert({ form_id: form.id, responses });
 
     // Create lead if CRM integration configured
@@ -39,12 +53,18 @@ const FormPublic = () => {
           name: answers[nameField?.id || ""] || "Form Lead",
           email: emailField ? answers[emailField.id] || null : null,
           phone: phoneField ? answers[phoneField.id] || null : null,
-          source: `form:${slug}`,
-          status: "new",
-          stage_id: form.stage_id,
-          user_id: form.user_id,
+          source: `form:${slug}`, status: "new", stage_id: form.stage_id, user_id: form.user_id,
         } as any);
       }
+    }
+
+    // Webhook
+    if (form.webhook_url) {
+      try {
+        const responses: Record<string, string> = {};
+        visibleFields.forEach(f => { responses[f.label] = answers[f.id] || ""; });
+        fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {});
+      } catch {}
     }
 
     const settings = form.settings || {};
@@ -57,7 +77,7 @@ const FormPublic = () => {
 
   const style = form.style || {};
   const settings = form.settings || {};
-  const isMultiStep = settings.multiStep && fields.length > 1;
+  const isMultiStep = settings.multiStep && visibleFields.length > 1;
   const bgColor = style.bgColor || "#000";
   const textColor = style.textColor || "#fff";
   const accentColor = style.accentColor || "#84CC16";
@@ -75,9 +95,8 @@ const FormPublic = () => {
     );
   }
 
-  const currentField = isMultiStep ? fields[currentStep] : null;
-  const progress = isMultiStep ? ((currentStep + 1) / fields.length) * 100 : 0;
-
+  const currentField = isMultiStep ? visibleFields[currentStep] : null;
+  const progress = isMultiStep ? ((currentStep + 1) / visibleFields.length) * 100 : 0;
   const inputBaseStyle: React.CSSProperties = { width: "100%", borderRadius: 12, padding: "14px 18px", fontSize: 14, border: `1px solid ${textColor}15`, background: `${textColor}05`, color: textColor, outline: "none" };
 
   const renderField = (field: FormField) => {
@@ -102,8 +121,7 @@ const FormPublic = () => {
       </div>
     );
     if (field.type === "nps" || field.type === "scale") {
-      const min = field.min ?? 0;
-      const max = field.max ?? 10;
+      const min = field.min ?? 0; const max = field.max ?? 10;
       const values = Array.from({ length: max - min + 1 }, (_, i) => min + i);
       return (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
@@ -119,10 +137,26 @@ const FormPublic = () => {
         </div>
       );
     }
+    if (field.type === "checkbox") return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {(field.options || []).map((opt, i) => {
+          const selected = (answers[field.id] || "").split(", ").includes(opt);
+          return (
+            <button key={i} type="button" onClick={() => {
+              const current = (answers[field.id] || "").split(", ").filter(Boolean);
+              const next = selected ? current.filter(c => c !== opt) : [...current, opt];
+              setAnswers({ ...answers, [field.id]: next.join(", ") });
+            }} style={{ padding: "14px 18px", background: selected ? `${accentColor}12` : `${textColor}05`, border: `1px solid ${selected ? `${accentColor}50` : `${textColor}12`}`, borderRadius: 12, color: selected ? accentColor : textColor, fontWeight: selected ? 600 : 400, fontSize: 14, textAlign: "left", cursor: "pointer", transition: "all .2s", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? accentColor : `${textColor}30`}`, background: selected ? accentColor : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: bgColor }}>{selected ? "✓" : ""}</span>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    );
     return <input type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={answers[field.id] || ""} onChange={e => setAnswers({ ...answers, [field.id]: e.target.value })} placeholder={field.placeholder} required={field.required} style={inputBaseStyle} />;
   };
 
-  // Multi-step mode
   if (isMultiStep && currentField) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: bgColor, color: textColor, fontFamily }}>
@@ -133,19 +167,19 @@ const FormPublic = () => {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <span style={{ fontSize: 11, color: `${textColor}60` }}>{form.title}</span>
-              <span style={{ fontSize: 11, color: `${textColor}60` }}>{currentStep + 1}/{fields.length}</span>
+              <span style={{ fontSize: 11, color: `${textColor}60` }}>{currentStep + 1}/{visibleFields.length}</span>
             </div>
           </div>
-          <div key={currentStep} style={{ animation: "fadeUp .4s ease" }}>
+          <div key={currentField.id} style={{ animation: "fadeUp .4s ease" }}>
             <h2 style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: 24 }}>{currentField.label} {currentField.required && <span style={{ color: accentColor }}>*</span>}</h2>
             {renderField(currentField)}
             <div style={{ display: "flex", gap: 12, marginTop: 28 }}>
               {currentStep > 0 && <button type="button" onClick={() => setCurrentStep(currentStep - 1)} style={{ flex: 1, padding: 14, background: `${textColor}05`, border: `1px solid ${textColor}12`, borderRadius: 12, color: `${textColor}80`, fontWeight: 600, cursor: "pointer", fontSize: 14 }}>← Voltar</button>}
               <button type="button"
-                onClick={() => { if (currentStep < fields.length - 1) setCurrentStep(currentStep + 1); else handleSubmit(); }}
+                onClick={() => { if (currentStep < visibleFields.length - 1) setCurrentStep(currentStep + 1); else handleSubmit(); }}
                 disabled={currentField.required && !answers[currentField.id]}
                 style={{ flex: 2, padding: 14, background: (currentField.required && !answers[currentField.id]) ? `${textColor}10` : accentColor, color: (currentField.required && !answers[currentField.id]) ? `${textColor}40` : bgColor, fontWeight: 700, border: "none", borderRadius: 12, cursor: (currentField.required && !answers[currentField.id]) ? "not-allowed" : "pointer", fontSize: 14 }}>
-                {currentStep < fields.length - 1 ? "Próximo →" : (settings.submitText || "Enviar")}
+                {currentStep < visibleFields.length - 1 ? "Próximo →" : (settings.submitText || "Enviar")}
               </button>
             </div>
           </div>
@@ -155,7 +189,6 @@ const FormPublic = () => {
     );
   }
 
-  // Standard mode
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: bgColor, color: textColor, fontFamily }}>
       <form onSubmit={handleSubmit} className="w-full max-w-md space-y-6">
@@ -164,7 +197,7 @@ const FormPublic = () => {
           {form.description && <p className="text-sm" style={{ color: `${textColor}80` }}>{form.description}</p>}
         </div>
         <div className="space-y-4">
-          {fields.map(field => (
+          {visibleFields.map(field => (
             <div key={field.id}>
               <label className="text-sm font-medium block mb-1.5">{field.label} {field.required && <span style={{ color: accentColor }}>*</span>}</label>
               {renderField(field)}
