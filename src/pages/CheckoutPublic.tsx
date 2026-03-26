@@ -1,31 +1,21 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ShoppingCart, Plus, Minus, Star, Timer, Copy, Check } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Star, Timer, Copy, Check, Tag } from "lucide-react";
 import qrcode from "qrcode-generator";
 
 interface CheckoutItem {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  image?: string;
+  id: string; name: string; description: string; price: number; image?: string;
 }
 
 const generatePixQr = (pixKey: string): string => {
-  try {
-    const qr = qrcode(0, "M");
-    qr.addData(pixKey);
-    qr.make();
-    return qr.createDataURL(6, 0);
-  } catch { return ""; }
+  try { const qr = qrcode(0, "M"); qr.addData(pixKey); qr.make(); return qr.createDataURL(6, 0); } catch { return ""; }
 };
 
 const PixScreen = ({ style, total, customer, checkout, onDone, pixCopied, handleCopyPix }: any) => {
   const autoQr = style.pixKey ? generatePixQr(style.pixKey) : "";
   const qrSrc = style.pixQrCode || autoQr;
   const showQr = style.showQrCode !== false;
-
   return (
     <div className="max-w-lg mx-auto p-4 space-y-6">
       <div className="text-center space-y-3">
@@ -38,11 +28,7 @@ const PixScreen = ({ style, total, customer, checkout, onDone, pixCopied, handle
           <p className="text-3xl font-bold" style={{ color: style.accentColor || "#84CC16" }}>R$ {total.toFixed(2)}</p>
           {style.pixDiscount && <p className="text-xs opacity-60 mt-1">Com {style.pixDiscount}% de desconto no PIX</p>}
         </div>
-        {showQr && qrSrc && (
-          <div className="flex justify-center">
-            <img src={qrSrc} alt="QR Code PIX" className="h-48 w-48 rounded-lg bg-white p-2" />
-          </div>
-        )}
+        {showQr && qrSrc && <div className="flex justify-center"><img src={qrSrc} alt="QR Code PIX" className="h-48 w-48 rounded-lg bg-white p-2" /></div>}
         <div className="space-y-2">
           <p className="text-xs font-semibold opacity-70">Chave PIX:</p>
           <div className="flex items-center gap-2">
@@ -52,20 +38,11 @@ const PixScreen = ({ style, total, customer, checkout, onDone, pixCopied, handle
             </button>
           </div>
         </div>
-        {(style.pixName || style.pixBank) && (
-          <div className="text-xs opacity-60 space-y-1">
-            {style.pixName && <p><strong>Nome:</strong> {style.pixName}</p>}
-            {style.pixBank && <p><strong>Banco:</strong> {style.pixBank}</p>}
-          </div>
-        )}
+        {(style.pixName || style.pixBank) && <div className="text-xs opacity-60 space-y-1">{style.pixName && <p><strong>Nome:</strong> {style.pixName}</p>}{style.pixBank && <p><strong>Banco:</strong> {style.pixBank}</p>}</div>}
       </div>
-      <p className="text-xs text-center opacity-50">Após o pagamento, envie o comprovante pelo WhatsApp</p>
       <button onClick={() => {
         const whatsNumber = checkout.whatsapp_number;
-        if (whatsNumber) {
-          const msg = encodeURIComponent(`✅ Pagamento PIX realizado!\n\n👤 ${customer.name}\n💰 R$ ${total.toFixed(2)}\n\nComprovante em anexo.`);
-          window.open(`https://wa.me/${whatsNumber}?text=${msg}`, "_blank");
-        }
+        if (whatsNumber) { window.open(`https://wa.me/${whatsNumber}?text=${encodeURIComponent(`✅ Pagamento PIX realizado!\n\n👤 ${customer.name}\n💰 R$ ${total.toFixed(2)}\n\nComprovante em anexo.`)}`, "_blank"); }
         onDone();
       }} className="w-full py-3 rounded-lg font-semibold text-sm transition-transform hover:scale-105" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
         Enviar Comprovante via WhatsApp
@@ -85,6 +62,13 @@ const CheckoutPublic = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [pixCopied, setPixCopied] = useState(false);
+  // Coupon
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState("");
+  // Order bump
+  const [bumpAdded, setBumpAdded] = useState(false);
+
   const notifInterval = useRef<any>(null);
   const countdownInterval = useRef<any>(null);
 
@@ -103,10 +87,7 @@ const CheckoutPublic = () => {
   }, [slug]);
 
   useEffect(() => {
-    if (countdown > 0) {
-      countdownInterval.current = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
-      return () => clearInterval(countdownInterval.current);
-    }
+    if (countdown > 0) { countdownInterval.current = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000); return () => clearInterval(countdownInterval.current); }
   }, [countdown > 0]);
 
   useEffect(() => {
@@ -114,11 +95,7 @@ const CheckoutPublic = () => {
     if (style.showNotifications && style.notificationMessages?.length) {
       const msgs = style.notificationMessages;
       let idx = 0;
-      const show = () => {
-        setNotification(msgs[idx % msgs.length]);
-        idx++;
-        setTimeout(() => setNotification(null), 4000);
-      };
+      const show = () => { setNotification(msgs[idx % msgs.length]); idx++; setTimeout(() => setNotification(null), 4000); };
       notifInterval.current = setInterval(show, (style.notificationInterval || 8) * 1000);
       setTimeout(show, 3000);
       return () => clearInterval(notifInterval.current);
@@ -127,10 +104,7 @@ const CheckoutPublic = () => {
 
   const addToCart = (itemId: string) => setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
   const removeFromCart = (itemId: string) => setCart(prev => {
-    const next = { ...prev };
-    if (next[itemId] > 1) next[itemId]--;
-    else delete next[itemId];
-    return next;
+    const next = { ...prev }; if (next[itemId] > 1) next[itemId]--; else delete next[itemId]; return next;
   });
 
   const cartItems = Object.entries(cart).map(([id, qty]) => {
@@ -138,58 +112,72 @@ const CheckoutPublic = () => {
     return item ? { ...item, quantity: qty, subtotal: item.price * qty } : null;
   }).filter(Boolean) as (CheckoutItem & { quantity: number; subtotal: number })[];
 
-  const total = cartItems.reduce((s, i) => s + i.subtotal, 0);
+  const style = checkout?.style || {};
+  const orderBump = style.orderBump;
+
+  const subtotal = cartItems.reduce((s, i) => s + i.subtotal, 0);
+  const bumpTotal = bumpAdded && orderBump ? (orderBump.price || 0) : 0;
+  
+  // Coupon discount
+  const discountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discount_type === "percentage") return (subtotal + bumpTotal) * (appliedCoupon.discount_value / 100);
+    return Math.min(appliedCoupon.discount_value, subtotal + bumpTotal);
+  }, [appliedCoupon, subtotal, bumpTotal]);
+
+  const total = subtotal + bumpTotal - discountAmount;
   const totalItems = Object.values(cart).reduce((s, q) => s + q, 0);
 
-  const style = checkout?.style || {};
   const orderLabel = style.orderType === "reserva" ? "Reserva" : style.orderType === "agendamento" ? "Agendamento" : "Pedido";
   const buttonLabel = style.submitButtonText || `Enviar ${orderLabel} via WhatsApp`;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponError("");
+    const { data } = await supabase.from("coupons").select("*").eq("code", couponCode.trim().toUpperCase()).eq("is_active", true).maybeSingle();
+    if (!data) { setCouponError("Cupom inválido"); return; }
+    if (data.max_uses && data.used_count >= data.max_uses) { setCouponError("Cupom esgotado"); return; }
+    if (data.expires_at && new Date(data.expires_at) < new Date()) { setCouponError("Cupom expirado"); return; }
+    if (data.checkout_id && data.checkout_id !== checkout?.id) { setCouponError("Cupom inválido para este checkout"); return; }
+    setAppliedCoupon(data);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkout || !customer.name || cartItems.length === 0) return;
 
-    await supabase.from("orders").insert({
-      checkout_id: checkout.id,
-      customer_name: customer.name,
-      customer_email: customer.email || null,
-      customer_phone: customer.phone || null,
-      items: cartItems as any,
-      total,
-      status: "pending",
-      notes: customer.notes || null,
-    });
-
-    // If PIX is enabled, show PIX screen
-    if (style.pixEnabled && style.pixKey) {
-      setStep("pix");
-      return;
+    // Increment coupon usage
+    if (appliedCoupon) {
+      await supabase.from("coupons").update({ used_count: (appliedCoupon.used_count || 0) + 1 } as any).eq("id", appliedCoupon.id);
     }
+
+    await supabase.from("orders").insert({
+      checkout_id: checkout.id, customer_name: customer.name,
+      customer_email: customer.email || null, customer_phone: customer.phone || null,
+      items: [...cartItems, ...(bumpAdded && orderBump ? [{ ...orderBump, quantity: 1, subtotal: orderBump.price }] : [])] as any,
+      total, status: "pending", notes: customer.notes || null,
+      coupon_code: appliedCoupon?.code || null,
+      discount_amount: discountAmount,
+    } as any);
+
+    if (style.pixEnabled && style.pixKey) { setStep("pix"); return; }
 
     const whatsNumber = checkout.whatsapp_number;
     if (whatsNumber) {
       const itemsText = cartItems.map(i => `• ${i.quantity}x ${i.name} — R$ ${i.subtotal.toFixed(2)}`).join("\n");
       const msg = encodeURIComponent(
-        `🛒 *Novo ${orderLabel}*\n\n` +
-        `👤 ${customer.name}\n` +
-        (customer.phone ? `📱 ${customer.phone}\n` : "") +
-        (customer.email ? `📧 ${customer.email}\n` : "") +
-        `\n📋 *Itens:*\n${itemsText}\n\n` +
-        `💰 *Total: R$ ${total.toFixed(2)}*` +
-        (customer.notes ? `\n\n📝 ${customer.notes}` : "")
+        `🛒 *Novo ${orderLabel}*\n\n👤 ${customer.name}\n` +
+        (customer.phone ? `📱 ${customer.phone}\n` : "") + (customer.email ? `📧 ${customer.email}\n` : "") +
+        `\n📋 *Itens:*\n${itemsText}\n` +
+        (discountAmount > 0 ? `\n🏷️ Cupom: ${appliedCoupon.code} (-R$ ${discountAmount.toFixed(2)})\n` : "") +
+        `\n💰 *Total: R$ ${total.toFixed(2)}*` + (customer.notes ? `\n\n📝 ${customer.notes}` : "")
       );
       window.open(`https://wa.me/${whatsNumber}?text=${msg}`, "_blank");
     }
-    setStep("menu");
-    setCart({});
-    setCustomer({ name: "", email: "", phone: "", notes: "" });
+    setStep("menu"); setCart({}); setCustomer({ name: "", email: "", phone: "", notes: "" }); setAppliedCoupon(null); setCouponCode(""); setBumpAdded(false);
   };
 
-  const handleCopyPix = () => {
-    navigator.clipboard.writeText(style.pixKey || "");
-    setPixCopied(true);
-    setTimeout(() => setPixCopied(false), 3000);
-  };
+  const handleCopyPix = () => { navigator.clipboard.writeText(style.pixKey || ""); setPixCopied(true); setTimeout(() => setPixCopied(false), 3000); };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><div className="h-8 w-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" /></div>;
   if (!checkout) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><p>Checkout não encontrado</p></div>;
@@ -198,14 +186,11 @@ const CheckoutPublic = () => {
 
   return (
     <div className="min-h-screen relative" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff", fontFamily: "Inter" }}>
-      {/* Countdown Banner */}
       {style.showCountdown && countdown > 0 && (
         <div className="text-center py-2 px-4 text-sm font-bold flex items-center justify-center gap-2" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
           <Timer className="h-4 w-4" /> Oferta expira em {formatTime(countdown)}
         </div>
       )}
-
-      {/* Header */}
       <div className="sticky top-0 z-10 backdrop-blur-lg border-b border-white/10 px-4 py-3 flex items-center justify-between" style={{ background: `${style.bgColor || "#000"}CC` }}>
         <div className="flex items-center gap-3">
           {style.logoUrl && <img src={style.logoUrl} alt="" className="h-8 object-contain" />}
@@ -216,14 +201,10 @@ const CheckoutPublic = () => {
         </div>
         {totalItems > 0 && step === "menu" && (
           <button onClick={() => setStep("checkout")} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-transform hover:scale-105" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
-            <ShoppingCart className="h-4 w-4" />
-            <span>{totalItems}</span>
-            <span>R$ {total.toFixed(2)}</span>
+            <ShoppingCart className="h-4 w-4" /><span>{totalItems}</span><span>R$ {subtotal.toFixed(2)}</span>
           </button>
         )}
       </div>
-
-      {/* Ratings */}
       {style.showRatings && (
         <div className="flex items-center justify-center gap-1 py-2">
           {[1,2,3,4,5].map(i => <Star key={i} className="h-4 w-4" style={{ color: style.accentColor || "#84CC16", fill: style.accentColor || "#84CC16" }} />)}
@@ -233,7 +214,7 @@ const CheckoutPublic = () => {
 
       {step === "menu" ? (
         <div className="max-w-lg mx-auto p-4 space-y-3">
-          {items.map((item) => (
+          {items.map(item => (
             <div key={item.id} className="flex items-center justify-between p-4 rounded-xl border border-white/10 bg-white/5">
               <div className="flex-1">
                 <p className="font-semibold text-sm">{item.name}</p>
@@ -253,19 +234,17 @@ const CheckoutPublic = () => {
               </div>
             </div>
           ))}
-
-          {/* Floating cart button */}
           {totalItems > 0 && (
             <div className="fixed bottom-4 left-4 right-4 max-w-lg mx-auto z-40">
               <button onClick={() => setStep("checkout")} className="w-full flex items-center justify-between px-6 py-4 rounded-xl text-sm font-bold shadow-2xl transition-transform hover:scale-[1.02]" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
                 <span className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Ver {orderLabel} ({totalItems})</span>
-                <span>R$ {total.toFixed(2)}</span>
+                <span>R$ {subtotal.toFixed(2)}</span>
               </button>
             </div>
           )}
         </div>
       ) : step === "pix" ? (
-        <PixScreen style={style} total={total} customer={customer} checkout={checkout} onDone={() => { setStep("menu"); setCart({}); setCustomer({ name: "", email: "", phone: "", notes: "" }); }} pixCopied={pixCopied} handleCopyPix={handleCopyPix} />
+        <PixScreen style={style} total={total} customer={customer} checkout={checkout} onDone={() => { setStep("menu"); setCart({}); setCustomer({ name: "", email: "", phone: "", notes: "" }); setAppliedCoupon(null); setBumpAdded(false); }} pixCopied={pixCopied} handleCopyPix={handleCopyPix} />
       ) : (
         <div className="max-w-lg mx-auto p-4">
           <button onClick={() => setStep("menu")} className="text-sm opacity-60 hover:opacity-100 mb-4">← Voltar ao cardápio</button>
@@ -278,6 +257,42 @@ const CheckoutPublic = () => {
                 <span className="font-semibold">R$ {item.subtotal.toFixed(2)}</span>
               </div>
             ))}
+
+            {/* Order Bump */}
+            {orderBump && orderBump.name && (
+              <div className="rounded-xl p-4 border-2 border-dashed transition-colors" style={{ borderColor: bumpAdded ? (style.accentColor || "#84CC16") : "rgba(255,255,255,0.15)", background: bumpAdded ? `${style.accentColor || "#84CC16"}10` : "transparent" }}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={bumpAdded} onChange={e => setBumpAdded(e.target.checked)} className="mt-1 rounded" />
+                  <div>
+                    <p className="text-sm font-bold">🔥 {orderBump.name}</p>
+                    {orderBump.description && <p className="text-xs opacity-70 mt-0.5">{orderBump.description}</p>}
+                    <p className="text-sm font-bold mt-1" style={{ color: style.accentColor || "#84CC16" }}>
+                      + R$ {(orderBump.price || 0).toFixed(2)}
+                      {orderBump.originalPrice && <span className="text-xs line-through opacity-50 ml-2">R$ {orderBump.originalPrice.toFixed(2)}</span>}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Coupon */}
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Tag className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+                <input type="text" value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); }} placeholder="Cupom de desconto" className="w-full rounded-lg px-4 pl-9 py-2.5 text-sm border border-white/10 bg-white/5 focus:outline-none" disabled={!!appliedCoupon} />
+              </div>
+              {appliedCoupon ? (
+                <button onClick={() => { setAppliedCoupon(null); setCouponCode(""); }} className="px-4 py-2 rounded-lg text-sm font-medium border border-white/20 hover:border-white/40">Remover</button>
+              ) : (
+                <button onClick={handleApplyCoupon} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>Aplicar</button>
+              )}
+            </div>
+            {couponError && <p className="text-xs text-red-400">{couponError}</p>}
+            {appliedCoupon && <p className="text-xs" style={{ color: style.accentColor || "#84CC16" }}>✅ Cupom {appliedCoupon.code} aplicado! -{appliedCoupon.discount_type === "percentage" ? `${appliedCoupon.discount_value}%` : `R$ ${appliedCoupon.discount_value.toFixed(2)}`}</p>}
+
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-sm text-green-400"><span>Desconto</span><span>- R$ {discountAmount.toFixed(2)}</span></div>
+            )}
             <div className="flex items-center justify-between text-lg font-bold pt-2">
               <span>Total</span>
               <span style={{ color: style.accentColor || "#84CC16" }}>R$ {total.toFixed(2)}</span>
@@ -285,20 +300,26 @@ const CheckoutPublic = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <input type="text" value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} placeholder="Seu nome *" required className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
+            <input type="text" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} placeholder="Seu nome *" required className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
             <div className="grid grid-cols-2 gap-3">
-              <input type="email" value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} placeholder="E-mail" className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
-              <input type="tel" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} placeholder="WhatsApp" className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
+              <input type="email" value={customer.email} onChange={e => setCustomer({ ...customer, email: e.target.value })} placeholder="E-mail" className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
+              <input type="tel" value={customer.phone} onChange={e => setCustomer({ ...customer, phone: e.target.value })} placeholder="WhatsApp" className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" style={{ color: style.textColor || "#fff" }} />
             </div>
-            <textarea value={customer.notes} onChange={(e) => setCustomer({ ...customer, notes: e.target.value })} placeholder="Observações..." className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" rows={2} style={{ color: style.textColor || "#fff" }} />
+            <textarea value={customer.notes} onChange={e => setCustomer({ ...customer, notes: e.target.value })} placeholder="Observações..." className="w-full rounded-lg px-4 py-3 text-sm border border-white/10 bg-white/5 focus:outline-none" rows={2} style={{ color: style.textColor || "#fff" }} />
             <button type="submit" className="w-full py-3 rounded-lg font-semibold text-sm transition-transform hover:scale-105" style={{ background: style.accentColor || "#84CC16", color: style.bgColor || "#000" }}>
               {buttonLabel}
             </button>
           </form>
+
+          {/* Security badges */}
+          {style.showSecurityBadges && (
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs opacity-40">
+              <span>🔒 Compra segura</span><span>🛡️ {style.guaranteeText || "Garantia de 7 dias"}</span>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Floating Notification */}
       {notification && (
         <div className="fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-50 animate-in slide-in-from-bottom-4">
           <div className="rounded-xl px-4 py-3 text-sm font-medium shadow-2xl" style={{ background: `${style.bgColor || "#000"}F0`, border: `1px solid ${style.accentColor || "#84CC16"}30`, color: style.textColor || "#fff" }}>

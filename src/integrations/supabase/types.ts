@@ -51,6 +51,8 @@ export type Database = {
       }
       appointments: {
         Row: {
+          cancellation_token: string | null
+          cancelled_at: string | null
           created_at: string
           date: string
           guest_email: string | null
@@ -64,6 +66,8 @@ export type Database = {
           time: string
         }
         Insert: {
+          cancellation_token?: string | null
+          cancelled_at?: string | null
           created_at?: string
           date: string
           guest_email?: string | null
@@ -77,6 +81,8 @@ export type Database = {
           time: string
         }
         Update: {
+          cancellation_token?: string | null
+          cancelled_at?: string | null
           created_at?: string
           date?: string
           guest_email?: string | null
@@ -198,6 +204,56 @@ export type Database = {
         }
         Relationships: []
       }
+      coupons: {
+        Row: {
+          checkout_id: string | null
+          code: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          used_count: number
+          user_id: string
+        }
+        Insert: {
+          checkout_id?: string | null
+          code: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          user_id?: string
+        }
+        Update: {
+          checkout_id?: string | null
+          code?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          used_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupons_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_responses: {
         Row: {
           completed_at: string
@@ -245,6 +301,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_published: boolean
+          notification_email: string | null
           pipeline_id: string | null
           settings: Json
           slug: string
@@ -253,6 +310,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          webhook_url: string | null
         }
         Insert: {
           created_at?: string
@@ -261,6 +319,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean
+          notification_email?: string | null
           pipeline_id?: string | null
           settings?: Json
           slug: string
@@ -269,6 +328,7 @@ export type Database = {
           title: string
           updated_at?: string
           user_id?: string
+          webhook_url?: string | null
         }
         Update: {
           created_at?: string
@@ -277,6 +337,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean
+          notification_email?: string | null
           pipeline_id?: string | null
           settings?: Json
           slug?: string
@@ -285,6 +346,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          webhook_url?: string | null
         }
         Relationships: []
       }
@@ -481,10 +543,12 @@ export type Database = {
       orders: {
         Row: {
           checkout_id: string
+          coupon_code: string | null
           created_at: string
           customer_email: string | null
           customer_name: string
           customer_phone: string | null
+          discount_amount: number
           id: string
           items: Json
           lead_id: string | null
@@ -494,10 +558,12 @@ export type Database = {
         }
         Insert: {
           checkout_id: string
+          coupon_code?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name: string
           customer_phone?: string | null
+          discount_amount?: number
           id?: string
           items?: Json
           lead_id?: string | null
@@ -507,10 +573,12 @@ export type Database = {
         }
         Update: {
           checkout_id?: string
+          coupon_code?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string | null
+          discount_amount?: number
           id?: string
           items?: Json
           lead_id?: string | null
@@ -579,6 +647,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          pipeline_id: string | null
           position: number
           user_id: string
         }
@@ -587,6 +656,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          pipeline_id?: string | null
           position?: number
           user_id: string
         }
@@ -595,7 +665,37 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          pipeline_id?: string | null
           position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipelines: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
           user_id?: string
         }
         Relationships: []
@@ -673,9 +773,11 @@ export type Database = {
           id: string
           is_active: boolean
           is_published: boolean | null
+          pipeline_id: string | null
           questions: Json
           settings: Json | null
           slug: string
+          stage_id: string | null
           style: Json | null
           title: string
           user_id: string
@@ -686,9 +788,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean | null
+          pipeline_id?: string | null
           questions?: Json
           settings?: Json | null
           slug: string
+          stage_id?: string | null
           style?: Json | null
           title: string
           user_id?: string
@@ -699,9 +803,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean | null
+          pipeline_id?: string | null
           questions?: Json
           settings?: Json | null
           slug?: string
+          stage_id?: string | null
           style?: Json | null
           title?: string
           user_id?: string
@@ -710,8 +816,11 @@ export type Database = {
       }
       schedules: {
         Row: {
+          allow_cancellation: boolean
           available_days: Json
           available_hours: Json
+          blocked_dates: Json
+          buffer_minutes: number
           created_at: string
           description: string | null
           duration: number
@@ -722,12 +831,16 @@ export type Database = {
           slug: string
           stage_id: string | null
           style: Json
+          timezone: string
           title: string
           user_id: string
         }
         Insert: {
+          allow_cancellation?: boolean
           available_days?: Json
           available_hours?: Json
+          blocked_dates?: Json
+          buffer_minutes?: number
           created_at?: string
           description?: string | null
           duration?: number
@@ -738,12 +851,16 @@ export type Database = {
           slug: string
           stage_id?: string | null
           style?: Json
+          timezone?: string
           title: string
           user_id?: string
         }
         Update: {
+          allow_cancellation?: boolean
           available_days?: Json
           available_hours?: Json
+          blocked_dates?: Json
+          buffer_minutes?: number
           created_at?: string
           description?: string | null
           duration?: number
@@ -754,6 +871,7 @@ export type Database = {
           slug?: string
           stage_id?: string | null
           style?: Json
+          timezone?: string
           title?: string
           user_id?: string
         }

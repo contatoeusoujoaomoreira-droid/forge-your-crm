@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Share2, Copy, Check } from "lucide-react";
 
-interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; }
+interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; imageUrls?: string[]; }
 interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; }
 
 const QuizPublic = () => {
@@ -15,6 +16,7 @@ const QuizPublic = () => {
   const [submitting, setSubmitting] = useState(false);
   const [totalScore, setTotalScore] = useState(0);
   const [matchedResult, setMatchedResult] = useState<QuizResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const f = async () => {
@@ -43,8 +45,33 @@ const QuizPublic = () => {
     setMatchedResult(matched || null);
 
     await supabase.from("quiz_responses").insert({ quiz_id: quiz.id, responses: { ...answers, _score: score, _name: leadInfo.name, _email: leadInfo.email } });
+
+    // Create lead if CRM integration configured
+    const stageId = quiz.stage_id || quiz.settings?.stageId;
+    if (stageId && leadInfo.name) {
+      await supabase.from("leads").insert({
+        name: leadInfo.name, email: leadInfo.email || null, phone: leadInfo.phone || null,
+        source: `quiz:${slug}`, status: "new", stage_id: stageId,
+        user_id: quiz.user_id, value: 0, notes: matched ? `Resultado: ${matched.title} (Score: ${score})` : `Score: ${score}`,
+      } as any);
+    }
+
     setCurrentStep("done");
     setSubmitting(false);
+  };
+
+  const handleShare = () => {
+    const text = matchedResult
+      ? `Fiz o quiz "${quiz.title}" e meu resultado foi: ${matchedResult.title}! ${matchedResult.description}`
+      : `Fiz o quiz "${quiz.title}"! Minha pontuação: ${totalScore} pontos.`;
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: quiz.title, text, url });
+    } else {
+      navigator.clipboard.writeText(`${text}\n${url}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   if (loading) return <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #84CC16", borderTop: "2px solid transparent", borderRadius: "50%", animation: "spin .8s linear infinite" }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -98,9 +125,11 @@ const QuizPublic = () => {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {(questions[currentStep].options || []).map((opt, i) => {
                   const selected = answers[questions[currentStep].text] === opt;
+                  const imgUrl = questions[currentStep].imageUrls?.[i];
                   return (
                     <button key={i} onClick={() => setAnswers({ ...answers, [questions[currentStep].text]: opt })}
-                      style={{ padding: "16px 20px", background: selected ? `${accentColor}12` : `${textColor}05`, border: `1px solid ${selected ? `${accentColor}50` : `${textColor}12`}`, borderRadius: 12, color: selected ? accentColor : textColor, fontWeight: selected ? 600 : 400, fontSize: 14, textAlign: "left", cursor: "pointer", transition: "all .2s" }}>
+                      style={{ padding: imgUrl ? "12px 16px" : "16px 20px", background: selected ? `${accentColor}12` : `${textColor}05`, border: `1px solid ${selected ? `${accentColor}50` : `${textColor}12`}`, borderRadius: 12, color: selected ? accentColor : textColor, fontWeight: selected ? 600 : 400, fontSize: 14, textAlign: "left", cursor: "pointer", transition: "all .2s", display: "flex", alignItems: "center", gap: 12 }}>
+                      {imgUrl && <img src={imgUrl} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }} />}
                       {opt}
                     </button>
                   );
@@ -133,7 +162,12 @@ const QuizPublic = () => {
                 <p style={{ color: `${textColor}80`, marginBottom: 16 }}>Suas respostas foram enviadas.</p>
               </>
             )}
-            {quiz.settings?.showScore && <p style={{ fontSize: 14, color: accentColor, fontWeight: 700 }}>Sua pontuação: {totalScore} pontos</p>}
+            {quiz.settings?.showScore && <p style={{ fontSize: 14, color: accentColor, fontWeight: 700, marginBottom: 20 }}>Sua pontuação: {totalScore} pontos</p>}
+            
+            {/* Share button */}
+            <button onClick={handleShare} style={{ padding: "12px 24px", background: `${textColor}08`, border: `1px solid ${textColor}15`, borderRadius: 12, color: textColor, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {copied ? <><Check style={{ width: 16, height: 16 }} /> Copiado!</> : <><Share2 style={{ width: 16, height: 16 }} /> Compartilhar resultado</>}
+            </button>
           </div>
         )}
       </div>
