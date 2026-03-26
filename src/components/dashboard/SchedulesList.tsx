@@ -77,7 +77,8 @@ const SchedulesList = () => {
     available_hours: { start: "09:00", end: "18:00" },
     style: { bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16" },
     pipeline_id: null, stage_id: null, created_at: "",
-  });
+    buffer_minutes: 0, blocked_dates: [], timezone: "America/Sao_Paulo", allow_cancellation: false,
+  } as any);
 
   const handleSave = async () => {
     if (!editing || !editing.title || !editing.slug) { toast({ title: "Preencha título e slug", variant: "destructive" }); return; }
@@ -86,6 +87,10 @@ const SchedulesList = () => {
       duration: editing.duration, is_active: editing.is_active, is_published: editing.is_published,
       available_days: editing.available_days as any, available_hours: editing.available_hours as any,
       style: editing.style as any, pipeline_id: editing.pipeline_id, stage_id: editing.stage_id,
+      buffer_minutes: (editing as any).buffer_minutes || 0,
+      blocked_dates: (editing as any).blocked_dates || [],
+      timezone: (editing as any).timezone || "America/Sao_Paulo",
+      allow_cancellation: (editing as any).allow_cancellation || false,
     };
     if (editing.id) { await supabase.from("schedules").update(payload).eq("id", editing.id); }
     else { await supabase.from("schedules").insert(payload); }
@@ -349,6 +354,24 @@ const SchedulesList = () => {
           <div className="grid grid-cols-2 gap-4">
             <div><Label className="text-[10px]">Início</Label><Input type="time" value={editing.available_hours.start} onChange={e => setEditing({ ...editing, available_hours: { ...editing.available_hours, start: e.target.value } })} className="mt-1 bg-secondary/50 border-border" /></div>
             <div><Label className="text-[10px]">Fim</Label><Input type="time" value={editing.available_hours.end} onChange={e => setEditing({ ...editing, available_hours: { ...editing.available_hours, end: e.target.value } })} className="mt-1 bg-secondary/50 border-border" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><Label className="text-[10px]">Buffer entre agendamentos (min)</Label><Input type="number" value={(editing as any).buffer_minutes || 0} onChange={e => setEditing({ ...editing, buffer_minutes: parseInt(e.target.value) || 0 } as any)} className="mt-1 bg-secondary/50 border-border" /></div>
+            <div><Label className="text-[10px]">Timezone</Label>
+              <select value={(editing as any).timezone || "America/Sao_Paulo"} onChange={e => setEditing({ ...editing, timezone: e.target.value } as any)} className="w-full h-9 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+                <option value="America/Fortaleza">Fortaleza (BRT)</option>
+                <option value="America/Manaus">Manaus (AMT)</option>
+                <option value="America/Cuiaba">Cuiabá (AMT)</option>
+                <option value="America/New_York">New York (EST)</option>
+                <option value="Europe/Lisbon">Lisboa (WET)</option>
+              </select>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs"><Switch checked={(editing as any).allow_cancellation || false} onCheckedChange={v => setEditing({ ...editing, allow_cancellation: v } as any)} /> Permitir cancelamento pelo convidado</label>
+          <div>
+            <Label className="text-[10px]">Datas bloqueadas (uma por linha, formato YYYY-MM-DD)</Label>
+            <textarea value={((editing as any).blocked_dates || []).join("\n")} onChange={e => setEditing({ ...editing, blocked_dates: e.target.value.split("\n").map((d: string) => d.trim()).filter(Boolean) } as any)} className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3} placeholder="2025-12-25&#10;2025-01-01" />
           </div>
         </div>
         {stages.length > 0 && (
