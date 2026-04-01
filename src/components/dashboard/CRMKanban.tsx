@@ -13,7 +13,9 @@ import {
   Users, TrendingUp, Target, BarChart3, Tag, MessageSquare, Building,
   ChevronDown, ChevronUp, Download, Search, Filter, Clock, History,
   MessageCircle, PhoneCall, CheckSquare, StickyNote, ExternalLink,
-  Upload, AlertTriangle, CheckCircle, Square,
+  Upload, AlertTriangle, CheckCircle, Square, LayoutGrid, List, Settings2,
+  Calendar, ArrowRight, Copy, Check, User, Briefcase, Globe, Share2,
+  Flame, Snowflake, Thermometer
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -43,7 +45,7 @@ interface Lead {
 interface Activity { id: string; lead_id: string | null; description: string; type: string; created_at: string; }
 interface Pipeline { id: string; name: string; created_at: string; }
 
-type View = "kanban" | "dashboard";
+type View = "kanban" | "dashboard" | "list";
 
 const activityTypes = [
   { value: "note", label: "Nota", icon: StickyNote },
@@ -76,17 +78,21 @@ const CRMKanban = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
+  const [filterPriority, setFilterPriority] = useState("Todos");
+  
   // Bulk actions
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState("");
   const [bulkStageId, setBulkStageId] = useState("");
   const [bulkTag, setBulkTag] = useState("");
+  
   // CSV Import
   const [showImport, setShowImport] = useState(false);
   const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
   const csvRef = useRef<HTMLInputElement>(null);
+  
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState<Lead | null>(null);
 
@@ -113,10 +119,10 @@ const CRMKanban = () => {
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
 
   const fetchData = async () => {
     if (!user) return;
-    // Fetch pipelines
     const { data: pipeData } = await supabase.from("pipelines").select("*").eq("user_id", user.id).order("created_at");
     const pips = pipeData || [];
     setPipelines(pips);
@@ -131,16 +137,25 @@ const CRMKanban = () => {
     if (activitiesRes.data) setActivities(activitiesRes.data as Activity[]);
     
     const { data: templatesData } = await supabase.from("whatsapp_templates").select("*").eq("user_id", user.id).order("name");
-    if (templatesData) setWhatsappTemplates(templatesData);
+    if (templatesData && templatesData.length > 0) {
+      setWhatsappTemplates(templatesData);
+    } else {
+      // Default templates if none exist
+      const defaultTemplates = [
+        { name: "Primeira Abordagem", content: "Olá {nome}! 😊 Tudo bem? Sou {user_name} da {user_company}. Vi que você demonstrou interesse em nossos serviços e gostaria de entender melhor como podemos te ajudar. Você tem alguns minutos para conversarmos?" },
+        { name: "Follow-up Proposta", content: "Oi {nome}! 👋 Conseguiu analisar a proposta que te enviei? Estou à disposição para esclarecer qualquer dúvida e ajustar o que for necessário para atender suas necessidades. Quando podemos conversar sobre isso?" },
+        { name: "Reagendamento", content: "Oi {nome}! Percebi que não conseguimos conversar no horário combinado. Sem problemas! Você prefere remarcar para quando? Estou à disposição! 😊" },
+        { name: "Fechamento", content: "Oi {nome}! 🎉 Fico muito feliz que decidiu fechar conosco! Vou te enviar agora as próximas etapas e os documentos necessários. Seja muito bem-vindo(a)! Vamos fazer um excelente trabalho juntos!" }
+      ];
+      setWhatsappTemplates(defaultTemplates.map((t, i) => ({ ...t, id: `default-${i}` })));
+    }
 
-    // Set active pipeline
     if (!activePipeline && pips.length > 0) setActivePipeline(pips[0].id);
     setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, [user]);
 
-  // Filtered stages by pipeline
   const pipelineStages = useMemo(() => {
     if (!activePipeline) return stages;
     return stages.filter(s => s.pipeline_id === activePipeline || !s.pipeline_id);
@@ -155,28 +170,18 @@ const CRMKanban = () => {
           !l.company?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (filterStatus && l.status !== filterStatus) return false;
       if (filterSource && l.source !== filterSource) return false;
+      if (filterPriority !== "Todos") {
+        const pMap: any = { "Quente": "high", "Morno": "medium", "Frio": "low" };
+        if (l.priority !== pMap[filterPriority]) return false;
+      }
       return true;
     });
-  }, [leads, searchTerm, filterStatus, filterSource, pipelineStages]);
+  }, [leads, searchTerm, filterStatus, filterSource, filterPriority, pipelineStages]);
 
   const sources = useMemo(() => [...new Set(leads.map(l => l.source).filter(Boolean))], [leads]);
 
-  // Duplicate detection
-  const checkDuplicate = (email: string, phone: string) => {
-    if (!email && !phone) return null;
-    return leads.find(l => (email && l.email?.toLowerCase() === email.toLowerCase()) || (phone && l.phone === phone)) || null;
-  };
-
   const handleAddLead = async (stageId?: string) => {
     if (!user || !newLead.name) return;
-    // Check duplicates
-    const dup = checkDuplicate(newLead.email, newLead.phone);
-    if (dup && !duplicateWarning) {
-      setDuplicateWarning(dup);
-      return;
-    }
-    setDuplicateWarning(null);
-    
     const targetStageId = stageId || newLead.stage_id || addStageId || (pipelineStages[0]?.id);
     if (!targetStageId) return;
     const stageLeads = leads.filter(l => l.stage_id === targetStageId);
@@ -235,6 +240,7 @@ const CRMKanban = () => {
   };
 
   const handleDeleteTemplate = async (id: string) => {
+    if (id.startsWith("default-")) return;
     await supabase.from("whatsapp_templates").delete().eq("id", id);
     toast({ title: "Template excluído" });
     fetchData();
@@ -245,7 +251,9 @@ const CRMKanban = () => {
     let message = content
       .replace(/{nome}/g, lead.name || "")
       .replace(/{empresa}/g, lead.company || "")
-      .replace(/{valor}/g, lead.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "");
+      .replace(/{valor}/g, lead.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "")
+      .replace(/{user_name}/g, user?.user_metadata?.full_name || "Consultor")
+      .replace(/{user_company}/g, "Nossa Empresa");
     
     const phone = lead.phone.replace(/\D/g, "");
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
@@ -255,17 +263,9 @@ const CRMKanban = () => {
     if (selectedLeads.size === 0 || !selectedTemplate) return;
     const template = whatsappTemplates.find(t => t.id === selectedTemplate);
     if (!template) return;
-
     const selectedLeadsList = leads.filter(l => selectedLeads.has(l.id) && l.phone);
-    if (selectedLeadsList.length === 0) {
-      toast({ title: "Aviso", description: "Nenhum lead selecionado possui telefone.", variant: "destructive" });
-      return;
-    }
-
     selectedLeadsList.forEach((lead, index) => {
-      setTimeout(() => {
-        window.open(getWhatsAppLink(lead, template.content), "_blank");
-      }, index * 1000);
+      setTimeout(() => { window.open(getWhatsAppLink(lead, template.content), "_blank"); }, index * 1000);
     });
     toast({ title: "Enviando mensagens...", description: `${selectedLeadsList.length} abas serão abertas.` });
   };
@@ -328,79 +328,6 @@ const CRMKanban = () => {
     await Promise.all(ns.map(s => supabase.from("pipeline_stages").update({ position: s.position }).eq("id", s.id)));
   };
 
-  const handleExportLeads = () => {
-    const csv = ["Nome,Email,Telefone,Empresa,Valor,Status,Fonte,Tags"].concat(
-      leads.map(l => `"${l.name}","${l.email || ""}","${l.phone || ""}","${l.company || ""}",${l.value},"${l.status}","${l.source || ""}","${(l.tags || []).join(";")}"`)
-    ).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "leads.csv"; a.click();
-    toast({ title: "Leads exportados!" });
-  };
-
-  // CSV Import
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.split("\n").filter(l => l.trim());
-      if (lines.length < 2) return;
-      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-      setCsvHeaders(headers);
-      const rows = lines.slice(1).map(line => {
-        const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
-        const row: Record<string, string> = {};
-        headers.forEach((h, i) => { row[h] = vals[i] || ""; });
-        return row;
-      });
-      setCsvData(rows);
-      // Auto-map common fields
-      const autoMap: Record<string, string> = {};
-      headers.forEach(h => {
-        const hl = h.toLowerCase();
-        if (hl.includes("nome") || hl === "name") autoMap[h] = "name";
-        else if (hl.includes("email") || hl === "e-mail") autoMap[h] = "email";
-        else if (hl.includes("telefone") || hl.includes("phone") || hl.includes("whatsapp")) autoMap[h] = "phone";
-        else if (hl.includes("empresa") || hl.includes("company")) autoMap[h] = "company";
-        else if (hl.includes("valor") || hl.includes("value")) autoMap[h] = "value";
-        else if (hl.includes("fonte") || hl.includes("source")) autoMap[h] = "source";
-      });
-      setCsvMapping(autoMap);
-      setShowImport(true);
-    };
-    reader.readAsText(file);
-  };
-
-  const handleImportCsv = async () => {
-    if (!user || csvData.length === 0) return;
-    const firstStageId = pipelineStages[0]?.id;
-    if (!firstStageId) { toast({ title: "Crie uma etapa primeiro", variant: "destructive" }); return; }
-
-    const reverseMap: Record<string, string> = {};
-    Object.entries(csvMapping).forEach(([csvCol, field]) => { reverseMap[field] = csvCol; });
-
-    const leadsToInsert = csvData.map(row => ({
-      user_id: user.id,
-      name: row[reverseMap["name"]] || "Importado",
-      email: row[reverseMap["email"]] || null,
-      phone: row[reverseMap["phone"]] || null,
-      company: row[reverseMap["company"]] || null,
-      value: parseFloat(row[reverseMap["value"]]) || 0,
-      source: row[reverseMap["source"]] || "csv-import",
-      stage_id: firstStageId,
-      position: 0,
-      status: "new" as const,
-    }));
-
-    const { error } = await supabase.from("leads").insert(leadsToInsert as any);
-    if (error) { toast({ title: "Erro na importação", description: error.message, variant: "destructive" }); return; }
-    toast({ title: `${leadsToInsert.length} leads importados!` });
-    setShowImport(false); setCsvData([]); setCsvHeaders([]); setCsvMapping({});
-    fetchData();
-  };
-
-  // Bulk actions
   const toggleSelectLead = (id: string) => {
     setSelectedLeads(prev => {
       const next = new Set(prev);
@@ -417,7 +344,6 @@ const CRMKanban = () => {
   const executeBulkAction = async () => {
     if (selectedLeads.size === 0) return;
     const ids = Array.from(selectedLeads);
-
     if (bulkAction === "move" && bulkStageId) {
       await Promise.all(ids.map(id => supabase.from("leads").update({ stage_id: bulkStageId } as any).eq("id", id)));
       toast({ title: `${ids.length} leads movidos!` });
@@ -438,7 +364,6 @@ const CRMKanban = () => {
     fetchData();
   };
 
-  // Pipeline CRUD (persistent)
   const handleCreatePipeline = async () => {
     if (!user || !newPipelineName.trim()) return;
     const { data, error } = await supabase.from("pipelines").insert({ user_id: user.id, name: newPipelineName } as any).select().single();
@@ -447,12 +372,6 @@ const CRMKanban = () => {
     setNewPipelineName(""); setShowPipelineDialog(false);
     if (data) setActivePipeline(data.id);
     fetchData();
-  };
-
-  const openWhatsApp = (lead: Lead) => {
-    if (!lead.phone) { toast({ title: "Lead sem WhatsApp", variant: "destructive" }); return; }
-    const phone = lead.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá ${lead.name}! `)}`, "_blank");
   };
 
   const addTagToLead = () => {
@@ -466,7 +385,7 @@ const CRMKanban = () => {
     setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) });
   };
 
-  if (loading) return <div className="text-muted-foreground">Carregando CRM...</div>;
+  if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando CRM...</div>;
 
   const totalLeads = leads.length;
   const totalValue = leads.reduce((s, l) => s + (l.value || 0), 0);
@@ -480,353 +399,247 @@ const CRMKanban = () => {
   const statusData = Object.entries(statusCounts).map(([k, v]) => ({ name: statusOptions.find(s => s.value === k)?.label || k, value: v }));
   const leadActivities = editLead ? activities.filter(a => a.lead_id === editLead.id) : [];
 
+  const getPriorityBadge = (priority: string | null | undefined) => {
+    switch (priority) {
+      case "high": return <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-500 text-[10px] font-bold uppercase"><Flame className="h-3 w-3" /> Quente</span>;
+      case "medium": return <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 text-[10px] font-bold uppercase"><Thermometer className="h-3 w-3" /> Morno</span>;
+      case "low": return <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-500 text-[10px] font-bold uppercase"><Snowflake className="h-3 w-3" /> Frio</span>;
+      default: return null;
+    }
+  };
+
   const leadFormFields = (data: any, setData: (d: any) => void, isNew = false, showStageSelect = false) => (
-    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Informações Básicas</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Nome *</Label><Input value={data.name} onChange={e => { setData({ ...data, name: e.target.value }); }} placeholder="Nome completo" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Empresa</Label><Input value={data.company || ""} onChange={e => setData({ ...data, company: e.target.value })} placeholder="Empresa" className="mt-1 bg-secondary/50 border-border" /></div>
+    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2">
+          <User className="h-4 w-4 text-primary" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Informações do Lead</h4>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">E-mail</Label><Input value={data.email || ""} onChange={e => setData({ ...data, email: e.target.value })} placeholder="email@ex.com" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="5511999999999" className="mt-1 bg-secondary/50 border-border" /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Nome Completo *</Label><Input value={data.name} onChange={e => setData({ ...data, name: e.target.value })} placeholder="Ex: Eduardo Luiza da Silva" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Empresa</Label><Input value={data.company || ""} onChange={e => setData({ ...data, company: e.target.value })} placeholder="Ex: Plástico Geral" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">E-mail</Label><Input value={data.email || ""} onChange={e => setData({ ...data, email: e.target.value })} placeholder="eduardo@plasticogeral.com.br" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="5511987229212" className="bg-secondary/30 border-border h-9 text-sm" /></div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Qualificação Profissional</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Prioridade</Label>
-            <select value={data.priority || "medium"} onChange={e => setData({ ...data, priority: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2">
+          <Target className="h-4 w-4 text-primary" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Qualificação e Valor</h4>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Prioridade (Temperatura)</Label>
+            <select value={data.priority || "medium"} onChange={e => setData({ ...data, priority: e.target.value })} className="w-full h-9 bg-secondary/30 border border-border rounded-md px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
+              <option value="low">Frio</option>
+              <option value="medium">Morno</option>
+              <option value="high">Quente</option>
+            </select>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Urgência</Label>
+            <select value={data.urgency || "medium"} onChange={e => setData({ ...data, urgency: e.target.value })} className="w-full h-9 bg-secondary/30 border border-border rounded-md px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
               <option value="low">Baixa</option>
               <option value="medium">Média</option>
               <option value="high">Alta</option>
             </select>
           </div>
-          <div><Label className="text-xs">Urgência</Label>
-            <select value={data.urgency || "medium"} onChange={e => setData({ ...data, urgency: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-              <option value="low">Baixa</option>
-              <option value="medium">Média</option>
-              <option value="high">Alta</option>
-            </select>
-          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Tipo de Receita</Label>
-            <select value={data.revenue_type || "one_time"} onChange={e => setData({ ...data, revenue_type: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-              <option value="one_time">Única</option>
-              <option value="recurring">Recorrente</option>
-            </select>
-          </div>
-          <div><Label className="text-xs">Probabilidade (%)</Label><Input type="number" value={data.probability || ""} onChange={e => setData({ ...data, probability: e.target.value })} placeholder="50" className="mt-1 bg-secondary/50 border-border" /></div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Valor Mensal (R$)</Label><Input type="number" value={data.monthly_value || ""} onChange={e => setData({ ...data, monthly_value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Duração Contrato (meses)</Label><Input type="number" value={data.contract_months || ""} onChange={e => setData({ ...data, contract_months: e.target.value })} placeholder="1" className="mt-1 bg-secondary/50 border-border" /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Valor do Negócio (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="2170.00" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Probabilidade (%)</Label><Input type="number" value={data.probability || ""} onChange={e => setData({ ...data, probability: e.target.value })} placeholder="50" className="bg-secondary/30 border-border h-9 text-sm" /></div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Financeiro e Origem</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Valor Total (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Fonte</Label><Input value={data.source || ""} onChange={e => setData({ ...data, source: e.target.value })} placeholder="Instagram, Google..." className="mt-1 bg-secondary/50 border-border" /></div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2">
+          <Share2 className="h-4 w-4 text-primary" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Redes Sociais e Origem</h4>
         </div>
-        {(data.status !== undefined || showStageSelect) && (
-          <div className="grid grid-cols-2 gap-3">
-            {data.status !== undefined && (
-              <div><Label className="text-xs">Status</Label>
-                <select value={data.status} onChange={e => setData({ ...data, status: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-                  {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-            )}
-            <div><Label className="text-xs">Etapa</Label>
-              <select value={data.stage_id || ""} onChange={e => setData({ ...data, stage_id: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-                {!data.stage_id && <option value="">Selecione...</option>}
-                {pipelineStages.map(s => <option key={s.id} value={s.id}>{s.name} {isWonStage(s.name) ? "🏆" : ""}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Redes Sociais e Web</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Instagram</Label><Input value={data.instagram || ""} onChange={e => setData({ ...data, instagram: e.target.value })} placeholder="@usuario" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">LinkedIn</Label><Input value={data.linkedin || ""} onChange={e => setData({ ...data, linkedin: e.target.value })} placeholder="linkedin.com/in/..." className="mt-1 bg-secondary/50 border-border" /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Instagram</Label><Input value={data.instagram || ""} onChange={e => setData({ ...data, instagram: e.target.value })} placeholder="@usuario" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">LinkedIn</Label><Input value={data.linkedin || ""} onChange={e => setData({ ...data, linkedin: e.target.value })} placeholder="linkedin.com/in/..." className="bg-secondary/30 border-border h-9 text-sm" /></div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label className="text-xs">Facebook</Label><Input value={data.facebook || ""} onChange={e => setData({ ...data, facebook: e.target.value })} placeholder="facebook.com/..." className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Website</Label><Input value={data.website || ""} onChange={e => setData({ ...data, website: e.target.value })} placeholder="www.site.com" className="mt-1 bg-secondary/50 border-border" /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Fonte do Lead</Label><Input value={data.source || ""} onChange={e => setData({ ...data, source: e.target.value })} placeholder="Ex: Instagram, Google..." className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Website</Label><Input value={data.website || ""} onChange={e => setData({ ...data, website: e.target.value })} placeholder="www.site.com" className="bg-secondary/30 border-border h-9 text-sm" /></div>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rastreamento UTM</h4>
-        <div className="grid grid-cols-3 gap-3">
-          <div><Label className="text-xs">Source</Label><Input value={data.utm_source || ""} onChange={e => setData({ ...data, utm_source: e.target.value })} placeholder="google" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Medium</Label><Input value={data.utm_medium || ""} onChange={e => setData({ ...data, utm_medium: e.target.value })} placeholder="cpc" className="mt-1 bg-secondary/50 border-border" /></div>
-          <div><Label className="text-xs">Campaign</Label><Input value={data.utm_campaign || ""} onChange={e => setData({ ...data, utm_campaign: e.target.value })} placeholder="black_friday" className="mt-1 bg-secondary/50 border-border" /></div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 border-b border-border pb-2">
+          <StickyNote className="h-4 w-4 text-primary" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Observações</h4>
         </div>
+        <Textarea value={data.notes || ""} onChange={e => setData({ ...data, notes: e.target.value })} placeholder="Nenhuma característica registrada..." className="bg-secondary/30 border-border min-h-[100px] text-sm" />
       </div>
-
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Outros</h4>
-        {isNew && <div><Label className="text-xs">Tags (separadas por vírgula)</Label><Input value={data.tags || ""} onChange={e => setData({ ...data, tags: e.target.value })} placeholder="vip, urgente, novo" className="mt-1 bg-secondary/50 border-border" /></div>}
-        <div><Label className="text-xs">Observações</Label><Textarea value={data.notes || ""} onChange={e => setData({ ...data, notes: e.target.value })} placeholder="Observações..." className="mt-1 bg-secondary/50 border-border" rows={2} /></div>
-      </div>
-
-      {/* Duplicate warning */}
-      {duplicateWarning && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-          <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-medium text-destructive">Lead duplicado encontrado!</p>
-            <p className="text-[10px] text-muted-foreground mt-1">"{duplicateWarning.name}" já existe com e-mail/telefone similar.</p>
-            <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => { setDuplicateWarning(null); handleAddLead(); }}>Adicionar mesmo assim</Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 
-  // CSV Import Dialog
-  if (showImport) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">📥 Importar Leads (CSV)</h2>
-          <Button variant="ghost" size="sm" onClick={() => setShowImport(false)}>← Voltar</Button>
-        </div>
-        <div className="surface-card rounded-lg p-4 space-y-4">
-          <p className="text-sm text-foreground font-medium">Mapeamento de colunas ({csvData.length} linhas)</p>
-          <div className="grid grid-cols-2 gap-3">
-            {csvHeaders.map(h => (
-              <div key={h}>
-                <Label className="text-[10px] text-muted-foreground">{h}</Label>
-                <select value={csvMapping[h] || ""} onChange={e => setCsvMapping({ ...csvMapping, [h]: e.target.value })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
-                  <option value="">Ignorar</option>
-                  <option value="name">Nome</option>
-                  <option value="email">E-mail</option>
-                  <option value="phone">Telefone</option>
-                  <option value="company">Empresa</option>
-                  <option value="value">Valor</option>
-                  <option value="source">Fonte</option>
-                </select>
-              </div>
-            ))}
-          </div>
-          {/* Preview */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-border">{csvHeaders.map(h => <th key={h} className="text-left py-2 px-2 text-muted-foreground">{h}{csvMapping[h] && <span className="text-primary ml-1">→ {csvMapping[h]}</span>}</th>)}</tr></thead>
-              <tbody>{csvData.slice(0, 5).map((row, i) => <tr key={i} className="border-b border-border/50">{csvHeaders.map(h => <td key={h} className="py-1.5 px-2 text-foreground">{row[h]}</td>)}</tr>)}</tbody>
-            </table>
-            {csvData.length > 5 && <p className="text-[10px] text-muted-foreground mt-2">+{csvData.length - 5} linhas</p>}
-          </div>
-          <Button onClick={handleImportCsv} disabled={!Object.values(csvMapping).includes("name")}>
-            <Upload className="h-4 w-4 mr-2" /> Importar {csvData.length} Leads
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Pipeline Selector */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {pipelines.map(p => (
-          <Button key={p.id} variant={activePipeline === p.id ? "default" : "outline"} size="sm" onClick={() => setActivePipeline(p.id)} className="text-xs">{p.name}</Button>
-        ))}
-        {pipelines.length === 0 && <Button variant="default" size="sm" className="text-xs" onClick={async () => {
-          if (!user) return;
-          const { data } = await supabase.from("pipelines").insert({ user_id: user.id, name: "Pipeline Principal" } as any).select().single();
-          if (data) { setActivePipeline(data.id); fetchData(); }
-        }}>Criar Pipeline Principal</Button>}
-        <Dialog open={showPipelineDialog} onOpenChange={setShowPipelineDialog}>
-          <DialogTrigger asChild><Button variant="ghost" size="sm" className="h-8 text-xs"><Plus className="h-3 w-3 mr-1" /> Pipeline</Button></DialogTrigger>
-          <DialogContent className="bg-card border-border">
-            <DialogHeader><DialogTitle>Novo Pipeline</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <Input value={newPipelineName} onChange={e => setNewPipelineName(e.target.value)} placeholder="Nome do pipeline" className="bg-secondary/50 border-border" />
-              <Button onClick={handleCreatePipeline} className="w-full">Criar Pipeline</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Button variant={view === "kanban" ? "default" : "outline"} size="sm" onClick={() => setView("kanban")}>Kanban</Button>
-          <Button variant={view === "dashboard" ? "default" : "outline"} size="sm" onClick={() => setView("dashboard")}><BarChart3 className="h-4 w-4 mr-1" /> Dashboard</Button>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar lead..." className="h-8 pl-8 w-48 text-xs bg-secondary/50 border-border" />
+    <div className="space-y-6 p-2">
+      {/* Header Section */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 bg-secondary/30 p-1 rounded-lg border border-border">
+            <Button variant={activePipeline ? "secondary" : "ghost"} size="sm" className="h-8 text-xs gap-2"><LayoutGrid className="h-3.5 w-3.5" /> Pipeline</Button>
+            <Button variant="ghost" size="sm" className="h-8 text-xs gap-2 text-muted-foreground"><Users className="h-3.5 w-3.5" /> Gestão de Clientes</Button>
           </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="h-8 text-xs bg-secondary/50 border border-border rounded-md px-2 text-foreground">
-            <option value="">Todos status</option>
-            {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </div>
+
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">CRM - Gestão de Leads</h1>
+          <p className="text-sm text-muted-foreground">Organize e acompanhe seus leads com eficiência</p>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Funil:</span>
+              <select value={activePipeline || ""} onChange={e => setActivePipeline(e.target.value)} className="h-10 bg-secondary/50 border border-border rounded-lg px-4 text-sm font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/20 min-w-[240px]">
+                {pipelines.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg border border-border">
+              <Button variant={view === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("kanban")}><LayoutGrid className="h-3.5 w-3.5" /> Kanban</Button>
+              <Button variant={view === "list" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("list")}><List className="h-3.5 w-3.5" /> Lista</Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-10 border-primary/30 text-primary hover:bg-primary/5 gap-2" onClick={() => setStageDialogOpen(true)}><Settings2 className="h-4 w-4" /> Gerenciar Etapas</Button>
+            <Button variant="outline" size="sm" className="h-10 border-green-500/30 text-green-500 hover:bg-green-500/5 gap-2" onClick={() => setShowTemplateDialog(true)}><MessageSquare className="h-4 w-4" /> Templates WhatsApp</Button>
+            <Button size="sm" className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-bold px-4" onClick={() => setGlobalAddOpen(true)}><Plus className="h-5 w-5" /> Novo Lead</Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 bg-secondary/20 p-2 rounded-xl border border-border/50">
+          <div className="flex-1 relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por nome, email ou telefone..." className="h-10 pl-10 bg-transparent border-none focus-visible:ring-0 text-sm" />
+          </div>
+          <div className="h-6 w-px bg-border" />
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="h-10 bg-transparent border-none text-sm text-foreground outline-none px-2 min-w-[160px]">
+            <option value="">Todos os estágios</option>
+            {pipelineStages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          {sources.length > 0 && (
-            <select value={filterSource} onChange={e => setFilterSource(e.target.value)} className="h-8 text-xs bg-secondary/50 border border-border rounded-md px-2 text-foreground">
-              <option value="">Todas fontes</option>
-              {sources.map(s => <option key={s} value={s!}>{s}</option>)}
-            </select>
-          )}
-          <Button variant="outline" size="sm" onClick={handleExportLeads} className="h-8"><Download className="h-3.5 w-3.5 mr-1" /> CSV</Button>
-          <Button variant="outline" size="sm" onClick={() => csvRef.current?.click()} className="h-8"><Upload className="h-3.5 w-3.5 mr-1" /> Importar</Button>
-          <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
-          <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
-            <DialogTrigger asChild><Button variant="outline" size="sm" className="h-8"><Plus className="h-3.5 w-3.5 mr-1" /> Etapa</Button></DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader><DialogTitle>Nova Etapa</DialogTitle></DialogHeader>
-              <div className="space-y-3 mt-2">
-                <div><Label>Nome</Label><Input value={newStageName} onChange={e => setNewStageName(e.target.value)} className="mt-1 bg-secondary/50 border-border" placeholder="Ex: Fechado, Convertido..." /></div>
-                <p className="text-[10px] text-muted-foreground">💡 Etapas com nomes como "Fechado" contabilizam automaticamente como receita ganha.</p>
-                <div><Label>Cor</Label><div className="flex items-center gap-2 mt-1"><input type="color" value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="h-10 w-10 rounded border border-border cursor-pointer" /><Input value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="bg-secondary/50 border-border" /></div></div>
-                <Button onClick={handleAddStage} className="w-full">Criar Etapa</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={globalAddOpen} onOpenChange={setGlobalAddOpen}>
-            <DialogTrigger asChild><Button size="sm" className="h-8 gap-1"><Plus className="h-3.5 w-3.5" /> Novo Lead</Button></DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader><DialogTitle>Novo Lead</DialogTitle></DialogHeader>
-              {leadFormFields(newLead, setNewLead, true, true)}
-              <Button onClick={() => handleAddLead()} className="w-full">Adicionar Lead</Button>
-            </DialogContent>
-          </Dialog>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground mr-2">Filtrar por temperatura:</span>
+          {["Todos", "Quente", "Morno", "Frio"].map(temp => (
+            <button key={temp} onClick={() => setFilterPriority(temp)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${filterPriority === temp ? "bg-primary text-primary-foreground" : "bg-secondary/50 text-muted-foreground hover:bg-secondary border border-border"}`}>
+              {temp === "Quente" && <Flame className="h-3 w-3 inline mr-1" />}
+              {temp === "Morno" && <Thermometer className="h-3 w-3 inline mr-1" />}
+              {temp === "Frio" && <Snowflake className="h-3 w-3 inline mr-1" />}
+              {temp}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Bulk Actions Bar */}
       {selectedLeads.size > 0 && (
-        <div className="surface-card rounded-lg p-3 flex items-center gap-3 flex-wrap">
-          <p className="text-xs font-medium text-foreground"><CheckCircle className="h-3.5 w-3.5 inline mr-1 text-primary" />{selectedLeads.size} selecionados</p>
-          <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} className="h-7 text-xs bg-secondary border border-border rounded px-2 text-foreground">
-            <option value="">Ação em massa...</option>
-            <option value="move">Mover etapa</option>
-            <option value="tag">Adicionar tag</option>
-            <option value="delete">Excluir</option>
-          </select>
-          {bulkAction === "move" && (
-            <select value={bulkStageId} onChange={e => setBulkStageId(e.target.value)} className="h-7 text-xs bg-secondary border border-border rounded px-2 text-foreground">
-              <option value="">Etapa...</option>
-              {pipelineStages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 flex items-center gap-4 animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 pr-4 border-r border-primary/20">
+            <CheckCircle className="h-5 w-5 text-primary" />
+            <span className="text-sm font-bold text-foreground">{selectedLeads.size} leads selecionados</span>
+          </div>
+          <div className="flex items-center gap-3 flex-1">
+            <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} className="h-9 bg-background border border-border rounded-lg px-3 text-xs outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="">Ação em massa...</option>
+              <option value="whatsapp">Enviar WhatsApp (Massa)</option>
+              <option value="move">Mover etapa</option>
+              <option value="tag">Adicionar tag</option>
+              <option value="delete">Excluir</option>
             </select>
-          )}
-          {bulkAction === "tag" && <Input value={bulkTag} onChange={e => setBulkTag(e.target.value)} placeholder="Tag..." className="h-7 w-32 text-xs bg-secondary/50 border-border" />}
-          <Button size="sm" className="h-7 text-xs" onClick={executeBulkAction} disabled={!bulkAction}>Aplicar</Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedLeads(new Set())}>Cancelar</Button>
+            {bulkAction === "whatsapp" && (
+              <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)} className="h-9 bg-background border border-border rounded-lg px-3 text-xs min-w-[200px]">
+                <option value="">Selecione o template...</option>
+                {whatsappTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
+            <Button size="sm" className="h-9 px-4 text-xs font-bold" onClick={bulkAction === "whatsapp" ? handleBulkWhatsApp : executeBulkAction} disabled={!bulkAction}>Aplicar Ação</Button>
+          </div>
+          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => setSelectedLeads(new Set())}>Cancelar</Button>
         </div>
       )}
 
-      {/* Dashboard */}
-      {view === "dashboard" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: "Total de Leads", value: totalLeads, icon: Users, color: "text-blue-400" },
-              { label: "Valor Total", value: `R$ ${totalValue.toLocaleString("pt-BR")}`, icon: DollarSign, color: "text-primary" },
-              { label: "Valor Ganho", value: `R$ ${wonValue.toLocaleString("pt-BR")}`, icon: TrendingUp, color: "text-emerald-400" },
-              { label: "Conversão", value: `${conversionRate}%`, icon: Target, color: "text-purple-400" },
-            ].map(m => (
-              <Card key={m.label} className="surface-card border-border"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">{m.label}</p><p className="text-2xl font-bold text-foreground mt-1">{m.value}</p></div><m.icon className={`h-8 w-8 ${m.color} opacity-60`} /></div></CardContent></Card>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="surface-card border-border"><CardHeader><CardTitle className="text-sm">Leads por Etapa</CardTitle></CardHeader><CardContent>
-              {stageData.length > 0 ? <ResponsiveContainer width="100%" height={250}><BarChart data={stageData}><CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 12%)" /><XAxis dataKey="name" stroke="hsl(0 0% 45%)" fontSize={12} /><YAxis stroke="hsl(0 0% 45%)" fontSize={12} /><Tooltip contentStyle={{ background: "hsl(0 0% 4%)", border: "1px solid hsl(0 0% 12%)", borderRadius: 8 }} /><Bar dataKey="count" fill="hsl(84 81% 44%)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
-            </CardContent></Card>
-            <Card className="surface-card border-border"><CardHeader><CardTitle className="text-sm">Status</CardTitle></CardHeader><CardContent>
-              {statusData.length > 0 ? <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={statusData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>{statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip contentStyle={{ background: "hsl(0 0% 4%)", border: "1px solid hsl(0 0% 12%)", borderRadius: 8 }} /></PieChart></ResponsiveContainer> : <p className="text-muted-foreground text-sm text-center py-12">Sem dados</p>}
-            </CardContent></Card>
-          </div>
-        </div>
-      )}
-
-      {/* Kanban */}
+      {/* Kanban View */}
       {view === "kanban" && (
-        <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "calc(100vh - 300px)" }}>
-          {/* Select all toggle */}
-          <div className="absolute">
-            <button onClick={selectAllVisible} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1">
-              {selectedLeads.size === filteredLeads.length && filteredLeads.length > 0 ? <CheckCircle className="h-3 w-3 text-primary" /> : <Square className="h-3 w-3" />}
-              Selecionar todos
-            </button>
-          </div>
+        <div className="flex gap-6 overflow-x-auto pb-6 custom-scrollbar min-h-[600px]">
           {pipelineStages.map((stage, sIdx) => {
             const stageLeads = filteredLeads.filter(l => l.stage_id === stage.id);
             const stageValue = stageLeads.reduce((s, l) => s + (l.value || 0), 0);
-            const isWon = isWonStage(stage.name);
             return (
-              <div key={stage.id} className="flex-shrink-0 w-72 flex flex-col" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
-                    <h3 className="text-sm font-semibold text-foreground">{stage.name}</h3>
-                    {isWon && <span className="text-xs">🏆</span>}
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{stageLeads.length}</span>
+              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
+                <div className="flex flex-col gap-2 p-4 rounded-xl bg-secondary/10 border-t-4" style={{ borderTopColor: stage.color }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                      <h3 className="text-sm font-bold text-foreground">{stage.name}</h3>
+                    </div>
+                    <span className="text-xs font-bold bg-secondary/50 px-2 py-0.5 rounded-full text-muted-foreground">{stageLeads.length}</span>
                   </div>
-                  <div className="flex items-center gap-0.5">
-                    {stageValue > 0 && <span className="text-xs text-primary font-medium mr-1">R$ {stageValue.toLocaleString("pt-BR")}</span>}
-                    <button onClick={() => handleMoveStage(stage.id, "up")} className="p-0.5 hover:bg-secondary rounded" disabled={sIdx === 0}><ChevronUp className="h-3 w-3 text-muted-foreground" /></button>
-                    <button onClick={() => handleMoveStage(stage.id, "down")} className="p-0.5 hover:bg-secondary rounded" disabled={sIdx === pipelineStages.length - 1}><ChevronDown className="h-3 w-3 text-muted-foreground" /></button>
-                    <button onClick={() => setEditingStage({ ...stage })} className="p-0.5 hover:bg-secondary rounded"><Pencil className="h-3 w-3 text-muted-foreground" /></button>
-                    <button onClick={() => handleDeleteStage(stage.id)} className="p-0.5 hover:bg-destructive/20 rounded"><Trash2 className="h-3 w-3 text-destructive" /></button>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <TrendingUp className="h-3 w-3" />
+                    <span>R$ {stageValue.toLocaleString("pt-BR")}</span>
                   </div>
                 </div>
-                <div className="flex-1 space-y-2 min-h-[100px] rounded-lg p-2 bg-muted/30 border border-border/50">
+
+                <div className="flex-1 space-y-3 p-2 rounded-xl bg-secondary/5 border border-border/50 min-h-[400px]">
+                  {stageLeads.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40 italic text-xs">
+                      Nenhum lead neste estágio
+                    </div>
+                  )}
                   {stageLeads.map(lead => (
                     <div key={lead.id} draggable onDragStart={() => setDraggedLead(lead.id)}
                       onClick={() => { setEditLead({ ...lead }); setEditOpen(true); setEditTab("info"); }}
-                      className={`surface-card rounded-lg p-3 cursor-pointer hover:border-primary/30 transition-colors group ${selectedLeads.has(lead.id) ? "ring-2 ring-primary" : ""}`}>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <button onClick={e => { e.stopPropagation(); toggleSelectLead(lead.id); }} className="shrink-0">
-                            {selectedLeads.has(lead.id) ? <CheckCircle className="h-4 w-4 text-primary" /> : <div className="w-4 h-4 rounded-full border border-muted-foreground/30 group-hover:border-primary/50" />}
-                          </button>
+                      className={`bg-card rounded-xl p-4 border border-border hover:border-primary/40 transition-all cursor-pointer group shadow-sm hover:shadow-md relative ${selectedLeads.has(lead.id) ? "ring-2 ring-primary border-transparent" : ""}`}>
+                      
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0 border border-primary/20">
+                            {lead.name.charAt(0).toUpperCase()}
+                          </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{lead.name}</p>
-                            {lead.company && <p className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Building className="h-2.5 w-2.5" />{lead.company}</p>}
+                            <p className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">{lead.name}</p>
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {getPriorityBadge(lead.priority)}
+                              {lead.company && <p className="text-[10px] text-muted-foreground truncate">{lead.company}</p>}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {lead.phone && <button onClick={e => { e.stopPropagation(); openWhatsApp(lead); }} className="p-1 hover:bg-primary/10 rounded"><MessageCircle className="h-3 w-3 text-primary" /></button>}
-                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
-                        </div>
+                        <button onClick={e => { e.stopPropagation(); toggleSelectLead(lead.id); }} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {selectedLeads.has(lead.id) ? <CheckCircle className="h-5 w-5 text-primary" /> : <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />}
+                        </button>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        {lead.email && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-0.5"><Mail className="h-2.5 w-2.5" /></span>}
-                        {lead.phone && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" /></span>}
-                        {lead.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{lead.source}</span>}
-                        {(lead.tags || []).slice(0, 2).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
+
+                      <div className="space-y-2 border-t border-border/50 pt-3">
+                        {lead.email && <div className="flex items-center gap-2 text-[10px] text-muted-foreground"><Mail className="h-3 w-3" /> <span className="truncate">{lead.email}</span></div>}
+                        {lead.phone && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground"><Phone className="h-3 w-3" /> <span>{lead.phone}</span></div>
+                            <button onClick={e => { e.stopPropagation(); window.open(`https://wa.me/${lead.phone?.replace(/\D/g, "")}`, "_blank"); }} className="p-1.5 hover:bg-green-500/10 rounded-lg text-green-500 transition-colors"><ExternalLink className="h-3 w-3" /></button>
+                          </div>
+                        )}
                       </div>
-                      {lead.value > 0 && (
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-primary font-medium flex items-center gap-0.5"><DollarSign className="h-3 w-3" />R$ {lead.value.toLocaleString("pt-BR")}</span>
-                          <span className="text-[10px] text-muted-foreground">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</span>
+
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
+                        <div className="flex items-center gap-1 text-xs font-bold text-primary">
+                          <TrendingUp className="h-3.5 w-3.5" />
+                          <span>R$ {lead.value.toLocaleString("pt-BR")}</span>
                         </div>
-                      )}
+                        <span className="text-[10px] text-muted-foreground italic">há {Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30))} meses</span>
+                      </div>
                     </div>
                   ))}
-                  <Dialog open={addOpen && addStageId === stage.id} onOpenChange={open => { setAddOpen(open); if (open) setAddStageId(stage.id); }}>
-                    <DialogTrigger asChild>
-                      <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"><Plus className="h-4 w-4" /> Adicionar</button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-card border-border">
-                      <DialogHeader><DialogTitle>Novo Lead — {stage.name}</DialogTitle></DialogHeader>
-                      {leadFormFields(newLead, setNewLead, true)}
-                      <Button onClick={() => handleAddLead(stage.id)} className="w-full">Adicionar Lead</Button>
-                    </DialogContent>
-                  </Dialog>
+                  
+                  <button onClick={() => { setAddStageId(stage.id); setAddOpen(true); }} className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl border-2 border-dashed border-border/50 transition-all mt-2">
+                    <Plus className="h-4 w-4" /> Adicionar Lead
+                  </button>
                 </div>
               </div>
             );
@@ -834,128 +647,352 @@ const CRMKanban = () => {
         </div>
       )}
 
-      {/* Edit Lead Dialog */}
+      {/* Edit Lead Dialog - Redesigned */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">{editLead?.name.charAt(0).toUpperCase()}</div>
-              <span className="flex-1">{editLead?.name}</span>
-              {editLead?.phone && <button onClick={() => window.open(`https://wa.me/${editLead.phone?.replace(/\D/g, "")}?text=Olá ${editLead.name}!`, "_blank")} className="p-2 hover:bg-primary/10 rounded-lg"><MessageCircle className="h-4 w-4 text-primary" /></button>}
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="bg-card border-border max-w-4xl p-0 overflow-hidden rounded-2xl shadow-2xl">
           {editLead && (
-            <>
-              <div className="flex gap-1 border-b border-border mb-3">
-                <button onClick={() => setEditTab("info")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "info" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Informações</button>
-                <button onClick={() => setEditTab("activity")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "activity" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  <History className="h-3.5 w-3.5 inline mr-1" />Atividades ({leadActivities.length})
-                </button>
-                <button onClick={() => setEditTab("whatsapp")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "whatsapp" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                  <MessageCircle className="h-3.5 w-3.5 inline mr-1" />WhatsApp
-                </button>
-              </div>
-              {editTab === "info" && (
-                <>
-                  {leadFormFields(editLead, setEditLead)}
-                  <div className="space-y-2 mt-2">
-                    <Label className="text-xs">Tags</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(editLead.tags || []).map(tag => (
-                        <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full flex items-center gap-1">
-                          {tag} <button onClick={() => removeTagFromLead(tag)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
-                        </span>
-                      ))}
+            <div className="flex flex-col h-[90vh]">
+              {/* Header */}
+              <div className="p-6 border-b border-border bg-secondary/10">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-xl font-bold text-primary-foreground shadow-lg shadow-primary/20">
+                      {editLead.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex gap-2">
-                      <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nova tag..." className="h-8 text-xs bg-secondary/50 border-border" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTagToLead())} />
-                      <Button variant="outline" size="sm" onClick={addTagToLead} className="h-8"><Tag className="h-3 w-3" /></Button>
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">{editLead.name}</h2>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">Criar Proposta</span>
+                        <span className="text-xs font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-500/20">Follow-up</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button onClick={handleUpdateLead} className="flex-1">Salvar</Button>
-                    <Button variant="destructive" onClick={() => { handleDeleteLead(editLead.id); setEditOpen(false); }}><Trash2 className="h-4 w-4" /></Button>
-                  </div>
-                </>
-              )}
-              {editTab === "activity" && (
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <select value={newActivity.type} onChange={e => setNewActivity({ ...newActivity, type: e.target.value })} className="h-9 text-xs bg-secondary/50 border border-border rounded-md px-2 text-foreground">
-                      {activityTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                    <Input value={newActivity.description} onChange={e => setNewActivity({ ...newActivity, description: e.target.value })} placeholder="Descreva a atividade..." className="h-9 text-xs bg-secondary/50 border-border flex-1" onKeyDown={e => e.key === "Enter" && handleAddActivity()} />
-                    <Button size="sm" onClick={handleAddActivity} className="h-9"><Plus className="h-3.5 w-3.5" /></Button>
-                  </div>
-                  <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                    {leadActivities.length === 0 ? <p className="text-xs text-muted-foreground text-center py-8">Nenhuma atividade registrada</p> : leadActivities.map(a => {
-                      const typeInfo = activityTypes.find(t => t.value === a.type);
-                      const Icon = typeInfo?.icon || StickyNote;
-                      return (
-                        <div key={a.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30">
-                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Icon className="h-3.5 w-3.5 text-primary" /></div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-medium text-primary uppercase">{typeInfo?.label}</span>
-                              <span className="text-[10px] text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
-                            </div>
-                            <p className="text-xs text-foreground mt-0.5">{a.description}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center gap-2">
+                    <Button variant="destructive" size="sm" className="h-9 gap-2" onClick={() => { if (confirm("Excluir este lead?")) { handleDeleteLead(editLead.id); setEditOpen(false); } }}><Trash2 className="h-4 w-4" /> Excluir</Button>
+                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setEditOpen(false)}><X className="h-5 w-5" /></Button>
                   </div>
                 </div>
-              )}
-              {editTab === "whatsapp" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">Templates de WhatsApp</h4>
-                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowTemplateDialog(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Novo Template</Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-1">
-                    {whatsappTemplates.length === 0 && <p className="text-center text-muted-foreground text-xs py-8">Nenhum template criado.</p>}
-                    {whatsappTemplates.map(t => (
-                      <div key={t.id} className="p-3 rounded-lg bg-secondary/30 border border-border flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-primary">{t.name}</span>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTemplate(t.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                            <Button size="sm" className="h-7 text-[10px] bg-green-600 hover:bg-green-700 text-white" onClick={() => { if (editLead) window.open(getWhatsAppLink(editLead, t.content), "_blank"); }} disabled={!editLead?.phone}><MessageCircle className="h-3 w-3 mr-1" /> Enviar</Button>
+              </div>
+
+              {/* Tabs Navigation */}
+              <div className="flex items-center gap-1 px-6 border-b border-border bg-background">
+                {[
+                  { id: "info", label: "Detalhes do Lead", icon: User },
+                  { id: "activity", label: "Histórico", icon: History },
+                  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle }
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setEditTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold transition-all border-b-2 ${editTab === tab.id ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/30"}`}>
+                    <tab.icon className="h-4 w-4" /> {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Area */}
+              <div className="flex-1 overflow-hidden flex">
+                {/* Left Side - Form/Content */}
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                  {editTab === "info" && (
+                    <div className="space-y-8">
+                      <div className="grid grid-cols-3 gap-6">
+                        <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status Atual</p>
+                          <p className="text-sm font-bold text-foreground flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /> Fechado</p>
+                        </div>
+                        <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Prioridade</p>
+                          <div className="flex items-center gap-2">{getPriorityBadge(editLead.priority)}</div>
+                        </div>
+                        <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Urgência</p>
+                          <span className="text-xs font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-500/20 uppercase">Alta</span>
+                        </div>
+                      </div>
+
+                      {leadFormFields(editLead, setEditLead)}
+                      
+                      <div className="flex gap-4 pt-4">
+                        <Button onClick={handleUpdateLead} className="flex-1 h-12 font-bold text-base shadow-lg shadow-primary/20">Salvar Alterações</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {editTab === "activity" && (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-foreground">Linha do Tempo</h3>
+                        <div className="flex items-center gap-2">
+                          <select value={newActivity.type} onChange={e => setNewActivity({ ...newActivity, type: e.target.value })} className="h-9 bg-secondary/50 border border-border rounded-lg px-3 text-xs outline-none">
+                            {activityTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div className="relative space-y-6 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                        <div className="flex gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0 z-10 border-4 border-background"><Plus className="h-5 w-5 text-primary-foreground" /></div>
+                          <div className="flex-1 space-y-3">
+                            <Textarea value={newActivity.description} onChange={e => setNewActivity({ ...newActivity, description: e.target.value })} placeholder="Registrar nova interação..." className="bg-secondary/30 border-border min-h-[100px]" />
+                            <Button onClick={handleAddActivity} size="sm" className="font-bold" disabled={!newActivity.description}>Adicionar ao Histórico</Button>
                           </div>
                         </div>
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 italic">"{t.content}"</p>
-                      </div>
-                    ))}
-                  </div>
 
-                  {!editLead?.phone && (
-                    <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                      <p className="text-[10px] text-yellow-500 font-medium">Este lead não possui número de telefone cadastrado.</p>
+                        {leadActivities.map(a => {
+                          const typeInfo = activityTypes.find(t => t.value === a.type);
+                          const Icon = typeInfo?.icon || StickyNote;
+                          return (
+                            <div key={a.id} className="flex gap-4">
+                              <div className="w-10 h-10 rounded-full bg-secondary border border-border flex items-center justify-center shrink-0 z-10 border-4 border-background"><Icon className="h-4 w-4 text-primary" /></div>
+                              <div className="flex-1 p-4 rounded-2xl bg-secondary/20 border border-border space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-primary uppercase tracking-wider">{typeInfo?.label}</span>
+                                  <span className="text-[10px] text-muted-foreground font-medium">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
+                                </div>
+                                <p className="text-sm text-foreground leading-relaxed">{a.description}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {editTab === "whatsapp" && (
+                    <div className="space-y-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-foreground">Follow-up via WhatsApp</h3>
+                          <p className="text-sm text-muted-foreground">Selecione um template ou personalize sua mensagem</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-9 gap-2 border-primary/30 text-primary" onClick={() => setShowTemplateDialog(true)}><Settings2 className="h-4 w-4" /> Gerenciar Templates</Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Templates Disponíveis</Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          {whatsappTemplates.map(t => (
+                            <button key={t.id} onClick={() => {
+                              const msg = t.content
+                                .replace(/{nome}/g, editLead.name || "")
+                                .replace(/{empresa}/g, editLead.company || "")
+                                .replace(/{valor}/g, editLead.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "")
+                                .replace(/{user_name}/g, user?.user_metadata?.full_name || "Consultor")
+                                .replace(/{user_company}/g, "Nossa Empresa");
+                              setCustomMessage(msg);
+                            }} className="flex flex-col text-left p-4 rounded-2xl bg-secondary/20 border border-border hover:border-primary/50 hover:bg-primary/5 transition-all group">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-bold text-foreground group-hover:text-primary">{t.name}</span>
+                                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg">Template</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-3 italic leading-relaxed">"{t.content}"</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mensagem a ser enviada</Label>
+                        <div className="relative">
+                          <Textarea value={customMessage} onChange={e => setCustomMessage(e.target.value)} placeholder="Selecione um template acima ou digite sua mensagem personalizada..." className="bg-secondary/30 border-border min-h-[150px] text-sm leading-relaxed p-4" />
+                          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground">Você pode editar a mensagem antes de enviar</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 rounded-2xl bg-green-500/5 border border-green-500/20 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center text-green-500"><Phone className="h-6 w-6" /></div>
+                          <div>
+                            <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider">Enviar para:</p>
+                            <p className="text-lg font-bold text-foreground">{editLead.phone || "Sem telefone"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button variant="ghost" onClick={() => setCustomMessage("")}>Cancelar</Button>
+                          <Button className="h-12 px-8 bg-green-600 hover:bg-green-700 text-white font-bold gap-2 shadow-lg shadow-green-600/20" onClick={() => {
+                            if (!editLead.phone) return toast({ title: "Erro", description: "Lead sem telefone", variant: "destructive" });
+                            const phone = editLead.phone.replace(/\D/g, "");
+                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(customMessage)}`, "_blank");
+                          }} disabled={!customMessage || !editLead.phone}><MessageCircle className="h-5 w-5" /> Enviar WhatsApp</Button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
-            </>
+
+                {/* Right Side - Quick Info */}
+                <div className="w-80 border-l border-border bg-secondary/5 p-8 space-y-8 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Contato Rápido</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-background border border-border group hover:border-primary/30 transition-all cursor-pointer" onClick={() => editLead.phone && window.open(`tel:${editLead.phone}`, "_blank")}>
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500"><Phone className="h-4 w-4" /></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Telefone</p>
+                          <p className="text-xs font-bold text-foreground truncate">{editLead.phone || "Não informado"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-background border border-border group hover:border-primary/30 transition-all cursor-pointer" onClick={() => editLead.email && window.open(`mailto:${editLead.email}`, "_blank")}>
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500"><Mail className="h-4 w-4" /></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">E-mail</p>
+                          <p className="text-xs font-bold text-foreground truncate">{editLead.email || "Não informado"}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="w-full h-10 gap-2 border-green-500/30 text-green-500 hover:bg-green-500/5 font-bold" onClick={() => openWhatsApp(editLead)}><MessageCircle className="h-4 w-4" /> Enviar WhatsApp Rápido</Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Datas Importantes</h4>
+                    <div className="space-y-4">
+                      <div className="flex gap-3">
+                        <Calendar className="h-4 w-4 text-primary shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Data de Criação</p>
+                          <p className="text-xs font-bold text-foreground">{new Date(editLead.created_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })} às {new Date(editLead.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Clock className="h-4 w-4 text-primary shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Última Movimentação</p>
+                          <p className="text-xs font-bold text-foreground">{new Date(editLead.created_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })} às {new Date(editLead.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Empresa</h4>
+                    <div className="p-4 rounded-2xl bg-background border border-border flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground"><Building className="h-5 w-5" /></div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{editLead.company || "Sem empresa"}</p>
+                        <p className="text-[10px] text-muted-foreground">Cliente Potencial</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Add Lead Dialog */}
+      <Dialog open={globalAddOpen} onOpenChange={setGlobalAddOpen}>
+        <DialogContent className="bg-card border-border max-w-2xl rounded-2xl shadow-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-bold">Novo Lead</DialogTitle></DialogHeader>
+          <div className="mt-4">
+            {leadFormFields(newLead, setNewLead, true, true)}
+            <div className="flex gap-3 mt-8">
+              <Button variant="ghost" className="flex-1 h-12 font-bold" onClick={() => setGlobalAddOpen(false)}>Cancelar</Button>
+              <Button onClick={() => handleAddLead()} className="flex-1 h-12 font-bold shadow-lg shadow-primary/20">Adicionar Lead</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Management Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="bg-card border-border max-w-2xl rounded-2xl shadow-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-bold">Gerenciar Templates WhatsApp</DialogTitle></DialogHeader>
+          <div className="space-y-6 mt-4">
+            <div className="p-6 rounded-2xl bg-secondary/20 border border-border space-y-4">
+              <h4 className="text-sm font-bold">Novo Template</h4>
+              <div className="space-y-4">
+                <div className="space-y-1.5"><Label className="text-xs font-medium">Nome do Template</Label><Input value={newTemplate.name} onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })} placeholder="Ex: Boas-vindas, Follow-up..." className="bg-background border-border h-10" /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Mensagem</Label>
+                  <Textarea value={newTemplate.content} onChange={e => setNewTemplate({ ...newTemplate, content: e.target.value })} placeholder="Olá {nome}, vi que você trabalha na {empresa}..." className="bg-background border-border min-h-[120px]" />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {["{nome}", "{empresa}", "{valor}", "{user_name}", "{user_company}"].map(tag => (
+                      <button key={tag} onClick={() => setNewTemplate({ ...newTemplate, content: newTemplate.content + tag })} className="text-[10px] font-bold bg-primary/10 text-primary hover:bg-primary/20 px-2 py-1 rounded-lg border border-primary/20 transition-all">{tag}</button>
+                    ))}
+                  </div>
+                </div>
+                <Button onClick={handleSaveTemplate} className="w-full h-10 font-bold">Salvar Template</Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Templates Salvos</Label>
+              <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {whatsappTemplates.map(t => (
+                  <div key={t.id} className="p-4 rounded-xl bg-secondary/10 border border-border flex items-center justify-between group">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-foreground">{t.name}</p>
+                      <p className="text-xs text-muted-foreground truncate italic">"{t.content}"</p>
+                    </div>
+                    {!t.id.toString().startsWith("default-") && (
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteTemplate(t.id)}><Trash2 className="h-4 w-4" /></Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stage Management Dialog */}
+      <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
+        <DialogContent className="bg-card border-border max-w-md rounded-2xl shadow-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-bold">Gerenciar Etapas</DialogTitle></DialogHeader>
+          <div className="space-y-6 mt-4">
+            <div className="p-6 rounded-2xl bg-secondary/20 border border-border space-y-4">
+              <h4 className="text-sm font-bold">Nova Etapa</h4>
+              <div className="space-y-4">
+                <div className="space-y-1.5"><Label className="text-xs font-medium">Nome da Etapa</Label><Input value={newStageName} onChange={e => setNewStageName(e.target.value)} placeholder="Ex: Proposta, Fechado..." className="bg-background border-border h-10" /></div>
+                <div className="space-y-1.5"><Label className="text-xs font-medium">Cor da Etapa</Label><div className="flex gap-2"><input type="color" value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer" /><Input value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="bg-background border-border h-10 flex-1" /></div></div>
+                <Button onClick={handleAddStage} className="w-full h-10 font-bold">Criar Etapa</Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Etapas Atuais</Label>
+              <div className="space-y-2">
+                {pipelineStages.map((s, idx) => (
+                  <div key={s.id} className="p-3 rounded-xl bg-secondary/10 border border-border flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color }} />
+                      <span className="text-sm font-bold text-foreground">{s.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleMoveStage(s.id, "up")} disabled={idx === 0} className="p-1.5 hover:bg-secondary rounded-lg disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                      <button onClick={() => handleMoveStage(s.id, "down")} disabled={idx === pipelineStages.length - 1} className="p-1.5 hover:bg-secondary rounded-lg disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                      <button onClick={() => setEditingStage(s)} className="p-1.5 hover:bg-secondary rounded-lg text-primary"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => handleDeleteStage(s.id)} className="p-1.5 hover:bg-destructive/10 rounded-lg text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Edit Stage Dialog */}
       <Dialog open={!!editingStage} onOpenChange={open => !open && setEditingStage(null)}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader><DialogTitle>Editar Etapa</DialogTitle></DialogHeader>
+        <DialogContent className="bg-card border-border max-w-md rounded-2xl shadow-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-bold">Editar Etapa</DialogTitle></DialogHeader>
           {editingStage && (
-            <div className="space-y-3 mt-2">
-              <div><Label>Nome</Label><Input value={editingStage.name} onChange={e => setEditingStage({ ...editingStage, name: e.target.value })} className="mt-1 bg-secondary/50 border-border" /></div>
-              <div><Label>Cor</Label><div className="flex items-center gap-2 mt-1"><input type="color" value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="h-10 w-10 rounded border border-border cursor-pointer" /><Input value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="bg-secondary/50 border-border" /></div></div>
-              <Button onClick={handleUpdateStage} className="w-full">Salvar</Button>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-1.5"><Label className="text-xs font-medium">Nome</Label><Input value={editingStage.name} onChange={e => setEditingStage({ ...editingStage, name: e.target.value })} className="bg-secondary/30 border-border h-10" /></div>
+              <div className="space-y-1.5"><Label className="text-xs font-medium">Cor</Label><div className="flex gap-2"><input type="color" value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="h-10 w-10 rounded-lg border border-border cursor-pointer" /><Input value={editingStage.color} onChange={e => setEditingStage({ ...editingStage, color: e.target.value })} className="bg-secondary/30 border-border h-10 flex-1" /></div></div>
+              <Button onClick={handleUpdateStage} className="w-full h-10 font-bold mt-4">Salvar Alterações</Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.3); }
+      `}} />
     </div>
   );
 };
