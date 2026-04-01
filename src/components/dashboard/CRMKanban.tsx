@@ -26,6 +26,19 @@ interface Lead {
   company: string | null; value: number; stage_id: string | null;
   position: number; notes: string | null; source: string | null;
   status: string; created_at: string; tags: string[];
+  priority?: string | null;
+  urgency?: string | null;
+  revenue_type?: string | null;
+  monthly_value?: number | null;
+  contract_months?: number | null;
+  probability?: number | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  website?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
 }
 interface Activity { id: string; lead_id: string | null; description: string; type: string; created_at: string; }
 interface Pipeline { id: string; name: string; created_at: string; }
@@ -80,11 +93,20 @@ const CRMKanban = () => {
   const [globalAddOpen, setGlobalAddOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addStageId, setAddStageId] = useState<string | null>(null);
-  const [newLead, setNewLead] = useState({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "" });
+  const [newLead, setNewLead] = useState({ 
+    name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "",
+    priority: "medium", urgency: "medium", revenue_type: "one_time", monthly_value: "", contract_months: "1",
+    probability: "50", instagram: "", facebook: "", linkedin: "", website: "",
+    utm_source: "", utm_medium: "", utm_campaign: ""
+  });
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [editTab, setEditTab] = useState<"info" | "activity">("info");
+  const [editTab, setEditTab] = useState<"info" | "activity" | "whatsapp">("info");
   const [newActivity, setNewActivity] = useState({ type: "note", description: "" });
+  const [whatsappTemplates, setWhatsappTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: "", content: "" });
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState("#84cc16");
@@ -108,6 +130,9 @@ const CRMKanban = () => {
     if (leadsRes.data) setLeads(leadsRes.data.map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
     if (activitiesRes.data) setActivities(activitiesRes.data as Activity[]);
     
+    const { data: templatesData } = await supabase.from("whatsapp_templates").select("*").eq("user_id", user.id).order("name");
+    if (templatesData) setWhatsappTemplates(templatesData);
+
     // Set active pipeline
     if (!activePipeline && pips.length > 0) setActivePipeline(pips[0].id);
     setLoading(false);
@@ -162,6 +187,11 @@ const CRMKanban = () => {
       value: parseFloat(newLead.value) || 0, stage_id: targetStageId,
       position: stageLeads.length, notes: newLead.notes || null,
       source: newLead.source || null, tags,
+      priority: newLead.priority, urgency: newLead.urgency, revenue_type: newLead.revenue_type,
+      monthly_value: parseFloat(newLead.monthly_value) || 0, contract_months: parseInt(newLead.contract_months) || 1,
+      probability: parseInt(newLead.probability) || 50, instagram: newLead.instagram || null,
+      facebook: newLead.facebook || null, linkedin: newLead.linkedin || null, website: newLead.website || null,
+      utm_source: newLead.utm_source || null, utm_medium: newLead.utm_medium || null, utm_campaign: newLead.utm_campaign || null,
     } as any);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Lead adicionado!" });
@@ -177,9 +207,62 @@ const CRMKanban = () => {
       company: editLead.company, value: editLead.value, notes: editLead.notes,
       source: editLead.source, status: editLead.status, tags: editLead.tags,
       stage_id: editLead.stage_id,
+      priority: editLead.priority, urgency: editLead.urgency, revenue_type: editLead.revenue_type,
+      monthly_value: editLead.monthly_value, contract_months: editLead.contract_months,
+      probability: editLead.probability, instagram: editLead.instagram,
+      facebook: editLead.facebook, linkedin: editLead.linkedin, website: editLead.website,
+      utm_source: editLead.utm_source, utm_medium: editLead.utm_medium, utm_campaign: editLead.utm_campaign,
     } as any).eq("id", editLead.id);
     toast({ title: "Lead atualizado!" });
     setEditOpen(false); setEditLead(null); fetchData();
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!user || !newTemplate.name || !newTemplate.content) return;
+    const { error } = await supabase.from("whatsapp_templates").insert({
+      user_id: user.id, name: newTemplate.name, content: newTemplate.content
+    });
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Template salvo!" });
+    setNewTemplate({ name: "", content: "" });
+    setShowTemplateDialog(false);
+    fetchData();
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    await supabase.from("whatsapp_templates").delete().eq("id", id);
+    toast({ title: "Template excluído" });
+    fetchData();
+  };
+
+  const getWhatsAppLink = (lead: Lead, content: string) => {
+    if (!lead.phone) return "";
+    let message = content
+      .replace(/{nome}/g, lead.name || "")
+      .replace(/{empresa}/g, lead.company || "")
+      .replace(/{valor}/g, lead.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "");
+    
+    const phone = lead.phone.replace(/\D/g, "");
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handleBulkWhatsApp = () => {
+    if (selectedLeads.size === 0 || !selectedTemplate) return;
+    const template = whatsappTemplates.find(t => t.id === selectedTemplate);
+    if (!template) return;
+
+    const selectedLeadsList = leads.filter(l => selectedLeads.has(l.id) && l.phone);
+    if (selectedLeadsList.length === 0) {
+      toast({ title: "Aviso", description: "Nenhum lead selecionado possui telefone.", variant: "destructive" });
+      return;
+    }
+
+    selectedLeadsList.forEach((lead, index) => {
+      setTimeout(() => {
+        window.open(getWhatsAppLink(lead, template.content), "_blank");
+      }, index * 1000);
+    });
+    toast({ title: "Enviando mensagens...", description: `${selectedLeadsList.length} abas serão abertas.` });
   };
 
   const handleDeleteLead = async (id: string) => {
@@ -393,38 +476,104 @@ const CRMKanban = () => {
   const leadActivities = editLead ? activities.filter(a => a.lead_id === editLead.id) : [];
 
   const leadFormFields = (data: any, setData: (d: any) => void, isNew = false, showStageSelect = false) => (
-    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label className="text-xs">Nome *</Label><Input value={data.name} onChange={e => { setData({ ...data, name: e.target.value }); }} placeholder="Nome completo" className="mt-1 bg-secondary/50 border-border" /></div>
-        <div><Label className="text-xs">Empresa</Label><Input value={data.company || ""} onChange={e => setData({ ...data, company: e.target.value })} placeholder="Empresa" className="mt-1 bg-secondary/50 border-border" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label className="text-xs">E-mail</Label><Input value={data.email || ""} onChange={e => setData({ ...data, email: e.target.value })} placeholder="email@ex.com" className="mt-1 bg-secondary/50 border-border" /></div>
-        <div><Label className="text-xs">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="5511999999999" className="mt-1 bg-secondary/50 border-border" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><Label className="text-xs">Valor (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
-        <div><Label className="text-xs">Fonte</Label><Input value={data.source || ""} onChange={e => setData({ ...data, source: e.target.value })} placeholder="Instagram, Google..." className="mt-1 bg-secondary/50 border-border" /></div>
-      </div>
-      {(data.status !== undefined || showStageSelect) && (
+    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Informações Básicas</h4>
         <div className="grid grid-cols-2 gap-3">
-          {data.status !== undefined && (
-            <div><Label className="text-xs">Status</Label>
-              <select value={data.status} onChange={e => setData({ ...data, status: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-                {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
-          )}
-          <div><Label className="text-xs">Etapa</Label>
-            <select value={data.stage_id || ""} onChange={e => setData({ ...data, stage_id: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
-              {!data.stage_id && <option value="">Selecione...</option>}
-              {pipelineStages.map(s => <option key={s.id} value={s.id}>{s.name} {isWonStage(s.name) ? "🏆" : ""}</option>)}
+          <div><Label className="text-xs">Nome *</Label><Input value={data.name} onChange={e => { setData({ ...data, name: e.target.value }); }} placeholder="Nome completo" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Empresa</Label><Input value={data.company || ""} onChange={e => setData({ ...data, company: e.target.value })} placeholder="Empresa" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">E-mail</Label><Input value={data.email || ""} onChange={e => setData({ ...data, email: e.target.value })} placeholder="email@ex.com" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">WhatsApp</Label><Input value={data.phone || ""} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="5511999999999" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Qualificação Profissional</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Prioridade</Label>
+            <select value={data.priority || "medium"} onChange={e => setData({ ...data, priority: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+              <option value="low">Baixa</option>
+              <option value="medium">Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+          <div><Label className="text-xs">Urgência</Label>
+            <select value={data.urgency || "medium"} onChange={e => setData({ ...data, urgency: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+              <option value="low">Baixa</option>
+              <option value="medium">Média</option>
+              <option value="high">Alta</option>
             </select>
           </div>
         </div>
-      )}
-      {isNew && <div><Label className="text-xs">Tags (separadas por vírgula)</Label><Input value={data.tags || ""} onChange={e => setData({ ...data, tags: e.target.value })} placeholder="vip, urgente, novo" className="mt-1 bg-secondary/50 border-border" /></div>}
-      <div><Label className="text-xs">Observações</Label><Textarea value={data.notes || ""} onChange={e => setData({ ...data, notes: e.target.value })} placeholder="Observações..." className="mt-1 bg-secondary/50 border-border" rows={2} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Tipo de Receita</Label>
+            <select value={data.revenue_type || "one_time"} onChange={e => setData({ ...data, revenue_type: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+              <option value="one_time">Única</option>
+              <option value="recurring">Recorrente</option>
+            </select>
+          </div>
+          <div><Label className="text-xs">Probabilidade (%)</Label><Input type="number" value={data.probability || ""} onChange={e => setData({ ...data, probability: e.target.value })} placeholder="50" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Valor Mensal (R$)</Label><Input type="number" value={data.monthly_value || ""} onChange={e => setData({ ...data, monthly_value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Duração Contrato (meses)</Label><Input type="number" value={data.contract_months || ""} onChange={e => setData({ ...data, contract_months: e.target.value })} placeholder="1" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Financeiro e Origem</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Valor Total (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="0" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Fonte</Label><Input value={data.source || ""} onChange={e => setData({ ...data, source: e.target.value })} placeholder="Instagram, Google..." className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+        {(data.status !== undefined || showStageSelect) && (
+          <div className="grid grid-cols-2 gap-3">
+            {data.status !== undefined && (
+              <div><Label className="text-xs">Status</Label>
+                <select value={data.status} onChange={e => setData({ ...data, status: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+                  {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            )}
+            <div><Label className="text-xs">Etapa</Label>
+              <select value={data.stage_id || ""} onChange={e => setData({ ...data, stage_id: e.target.value })} className="w-full mt-1 h-10 bg-secondary/50 border border-border rounded-md px-3 text-sm text-foreground">
+                {!data.stage_id && <option value="">Selecione...</option>}
+                {pipelineStages.map(s => <option key={s.id} value={s.id}>{s.name} {isWonStage(s.name) ? "🏆" : ""}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Redes Sociais e Web</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Instagram</Label><Input value={data.instagram || ""} onChange={e => setData({ ...data, instagram: e.target.value })} placeholder="@usuario" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">LinkedIn</Label><Input value={data.linkedin || ""} onChange={e => setData({ ...data, linkedin: e.target.value })} placeholder="linkedin.com/in/..." className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label className="text-xs">Facebook</Label><Input value={data.facebook || ""} onChange={e => setData({ ...data, facebook: e.target.value })} placeholder="facebook.com/..." className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Website</Label><Input value={data.website || ""} onChange={e => setData({ ...data, website: e.target.value })} placeholder="www.site.com" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rastreamento UTM</h4>
+        <div className="grid grid-cols-3 gap-3">
+          <div><Label className="text-xs">Source</Label><Input value={data.utm_source || ""} onChange={e => setData({ ...data, utm_source: e.target.value })} placeholder="google" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Medium</Label><Input value={data.utm_medium || ""} onChange={e => setData({ ...data, utm_medium: e.target.value })} placeholder="cpc" className="mt-1 bg-secondary/50 border-border" /></div>
+          <div><Label className="text-xs">Campaign</Label><Input value={data.utm_campaign || ""} onChange={e => setData({ ...data, utm_campaign: e.target.value })} placeholder="black_friday" className="mt-1 bg-secondary/50 border-border" /></div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Outros</h4>
+        {isNew && <div><Label className="text-xs">Tags (separadas por vírgula)</Label><Input value={data.tags || ""} onChange={e => setData({ ...data, tags: e.target.value })} placeholder="vip, urgente, novo" className="mt-1 bg-secondary/50 border-border" /></div>}
+        <div><Label className="text-xs">Observações</Label><Textarea value={data.notes || ""} onChange={e => setData({ ...data, notes: e.target.value })} placeholder="Observações..." className="mt-1 bg-secondary/50 border-border" rows={2} /></div>
+      </div>
+
       {/* Duplicate warning */}
       {duplicateWarning && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -686,7 +835,7 @@ const CRMKanban = () => {
             <DialogTitle className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">{editLead?.name.charAt(0).toUpperCase()}</div>
               <span className="flex-1">{editLead?.name}</span>
-              {editLead?.phone && <button onClick={() => openWhatsApp(editLead!)} className="p-2 hover:bg-primary/10 rounded-lg"><MessageCircle className="h-4 w-4 text-primary" /></button>}
+              {editLead?.phone && <button onClick={() => window.open(`https://wa.me/${editLead.phone?.replace(/\D/g, "")}?text=Olá ${editLead.name}!`, "_blank")} className="p-2 hover:bg-primary/10 rounded-lg"><MessageCircle className="h-4 w-4 text-primary" /></button>}
             </DialogTitle>
           </DialogHeader>
           {editLead && (
@@ -695,6 +844,9 @@ const CRMKanban = () => {
                 <button onClick={() => setEditTab("info")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "info" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>Informações</button>
                 <button onClick={() => setEditTab("activity")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "activity" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
                   <History className="h-3.5 w-3.5 inline mr-1" />Atividades ({leadActivities.length})
+                </button>
+                <button onClick={() => setEditTab("whatsapp")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === "whatsapp" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                  <MessageCircle className="h-3.5 w-3.5 inline mr-1" />WhatsApp
                 </button>
               </div>
               {editTab === "info" && (
@@ -747,6 +899,37 @@ const CRMKanban = () => {
                       );
                     })}
                   </div>
+                </div>
+              )}
+              {editTab === "whatsapp" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Templates de WhatsApp</h4>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowTemplateDialog(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Novo Template</Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-1">
+                    {whatsappTemplates.length === 0 && <p className="text-center text-muted-foreground text-xs py-8">Nenhum template criado.</p>}
+                    {whatsappTemplates.map(t => (
+                      <div key={t.id} className="p-3 rounded-lg bg-secondary/30 border border-border flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-primary">{t.name}</span>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTemplate(t.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                            <Button size="sm" className="h-7 text-[10px] bg-green-600 hover:bg-green-700 text-white" onClick={() => { if (editLead) window.open(getWhatsAppLink(editLead, t.content), "_blank"); }} disabled={!editLead?.phone}><MessageCircle className="h-3 w-3 mr-1" /> Enviar</Button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 italic">"{t.content}"</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {!editLead?.phone && (
+                    <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      <p className="text-[10px] text-yellow-500 font-medium">Este lead não possui número de telefone cadastrado.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </>
