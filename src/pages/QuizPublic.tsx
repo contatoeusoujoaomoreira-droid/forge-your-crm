@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Share2, Copy, Check } from "lucide-react";
+import { Share2, Copy, Check, MessageCircle } from "lucide-react";
 
 interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; imageUrls?: string[]; }
-interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; }
+interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; stageId?: string; whatsappMessage?: string; }
 
 const QuizPublic = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +28,16 @@ const QuizPublic = () => {
     f();
   }, [slug]);
 
+  const buildWhatsAppUrl = (phone: string, message: string) => {
+    let msg = message || `Olá! Fiz o quiz "${quiz.title}".`;
+    msg = msg.replace(/\{nome\}/g, leadInfo.name);
+    msg = msg.replace(/\{email\}/g, leadInfo.email);
+    msg = msg.replace(/\{score\}/g, String(totalScore));
+    msg = msg.replace(/\{resultado\}/g, matchedResult?.title || "");
+    const cleanPhone = phone.replace(/\D/g, "");
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+  };
+
   const handleSubmit = async () => {
     if (!quiz) return;
     setSubmitting(true);
@@ -46,13 +56,22 @@ const QuizPublic = () => {
 
     await supabase.from("quiz_responses").insert({ quiz_id: quiz.id, responses: { ...answers, _score: score, _name: leadInfo.name, _email: leadInfo.email } });
 
-    // Create lead if CRM integration configured
-    const stageId = quiz.stage_id || quiz.settings?.stageId;
+    // Create lead with CRM integration
+    const stageId = matched?.stageId || quiz.stage_id || quiz.settings?.stageId;
+    const settings = quiz.settings || {};
     if (stageId && leadInfo.name) {
+      const qualificationLabel = matched ? matched.title : `Score: ${score}`;
+      const priority = score >= (results.length > 0 ? results[results.length - 1]?.minScore || 0 : 999) ? "hot" : score >= (results.length > 1 ? results[Math.floor(results.length / 2)]?.minScore || 0 : 999) ? "warm" : "cold";
+      
       await supabase.from("leads").insert({
         name: leadInfo.name, email: leadInfo.email || null, phone: leadInfo.phone || null,
-        source: `quiz:${slug}`, status: "new", stage_id: stageId,
-        user_id: quiz.user_id, value: 0, notes: matched ? `Resultado: ${matched.title} (Score: ${score})` : `Score: ${score}`,
+        source: settings.leadSource ? `${settings.leadSource}:${slug}` : `quiz:${slug}`,
+        status: "new", stage_id: stageId,
+        user_id: quiz.user_id, value: 0,
+        pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
+        notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
+        tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
+        priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
       } as any);
     }
 
@@ -72,6 +91,13 @@ const QuizPublic = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleWhatsAppRedirect = () => {
+    if (!quiz?.whatsapp_redirect) return;
+    const customMsg = matchedResult?.whatsappMessage || quiz.whatsapp_message || "";
+    const url = buildWhatsAppUrl(quiz.whatsapp_redirect, customMsg);
+    window.open(url, "_blank");
   };
 
   if (loading) return <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 32, height: 32, border: "2px solid #84CC16", borderTop: "2px solid transparent", borderRadius: "50%", animation: "spin .8s linear infinite" }} /><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -164,10 +190,19 @@ const QuizPublic = () => {
             )}
             {quiz.settings?.showScore && <p style={{ fontSize: 14, color: accentColor, fontWeight: 700, marginBottom: 20 }}>Sua pontuação: {totalScore} pontos</p>}
             
-            {/* Share button */}
-            <button onClick={handleShare} style={{ padding: "12px 24px", background: `${textColor}08`, border: `1px solid ${textColor}15`, borderRadius: 12, color: textColor, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-              {copied ? <><Check style={{ width: 16, height: 16 }} /> Copiado!</> : <><Share2 style={{ width: 16, height: 16 }} /> Compartilhar resultado</>}
-            </button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              {/* WhatsApp redirect button */}
+              {quiz.whatsapp_redirect && (
+                <button onClick={handleWhatsAppRedirect} style={{ padding: "14px 28px", background: "#25D366", color: "#fff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <MessageCircle style={{ width: 18, height: 18 }} /> Falar no WhatsApp
+                </button>
+              )}
+
+              {/* Share button */}
+              <button onClick={handleShare} style={{ padding: "12px 24px", background: `${textColor}08`, border: `1px solid ${textColor}15`, borderRadius: 12, color: textColor, fontWeight: 600, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {copied ? <><Check style={{ width: 16, height: 16 }} /> Copiado!</> : <><Share2 style={{ width: 16, height: 16 }} /> Compartilhar</>}
+              </button>
+            </div>
           </div>
         )}
       </div>

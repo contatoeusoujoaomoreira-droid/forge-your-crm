@@ -311,6 +311,8 @@ export type Database = {
           updated_at: string
           user_id: string
           webhook_url: string | null
+          whatsapp_message: string | null
+          whatsapp_redirect: string | null
         }
         Insert: {
           created_at?: string
@@ -329,6 +331,8 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webhook_url?: string | null
+          whatsapp_message?: string | null
+          whatsapp_redirect?: string | null
         }
         Update: {
           created_at?: string
@@ -347,6 +351,8 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webhook_url?: string | null
+          whatsapp_message?: string | null
+          whatsapp_redirect?: string | null
         }
         Relationships: []
       }
@@ -442,57 +448,96 @@ export type Database = {
       leads: {
         Row: {
           company: string | null
+          contract_months: number | null
           created_at: string
           email: string | null
+          facebook: string | null
           id: string
+          instagram: string | null
+          linkedin: string | null
+          monthly_value: number | null
           name: string
           notes: string | null
           phone: string | null
           pipeline_id: string | null
           position: number
+          priority: string | null
+          probability: number | null
+          revenue_type: string | null
           source: string | null
           stage_id: string | null
           status: string
           tags: string[] | null
           updated_at: string
+          urgency: string | null
           user_id: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
           value: number | null
+          website: string | null
         }
         Insert: {
           company?: string | null
+          contract_months?: number | null
           created_at?: string
           email?: string | null
+          facebook?: string | null
           id?: string
+          instagram?: string | null
+          linkedin?: string | null
+          monthly_value?: number | null
           name: string
           notes?: string | null
           phone?: string | null
           pipeline_id?: string | null
           position?: number
+          priority?: string | null
+          probability?: number | null
+          revenue_type?: string | null
           source?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
           updated_at?: string
+          urgency?: string | null
           user_id: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           value?: number | null
+          website?: string | null
         }
         Update: {
           company?: string | null
+          contract_months?: number | null
           created_at?: string
           email?: string | null
+          facebook?: string | null
           id?: string
+          instagram?: string | null
+          linkedin?: string | null
+          monthly_value?: number | null
           name?: string
           notes?: string | null
           phone?: string | null
           pipeline_id?: string | null
           position?: number
+          priority?: string | null
+          probability?: number | null
+          revenue_type?: string | null
           source?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
           updated_at?: string
+          urgency?: string | null
           user_id?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           value?: number | null
+          website?: string | null
         }
         Relationships: [
           {
@@ -781,6 +826,8 @@ export type Database = {
           style: Json | null
           title: string
           user_id: string
+          whatsapp_message: string | null
+          whatsapp_redirect: string | null
         }
         Insert: {
           created_at?: string
@@ -796,6 +843,8 @@ export type Database = {
           style?: Json | null
           title: string
           user_id?: string
+          whatsapp_message?: string | null
+          whatsapp_redirect?: string | null
         }
         Update: {
           created_at?: string
@@ -811,6 +860,8 @@ export type Database = {
           style?: Json | null
           title?: string
           user_id?: string
+          whatsapp_message?: string | null
+          whatsapp_redirect?: string | null
         }
         Relationships: []
       }
