@@ -15,12 +15,21 @@ import {
   MessageCircle, PhoneCall, CheckSquare, StickyNote, ExternalLink,
   Upload, AlertTriangle, CheckCircle, Square, LayoutGrid, List, Settings2,
   Calendar, ArrowRight, Copy, Check, User, Briefcase, Globe, Share2,
-  Flame, Snowflake, Thermometer
+  Flame, Snowflake, Thermometer, AlertCircle, Zap, TrendingDown, RefreshCw, Hourglass
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
+
+// Inteligências de Negócio Nativas
+const STAGNATION_DAYS = 7;
+const RECOMPRA_ALERT_DAYS = 30;
+const LEAD_SCORE_WEIGHTS = {
+  hasEmail: 10, hasPhone: 10, hasCompany: 5,
+  hasUrgency: 15, hasValue: 20, hasProbability: 15,
+  hasRedes: 10, hasUTM: 10, hasNotes: 5
+};
 
 interface Stage { id: string; name: string; position: number; color: string; pipeline_id?: string | null; }
 interface Lead {
@@ -423,6 +432,44 @@ const CRMKanban = () => {
     }
   };
 
+  // Inteligência 1: Detectar Estagnação
+  const isStagnated = (lead: Lead, leadActivities: Activity[]) => {
+    const lastActivity = leadActivities.length > 0 ? new Date(leadActivities[0].created_at) : new Date(lead.created_at);
+    const daysSinceActivity = Math.floor((Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
+    return daysSinceActivity > STAGNATION_DAYS && lead.status !== "won" && lead.status !== "lost";
+  };
+
+  // Inteligência 2: Calcular Lead Score
+  const calculateLeadScore = (lead: Lead) => {
+    let score = 0;
+    if (lead.email) score += LEAD_SCORE_WEIGHTS.hasEmail;
+    if (lead.phone) score += LEAD_SCORE_WEIGHTS.hasPhone;
+    if (lead.company) score += LEAD_SCORE_WEIGHTS.hasCompany;
+    if (lead.urgency) score += LEAD_SCORE_WEIGHTS.hasUrgency;
+    if (lead.value > 0) score += LEAD_SCORE_WEIGHTS.hasValue;
+    if (lead.probability) score += LEAD_SCORE_WEIGHTS.hasProbability;
+    if (lead.instagram || lead.linkedin || lead.facebook) score += LEAD_SCORE_WEIGHTS.hasRedes;
+    if (lead.utm_source || lead.utm_medium || lead.utm_campaign) score += LEAD_SCORE_WEIGHTS.hasUTM;
+    if (lead.notes) score += LEAD_SCORE_WEIGHTS.hasNotes;
+    return Math.min(score, 100);
+  };
+
+  // Inteligência 3: Alertar Recompra
+  const shouldAlertRecompra = (lead: Lead) => {
+    if (lead.status !== "won" || !lead.contract_months) return false;
+    const createdDate = new Date(lead.created_at);
+    const expiryDate = new Date(createdDate.getTime() + lead.contract_months * 30 * 24 * 60 * 60 * 1000);
+    const daysUntilExpiry = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return daysUntilExpiry > 0 && daysUntilExpiry <= RECOMPRA_ALERT_DAYS;
+  };
+
+  // Inteligência 4: Sugerir Próxima Ação
+  const getSuggestedNextStage = (lead: Lead, currentStages: Stage[]) => {
+    const currentStageIndex = currentStages.findIndex(s => s.id === lead.stage_id);
+    if (currentStageIndex === -1 || currentStageIndex === currentStages.length - 1) return null;
+    return currentStages[currentStageIndex + 1];
+  };
+
   const leadFormFields = (data: any, setData: (d: any) => void, isNew = false, showStageSelect = false) => (
     <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
       <div className="space-y-4">
@@ -772,6 +819,31 @@ const CRMKanban = () => {
                           {lead.tags.length > 3 && <span className="text-[9px] text-muted-foreground px-2 py-0.5">+{lead.tags.length - 3}</span>}
                         </div>
                       )}
+
+                      {/* Inteligências de Negócio */}
+                      <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                        {isStagnated(lead, activities.filter(a => a.lead_id === lead.id)) && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                            <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+                            <span className="text-[9px] font-bold text-yellow-600">Lead estagnado há {Math.floor((Date.now() - (activities.filter(a => a.lead_id === lead.id).length > 0 ? new Date(activities.filter(a => a.lead_id === lead.id)[0].created_at).getTime() : new Date(lead.created_at).getTime())) / (1000 * 60 * 60 * 24))} dias</span>
+                          </div>
+                        )}
+                        {shouldAlertRecompra(lead) && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/30">
+                            <RefreshCw className="h-3.5 w-3.5 text-green-600" />
+                            <span className="text-[9px] font-bold text-green-600">Alerta de recompra em {Math.floor((new Date(new Date(lead.created_at).getTime() + (lead.contract_months || 0) * 30 * 24 * 60 * 60 * 1000).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} dias</span>
+                          </div>
+                        )}
+                        {calculateLeadScore(lead) > 0 && (
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                            <div className="flex items-center gap-2">
+                              <Zap className="h-3.5 w-3.5 text-blue-600" />
+                              <span className="text-[9px] font-bold text-blue-600">Score</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-500/20 px-2 py-0.5 rounded">{calculateLeadScore(lead)}/100</span>
+                          </div>
+                        )}
+                      </div>
 
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
                         <div className="flex items-center gap-1 text-xs font-bold text-primary">
