@@ -195,7 +195,12 @@ const CRMKanban = () => {
     } as any);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Lead adicionado!" });
-    setNewLead({ name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "" });
+    setNewLead({ 
+      name: "", email: "", phone: "", company: "", value: "", notes: "", source: "", tags: "", stage_id: "",
+      priority: "medium", urgency: "medium", revenue_type: "one_time", monthly_value: "", contract_months: "1",
+      probability: "50", instagram: "", facebook: "", linkedin: "", website: "",
+      utm_source: "", utm_medium: "", utm_campaign: ""
+    });
     setAddOpen(false); setGlobalAddOpen(false);
     fetchData();
   };
@@ -781,20 +786,21 @@ const CRMKanban = () => {
                 <div className="flex-1 space-y-2 min-h-[100px] rounded-lg p-2 bg-muted/30 border border-border/50">
                   {stageLeads.map(lead => (
                     <div key={lead.id} draggable onDragStart={() => setDraggedLead(lead.id)}
-                      className={`surface-card rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-primary/30 transition-colors group ${selectedLeads.has(lead.id) ? "ring-2 ring-primary" : ""}`}>
+                      onClick={() => { setEditLead({ ...lead }); setEditOpen(true); setEditTab("info"); }}
+                      className={`surface-card rounded-lg p-3 cursor-pointer hover:border-primary/30 transition-colors group ${selectedLeads.has(lead.id) ? "ring-2 ring-primary" : ""}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2 min-w-0">
                           <button onClick={e => { e.stopPropagation(); toggleSelectLead(lead.id); }} className="shrink-0">
                             {selectedLeads.has(lead.id) ? <CheckCircle className="h-4 w-4 text-primary" /> : <div className="w-4 h-4 rounded-full border border-muted-foreground/30 group-hover:border-primary/50" />}
                           </button>
-                          <div className="min-w-0" onClick={() => { setEditLead({ ...lead }); setEditOpen(true); setEditTab("info"); }}>
+                          <div className="min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{lead.name}</p>
                             {lead.company && <p className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Building className="h-2.5 w-2.5" />{lead.company}</p>}
                           </div>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                           {lead.phone && <button onClick={e => { e.stopPropagation(); openWhatsApp(lead); }} className="p-1 hover:bg-primary/10 rounded"><MessageCircle className="h-3 w-3 text-primary" /></button>}
-                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
