@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageCircle } from "lucide-react";
 
 interface FormField {
   id: string; type: string; label: string; placeholder?: string; required?: boolean;
@@ -26,7 +27,6 @@ const FormPublic = () => {
     f();
   }, [slug]);
 
-  // Conditional logic: check if a field should be visible
   const isFieldVisible = (field: FormField) => {
     if (!field.conditionalField) return true;
     const depField = fields.find(f => f.id === field.conditionalField);
@@ -36,6 +36,18 @@ const FormPublic = () => {
 
   const visibleFields = fields.filter(isFieldVisible);
 
+  const buildWhatsAppUrl = (whatsappNumber: string, message: string, data: Record<string, string>) => {
+    const nameField = fields.find(f => f.type === "text" && f.label.toLowerCase().includes("nome"));
+    const emailField = fields.find(f => f.type === "email");
+    const phoneField = fields.find(f => f.type === "phone");
+    let msg = message || `Olá! Preenchi o formulário "${form.title}".`;
+    msg = msg.replace(/\{nome\}/g, data[nameField?.id || ""] || "");
+    msg = msg.replace(/\{email\}/g, data[emailField?.id || ""] || "");
+    msg = msg.replace(/\{telefone\}/g, data[phoneField?.id || ""] || "");
+    const phone = whatsappNumber.replace(/\D/g, "");
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!form) return;
@@ -44,16 +56,21 @@ const FormPublic = () => {
     await supabase.from("form_responses").insert({ form_id: form.id, responses });
 
     // Create lead if CRM integration configured
-    if (form.stage_id) {
+    const stageId = form.stage_id;
+    if (stageId) {
       const nameField = fields.find(f => f.type === "text" && f.label.toLowerCase().includes("nome"));
       const emailField = fields.find(f => f.type === "email");
       const phoneField = fields.find(f => f.type === "phone");
+      const settings = form.settings || {};
       if (nameField || emailField) {
         await supabase.from("leads").insert({
           name: answers[nameField?.id || ""] || "Form Lead",
           email: emailField ? answers[emailField.id] || null : null,
           phone: phoneField ? answers[phoneField.id] || null : null,
-          source: `form:${slug}`, status: "new", stage_id: form.stage_id, user_id: form.user_id,
+          source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
+          status: "new", stage_id: stageId, user_id: form.user_id,
+          pipeline_id: form.pipeline_id || null,
+          tags: settings.autoTags || [],
         } as any);
       }
     }
@@ -61,13 +78,20 @@ const FormPublic = () => {
     // Webhook
     if (form.webhook_url) {
       try {
-        const responses: Record<string, string> = {};
-        visibleFields.forEach(f => { responses[f.label] = answers[f.id] || ""; });
         fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {});
       } catch {}
     }
 
     const settings = form.settings || {};
+
+    // WhatsApp redirect
+    if (form.whatsapp_redirect) {
+      const waUrl = buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers);
+      setSubmitted(true);
+      setTimeout(() => { window.open(waUrl, "_blank"); }, 500);
+      return;
+    }
+
     if (settings.redirectUrl) { window.location.href = settings.redirectUrl; return; }
     setSubmitted(true);
   };
@@ -89,6 +113,12 @@ const FormPublic = () => {
         <div className="text-center space-y-4 p-8" style={{ animation: "fadeUp .4s ease" }}>
           <div className="text-5xl">✅</div>
           <h2 className="text-2xl font-bold">{settings.successMessage || "Obrigado!"}</h2>
+          {form.whatsapp_redirect && (
+            <button onClick={() => window.open(buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers), "_blank")}
+              style={{ padding: "14px 28px", background: "#25D366", color: "#fff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+              <MessageCircle style={{ width: 18, height: 18 }} /> Falar no WhatsApp
+            </button>
+          )}
         </div>
         <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
       </div>
@@ -179,7 +209,7 @@ const FormPublic = () => {
                 onClick={() => { if (currentStep < visibleFields.length - 1) setCurrentStep(currentStep + 1); else handleSubmit(); }}
                 disabled={currentField.required && !answers[currentField.id]}
                 style={{ flex: 2, padding: 14, background: (currentField.required && !answers[currentField.id]) ? `${textColor}10` : accentColor, color: (currentField.required && !answers[currentField.id]) ? `${textColor}40` : bgColor, fontWeight: 700, border: "none", borderRadius: 12, cursor: (currentField.required && !answers[currentField.id]) ? "not-allowed" : "pointer", fontSize: 14 }}>
-                {currentStep < visibleFields.length - 1 ? "Próximo →" : (settings.submitText || "Enviar")}
+                {currentStep < visibleFields.length - 1 ? (settings.nextText || "Próximo →") : (settings.submitText || "Enviar")}
               </button>
             </div>
           </div>
