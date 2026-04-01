@@ -509,8 +509,32 @@ const CRMKanban = () => {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5"><Label className="text-xs font-medium">Valor do Negócio (R$)</Label><Input type="number" value={data.value || ""} onChange={e => setData({ ...data, value: e.target.value })} placeholder="2170.00" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+          <div className="space-y-1.5"><Label className="text-xs font-medium">Tipo de Receita</Label>
+            <select value={data.revenue_type || "one_time"} onChange={e => setData({ ...data, revenue_type: e.target.value })} className="w-full h-9 bg-secondary/30 border border-border rounded-md px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
+              <option value="one_time">Pagamento Único</option>
+              <option value="monthly">Recorrente (Mensal)</option>
+            </select>
+          </div>
           <div className="space-y-1.5"><Label className="text-xs font-medium">Probabilidade (%)</Label><Input type="number" value={data.probability || ""} onChange={e => setData({ ...data, probability: e.target.value })} placeholder="50" className="bg-secondary/30 border-border h-9 text-sm" /></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{data.revenue_type === "monthly" ? "Valor Mensal (R$)" : "Valor Total (R$)"}</Label>
+            <Input type="number" value={data.revenue_type === "monthly" ? (data.monthly_value || "") : (data.value || "")} onChange={e => {
+              if (data.revenue_type === "monthly") {
+                setData({ ...data, monthly_value: e.target.value, value: (parseFloat(e.target.value) || 0) * (parseInt(data.contract_months) || 1) });
+              } else {
+                setData({ ...data, value: e.target.value });
+              }
+            }} placeholder="2170.00" className="bg-secondary/30 border-border h-9 text-sm" />
+          </div>
+          {data.revenue_type === "monthly" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Meses de Contrato</Label>
+              <Input type="number" value={data.contract_months || "1"} onChange={e => setData({ ...data, contract_months: e.target.value, value: (parseFloat(data.monthly_value) || 0) * (parseInt(e.target.value) || 1) })} placeholder="12" className="bg-secondary/30 border-border h-9 text-sm" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -880,8 +904,28 @@ const CRMKanban = () => {
                     <div>
                       <h2 className="text-xl font-bold text-foreground">{editLead.name}</h2>
                       <div className="flex items-center gap-3 mt-1">
+                        {editLead.status !== "won" ? (
+                          <Button 
+                            size="sm" 
+                            className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold uppercase tracking-wider gap-1.5 rounded-lg shadow-lg shadow-green-600/20"
+                            onClick={async () => {
+                              const wonStage = pipelineStages.find(s => isWonStage(s.name));
+                              const updates: any = { status: "won" };
+                              if (wonStage) updates.stage_id = wonStage.id;
+                              await supabase.from("leads").update(updates).eq("id", editLead.id);
+                              setEditLead({ ...editLead, ...updates });
+                              toast({ title: "🎉 Lead convertido em cliente!" });
+                              fetchData();
+                            }}
+                          >
+                            <CheckCircle className="h-3 w-3" /> Converter em Cliente
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-lg border border-green-500/20 uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" /> Cliente Ativo
+                          </span>
+                        )}
                         <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">Criar Proposta</span>
-                        <span className="text-xs font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-500/20">Follow-up</span>
                       </div>
                     </div>
                   </div>
