@@ -120,6 +120,8 @@ const CRMKanban = () => {
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
   const [customMessage, setCustomMessage] = useState("");
+  const [showNewPipelineDialog, setShowNewPipelineDialog] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
@@ -369,7 +371,7 @@ const CRMKanban = () => {
     const { data, error } = await supabase.from("pipelines").insert({ user_id: user.id, name: newPipelineName } as any).select().single();
     if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
     toast({ title: "Pipeline criado!" });
-    setNewPipelineName(""); setShowPipelineDialog(false);
+    setNewPipelineName(""); setShowNewPipelineDialog(false);
     if (data) setActivePipeline(data.id);
     fetchData();
   };
@@ -385,7 +387,13 @@ const CRMKanban = () => {
     setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) });
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando CRM...</div>;
+  const openWhatsApp = (lead: Lead) => {
+    if (!lead.phone) { toast({ title: "Lead sem WhatsApp", variant: "destructive" }); return; }
+    const phone = lead.phone.replace(/\D/g, "");
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá ${lead.name}! `)}`, "_blank");
+  };
+
+    if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando CRM...</div>;
 
   const totalLeads = leads.length;
   const totalValue = leads.reduce((s, l) => s + (l.value || 0), 0);
@@ -500,10 +508,12 @@ const CRMKanban = () => {
               <select value={activePipeline || ""} onChange={e => setActivePipeline(e.target.value)} className="h-10 bg-secondary/50 border border-border rounded-lg px-4 text-sm font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/20 min-w-[240px]">
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
               </select>
+              <Button variant="outline" size="sm" className="h-10 gap-2 border-primary/30 text-primary hover:bg-primary/5" onClick={() => setShowNewPipelineDialog(true)}><Plus className="h-4 w-4" /> Novo Funil</Button>
             </div>
             <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg border border-border">
               <Button variant={view === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("kanban")}><LayoutGrid className="h-3.5 w-3.5" /> Kanban</Button>
               <Button variant={view === "list" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("list")}><List className="h-3.5 w-3.5" /> Lista</Button>
+              <Button variant={showDashboard ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setShowDashboard(!showDashboard)}><BarChart3 className="h-3.5 w-3.5" /> Dashboard</Button>
             </div>
           </div>
 
@@ -563,6 +573,86 @@ const CRMKanban = () => {
             <Button size="sm" className="h-9 px-4 text-xs font-bold" onClick={bulkAction === "whatsapp" ? handleBulkWhatsApp : executeBulkAction} disabled={!bulkAction}>Aplicar Ação</Button>
           </div>
           <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => setSelectedLeads(new Set())}>Cancelar</Button>
+        </div>
+      )}
+
+      {/* Dashboard KPIs */}
+      {showDashboard && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary"><Users className="h-6 w-6" /></div>
+              <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg">Total</span>
+            </div>
+            <div><p className="text-3xl font-bold text-foreground">{totalLeads}</p><p className="text-xs text-muted-foreground mt-1">Leads no funil</p></div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center text-green-500"><TrendingUp className="h-6 w-6" /></div>
+              <span className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-lg">{conversionRate}%</span>
+            </div>
+            <div><p className="text-3xl font-bold text-foreground">{wonLeads.length}</p><p className="text-xs text-muted-foreground mt-1">Leads Ganhos</p></div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-500"><DollarSign className="h-6 w-6" /></div>
+              <span className="text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded-lg">Valor Total</span>
+            </div>
+            <div><p className="text-3xl font-bold text-foreground">R$ {(totalValue / 1000).toFixed(1)}k</p><p className="text-xs text-muted-foreground mt-1">Em negociação</p></div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-500"><Target className="h-6 w-6" /></div>
+              <span className="text-xs font-bold text-purple-500 bg-purple-500/10 px-2 py-1 rounded-lg">Ticket Médio</span>
+            </div>
+            <div><p className="text-3xl font-bold text-foreground">R$ {parseFloat(avgDealValue).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</p><p className="text-xs text-muted-foreground mt-1">Por lead</p></div>
+          </div>
+        </div>
+      )}
+
+      {/* Charts Row */}
+      {showDashboard && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="p-6 rounded-2xl bg-secondary/10 border border-border space-y-4">
+            <h3 className="text-sm font-bold text-foreground">Distribuição por Etapa</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stageData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" style={{ fontSize: "12px" }} />
+                <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: "12px" }} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-secondary/10 border border-border space-y-4">
+            <h3 className="text-sm font-bold text-foreground">Temperatura dos Leads</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={priorityData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={80} fill="#8884d8" dataKey="value">
+                  {priorityData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-secondary/10 border border-border space-y-4">
+            <h3 className="text-sm font-bold text-foreground">Valor por Etapa</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stageData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" style={{ fontSize: "12px" }} />
+                <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: "12px" }} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} formatter={(value) => `R$ ${value.toLocaleString("pt-BR")}`} />
+                <Bar dataKey="value" fill="hsl(var(--primary) / 0.6)" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 
@@ -626,6 +716,38 @@ const CRMKanban = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* Professional Info Section */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border/50">
+                        {lead.urgency && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Urgência</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg w-fit ${
+                              lead.urgency === "high" ? "bg-red-500/20 text-red-500" :
+                              lead.urgency === "medium" ? "bg-orange-500/20 text-orange-500" :
+                              "bg-blue-500/20 text-blue-500"
+                            }`}>
+                              {lead.urgency === "high" ? "Alta" : lead.urgency === "medium" ? "Média" : "Baixa"}
+                            </span>
+                          </div>
+                        )}
+                        {lead.probability && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Probabilidade</span>
+                            <span className="text-[10px] font-bold text-primary">{lead.probability}%</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tags Section */}
+                      {lead.tags && lead.tags.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-1">
+                          {lead.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="text-[9px] bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full font-bold">{tag}</span>
+                          ))}
+                          {lead.tags.length > 3 && <span className="text-[9px] text-muted-foreground px-2 py-0.5">+{lead.tags.length - 3}</span>}
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
                         <div className="flex items-center gap-1 text-xs font-bold text-primary">
@@ -986,6 +1108,45 @@ const CRMKanban = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* New Pipeline Dialog */}
+      <Dialog open={showNewPipelineDialog} onOpenChange={setShowNewPipelineDialog}>
+        <DialogContent className="bg-card border-border max-w-lg rounded-2xl shadow-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-bold">Criar Novo Funil</DialogTitle></DialogHeader>
+          <div className="space-y-6 mt-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold">Nome do Funil</Label>
+                <Input value={newPipelineName} onChange={e => setNewPipelineName(e.target.value)} placeholder="Ex: Clientes Ativos, Prospecção, Parceiros..." className="bg-secondary/30 border-border h-10 text-sm" />
+              </div>
+              <p className="text-xs text-muted-foreground italic">Crie um novo funil para organizar diferentes tipos de leads ou processos de vendas.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" className="flex-1 h-10 font-bold" onClick={() => { setNewPipelineName(""); setShowNewPipelineDialog(false); }}>Cancelar</Button>
+              <Button onClick={handleCreatePipeline} className="flex-1 h-10 font-bold shadow-lg shadow-primary/20" disabled={!newPipelineName.trim()}>Criar Funil</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pipelines List Dialog */}
+      {pipelines.length > 1 && (
+        <div className="fixed bottom-6 right-6 p-4 rounded-2xl bg-card border border-border shadow-xl max-w-xs space-y-3 z-40">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Funis Disponíveis</h4>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+            {pipelines.map(p => (
+              <button key={p.id} onClick={() => setActivePipeline(p.id)} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
+                activePipeline === p.id
+                  ? "bg-primary/20 border border-primary/50 text-primary"
+                  : "bg-secondary/10 border border-border hover:border-primary/30 text-foreground"
+              }`}>
+                <span className="text-sm font-bold">{p.name}</span>
+                {activePipeline === p.id && <CheckCircle className="h-4 w-4" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
