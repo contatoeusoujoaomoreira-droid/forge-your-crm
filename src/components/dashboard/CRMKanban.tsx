@@ -395,15 +395,22 @@ const CRMKanban = () => {
 
     if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando CRM...</div>;
 
-  const totalLeads = leads.length;
-  const totalValue = leads.reduce((s, l) => s + (l.value || 0), 0);
+  const totalLeads = filteredLeads.length;
+  const totalValue = filteredLeads.reduce((s, l) => s + (l.value || 0), 0);
   const wonStageIds = pipelineStages.filter(s => isWonStage(s.name)).map(s => s.id);
-  const wonLeads = leads.filter(l => (l.status === "won" || (l.stage_id && wonStageIds.includes(l.stage_id))) && l.value > 0);
+  const wonLeads = filteredLeads.filter(l => (l.status === "won" || (l.stage_id && wonStageIds.includes(l.stage_id))) && l.value > 0);
   const wonValue = wonLeads.reduce((s, l) => s + (l.value || 0), 0);
+  const lostLeads = filteredLeads.filter(l => l.status === "lost");
   const conversionRate = totalLeads > 0 ? ((wonLeads.length / totalLeads) * 100).toFixed(1) : "0";
-  const stageData = pipelineStages.map(stage => ({ name: stage.name, count: leads.filter(l => l.stage_id === stage.id).length, value: leads.filter(l => l.stage_id === stage.id).reduce((s, l) => s + (l.value || 0), 0) }));
+  const avgDealValue = totalLeads > 0 ? (totalValue / totalLeads).toFixed(2) : "0";
+  const stageData = pipelineStages.map(stage => ({ name: stage.name, count: filteredLeads.filter(l => l.stage_id === stage.id).length, value: filteredLeads.filter(l => l.stage_id === stage.id).reduce((s, l) => s + (l.value || 0), 0) }));
+  const priorityData = [
+    { name: "Quente", value: filteredLeads.filter(l => l.priority === "high").length, color: "#f97316" },
+    { name: "Morno", value: filteredLeads.filter(l => l.priority === "medium").length, color: "#3b82f6" },
+    { name: "Frio", value: filteredLeads.filter(l => l.priority === "low").length, color: "#06b6d4" }
+  ].filter(d => d.value > 0);
   const statusCounts: Record<string, number> = {};
-  leads.forEach(l => { statusCounts[l.status] = (statusCounts[l.status] || 0) + 1; });
+  filteredLeads.forEach(l => { statusCounts[l.status] = (statusCounts[l.status] || 0) + 1; });
   const statusData = Object.entries(statusCounts).map(([k, v]) => ({ name: statusOptions.find(s => s.value === k)?.label || k, value: v }));
   const leadActivities = editLead ? activities.filter(a => a.lead_id === editLead.id) : [];
 
