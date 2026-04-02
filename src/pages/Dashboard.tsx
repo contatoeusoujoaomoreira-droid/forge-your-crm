@@ -7,9 +7,10 @@ import ThemeToggle from "@/components/ThemeToggle";
 import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
-  FileText, Calendar, ShoppingCart, Shield,
+  FileText, Calendar, ShoppingCart, Shield, Users,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
+import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/Analytics";
 import LandingPagesList from "@/components/dashboard/LandingPagesList";
 import QuizList from "@/components/dashboard/QuizList";
@@ -21,6 +22,7 @@ import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 
 const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
+  { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
@@ -139,6 +141,7 @@ const Dashboard = () => {
         <div className="p-6">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {activeTab === "crm" && <CRMKanban />}
+            {activeTab === "clients" && <CRMClients />}
             {activeTab === "analytics" && <Analytics />}
             {activeTab === "pages" && <LandingPagesList />}
             {activeTab === "forms" && <FormsList />}
