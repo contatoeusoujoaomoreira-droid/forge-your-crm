@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, Clock, XCircle } from "lucide-react";
+import { Calendar, Clock, XCircle, CheckCircle, PartyPopper, MessageCircle, Star } from "lucide-react";
 
 const SchedulePublic = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -18,9 +18,9 @@ const SchedulePublic = () => {
   const [submitted, setSubmitted] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [existingAppointments, setExistingAppointments] = useState<any[]>([]);
+  const [cancellationLink, setCancellationLink] = useState<string | null>(null);
 
   useEffect(() => {
-    // Handle cancellation
     if (cancelToken) {
       const cancelAppointment = async () => {
         const { data } = await supabase.from("appointments").select("*").eq("cancellation_token", cancelToken).maybeSingle();
@@ -52,19 +52,37 @@ const SchedulePublic = () => {
     
     const cancellationToken = schedule.allow_cancellation ? crypto.randomUUID() : null;
     
-    await supabase.from("appointments").insert({
+    const { data: appointment } = await supabase.from("appointments").insert({
       schedule_id: schedule.id, guest_name: guestName, guest_email: guestEmail || null,
       guest_phone: guestPhone || null, date: selectedDate, time: selectedTime,
       cancellation_token: cancellationToken,
-    } as any);
+    } as any).select().single();
+
+    if (cancellationToken && appointment) {
+      setCancellationLink(`${window.location.origin}/agendar/${slug}?cancel=${cancellationToken}`);
+    }
 
     // Create lead if CRM integration configured
     if (schedule.stage_id) {
-      await supabase.from("leads").insert({
-        name: guestName, email: guestEmail || null, phone: guestPhone || null,
-        source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
-        user_id: schedule.user_id,
-      } as any);
+      // Check if lead already exists
+      let leadId: string | null = null;
+      if (guestEmail || guestPhone) {
+        const query = supabase.from("leads").select("id").eq("user_id", schedule.user_id);
+        if (guestEmail) query.eq("email", guestEmail);
+        else if (guestPhone) query.eq("phone", guestPhone);
+        const { data: existing } = await query.maybeSingle();
+        if (existing) {
+          leadId = existing.id;
+          await supabase.from("leads").update({ stage_id: schedule.stage_id } as any).eq("id", leadId);
+        }
+      }
+      if (!leadId) {
+        await supabase.from("leads").insert({
+          name: guestName, email: guestEmail || null, phone: guestPhone || null,
+          source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
+          user_id: schedule.user_id, tags: ["agendamento"],
+        } as any);
+      }
     }
 
     setSubmitted(true);
@@ -122,14 +140,115 @@ const SchedulePublic = () => {
     return dates;
   };
 
+  // Build WhatsApp message
+  const buildWhatsAppLink = () => {
+    const whatsNumber = style.whatsapp_number;
+    if (!whatsNumber) return null;
+    
+    let message = style.whatsapp_message || "Olá! Acabei de agendar:\n\n👤 {nome}\n📅 {data}\n🕐 {hora}\n📋 {servico}\n⏱️ {duracao} minutos";
+    
+    const dateFormatted = selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "";
+    
+    message = message
+      .replace(/{nome}/g, guestName)
+      .replace(/{data}/g, dateFormatted)
+      .replace(/{hora}/g, selectedTime)
+      .replace(/{servico}/g, schedule.title)
+      .replace(/{duracao}/g, String(schedule.duration));
+    
+    return `https://wa.me/${whatsNumber.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
+  };
+
+  // Gamified Confirmation Screen
   if (submitted) {
+    const dateFormatted = new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const whatsAppLink = buildWhatsAppLink();
+    
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff" }}>
-        <div className="text-center space-y-4 p-8">
-          <div className="text-5xl">✅</div>
-          <h2 className="text-2xl font-bold">Agendamento Confirmado!</h2>
-          <p className="text-sm opacity-70">{selectedDate} às {selectedTime}</p>
-          {schedule.timezone && <p className="text-xs opacity-50">Fuso: {schedule.timezone}</p>}
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff" }}>
+        <div className="w-full max-w-md text-center space-y-8">
+          {/* Success Animation */}
+          <div className="relative">
+            <div className="w-24 h-24 mx-auto rounded-full flex items-center justify-center animate-bounce" 
+              style={{ background: `${style.accentColor || "#84CC16"}20`, border: `3px solid ${style.accentColor || "#84CC16"}` }}>
+              <CheckCircle className="h-12 w-12" style={{ color: style.accentColor || "#84CC16" }} />
+            </div>
+            <div className="absolute -top-2 -right-2 animate-pulse">
+              <PartyPopper className="h-8 w-8 text-yellow-400" />
+            </div>
+            <div className="absolute -top-2 -left-2 animate-pulse delay-150">
+              <Star className="h-6 w-6 text-yellow-400" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold">Agendamento Confirmado! 🎉</h1>
+            <p className="text-sm opacity-70">Sua reserva foi realizada com sucesso</p>
+          </div>
+
+          {/* Booking Details Card */}
+          <div className="rounded-2xl p-6 space-y-4 text-left" style={{ background: `${style.textColor || "#fff"}08`, border: `1px solid ${style.textColor || "#fff"}15` }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                style={{ background: `${style.accentColor || "#84CC16"}20`, color: style.accentColor || "#84CC16" }}>
+                {guestName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-bold">{guestName}</p>
+                {guestEmail && <p className="text-xs opacity-60">{guestEmail}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl p-3" style={{ background: `${style.accentColor || "#84CC16"}10` }}>
+                <p className="text-[10px] opacity-50 uppercase tracking-wider mb-1">📅 Data</p>
+                <p className="text-sm font-bold capitalize">{dateFormatted}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ background: `${style.accentColor || "#84CC16"}10` }}>
+                <p className="text-[10px] opacity-50 uppercase tracking-wider mb-1">🕐 Horário</p>
+                <p className="text-sm font-bold">{selectedTime}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl p-3" style={{ background: `${style.accentColor || "#84CC16"}10` }}>
+                <p className="text-[10px] opacity-50 uppercase tracking-wider mb-1">📋 Serviço</p>
+                <p className="text-sm font-bold">{schedule.title}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ background: `${style.accentColor || "#84CC16"}10` }}>
+                <p className="text-[10px] opacity-50 uppercase tracking-wider mb-1">⏱️ Duração</p>
+                <p className="text-sm font-bold">{schedule.duration} minutos</p>
+              </div>
+            </div>
+
+            {schedule.timezone && (
+              <p className="text-[10px] opacity-40 text-center">Fuso horário: {schedule.timezone}</p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            {whatsAppLink && (
+              <a href={whatsAppLink} target="_blank" rel="noopener noreferrer"
+                className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-transform hover:scale-105"
+                style={{ background: "#25D366", color: "#fff" }}>
+                <MessageCircle className="h-5 w-5" />
+                Avisar no WhatsApp
+              </a>
+            )}
+
+            {cancellationLink && (
+              <p className="text-[10px] opacity-40">
+                Precisa cancelar? <a href={cancellationLink} className="underline">Clique aqui</a>
+              </p>
+            )}
+          </div>
+
+          {/* Achievement Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold" 
+            style={{ background: `${style.accentColor || "#84CC16"}15`, border: `1px solid ${style.accentColor || "#84CC16"}30`, color: style.accentColor || "#84CC16" }}>
+            <Star className="h-3.5 w-3.5" /> Reserva #1 Confirmada
+          </div>
         </div>
       </div>
     );
