@@ -10,6 +10,7 @@ import {
   FileText, Calendar, ShoppingCart, Shield,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
+import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/Analytics";
 import LandingPagesList from "@/components/dashboard/LandingPagesList";
 import QuizList from "@/components/dashboard/QuizList";
