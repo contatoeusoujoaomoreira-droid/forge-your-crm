@@ -60,43 +60,11 @@ const SchedulePublic = () => {
 
     // Create lead if CRM integration configured
     if (schedule.stage_id) {
-      const { data: existingLead } = await supabase
-        .from("leads")
-        .select("id")
-        .eq("user_id", schedule.user_id)
-        .or(`email.eq.${guestEmail},phone.eq.${guestPhone}`)
-        .maybeSingle();
-
-      let leadId = null;
-      if (existingLead) {
-        leadId = existingLead.id;
-        await supabase.from("leads").update({
-          stage_id: schedule.stage_id,
-          updated_at: new Date().toISOString()
-        }).eq("id", leadId);
-      } else {
-        const { data: newLead } = await supabase.from("leads").insert({
-          name: guestName, email: guestEmail || null, phone: guestPhone || null,
-          source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
-          user_id: schedule.user_id,
-        } as any).select().single();
-        if (newLead) leadId = newLead.id;
-      }
-
-      if (leadId) {
-        const { data: lastAppt } = await supabase
-          .from("appointments")
-          .select("id")
-          .eq("schedule_id", schedule.id)
-          .eq("guest_name", guestName)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (lastAppt) {
-          await supabase.from("appointments").update({ lead_id: leadId } as any).eq("id", lastAppt.id);
-        }
-      }
+      await supabase.from("leads").insert({
+        name: guestName, email: guestEmail || null, phone: guestPhone || null,
+        source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
+        user_id: schedule.user_id,
+      } as any);
     }
 
     setSubmitted(true);
@@ -155,68 +123,13 @@ const SchedulePublic = () => {
   };
 
   if (submitted) {
-    const handleWhatsAppRedirect = () => {
-      if (!schedule.whatsapp_number) return;
-      const msg = (schedule.whatsapp_message || "Olá! Acabei de realizar um agendamento.")
-        .replace(/{nome}/g, guestName)
-        .replace(/{data}/g, new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR"))
-        .replace(/{hora}/g, selectedTime);
-      const phone = schedule.whatsapp_number.replace(/\D/g, "");
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-    };
-
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: style.bgColor || "#000", color: style.textColor || "#fff" }}>
-        <div className="w-full max-w-md text-center space-y-6 p-8">
-          <div className="text-6xl animate-bounce">✅</div>
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold">Agendamento Confirmado!</h2>
-            <p className="text-lg opacity-80">Tudo pronto, {guestName.split(" ")[0]}!</p>
-          </div>
-          
-          {schedule.show_summary && (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left space-y-4 backdrop-blur-sm">
-              <h3 className="text-xs font-bold uppercase tracking-widest opacity-50 border-b border-white/10 pb-2">Resumo do Agendamento</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] opacity-50 uppercase">Data</p>
-                  <p className="text-sm font-bold">{new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] opacity-50 uppercase">Horário</p>
-                  <p className="text-sm font-bold">{selectedTime}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] opacity-50 uppercase">Duração</p>
-                  <p className="text-sm font-bold">{schedule.duration} minutos</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] opacity-50 uppercase">Local</p>
-                  <p className="text-sm font-bold">Online / Reunião</p>
-                </div>
-              </div>
-              {schedule.timezone && <p className="text-[10px] opacity-30 text-center pt-2">Fuso horário: {schedule.timezone}</p>}
-            </div>
-          )}
-
-          <div className="space-y-3 pt-4">
-            {schedule.whatsapp_redirect && schedule.whatsapp_number && (
-              <button 
-                onClick={handleWhatsAppRedirect}
-                className="w-full py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl"
-                style={{ background: "#25D366", color: "#fff" }}
-              >
-                <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 .004 5.412.001 12.048c0 2.123.554 4.197 1.608 6.037L0 24l6.105-1.602a11.834 11.834 0 005.937 1.598h.005c6.637 0 12.048-5.414 12.051-12.051 0-3.215-1.252-6.238-3.528-8.513z"/></svg>
-                Enviar Resumo por WhatsApp
-              </button>
-            )}
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full py-3 rounded-xl font-medium text-xs opacity-50 hover:opacity-100 transition-opacity"
-            >
-              Fazer outro agendamento
-            </button>
-          </div>
+        <div className="text-center space-y-4 p-8">
+          <div className="text-5xl">✅</div>
+          <h2 className="text-2xl font-bold">Agendamento Confirmado!</h2>
+          <p className="text-sm opacity-70">{selectedDate} às {selectedTime}</p>
+          {schedule.timezone && <p className="text-xs opacity-50">Fuso: {schedule.timezone}</p>}
         </div>
       </div>
     );
