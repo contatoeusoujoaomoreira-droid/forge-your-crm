@@ -385,6 +385,15 @@ const SchedulesList = () => {
           </div>
         )}
         <div className="surface-card rounded-lg p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">📱 WhatsApp (Pós-agendamento)</p>
+          <div><Label className="text-[10px]">Número WhatsApp (com DDI)</Label>
+            <Input value={editing.style?.whatsapp_number || ""} onChange={e => setEditing({ ...editing, style: { ...editing.style, whatsapp_number: e.target.value } })} placeholder="5511999999999" className="mt-1 bg-secondary/50 border-border h-8 text-xs" />
+          </div>
+          <div><Label className="text-[10px]">Mensagem personalizada (variáveis: {"{nome}"}, {"{data}"}, {"{hora}"}, {"{servico}"}, {"{duracao}"})</Label>
+            <textarea value={editing.style?.whatsapp_message || ""} onChange={e => setEditing({ ...editing, style: { ...editing.style, whatsapp_message: e.target.value } })} placeholder="Olá! Acabei de agendar:\n👤 {nome}\n📅 {data}\n🕐 {hora}" className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={4} />
+          </div>
+        </div>
+        <div className="surface-card rounded-lg p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🎨 Estilo</p>
           <div className="grid grid-cols-3 gap-3">{[{ key: "bgColor", label: "Fundo" }, { key: "textColor", label: "Texto" }, { key: "accentColor", label: "Destaque" }].map(c => (
             <div key={c.key} className="flex items-center gap-2"><input type="color" value={editing.style[c.key] || "#000"} onChange={e => setEditing({ ...editing, style: { ...editing.style, [c.key]: e.target.value } })} className="h-8 w-8 rounded border border-border cursor-pointer" /><p className="text-[10px] text-muted-foreground">{c.label}</p></div>
