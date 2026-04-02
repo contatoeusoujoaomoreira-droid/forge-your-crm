@@ -16,6 +16,8 @@ interface Schedule {
   duration: number; is_active: boolean; is_published: boolean;
   available_days: number[]; available_hours: { start: string; end: string };
   style: any; pipeline_id: string | null; stage_id: string | null;
+  whatsapp_number: string | null; whatsapp_message: string | null;
+  whatsapp_redirect: boolean; show_summary: boolean;
   created_at: string; _appointmentCount?: number;
 }
 
@@ -78,6 +80,7 @@ const SchedulesList = () => {
     style: { bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16" },
     pipeline_id: null, stage_id: null, created_at: "",
     buffer_minutes: 0, blocked_dates: [], timezone: "America/Sao_Paulo", allow_cancellation: false,
+    whatsapp_number: "", whatsapp_message: "", whatsapp_redirect: false, show_summary: true,
   } as any);
 
   const handleSave = async () => {
@@ -91,6 +94,10 @@ const SchedulesList = () => {
       blocked_dates: (editing as any).blocked_dates || [],
       timezone: (editing as any).timezone || "America/Sao_Paulo",
       allow_cancellation: (editing as any).allow_cancellation || false,
+      whatsapp_number: editing.whatsapp_number,
+      whatsapp_message: editing.whatsapp_message,
+      whatsapp_redirect: editing.whatsapp_redirect,
+      show_summary: editing.show_summary,
     };
     if (editing.id) { await supabase.from("schedules").update(payload).eq("id", editing.id); }
     else { await supabase.from("schedules").insert(payload); }
@@ -374,16 +381,44 @@ const SchedulesList = () => {
             <textarea value={((editing as any).blocked_dates || []).join("\n")} onChange={e => setEditing({ ...editing, blocked_dates: e.target.value.split("\n").map((d: string) => d.trim()).filter(Boolean) } as any)} className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3} placeholder="2025-12-25&#10;2025-01-01" />
           </div>
         </div>
-        {stages.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {stages.length > 0 && (
+            <div className="surface-card rounded-lg p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔗 Integração CRM</p>
+              <div><Label className="text-[10px]">Criar lead na etapa</Label>
+                <select value={editing.stage_id || ""} onChange={e => setEditing({ ...editing, stage_id: e.target.value || null })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                  <option value="">Nenhuma</option>{stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
           <div className="surface-card rounded-lg p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔗 Integração CRM</p>
-            <div><Label className="text-[10px]">Criar lead na etapa</Label>
-              <select value={editing.stage_id || ""} onChange={e => setEditing({ ...editing, stage_id: e.target.value || null })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
-                <option value="">Nenhuma</option>{stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">📱 WhatsApp & Resumo</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px]">Exibir resumo após agendar</Label>
+                <Switch checked={editing.show_summary} onCheckedChange={v => setEditing({ ...editing, show_summary: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px]">Redirecionar para WhatsApp</Label>
+                <Switch checked={editing.whatsapp_redirect} onCheckedChange={v => setEditing({ ...editing, whatsapp_redirect: v })} />
+              </div>
+              {editing.whatsapp_redirect && (
+                <>
+                  <div>
+                    <Label className="text-[10px]">Número WhatsApp (com DDD)</Label>
+                    <Input value={editing.whatsapp_number || ""} onChange={e => setEditing({ ...editing, whatsapp_number: e.target.value })} placeholder="5511999999999" className="h-8 text-xs bg-secondary/50 border-border mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Mensagem Personalizada</Label>
+                    <Textarea value={editing.whatsapp_message || ""} onChange={e => setEditing({ ...editing, whatsapp_message: e.target.value })} placeholder="Olá! Acabei de agendar um horário..." className="text-xs bg-secondary/50 border-border mt-1" rows={2} />
+                    <p className="text-[9px] text-muted-foreground mt-1">Use {'{nome}'}, {'{data}'}, {'{hora}'} para variáveis.</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )}
+        </div>
         <div className="surface-card rounded-lg p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🎨 Estilo</p>
           <div className="grid grid-cols-3 gap-3">{[{ key: "bgColor", label: "Fundo" }, { key: "textColor", label: "Texto" }, { key: "accentColor", label: "Destaque" }].map(c => (
