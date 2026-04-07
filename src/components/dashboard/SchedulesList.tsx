@@ -377,12 +377,23 @@ const SchedulesList = () => {
             <textarea value={((editing as any).blocked_dates || []).join("\n")} onChange={e => setEditing({ ...editing, blocked_dates: e.target.value.split("\n").map((d: string) => d.trim()).filter(Boolean) } as any)} className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3} placeholder="2025-12-25&#10;2025-01-01" />
           </div>
         </div>
-        {stages.length > 0 && (
+        {(pipelines.length > 0 || stages.length > 0) && (
           <div className="surface-card rounded-lg p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔗 Integração CRM</p>
-            <div><Label className="text-[10px]">Criar lead na etapa</Label>
+            {pipelines.length > 0 && (
+              <div><Label className="text-[10px]">Pipeline de destino</Label>
+                <select value={editing.pipeline_id || ""} onChange={e => {
+                  const pid = e.target.value || null;
+                  setEditing({ ...editing, pipeline_id: pid, stage_id: null });
+                }} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                  <option value="">Nenhum</option>{pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div><Label className="text-[10px]">Etapa inicial do lead</Label>
               <select value={editing.stage_id || ""} onChange={e => setEditing({ ...editing, stage_id: e.target.value || null })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
-                <option value="">Nenhuma</option>{stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">Nenhuma</option>
+                {stages.filter(s => !editing.pipeline_id || s.pipeline_id === editing.pipeline_id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
           </div>
