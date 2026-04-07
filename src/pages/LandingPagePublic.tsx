@@ -29,6 +29,36 @@ const animations = {
   "scale-in": { initial: { opacity: 0, scale: 0.95 }, animate: { opacity: 1, scale: 1 } },
 };
 
+const resolveCTAUrl = (config: any) => {
+  const action = config.ctaAction || "link";
+  if (action === "whatsapp") {
+    const phone = (config.ctaWhatsapp || "").replace(/\D/g, "");
+    const msg = encodeURIComponent(config.ctaWhatsappMessage || "Olá!");
+    return `https://wa.me/${phone}?text=${msg}`;
+  }
+  return config.ctaUrl || "#";
+};
+
+const CTAButton = ({ config, className = "" }: { config: any; className?: string }) => {
+  if (!config.ctaText) return null;
+  const url = resolveCTAUrl(config);
+  const isExternal = url.startsWith("http");
+  return (
+    <a href={url} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noopener noreferrer" : undefined}
+      className={`inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105 ${className}`}
+      style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}
+      onClick={() => {
+        // Fire pixel events on CTA click
+        if (typeof window !== "undefined") {
+          if ((window as any).fbq) (window as any).fbq("track", "Lead");
+          if ((window as any).gtag) (window as any).gtag("event", "generate_lead", { event_category: "CTA" });
+        }
+      }}>
+      {config.ctaText}
+    </a>
+  );
+};
+
 const HeroSection = ({ config }: { config: any }) => (
   <section
     className="relative overflow-hidden"
@@ -52,11 +82,7 @@ const HeroSection = ({ config }: { config: any }) => (
       <p className="text-lg opacity-80 max-w-2xl mx-auto mb-8 whitespace-pre-line" style={{ fontSize: `${config.subtitleSize || 18}px` }}>
         {config.subtitle}
       </p>
-      {config.ctaText && (
-        <a href={config.ctaUrl || "#"} className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105" style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}>
-          {config.ctaText}
-        </a>
-      )}
+      <CTAButton config={config} />
     </div>
   </section>
 );
@@ -167,16 +193,12 @@ const FAQSection = ({ config }: { config: any }) => (
   </section>
 );
 
-const CTASection = ({ config }: { config: any }) => (
+const CTASectionBlock = ({ config }: { config: any }) => (
   <section style={{ background: config.bgGradient || config.bgColor || "#000", color: config.textColor || "#fff", padding: `${config.paddingY || 80}px 0` }}>
     <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
       <h2 className="text-3xl font-bold mb-4">{config.headline}</h2>
       <p className="opacity-80 mb-8">{config.description}</p>
-      {config.ctaText && (
-        <a href={config.ctaUrl || "#"} className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105" style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}>
-          {config.ctaText}
-        </a>
-      )}
+      <CTAButton config={config} />
     </div>
   </section>
 );
