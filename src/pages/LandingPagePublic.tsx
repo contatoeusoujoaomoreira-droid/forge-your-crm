@@ -29,6 +29,36 @@ const animations = {
   "scale-in": { initial: { opacity: 0, scale: 0.95 }, animate: { opacity: 1, scale: 1 } },
 };
 
+const resolveCTAUrl = (config: any) => {
+  const action = config.ctaAction || "link";
+  if (action === "whatsapp") {
+    const phone = (config.ctaWhatsapp || "").replace(/\D/g, "");
+    const msg = encodeURIComponent(config.ctaWhatsappMessage || "Olá!");
+    return `https://wa.me/${phone}?text=${msg}`;
+  }
+  return config.ctaUrl || "#";
+};
+
+const CTAButton = ({ config, className = "" }: { config: any; className?: string }) => {
+  if (!config.ctaText) return null;
+  const url = resolveCTAUrl(config);
+  const isExternal = url.startsWith("http");
+  return (
+    <a href={url} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noopener noreferrer" : undefined}
+      className={`inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105 ${className}`}
+      style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}
+      onClick={() => {
+        // Fire pixel events on CTA click
+        if (typeof window !== "undefined") {
+          if ((window as any).fbq) (window as any).fbq("track", "Lead");
+          if ((window as any).gtag) (window as any).gtag("event", "generate_lead", { event_category: "CTA" });
+        }
+      }}>
+      {config.ctaText}
+    </a>
+  );
+};
+
 const HeroSection = ({ config }: { config: any }) => (
   <section
     className="relative overflow-hidden"
@@ -52,11 +82,7 @@ const HeroSection = ({ config }: { config: any }) => (
       <p className="text-lg opacity-80 max-w-2xl mx-auto mb-8 whitespace-pre-line" style={{ fontSize: `${config.subtitleSize || 18}px` }}>
         {config.subtitle}
       </p>
-      {config.ctaText && (
-        <a href={config.ctaUrl || "#"} className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105" style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}>
-          {config.ctaText}
-        </a>
-      )}
+      <CTAButton config={config} />
     </div>
   </section>
 );
@@ -167,16 +193,12 @@ const FAQSection = ({ config }: { config: any }) => (
   </section>
 );
 
-const CTASection = ({ config }: { config: any }) => (
+const CTASectionBlock = ({ config }: { config: any }) => (
   <section style={{ background: config.bgGradient || config.bgColor || "#000", color: config.textColor || "#fff", padding: `${config.paddingY || 80}px 0` }}>
     <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
       <h2 className="text-3xl font-bold mb-4">{config.headline}</h2>
       <p className="opacity-80 mb-8">{config.description}</p>
-      {config.ctaText && (
-        <a href={config.ctaUrl || "#"} className="inline-block px-8 py-4 rounded-lg font-bold text-sm transition-transform hover:scale-105" style={{ background: config.accentColor || "#84CC16", color: config.accentTextColor || "#000" }}>
-          {config.ctaText}
-        </a>
-      )}
+      <CTAButton config={config} />
     </div>
   </section>
 );
@@ -211,7 +233,7 @@ const sectionRenderers: Record<string, React.FC<{ config: any }>> = {
   testimonials: TestimonialsSection,
   pricing: PricingSection,
   faq: FAQSection,
-  cta: CTASection,
+  cta: CTASectionBlock,
   contact_form: ContactFormSection,
   custom_html: CustomHTMLSection,
 };
@@ -320,8 +342,38 @@ const LandingPagePublic = () => {
         utm_campaign: params.get("utm_campaign") || null,
       });
 
+      // Set meta tags
       if (pageData.meta_title) document.title = pageData.meta_title;
       else document.title = pageData.title;
+
+      // Inject Meta Pixel directly on the page (section-based pages)
+      if (!(pageData as any).html_content) {
+        if (pageData.pixel_meta_id) {
+          const existing = document.getElementById("fb-pixel-script");
+          if (!existing) {
+            const script = document.createElement("script");
+            script.id = "fb-pixel-script";
+            script.textContent = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pageData.pixel_meta_id}');fbq('track','PageView');`;
+            document.head.appendChild(script);
+            const noscript = document.createElement("noscript");
+            noscript.innerHTML = `<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pageData.pixel_meta_id}&ev=PageView&noscript=1"/>`;
+            document.body.appendChild(noscript);
+          }
+        }
+        if (pageData.pixel_google_id) {
+          const existing = document.getElementById("gtag-script");
+          if (!existing) {
+            const script = document.createElement("script");
+            script.id = "gtag-script";
+            script.src = `https://www.googletagmanager.com/gtag/js?id=${pageData.pixel_google_id}`;
+            script.async = true;
+            document.head.appendChild(script);
+            const script2 = document.createElement("script");
+            script2.textContent = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${pageData.pixel_google_id}');`;
+            document.head.appendChild(script2);
+          }
+        }
+      }
 
       setLoading(false);
     };

@@ -40,7 +40,8 @@ const SchedulesList = () => {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [manualBooking, setManualBooking] = useState(false);
   const [newBooking, setNewBooking] = useState({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
   const { toast } = useToast();
@@ -65,8 +66,10 @@ const SchedulesList = () => {
 
   const fetchStages = async () => {
     if (!user) return;
-    const { data } = await supabase.from("pipeline_stages").select("id, name").eq("user_id", user.id).order("position");
-    if (data) setStages(data);
+    const { data } = await supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("user_id", user.id).order("position");
+    if (data) setStages(data as any);
+    const { data: pipeData } = await supabase.from("pipelines").select("id, name").eq("user_id", user.id).order("created_at");
+    if (pipeData) setPipelines(pipeData);
   };
 
   useEffect(() => { fetchSchedules(); fetchAllAppointments(); fetchStages(); }, [user]);
@@ -374,12 +377,23 @@ const SchedulesList = () => {
             <textarea value={((editing as any).blocked_dates || []).join("\n")} onChange={e => setEditing({ ...editing, blocked_dates: e.target.value.split("\n").map((d: string) => d.trim()).filter(Boolean) } as any)} className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3} placeholder="2025-12-25&#10;2025-01-01" />
           </div>
         </div>
-        {stages.length > 0 && (
+        {(pipelines.length > 0 || stages.length > 0) && (
           <div className="surface-card rounded-lg p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔗 Integração CRM</p>
-            <div><Label className="text-[10px]">Criar lead na etapa</Label>
+            {pipelines.length > 0 && (
+              <div><Label className="text-[10px]">Pipeline de destino</Label>
+                <select value={editing.pipeline_id || ""} onChange={e => {
+                  const pid = e.target.value || null;
+                  setEditing({ ...editing, pipeline_id: pid, stage_id: null });
+                }} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                  <option value="">Nenhum</option>{pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div><Label className="text-[10px]">Etapa inicial do lead</Label>
               <select value={editing.stage_id || ""} onChange={e => setEditing({ ...editing, stage_id: e.target.value || null })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
-                <option value="">Nenhuma</option>{stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">Nenhuma</option>
+                {stages.filter(s => !editing.pipeline_id || s.pipeline_id === editing.pipeline_id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
           </div>

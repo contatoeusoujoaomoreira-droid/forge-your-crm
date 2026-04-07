@@ -420,7 +420,10 @@ const ActionEditor = ({ c, set }: { c: any; set: (k: string, v: any) => void }) 
       <SelectInput label="Ação" value={c.ctaAction || "link"} options={ctaActions} onChange={(v) => set("ctaAction", v)} />
     </div>
     {c.ctaAction === "whatsapp" ? (
-      <div><Label className="text-[10px] text-muted-foreground">WhatsApp</Label><Input value={c.ctaUrl || ""} onChange={(e) => set("ctaUrl", e.target.value)} placeholder="5511999999999" className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+      <div className="space-y-2">
+        <div><Label className="text-[10px] text-muted-foreground">Número WhatsApp</Label><Input value={c.ctaWhatsapp || c.ctaUrl || ""} onChange={(e) => { set("ctaWhatsapp", e.target.value); set("ctaUrl", e.target.value); }} placeholder="5511999999999" className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+        <div><Label className="text-[10px] text-muted-foreground">Mensagem WhatsApp</Label><Input value={c.ctaWhatsappMessage || ""} onChange={(e) => set("ctaWhatsappMessage", e.target.value)} placeholder="Olá! Vim do seu site..." className="h-8 text-xs bg-secondary border-border mt-1" /></div>
+      </div>
     ) : c.ctaAction === "scroll" ? (
       <div><Label className="text-[10px] text-muted-foreground">ID do elemento</Label><Input value={c.ctaUrl || ""} onChange={(e) => set("ctaUrl", e.target.value)} placeholder="pricing" className="h-8 text-xs bg-secondary border-border mt-1" /></div>
     ) : (
