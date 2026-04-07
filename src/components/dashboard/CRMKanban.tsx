@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { handleCRMEvent, isConversionStage } from "@/lib/crm-events";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -295,16 +296,26 @@ const CRMKanban = () => {
   };
 
   const handleDrop = async (stageId: string) => {
-    if (!draggedLead) return;
+    if (!draggedLead || !user) return;
     const lead = leads.find(l => l.id === draggedLead);
     const stage = pipelineStages.find(s => s.id === stageId);
     const updates: any = { stage_id: stageId };
-    if (stage && isWonStage(stage.name) && lead && lead.value > 0) updates.status = "won";
+    if (stage && isConversionStage(stage.name) && lead && lead.value > 0) updates.status = "won";
     await supabase.from("leads").update(updates).eq("id", draggedLead);
     setLeads(prev => prev.map(l => l.id === draggedLead ? { ...l, ...updates } : l));
     setDraggedLead(null);
-    if (stage && isWonStage(stage.name) && lead && lead.value > 0) {
-      toast({ title: `🎉 Lead "${lead.name}" marcado como ganho! R$ ${lead.value.toLocaleString("pt-BR")}` });
+
+    // Fire event engine
+    if (lead && stage) {
+      handleCRMEvent({
+        type: "lead_stage_changed",
+        userId: user.id,
+        data: { leadId: lead.id, leadName: lead.name, newStageName: stage.name, newStageId: stageId, value: lead.value, revenueType: lead.revenue_type },
+        timestamp: new Date(),
+      });
+    }
+    if (stage && isConversionStage(stage.name) && lead && lead.value > 0) {
+      toast({ title: `🎉 Lead "${lead.name}" convertido! R$ ${lead.value.toLocaleString("pt-BR")}` });
     }
   };
 
