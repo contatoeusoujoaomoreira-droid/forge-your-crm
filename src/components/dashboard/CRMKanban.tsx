@@ -880,12 +880,35 @@ const CRMKanban = () => {
                     <div>
                       <h2 className="text-xl font-bold text-foreground">{editLead.name}</h2>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">Criar Proposta</span>
-                        <span className="text-xs font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded-lg border border-orange-500/20">Follow-up</span>
+                        {editLead.status === "won" ? (
+                          <span className="text-xs font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded-lg border border-green-500/20">✅ Cliente</span>
+                        ) : (
+                          <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
+                            {pipelineStages.find(s => s.id === editLead.stage_id)?.name || "Sem etapa"}
+                          </span>
+                        )}
+                        {getPriorityBadge(editLead.priority)}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* CONVERT TO CLIENT BUTTON */}
+                    {editLead.status !== "won" && (
+                      <Button variant="outline" size="sm" className="h-9 gap-2 border-green-500/30 text-green-500 hover:bg-green-500/10 font-bold" onClick={async () => {
+                        const revenueType = prompt("Tipo de receita:\n1 = Pagamento Único\n2 = Recorrente", "1");
+                        if (!revenueType) return;
+                        const rt = revenueType === "2" ? "recorrente" : "one_time";
+                        await supabase.from("leads").update({ status: "won", revenue_type: rt } as any).eq("id", editLead.id);
+                        if (user) {
+                          await supabase.from("activities").insert({ user_id: user.id, lead_id: editLead.id, type: "note", description: `🎉 Lead convertido em cliente! Tipo de receita: ${rt === "recorrente" ? "Recorrente" : "Pagamento Único"}` });
+                        }
+                        toast({ title: "🎉 Lead convertido em cliente!" });
+                        setEditLead({ ...editLead, status: "won", revenue_type: rt });
+                        fetchData();
+                      }}>
+                        <CheckCircle className="h-4 w-4" /> Converter em Cliente
+                      </Button>
+                    )}
                     <Button variant="destructive" size="sm" className="h-9 gap-2" onClick={() => { if (confirm("Excluir este lead?")) { handleDeleteLead(editLead.id); setEditOpen(false); } }}><Trash2 className="h-4 w-4" /> Excluir</Button>
                     <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setEditOpen(false)}><X className="h-5 w-5" /></Button>
                   </div>
@@ -914,15 +937,18 @@ const CRMKanban = () => {
                       <div className="grid grid-cols-3 gap-6">
                         <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status Atual</p>
-                          <p className="text-sm font-bold text-foreground flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" /> Fechado</p>
+                          <p className="text-sm font-bold text-foreground flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${editLead.status === "won" ? "bg-green-500" : editLead.status === "lost" ? "bg-red-500" : "bg-blue-500"}`} />
+                            {statusOptions.find(s => s.value === editLead.status)?.label || editLead.status}
+                          </p>
                         </div>
                         <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Prioridade</p>
                           <div className="flex items-center gap-2">{getPriorityBadge(editLead.priority)}</div>
                         </div>
                         <div className="p-4 rounded-2xl bg-secondary/20 border border-border space-y-1">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Urgência</p>
-                          <span className="text-xs font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-lg border border-red-500/20 uppercase">Alta</span>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Score</p>
+                          <span className="text-sm font-bold text-primary">{calculateLeadScore(editLead)}/100</span>
                         </div>
                       </div>
 
