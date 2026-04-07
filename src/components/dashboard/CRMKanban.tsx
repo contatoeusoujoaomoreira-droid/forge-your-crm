@@ -169,17 +169,18 @@ const CRMKanban = () => {
 
   const pipelineStages = useMemo(() => {
     if (!activePipeline) return stages;
-    return stages.filter(s => s.pipeline_id === activePipeline || !s.pipeline_id);
+    return stages.filter(s => s.pipeline_id === activePipeline);
   }, [stages, activePipeline]);
 
   const filteredLeads = useMemo(() => {
     const stageIds = new Set(pipelineStages.map(s => s.id));
     return leads.filter(l => {
-      if (l.stage_id && !stageIds.has(l.stage_id)) return false;
+      // Pipeline isolation: only show leads belonging to current pipeline stages
+      if (!l.stage_id || !stageIds.has(l.stage_id)) return false;
       if (searchTerm && !l.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
           !l.email?.toLowerCase().includes(searchTerm.toLowerCase()) &&
           !l.company?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      if (filterStatus && l.status !== filterStatus) return false;
+      if (filterStatus && l.stage_id !== filterStatus) return false;
       if (filterSource && l.source !== filterSource) return false;
       if (filterPriority !== "Todos") {
         const pMap: any = { "Quente": "high", "Morno": "medium", "Frio": "low" };
