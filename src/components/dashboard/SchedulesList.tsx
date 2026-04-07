@@ -40,7 +40,8 @@ const SchedulesList = () => {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [manualBooking, setManualBooking] = useState(false);
   const [newBooking, setNewBooking] = useState({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
   const { toast } = useToast();
@@ -65,8 +66,10 @@ const SchedulesList = () => {
 
   const fetchStages = async () => {
     if (!user) return;
-    const { data } = await supabase.from("pipeline_stages").select("id, name").eq("user_id", user.id).order("position");
-    if (data) setStages(data);
+    const { data } = await supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("user_id", user.id).order("position");
+    if (data) setStages(data as any);
+    const { data: pipeData } = await supabase.from("pipelines").select("id, name").eq("user_id", user.id).order("created_at");
+    if (pipeData) setPipelines(pipeData);
   };
 
   useEffect(() => { fetchSchedules(); fetchAllAppointments(); fetchStages(); }, [user]);
