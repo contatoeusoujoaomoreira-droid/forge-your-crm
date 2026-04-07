@@ -233,7 +233,7 @@ const sectionRenderers: Record<string, React.FC<{ config: any }>> = {
   testimonials: TestimonialsSection,
   pricing: PricingSection,
   faq: FAQSection,
-  cta: CTASection,
+  cta: CTASectionBlock,
   contact_form: ContactFormSection,
   custom_html: CustomHTMLSection,
 };
