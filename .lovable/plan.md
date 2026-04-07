@@ -1,100 +1,77 @@
 
+# Plano de Evolução Completa
 
-# Plano de Expansão Profissional — Todos os Módulos
+## Prioridade 1 — CRM: Automações Visuais + Converter em Cliente
 
-## Diagnóstico
+### 1.1 Botão "Converter em Cliente" no modal do lead
+- Adicionar botão no LeadViewer/modal de edição do lead
+- Modal de conversão com seleção de tipo de receita (pagamento único / recorrente)
+- Ao converter: status → "won", salvar revenue_type, criar activity log
+- Integrar com motor de eventos (`lead_converted`)
 
-Analisei todos os 6 módulos (Pages, Forms, Quiz, Agenda, Checkout, CRM) em detalhe. Abaixo os gaps mais críticos vs. concorrentes como Hotmart, RD Station, Calendly, Kiwify, Pipedrive:
+### 1.2 Automações visuais no CRM
+- Componente `CRMAutomations` já existe — integrar no Dashboard/CRM
+- Ao mudar etapa → criar tarefa automática (já implementado no motor de eventos)
+- Detectar estagnação (7+ dias sem atividade) → badge visual no card do lead
+- Sugerir follow-up com botão de ação rápida
 
-### Gaps Identificados por Módulo
+### 1.3 Isolamento de Pipelines
+- Cada pipeline mostra APENAS seus leads e etapas
+- Filtro de pipeline no CRMKanban filtra por `pipeline_id`
+- Leads criados herdam o `pipeline_id` do pipeline selecionado
+- Stages filtrados por `pipeline_id`
 
-**CRM:** Pipelines são client-side (não persistem no banco), sem import CSV, sem automações, sem bulk actions, sem detecção de duplicados.
+## Prioridade 2 — Agenda: Pipeline + Etapa
 
-**Forms:** Sem lógica condicional, sem upload de arquivo, sem webhook, sem notificação por email, sem proteção anti-spam.
+### 2.1 Seleção de Pipeline e Etapa na Agenda
+- No editor de agenda (SchedulesList), adicionar seletores de pipeline e stage
+- Ao agendar, criar lead no pipeline/etapa configurados
+- Salvar `pipeline_id` e `stage_id` na tabela `schedules`
 
-**Quiz:** Sem opções visuais (imagens), sem branching logic, sem integração CRM completa (pipeline_id/stage_id não são salvos), sem compartilhamento de resultado.
+## Prioridade 3 — Pages: SEO + Pixel + CTA operacionais
 
-**Agenda:** Sem timezone, sem buffer entre agendamentos, sem bloqueio de datas específicas, sem cancelamento pelo convidado, sem múltiplas durações.
+### 3.1 Corrigir salvamento de SEO
+- Verificar e corrigir o fluxo de save de: título, slug, meta_title, meta_description, custom_domain
+- Garantir que alterações persistem no banco
 
-**Checkout:** Sem cupom de desconto, sem order bump/upsell, sem parcelas, sem gestão de status de pedidos, sem campos customizados.
+### 3.2 Pixel Meta e Google operacionais
+- Verificar injeção de pixel nas páginas públicas (LandingPagePublic)
+- Adicionar eventos PageView, Lead, Purchase nos pixels
+- Garantir compatibilidade com Meta Pixel Helper
 
-**Cross-module:** LeadViewer não integrado em Quiz/Checkout/Agenda, sem notificações unificadas.
+### 3.3 CTAs com URL/WhatsApp
+- Nos botões CTA das seções, adicionar opção de: URL externa, WhatsApp (wa.me), âncora
+- Interface no editor para configurar destino do botão
 
----
+## Prioridade 4 — Checkout Evolução (estilo Hotmart/Kiwify)
 
-## Plano de Implementação (4 Fases)
+### 4.1 Melhorias visuais
+- Timer de urgência (countdown)
+- Selos de segurança
+- Prova social (X pessoas compraram)
+- Depoimentos no checkout
 
-### Fase 1 — Banco de Dados e Infraestrutura
+### 4.2 Funcionalidades
+- Order bump melhorado com preview visual
+- Campo de observações do cliente
+- Múltiplos métodos de pagamento (visual)
+- Status de pedido mais granular (pending → confirmed → shipped → delivered)
 
-**Migrations necessárias:**
-- Tabela `pipelines` (id, user_id, name, created_at) — persistir pipelines no banco
-- Alterar `pipeline_stages` para ter `pipeline_id` referenciando `pipelines`
-- Alterar `leads` para pipeline_id ser UUID ref pipelines
-- Tabela `coupons` (id, user_id, code, discount_type, discount_value, max_uses, used_count, checkout_id, expires_at)
-- Adicionar em `schedules`: `buffer_minutes`, `blocked_dates` (jsonb), `timezone`, `allow_cancellation`
-- Adicionar em `appointments`: `cancellation_token`, `cancelled_at`
-- Adicionar em `orders`: `coupon_code`, `discount_amount`
-- Adicionar em `forms`: `webhook_url`, `notification_email`
-- Adicionar em `quizzes`: `pipeline_id`, `stage_id`
-- RLS em todas as novas tabelas/colunas
+## Prioridade 5 — Domínios (análise)
 
-### Fase 2 — CRM Profissional
-
-1. **Pipelines persistidos** — CRUD de pipelines no banco, stages vinculados a pipeline_id, migrar de client-side para server
-2. **Import CSV** — Upload de arquivo CSV com mapeamento de colunas para campos do lead
-3. **Bulk actions** — Selecionar múltiplos leads e aplicar: mover etapa, adicionar tag, excluir
-4. **Detecção de duplicados** — Ao criar lead, verificar email/phone existente e alertar
-5. **LeadViewer integrado** — Adicionar em Quiz, Checkout e Schedules (já existe em Forms)
-
-### Fase 3 — Forms, Quiz & Checkout Avançados
-
-**Forms:**
-- Lógica condicional (show/hide campo baseado em resposta anterior)
-- Webhook URL (POST automático ao submeter)
-- Notificação por email ao owner (via edge function)
-- Campo tipo `file` (upload via Storage)
-
-**Quiz:**
-- Opções com imagem (URL de imagem por opção)
-- Salvar pipeline_id/stage_id nas settings e criar lead no CRM ao finalizar
-- Botão compartilhar resultado (copiar link + texto)
-
-**Checkout:**
-- Sistema de cupons (código, % ou valor fixo, limite de uso, expiração)
-- Order bump (item adicional com desconto no checkout)
-- Gestão de pedidos (atualizar status: pending → confirmed → shipped → delivered)
-- Campos customizados no formulário do checkout
-
-### Fase 4 — Agenda Pro & Cross-Module
-
-**Agenda:**
-- Buffer entre agendamentos (ex: 10min intervalo)
-- Bloqueio de datas específicas (feriados, férias)
-- Timezone configurável
-- Link de cancelamento para o convidado
-- Múltiplas durações opcionais (30min, 60min)
-
-**Cross-module:**
-- Activity feed unificado no dashboard (últimos leads, agendamentos, pedidos)
-- Contadores em tempo real nos tabs da sidebar (badges com quantidade)
+O sistema de domínios customizados requer infraestrutura de DNS/proxy que não é possível implementar nativamente no frontend. O Lovable já oferece domínios customizados via Project Settings → Domains. Para domínios por página individual, precisamos avaliar a viabilidade separadamente.
 
 ---
 
-## Arquivos a Criar/Editar
+## Arquivos principais a editar
 
-| Arquivo | Ação |
-|---------|------|
-| `supabase/migrations/...` | Nova migration com todas as alterações de schema |
-| `src/components/dashboard/CRMKanban.tsx` | Pipelines persistidos, bulk actions, import CSV, duplicados |
-| `src/components/dashboard/FormsList.tsx` | Lógica condicional, webhook, notificação, file upload |
-| `src/components/dashboard/QuizList.tsx` | Imagens nas opções, CRM integration completa |
-| `src/components/dashboard/CheckoutsList.tsx` | Cupons, order bump, gestão de pedidos, campos custom |
-| `src/components/dashboard/SchedulesList.tsx` | Buffer, bloqueio de datas, timezone, cancelamento |
-| `src/pages/CheckoutPublic.tsx` | Aplicar cupom, order bump UI, campos custom |
-| `src/pages/FormPublic.tsx` | Lógica condicional, file upload |
-| `src/pages/QuizPublic.tsx` | Imagens nas opções, compartilhar resultado |
-| `src/pages/SchedulePublic.tsx` | Timezone, buffer, bloqueio de datas, cancelamento |
-| `src/components/dashboard/LeadViewer.tsx` | Já existe, integrar nos módulos faltantes |
-| `src/pages/Dashboard.tsx` | Badges nos tabs, activity feed |
-| `supabase/functions/form-webhook/index.ts` | Nova edge function para webhook + email notification |
-
+| Arquivo | Mudança |
+|---------|---------|
+| `CRMKanban.tsx` | Isolamento de pipeline, badge estagnação |
+| `LeadViewer.tsx` | Botão converter em cliente |
+| `Dashboard.tsx` | Integrar CRMAutomations |
+| `SchedulesList.tsx` | Pipeline/stage selector |
+| `LandingPagesList.tsx` | Fix SEO save |
+| `LandingPagePublic.tsx` | Pixel events operacionais |
+| `CheckoutPublic.tsx` | Timer, selos, prova social |
+| Seções do page builder | CTA com URL/WhatsApp config |
