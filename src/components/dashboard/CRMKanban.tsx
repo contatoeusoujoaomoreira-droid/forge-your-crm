@@ -105,6 +105,8 @@ const CRMKanban = () => {
   
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState<Lead | null>(null);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertRevenueType, setConvertRevenueType] = useState<"one_time" | "recorrente">("one_time");
 
   const [globalAddOpen, setGlobalAddOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
