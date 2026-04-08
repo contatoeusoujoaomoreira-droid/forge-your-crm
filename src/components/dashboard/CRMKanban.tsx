@@ -105,6 +105,8 @@ const CRMKanban = () => {
   
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState<Lead | null>(null);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertRevenueType, setConvertRevenueType] = useState<"one_time" | "recorrente">("one_time");
 
   const [globalAddOpen, setGlobalAddOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -906,21 +908,60 @@ const CRMKanban = () => {
                   <div className="flex items-center gap-2">
                     {/* CONVERT TO CLIENT BUTTON */}
                     {editLead.status !== "won" && (
-                      <Button variant="outline" size="sm" className="h-9 gap-2 border-green-500/30 text-green-500 hover:bg-green-500/10 font-bold" onClick={async () => {
-                        const revenueType = prompt("Tipo de receita:\n1 = Pagamento Único\n2 = Recorrente", "1");
-                        if (!revenueType) return;
-                        const rt = revenueType === "2" ? "recorrente" : "one_time";
-                        await supabase.from("leads").update({ status: "won", revenue_type: rt } as any).eq("id", editLead.id);
-                        if (user) {
-                          await supabase.from("activities").insert({ user_id: user.id, lead_id: editLead.id, type: "note", description: `🎉 Lead convertido em cliente! Tipo de receita: ${rt === "recorrente" ? "Recorrente" : "Pagamento Único"}` });
-                        }
-                        toast({ title: "🎉 Lead convertido em cliente!" });
-                        setEditLead({ ...editLead, status: "won", revenue_type: rt });
-                        fetchData();
-                      }}>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 border-green-500/30 text-green-500 hover:bg-green-500/10 font-bold" onClick={() => { setConvertRevenueType("one_time"); setShowConvertModal(true); }}>
                         <CheckCircle className="h-4 w-4" /> Converter em Cliente
                       </Button>
                     )}
+
+                    {/* Convert to Client Modal */}
+                    <Dialog open={showConvertModal} onOpenChange={setShowConvertModal}>
+                      <DialogContent className="bg-card border-border max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-lg flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-500" /> Converter em Cliente
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <p className="text-sm text-muted-foreground">Selecione o tipo de receita para <strong className="text-foreground">{editLead.name}</strong>:</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => setConvertRevenueType("one_time")} className={`p-4 rounded-xl border-2 text-center transition-all ${convertRevenueType === "one_time" ? "border-green-500 bg-green-500/10" : "border-border hover:border-green-500/30"}`}>
+                              <DollarSign className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                              <p className="text-sm font-bold text-foreground">Pagamento Único</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Venda pontual, sem recorrência</p>
+                            </button>
+                            <button onClick={() => setConvertRevenueType("recorrente")} className={`p-4 rounded-xl border-2 text-center transition-all ${convertRevenueType === "recorrente" ? "border-green-500 bg-green-500/10" : "border-border hover:border-green-500/30"}`}>
+                              <RefreshCw className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                              <p className="text-sm font-bold text-foreground">Recorrente</p>
+                              <p className="text-[10px] text-muted-foreground mt-1">Assinatura mensal / contrato</p>
+                            </button>
+                          </div>
+                          {editLead.value > 0 && (
+                            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-center">
+                              <p className="text-xs text-muted-foreground">Valor da conversão</p>
+                              <p className="text-xl font-bold text-primary">R$ {editLead.value.toLocaleString("pt-BR")}</p>
+                              {convertRevenueType === "recorrente" && editLead.monthly_value && editLead.monthly_value > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">MRR: R$ {editLead.monthly_value.toLocaleString("pt-BR")}/mês</p>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-2">
+                            <Button variant="ghost" className="flex-1" onClick={() => setShowConvertModal(false)}>Cancelar</Button>
+                            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold" onClick={async () => {
+                              await supabase.from("leads").update({ status: "won", revenue_type: convertRevenueType } as any).eq("id", editLead.id);
+                              if (user) {
+                                await supabase.from("activities").insert({ user_id: user.id, lead_id: editLead.id, type: "note", description: `🎉 Lead convertido em cliente! Tipo de receita: ${convertRevenueType === "recorrente" ? "Recorrente" : "Pagamento Único"}` });
+                              }
+                              toast({ title: "🎉 Lead convertido em cliente!" });
+                              setEditLead({ ...editLead, status: "won", revenue_type: convertRevenueType });
+                              setShowConvertModal(false);
+                              fetchData();
+                            }}>
+                              <CheckCircle className="h-4 w-4 mr-2" /> Confirmar Conversão
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                     <Button variant="destructive" size="sm" className="h-9 gap-2" onClick={() => { if (confirm("Excluir este lead?")) { handleDeleteLead(editLead.id); setEditOpen(false); } }}><Trash2 className="h-4 w-4" /> Excluir</Button>
                     <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setEditOpen(false)}><X className="h-5 w-5" /></Button>
                   </div>
