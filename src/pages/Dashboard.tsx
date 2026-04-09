@@ -87,8 +87,8 @@ const Dashboard = () => {
         <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-border">
           {!sidebarCollapsed && (
             <a href="/" className="text-lg font-bold tracking-tight">
-              <span className="text-gradient-lime">Forge</span>{" "}
-              <span className="text-sidebar-accent-foreground">AI</span>
+              <span className="text-gradient-lime">Omni</span>{" "}
+              <span className="text-sidebar-accent-foreground">Builder</span>
             </a>
           )}
           <Button variant="ghost" size="icon" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="h-8 w-8 text-sidebar-foreground hover:text-sidebar-accent-foreground">

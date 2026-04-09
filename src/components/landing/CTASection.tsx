@@ -25,7 +25,7 @@ const CTASection = () => {
             Pronto para <span className="text-gradient-lime">escalar suas vendas</span>?
           </h2>
           <p className="text-muted-foreground mt-4 text-lg">
-            Junte-se a mais de 500 empresas que já usam o Forge AI.
+            Junte-se a mais de 500 empresas que já usam o Omni Builder CRM.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
             <Button
@@ -38,7 +38,7 @@ const CTASection = () => {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => window.open(`https://wa.me/${WHATSAPP.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Olá! Quero saber mais sobre o Forge AI.")}`, "_blank")}
+              onClick={() => window.open(`https://wa.me/${WHATSAPP.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Olá! Quero saber mais sobre o Omni Builder CRM.")}`, "_blank")}
               className="border-border text-foreground hover:bg-secondary text-base px-8 h-12 gap-2"
             >
               <MessageCircle className="h-5 w-5" /> WhatsApp

@@ -40,7 +40,7 @@ const HeroSection = () => {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => window.open(`https://wa.me/${WHATSAPP.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Olá! Quero saber mais sobre o Forge AI.")}`, "_blank")}
+              onClick={() => window.open(`https://wa.me/${WHATSAPP.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Olá! Quero saber mais sobre o Omni Builder CRM.")}`, "_blank")}
               className="border-border text-foreground hover:bg-secondary text-base px-8 h-12 gap-2"
             >
               <MessageCircle className="h-5 w-5" /> Falar no WhatsApp
