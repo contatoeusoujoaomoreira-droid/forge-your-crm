@@ -366,6 +366,50 @@ const FormsList = () => {
                   <label className="flex items-center gap-2 text-xs"><Switch checked={editing.settings?.showProgressBar ?? true} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, showProgressBar: v } })} /> Barra de progresso</label>
                 </div>
 
+                {/* Welcome Screen */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🏠 Tela Inicial</p>
+                    <Switch checked={editing.settings?.welcomeScreen?.enabled || false} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, welcomeScreen: { ...editing.settings?.welcomeScreen, enabled: v } } })} />
+                  </div>
+                  {editing.settings?.welcomeScreen?.enabled && (
+                    <div className="space-y-2 pl-2">
+                      <div><Label className="text-[10px]">Título</Label><Input value={editing.settings?.welcomeScreen?.title || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, welcomeScreen: { ...editing.settings?.welcomeScreen, title: e.target.value } } })} placeholder={editing.title} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                      <div><Label className="text-[10px]">Subtítulo</Label><Input value={editing.settings?.welcomeScreen?.subtitle || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, welcomeScreen: { ...editing.settings?.welcomeScreen, subtitle: e.target.value } } })} placeholder="Preencha em menos de 2 minutos" className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                      <div><Label className="text-[10px]">Texto do Botão</Label><Input value={editing.settings?.welcomeScreen?.buttonText || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, welcomeScreen: { ...editing.settings?.welcomeScreen, buttonText: e.target.value } } })} placeholder="Começar →" className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                      <div><Label className="text-[10px]">URL da Imagem (opcional)</Label><Input value={editing.settings?.welcomeScreen?.imageUrl || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, welcomeScreen: { ...editing.settings?.welcomeScreen, imageUrl: e.target.value } } })} placeholder="https://..." className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Countdown */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">⏱️ Contador de Urgência</p>
+                    <Switch checked={editing.settings?.countdown?.enabled || false} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, countdown: { ...editing.settings?.countdown, enabled: v } } })} />
+                  </div>
+                  {editing.settings?.countdown?.enabled && (
+                    <div className="grid grid-cols-2 gap-2 pl-2">
+                      <div><Label className="text-[10px]">Texto</Label><Input value={editing.settings?.countdown?.text || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, countdown: { ...editing.settings?.countdown, text: e.target.value } } })} placeholder="Oferta expira em" className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                      <div><Label className="text-[10px]">Minutos</Label><Input type="number" value={editing.settings?.countdown?.minutes || 10} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, countdown: { ...editing.settings?.countdown, minutes: parseInt(e.target.value) || 10 } } })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Social Proof */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">👥 Prova Social</p>
+                    <Switch checked={editing.settings?.socialProof?.enabled || false} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, socialProof: { ...editing.settings?.socialProof, enabled: v } } })} />
+                  </div>
+                  {editing.settings?.socialProof?.enabled && (
+                    <div className="pl-2">
+                      <Label className="text-[10px]">Texto</Label>
+                      <Input value={editing.settings?.socialProof?.text || ""} onChange={e => setEditing({ ...editing, settings: { ...editing.settings, socialProof: { ...editing.settings?.socialProof, text: e.target.value } } })} placeholder="127 pessoas preencheram hoje" className="h-8 text-xs bg-secondary/50 border-border mt-1" />
+                    </div>
+                  )}
+                </div>
+
                 {/* WhatsApp Redirect */}
                 <div className="border-t border-border pt-3 space-y-3">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 text-primary" /> Redirecionamento WhatsApp</p>
@@ -444,7 +488,7 @@ const FormsList = () => {
               </div>
             </div>
 
-            {/* Preview Column */}
+            {/* Preview Column - Interactive */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">Preview ao Vivo</p>
@@ -452,30 +496,7 @@ const FormsList = () => {
                   <Eye className="h-3 w-3 mr-1" /> {showPreview ? "Ocultar" : "Preview"}
                 </Button>
               </div>
-              {showPreview && (
-                <div className="rounded-xl border border-border overflow-hidden" style={{ background: previewBg }}>
-                  <div className="p-6 flex flex-col items-center justify-center min-h-[400px]" style={{ color: previewText, fontFamily: previewStyle.fontFamily || "Inter" }}>
-                    {previewStyle.logoUrl && <img src={previewStyle.logoUrl} alt="Logo" className="h-10 mb-4 object-contain" />}
-                    <h2 className="text-xl font-bold mb-1">{editing.title || "Título"}</h2>
-                    {editing.description && <p className="text-sm opacity-60 mb-6">{editing.description}</p>}
-                    {editing.settings?.showProgressBar && <div className="w-full max-w-sm h-1 rounded-full mb-6" style={{ background: `${previewText}10` }}><div className="h-full rounded-full" style={{ width: "33%", background: previewAccent }} /></div>}
-                    <div className="w-full max-w-sm space-y-4">
-                      {editing.fields.slice(0, 3).map((f, i) => (
-                        <div key={i}>
-                          <p className="text-sm font-medium mb-1.5">{f.label || "Campo"} {f.required && <span style={{ color: previewAccent }}>*</span>}</p>
-                          <div className="rounded-xl px-4 py-3 text-sm" style={{ border: `1px solid ${previewText}15`, background: `${previewText}05` }}>
-                            <span style={{ color: `${previewText}40` }}>{f.placeholder || "Digite aqui..."}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {editing.fields.length > 3 && <p className="text-xs text-center" style={{ color: `${previewText}40` }}>+{editing.fields.length - 3} campos</p>}
-                      <button className="w-full py-3 rounded-xl font-semibold text-sm" style={{ background: previewAccent, color: previewBg }}>
-                        {editing.settings?.submitText || "Enviar"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {showPreview && <FormPreview editing={editing} />}
             </div>
           </div>
         )}
