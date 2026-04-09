@@ -56,6 +56,15 @@ const QuizPublic = () => {
 
     await supabase.from("quiz_responses").insert({ quiz_id: quiz.id, responses: { ...answers, _score: score, _name: leadInfo.name, _email: leadInfo.email } });
 
+    // Notification for quiz owner
+    await supabase.from("notifications").insert({
+      user_id: quiz.user_id,
+      type: "quiz_response",
+      title: `Nova resposta: ${quiz.title}`,
+      message: `${leadInfo.name} completou o quiz (Score: ${score})`,
+      metadata: { quiz_id: quiz.id, score, name: leadInfo.name },
+    } as any);
+
     // Create lead with CRM integration
     const stageId = matched?.stageId || quiz.stage_id || quiz.settings?.stageId;
     const settings = quiz.settings || {};

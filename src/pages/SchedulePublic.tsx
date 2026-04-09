@@ -58,6 +58,15 @@ const SchedulePublic = () => {
       cancellation_token: cancellationToken,
     } as any).select().single();
 
+    // Notification for schedule owner
+    await supabase.from("notifications").insert({
+      user_id: schedule.user_id,
+      type: "appointment",
+      title: `Novo agendamento: ${guestName}`,
+      message: `${guestName} agendou para ${selectedDate} às ${selectedTime}`,
+      metadata: { schedule_id: schedule.id, date: selectedDate, time: selectedTime },
+    } as any);
+
     if (cancellationToken && appointment) {
       setCancellationLink(`${window.location.origin}/agendar/${slug}?cancel=${cancellationToken}`);
     }
