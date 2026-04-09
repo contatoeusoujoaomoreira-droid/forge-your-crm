@@ -517,7 +517,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
                 <div>
                   <p className="text-[10px] text-muted-foreground mb-1">Modelo de IA</p>
                   <select value={selectedKeyId} onChange={(e) => setSelectedKeyId(e.target.value)} className="w-full text-[10px] bg-background border border-border rounded-md px-2 py-1">
-                    <option value="builtin">Forge AI (Nativo)</option>
+                    <option value="builtin">Omni Builder (Nativo)</option>
                     {apiKeys.map(k => <option key={k.id} value={k.id}>{k.name} ({k.provider})</option>)}
                   </select>
                 </div>
