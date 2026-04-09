@@ -126,6 +126,98 @@ const FORM_TEMPLATES = [
   },
 ];
 
+// Interactive Preview Component
+const FormPreview = ({ editing }: { editing: FormData }) => {
+  const [previewStep, setPreviewStep] = useState(0);
+  const previewStyle = editing.style || {};
+  const previewBg = previewStyle.bgColor || "#000";
+  const previewText = previewStyle.textColor || "#fff";
+  const previewAccent = previewStyle.accentColor || "#84CC16";
+  const isMultiStep = editing.settings?.multiStep && editing.fields.length > 1;
+  const ws = editing.settings?.welcomeScreen;
+  const showWelcome = ws?.enabled && previewStep === -1;
+  const fields = editing.fields;
+  const currentField = isMultiStep ? fields[previewStep] : null;
+  const progress = isMultiStep && fields.length > 0 ? ((previewStep + 1) / fields.length) * 100 : 0;
+
+  // Reset to welcome if enabled
+  useEffect(() => {
+    if (ws?.enabled) setPreviewStep(-1);
+    else setPreviewStep(0);
+  }, [ws?.enabled]);
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden" style={{ background: previewBg }}>
+      {editing.settings?.countdown?.enabled && (
+        <div style={{ background: previewAccent, color: previewBg, padding: "6px 12px", textAlign: "center", fontSize: 11, fontWeight: 700 }}>
+          ⏱️ {editing.settings.countdown.text || "Oferta expira em"} 09:59
+        </div>
+      )}
+      {editing.settings?.socialProof?.enabled && (
+        <div style={{ textAlign: "center", padding: "4px", fontSize: 10, color: `${previewText}60` }}>
+          👥 {editing.settings.socialProof.text || "127 pessoas preencheram hoje"}
+        </div>
+      )}
+      <div className="p-6 flex flex-col items-center justify-center min-h-[400px]" style={{ color: previewText, fontFamily: previewStyle.fontFamily || "Inter" }}>
+        {showWelcome ? (
+          <div className="text-center space-y-4 w-full max-w-sm">
+            {ws?.imageUrl && <img src={ws.imageUrl} alt="" className="h-20 mx-auto rounded-lg object-cover" />}
+            <h2 className="text-xl font-bold">{ws?.title || editing.title || "Título"}</h2>
+            {ws?.subtitle && <p className="text-sm opacity-60">{ws.subtitle}</p>}
+            <button onClick={() => setPreviewStep(0)} className="w-full py-3 rounded-xl font-semibold text-sm" style={{ background: previewAccent, color: previewBg }}>
+              {ws?.buttonText || "Começar →"}
+            </button>
+          </div>
+        ) : isMultiStep && currentField ? (
+          <div className="w-full max-w-sm space-y-4">
+            {editing.settings?.showProgressBar && (
+              <div>
+                <div className="h-1 rounded-full" style={{ background: `${previewText}10` }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: previewAccent }} />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span style={{ fontSize: 10, color: `${previewText}50` }}>{editing.title}</span>
+                  <span style={{ fontSize: 10, color: `${previewText}50` }}>{previewStep + 1}/{fields.length}</span>
+                </div>
+              </div>
+            )}
+            <h2 className="text-lg font-bold">{currentField.label || "Campo"} {currentField.required && <span style={{ color: previewAccent }}>*</span>}</h2>
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ border: `1px solid ${previewText}15`, background: `${previewText}05` }}>
+              <span style={{ color: `${previewText}40` }}>{currentField.placeholder || "Digite aqui..."}</span>
+            </div>
+            <div className="flex gap-2">
+              {previewStep > 0 && (
+                <button onClick={() => setPreviewStep(previewStep - 1)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ border: `1px solid ${previewText}12`, color: `${previewText}80` }}>← Voltar</button>
+              )}
+              <button onClick={() => setPreviewStep(Math.min(previewStep + 1, fields.length - 1))} className="flex-[2] py-2.5 rounded-xl text-sm font-semibold" style={{ background: previewAccent, color: previewBg }}>
+                {previewStep < fields.length - 1 ? (editing.settings?.nextText || "Próximo →") : (editing.settings?.submitText || "Enviar")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full max-w-sm space-y-4">
+            {previewStyle.logoUrl && <img src={previewStyle.logoUrl} alt="Logo" className="h-10 mb-4 object-contain mx-auto" />}
+            <h2 className="text-xl font-bold text-center mb-1">{editing.title || "Título"}</h2>
+            {editing.description && <p className="text-sm opacity-60 text-center mb-6">{editing.description}</p>}
+            {fields.slice(0, 3).map((f, i) => (
+              <div key={i}>
+                <p className="text-sm font-medium mb-1.5">{f.label || "Campo"} {f.required && <span style={{ color: previewAccent }}>*</span>}</p>
+                <div className="rounded-xl px-4 py-3 text-sm" style={{ border: `1px solid ${previewText}15`, background: `${previewText}05` }}>
+                  <span style={{ color: `${previewText}40` }}>{f.placeholder || "Digite aqui..."}</span>
+                </div>
+              </div>
+            ))}
+            {fields.length > 3 && <p className="text-xs text-center" style={{ color: `${previewText}40` }}>+{fields.length - 3} campos</p>}
+            <button className="w-full py-3 rounded-xl font-semibold text-sm" style={{ background: previewAccent, color: previewBg }}>
+              {editing.settings?.submitText || "Enviar"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const FormsList = () => {
   const { user } = useAuth();
   const [forms, setForms] = useState<FormData[]>([]);
