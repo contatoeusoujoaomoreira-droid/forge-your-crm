@@ -1,77 +1,126 @@
 
-# Plano de Evolução Completa
 
-## Prioridade 1 — CRM: Automações Visuais + Converter em Cliente
+# Plano: Notificações, Forms Pro, e Rebrand para Omni Builder CRM
 
-### 1.1 Botão "Converter em Cliente" no modal do lead
-- Adicionar botão no LeadViewer/modal de edição do lead
-- Modal de conversão com seleção de tipo de receita (pagamento único / recorrente)
-- Ao converter: status → "won", salvar revenue_type, criar activity log
-- Integrar com motor de eventos (`lead_converted`)
+## Resumo
 
-### 1.2 Automações visuais no CRM
-- Componente `CRMAutomations` já existe — integrar no Dashboard/CRM
-- Ao mudar etapa → criar tarefa automática (já implementado no motor de eventos)
-- Detectar estagnação (7+ dias sem atividade) → badge visual no card do lead
-- Sugerir follow-up com botão de ação rápida
-
-### 1.3 Isolamento de Pipelines
-- Cada pipeline mostra APENAS seus leads e etapas
-- Filtro de pipeline no CRMKanban filtra por `pipeline_id`
-- Leads criados herdam o `pipeline_id` do pipeline selecionado
-- Stages filtrados por `pipeline_id`
-
-## Prioridade 2 — Agenda: Pipeline + Etapa
-
-### 2.1 Seleção de Pipeline e Etapa na Agenda
-- No editor de agenda (SchedulesList), adicionar seletores de pipeline e stage
-- Ao agendar, criar lead no pipeline/etapa configurados
-- Salvar `pipeline_id` e `stage_id` na tabela `schedules`
-
-## Prioridade 3 — Pages: SEO + Pixel + CTA operacionais
-
-### 3.1 Corrigir salvamento de SEO
-- Verificar e corrigir o fluxo de save de: título, slug, meta_title, meta_description, custom_domain
-- Garantir que alterações persistem no banco
-
-### 3.2 Pixel Meta e Google operacionais
-- Verificar injeção de pixel nas páginas públicas (LandingPagePublic)
-- Adicionar eventos PageView, Lead, Purchase nos pixels
-- Garantir compatibilidade com Meta Pixel Helper
-
-### 3.3 CTAs com URL/WhatsApp
-- Nos botões CTA das seções, adicionar opção de: URL externa, WhatsApp (wa.me), âncora
-- Interface no editor para configurar destino do botão
-
-## Prioridade 4 — Checkout Evolução (estilo Hotmart/Kiwify)
-
-### 4.1 Melhorias visuais
-- Timer de urgência (countdown)
-- Selos de segurança
-- Prova social (X pessoas compraram)
-- Depoimentos no checkout
-
-### 4.2 Funcionalidades
-- Order bump melhorado com preview visual
-- Campo de observações do cliente
-- Múltiplos métodos de pagamento (visual)
-- Status de pedido mais granular (pending → confirmed → shipped → delivered)
-
-## Prioridade 5 — Domínios (análise)
-
-O sistema de domínios customizados requer infraestrutura de DNS/proxy que não é possível implementar nativamente no frontend. O Lovable já oferece domínios customizados via Project Settings → Domains. Para domínios por página individual, precisamos avaliar a viabilidade separadamente.
+Implementar sistema de notificações centralizado, evoluir Forms para nível Typeform (tela inicial, validação real, preview por etapa, elementos de conversão), corrigir integração CRM nos forms, e rebrandar todo o projeto de "Forge AI" para "Omni Builder CRM".
 
 ---
 
-## Arquivos principais a editar
+## Fase 1 — Rebrand "Forge AI" → "Omni Builder CRM"
 
-| Arquivo | Mudança |
-|---------|---------|
-| `CRMKanban.tsx` | Isolamento de pipeline, badge estagnação |
-| `LeadViewer.tsx` | Botão converter em cliente |
-| `Dashboard.tsx` | Integrar CRMAutomations |
-| `SchedulesList.tsx` | Pipeline/stage selector |
-| `LandingPagesList.tsx` | Fix SEO save |
-| `LandingPagePublic.tsx` | Pixel events operacionais |
-| `CheckoutPublic.tsx` | Timer, selos, prova social |
-| Seções do page builder | CTA com URL/WhatsApp config |
+Substituição em todos os arquivos que contêm "Forge AI" ou "Forge":
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `index.html` | Title e meta tags |
+| `src/components/landing/Navbar.tsx` | Logo text |
+| `src/components/landing/Footer.tsx` | Brand name |
+| `src/components/landing/HeroSection.tsx` | WhatsApp message |
+| `src/components/landing/CTASection.tsx` | Brand text |
+| `src/components/landing/LogosSection.tsx` | "confiam no..." text |
+| `src/pages/Dashboard.tsx` | Sidebar logo |
+| `src/components/dashboard/AIPageGenerator.tsx` | "Forge AI" references |
+| `src/components/dashboard/LandingPagesList.tsx` | Default template content |
+
+---
+
+## Fase 2 — Sistema de Notificações
+
+**Migration:** Criar tabela `notifications`:
+- `id`, `user_id`, `type` (lead, appointment, form_response, quiz_response, order), `title`, `message`, `is_read`, `metadata` (jsonb), `created_at`
+- RLS: users manage own notifications
+
+**Dashboard:**
+- Adicionar ícone de sino (Bell) no header do Dashboard com badge de contagem de não-lidas
+- Dropdown/panel com lista de notificações recentes
+- Marcar como lida ao clicar
+
+**Geração de notificações** — No `FormPublic.tsx`, `QuizPublic.tsx`, `SchedulePublic.tsx`, `CheckoutPublic.tsx`:
+- Após cada submissão, inserir registro na tabela `notifications` para o `user_id` do owner
+
+---
+
+## Fase 3 — Forms Pro (Estilo Typeform)
+
+### 3.1 Tela Inicial (Welcome Screen)
+
+No `FormsList.tsx` (editor), adicionar na aba Editor:
+- Toggle "Tela Inicial" (on/off) em `settings.welcomeScreen.enabled`
+- Campos: título, subtítulo, texto do botão, URL de imagem/vídeo de fundo
+- Salvo em `settings.welcomeScreen`
+
+No `FormPublic.tsx`:
+- Antes de exibir o primeiro campo, renderizar a welcome screen se configurada
+- Botão "Começar" avança para o step 0
+
+### 3.2 Validação Real de Campos
+
+No `FormPublic.tsx`, adicionar validação antes de avançar:
+- **Email:** regex `^[^\s@]+@[^\s@]+\.[^\s@]+$` — mostrar erro inline se inválido
+- **Telefone:** regex para formato brasileiro `(XX) XXXXX-XXXX` ou `+55...` — verificar mínimo 10 dígitos numéricos
+- **Obrigatório:** bloquear avanço se campo required está vazio
+- Exibir mensagem de erro estilizada abaixo do campo
+
+### 3.3 Preview Real por Etapa
+
+No `FormsList.tsx`, o preview atual mostra apenas 3 campos estáticos. Refatorar para:
+- Exibir preview interativo que simula o modo sequencial (uma pergunta por vez)
+- Navegação de preview com botões "Próximo"/"Voltar"
+- Renderizar cada tipo de campo com o estilo real (cores, fontes, accent)
+- Mostrar contador de etapa e barra de progresso
+
+### 3.4 Elementos de Conversão
+
+Adicionar em `settings`:
+- `countdown` (object): `enabled`, `text`, `minutes` — Contador de urgência no topo
+- `socialProof` (object): `enabled`, `text` — Ex: "127 pessoas preencheram hoje"
+
+No `FormPublic.tsx`:
+- Renderizar contador regressivo animado no topo se ativo
+- Renderizar texto de prova social se ativo
+
+### 3.5 Redirecionamento Pós-Envio
+
+Já existe `settings.redirectUrl` — garantir que funciona corretamente junto com WhatsApp redirect. Prioridade: WhatsApp > redirectUrl > tela de sucesso.
+
+### 3.6 Question Piping
+
+Permitir usar `{campo_anterior}` no texto de perguntas seguintes. No `FormPublic.tsx`, ao renderizar o label de cada campo, substituir `{NomeDoCampo}` pelo valor respondido.
+
+---
+
+## Fase 4 — Fix CRM Integration nos Forms
+
+**Problema atual:** No `FormPublic.tsx`, o lead só é criado se `stageId` existe. Mas o `pipeline_id` e `stage_id` são salvos como strings no form.
+
+**Fix:**
+- Garantir que ao salvar o form com pipeline_id e stage_id selecionados, esses valores são persistidos corretamente
+- No `FormPublic.tsx`, ao submeter: se `form.pipeline_id` OU `form.stage_id` existem, criar o lead com ambos os campos
+- Se apenas `pipeline_id` existe (sem stage), buscar a primeira etapa daquele pipeline
+
+---
+
+## Arquivos a Criar/Editar
+
+| Arquivo | Ação |
+|---------|------|
+| Migration SQL | Criar tabela `notifications` |
+| `src/pages/Dashboard.tsx` | Rebrand + bell icon + notifications panel |
+| `src/components/landing/Navbar.tsx` | Rebrand |
+| `src/components/landing/Footer.tsx` | Rebrand |
+| `src/components/landing/HeroSection.tsx` | Rebrand |
+| `src/components/landing/CTASection.tsx` | Rebrand |
+| `src/components/landing/LogosSection.tsx` | Rebrand |
+| `src/components/dashboard/AIPageGenerator.tsx` | Rebrand |
+| `src/components/dashboard/LandingPagesList.tsx` | Rebrand |
+| `src/components/dashboard/FormsList.tsx` | Welcome screen, preview real, countdown, social proof |
+| `src/pages/FormPublic.tsx` | Welcome screen, validação, countdown, social proof, question piping, fix CRM |
+| `src/pages/QuizPublic.tsx` | Inserir notificação ao submeter |
+| `src/pages/SchedulePublic.tsx` | Inserir notificação ao submeter |
+| `src/pages/CheckoutPublic.tsx` | Inserir notificação ao submeter |
+| `index.html` | Rebrand title/meta |
+
+**Nenhuma funcionalidade existente será removida ou alterada — apenas expandida.**
+
