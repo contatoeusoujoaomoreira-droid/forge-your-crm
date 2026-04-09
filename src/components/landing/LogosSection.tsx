@@ -10,7 +10,7 @@ const LogosSection = () => {
   return (
     <section className="py-12 border-y border-border overflow-hidden">
       <p className="text-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-8 font-semibold">
-        Empresas que confiam no Forge AI
+        Empresas que confiam no Omni Builder CRM
       </p>
       <div className="relative">
         <div className="flex animate-scroll-left-slow" style={{ width: "fit-content" }}>

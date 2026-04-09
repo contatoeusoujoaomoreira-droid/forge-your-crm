@@ -11,8 +11,8 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <a href="/" className="text-lg font-bold tracking-tight">
-              <span className="text-gradient-lime">Forge</span>{" "}
-              <span className="text-foreground">AI</span>
+              <span className="text-gradient-lime">Omni</span>{" "}
+              <span className="text-foreground">Builder</span>
             </a>
             <p className="text-sm text-muted-foreground mt-1">
               Plataforma de aceleração de vendas.
@@ -32,7 +32,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-8 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Forge AI. Todos os direitos reservados.
+          © {new Date().getFullYear()} Omni Builder CRM. Todos os direitos reservados.
         </div>
       </div>
     </footer>

@@ -31,8 +31,8 @@ const Navbar = () => {
     >
       <div className="container flex h-16 items-center justify-between">
         <a href="/" className="text-xl font-bold tracking-tight">
-          <span className="text-gradient-lime">Forge</span>{" "}
-          <span className="text-foreground">AI</span>
+          <span className="text-gradient-lime">Omni</span>{" "}
+          <span className="text-foreground">Builder</span>
         </a>
 
         <div className="hidden md:flex items-center gap-8">

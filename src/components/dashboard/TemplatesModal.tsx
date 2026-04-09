@@ -12,17 +12,17 @@ export interface PageTemplate {
 
 const templates: PageTemplate[] = [
   {
-    name: "FORGE AI — Landing Page",
-    description: "Template oficial do Forge AI. Dark mode com verde-lima, depoimentos, planos e CTA para WhatsApp.",
+    name: "Omni Builder — Landing Page",
+    description: "Template oficial do Omni Builder CRM. Dark mode com verde-lima, depoimentos, planos e CTA para WhatsApp.",
     preview: "⚡",
     category: "SaaS",
     isFullHTML: false,
     sections: [
-      { section_type: "hero", order: 0, config: { headline: "Acelere suas Vendas com IA", subtitle: "A plataforma all-in-one para capturar leads, criar landing pages e gerenciar seu pipeline.", ctaText: "Começar Agora →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20conhecer%20o%20Forge%20AI", badge: "⚡ Forge AI CRM", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "100", headingSize: "56", headingWeight: "900", fontFamily: "Inter", gradientText: true } },
+      { section_type: "hero", order: 0, config: { headline: "Acelere suas Vendas com IA", subtitle: "A plataforma all-in-one para capturar leads, criar landing pages e gerenciar seu pipeline.", ctaText: "Começar Agora →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20conhecer%20o%20Omni%20Builder", badge: "⚡ Omni Builder CRM", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "100", headingSize: "56", headingWeight: "900", fontFamily: "Inter", gradientText: true } },
       { section_type: "features", order: 1, config: { title: "Tudo que você precisa", bgColor: "#0A0A0A", textColor: "#ffffff", accentColor: "#84CC16", animation: "slide-up", paddingY: "60", items: [{ icon: "📊", title: "CRM Inteligente", description: "Pipeline visual com drag-and-drop." }, { icon: "🌐", title: "Landing Pages", description: "Crie páginas de alta conversão." }, { icon: "📝", title: "Quiz Builder", description: "Qualifique leads com quizzes." }, { icon: "📅", title: "Agendamento", description: "Sistema de reservas nativo." }, { icon: "🛒", title: "Checkout", description: "Vendas com PIX e WhatsApp." }, { icon: "📋", title: "Formulários", description: "Captura estilo Typeform." }] } },
       { section_type: "testimonials", order: 2, config: { title: "Quem usa, recomenda", bgColor: "#000000", textColor: "#ffffff", animation: "fade-in", paddingY: "60", items: [{ name: "Camila F.", role: "CEO, Lumiar Digital", text: "Minhas vendas triplicaram em 3 meses." }, { name: "Rafael O.", role: "Founder, Growth Lab", text: "O quiz capturou 4x mais leads qualificados." }, { name: "Juliana C.", role: "CMO, Vetta Marketing", text: "CRM intuitivo, sem precisar de manual." }] } },
       { section_type: "pricing", order: 3, config: { title: "Planos", bgColor: "#0A0A0A", textColor: "#ffffff", accentColor: "#84CC16", animation: "scale-in", paddingY: "60", plans: [{ name: "Básico", price: "67", features: ["CRM", "Landing Pages", "Formulários", "1 Domínio"], ctaText: "Começar →", highlight: false }, { name: "Pro", price: "97", features: ["Tudo do Básico", "Quiz Builder", "Agenda", "Checkout", "IA Nativa"], ctaText: "Assinar Pro →", highlight: true }, { name: "Enterprise", price: "Sob Consulta", features: ["Tudo do Pro", "Multi-usuários", "API Completa", "Suporte Prioritário"], ctaText: "Falar com Consultor →", highlight: false }] } },
-      { section_type: "cta", order: 4, config: { headline: "Pronto para acelerar suas vendas?", description: "Comece agora e veja resultados em dias.", ctaText: "Falar com Especialista →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20o%20Forge%20AI", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "80" } },
+      { section_type: "cta", order: 4, config: { headline: "Pronto para acelerar suas vendas?", description: "Comece agora e veja resultados em dias.", ctaText: "Falar com Especialista →", ctaUrl: "https://wa.me/554999837-2865?text=Quero%20o%20Omni%20Builder", bgColor: "#000000", textColor: "#ffffff", accentColor: "#84CC16", animation: "fade-in", paddingY: "80" } },
     ],
   },
   {

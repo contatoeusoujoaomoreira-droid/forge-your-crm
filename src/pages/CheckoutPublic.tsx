@@ -160,6 +160,15 @@ const CheckoutPublic = () => {
       discount_amount: discountAmount,
     } as any);
 
+    // Notification for checkout owner
+    await supabase.from("notifications").insert({
+      user_id: checkout.user_id,
+      type: "order",
+      title: `Nova venda: R$ ${total.toFixed(2)}`,
+      message: `${customer.name} fez um pedido de R$ ${total.toFixed(2)}`,
+      metadata: { checkout_id: checkout.id, total, customer_name: customer.name },
+    } as any);
+
     if (style.pixEnabled && style.pixKey) { setStep("pix"); return; }
 
     const whatsNumber = checkout.whatsapp_number;
