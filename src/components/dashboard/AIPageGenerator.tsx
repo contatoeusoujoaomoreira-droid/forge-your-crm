@@ -412,7 +412,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
           <div className="flex-1" />
           <div className="flex items-center gap-1.5">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold">Forge AI</span>
+            <span className="text-sm font-bold">Omni Builder</span>
           </div>
           <div className="flex items-center gap-1 ml-2">
             <button onClick={() => setOutputMode("sections")} className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md font-semibold transition-colors ${outputMode === "sections" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
@@ -431,7 +431,7 @@ const AIPageGenerator = ({ onPageCreated, onBack }: Props) => {
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <Wand2 className="h-7 w-7 text-primary" />
                 </div>
-                <h3 className="font-bold text-base mb-1">Forge AI Page Builder</h3>
+                <h3 className="font-bold text-base mb-1">Omni Builder Page Builder</h3>
                 <p className="text-xs text-muted-foreground max-w-xs mx-auto">Descreva sua página e a IA criará uma landing page completa com seções editáveis.</p>
               </div>
               <div className="space-y-2">
