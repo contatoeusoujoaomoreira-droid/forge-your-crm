@@ -80,20 +80,25 @@ interface NormalizedMsg {
   media_url?: string;
   media_type?: string;
   from_me?: boolean;
+  timestamp?: string;
 }
 
 function normalizeZApi(raw: any): NormalizedMsg {
   const phone = raw.phone || raw.from || raw.sender || '';
   const name = raw.senderName || raw.chatName || raw.notifyName;
-  const text = raw.text?.message || raw.message || raw.body || raw.caption || '';
+  const mediaType = raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined;
+  const mediaCaption = raw.image?.caption || raw.video?.caption || raw.document?.caption || '';
+  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || '';
+  const moment = Number(raw.momment || raw.moment || raw.timestamp || 0);
   return {
     phone: normalizePhone(phone),
     name,
-    content: text,
-    external_message_id: raw.messageId || raw.id,
+    content: text || (mediaType ? `[${mediaType}]` : ''),
+    external_message_id: raw.messageId || raw.messageID || raw.id || raw.key?.id,
     media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl,
-    media_type: raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined,
-    from_me: raw.fromMe === true,
+    media_type: mediaType,
+    from_me: raw.fromMe === true || raw.fromMe === 'true',
+    timestamp: moment ? new Date(moment).toISOString() : undefined,
   };
 }
 
@@ -113,7 +118,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  if (raw.event === 'message' || raw.text || raw.messageId) return normalizeZApi(raw);
+  if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
   if (raw.data?.key) return normalizeEvolution(raw);
   if (raw.phone && raw.message) {
     return { phone: normalizePhone(raw.phone), name: raw.name, content: raw.message };
