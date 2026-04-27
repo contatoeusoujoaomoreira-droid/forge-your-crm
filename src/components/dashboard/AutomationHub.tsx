@@ -352,36 +352,39 @@ export default function AutomationHub() {
         </TabsContent>
 
         <TabsContent value="agents" className="space-y-4">
-          <Card className="p-6 space-y-3">
-            <h3 className="font-semibold">Criar agente IA</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="Nome (ex: SDR)" value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} />
-              <select className="h-10 px-3 rounded-md border border-input bg-background" value={agentForm.type} onChange={(e) => setAgentForm({ ...agentForm, type: e.target.value })}>
-                <option value="atendimento">Atendimento</option>
-                <option value="prospeccao">Prospecção</option>
-                <option value="sdr">SDR</option>
-                <option value="closer">Closer</option>
-                <option value="suporte">Suporte</option>
-              </select>
-              <Input placeholder="Personalidade (ex: empático, direto)" value={agentForm.personality} onChange={(e) => setAgentForm({ ...agentForm, personality: e.target.value })} />
-              <Input placeholder="Tom (ex: profissional, descontraído)" value={agentForm.tone} onChange={(e) => setAgentForm({ ...agentForm, tone: e.target.value })} />
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Agentes de IA</h3>
+              <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
-            <Textarea rows={5} placeholder="System Prompt — instrução principal do agente" value={agentForm.system_prompt} onChange={(e) => setAgentForm({ ...agentForm, system_prompt: e.target.value })} />
-            <Button onClick={createAgent}>Criar Agente</Button>
-            <p className="text-xs text-muted-foreground">Por padrão usa Lovable AI (Gemini Flash). Sem custo de setup adicional.</p>
-          </Card>
+            <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" />Novo Agente
+            </Button>
+          </div>
           <Card className="p-4">
-            {agents.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">Nenhum agente criado</p> : (
+            {agents.length === 0 ? (
+              <div className="text-center py-8">
+                <Bot className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Nenhum agente criado ainda</p>
+                <Button className="mt-3" onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-1" />Criar primeiro agente
+                </Button>
+              </div>
+            ) : (
               <ul className="divide-y divide-border">
                 {agents.map(a => (
                   <li key={a.id} className="py-3 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{a.name}</p>
-                      <p className="text-xs text-muted-foreground">{a.type} · tokens: {a.total_tokens_used || 0}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{a.name} {a.display_name && <span className="text-muted-foreground">({a.display_name})</span>}</p>
+                      <p className="text-xs text-muted-foreground">{a.type} · {a.model} · tokens: {a.total_tokens_used || 0}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Ativo" : "Inativo"}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingAgent(a); setAgentBuilderOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={async () => {
+                        if (!confirm("Excluir agente?")) return;
                         await supabase.from("ai_agents").delete().eq("id", a.id);
                         setAgents(agents.filter(x => x.id !== a.id));
                       }}>Excluir</Button>
@@ -398,6 +401,13 @@ export default function AutomationHub() {
         <TabsContent value="campaigns"><CampaignsList /></TabsContent>
         <TabsContent value="chatauto"><ChatAutomationsTab /></TabsContent>
       </Tabs>
+
+      <AgentBuilder
+        open={agentBuilderOpen}
+        onOpenChange={setAgentBuilderOpen}
+        agent={editingAgent}
+        onSaved={() => { reloadAgents(); setAgentBuilderOpen(false); }}
+      />
     </div>
   );
 }
