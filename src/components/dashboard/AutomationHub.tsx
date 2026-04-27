@@ -58,6 +58,12 @@ export default function AutomationHub() {
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [agentForm, setAgentForm] = useState({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
   const [testing, setTesting] = useState(false);
+  const [agentBuilderOpen, setAgentBuilderOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<any>(null);
+  const [testMsgOpen, setTestMsgOpen] = useState(false);
+  const [testMsgPhone, setTestMsgPhone] = useState("");
+  const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
+  const [testMsgSending, setTestMsgSending] = useState(false);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
