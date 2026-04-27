@@ -315,6 +315,25 @@ export default function InboxPage() {
             </div>
           )}
 
+          {/* Activity timeline */}
+          {lead && (
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-[10px] uppercase font-semibold text-muted-foreground">Atividade</p>
+              {activities.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">Sem atividades ainda.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {activities.map(a => (
+                    <div key={a.id} className="text-[11px] border-l-2 border-primary/40 pl-2 py-0.5">
+                      <p className="text-foreground line-clamp-2">{a.description}</p>
+                      <p className="text-muted-foreground/70">{new Date(a.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-[10px] text-muted-foreground border-t border-border pt-3">
             Quando IA está ativa, agentes respondem automaticamente. Desative para assumir manualmente. Use o botão ✨ para sugestões em modo copiloto.
           </p>
