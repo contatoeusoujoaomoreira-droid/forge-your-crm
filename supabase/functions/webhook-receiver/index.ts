@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
 
   // Dedup
   if (msg.external_message_id) {
-    const { data: dup } = await admin.from('messages').select('id').eq('external_message_id', msg.external_message_id).maybeSingle();
+    const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
     sender_phone: msg.phone,
     sender_name: msg.name,
   }).select().single();
+  await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
 
   // Notification
   await admin.from('notifications').insert({
@@ -279,7 +280,7 @@ Deno.serve(async (req) => {
       agentId = defaultAgent?.id;
     }
     if (agentId) {
-      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).maybeSingle();
+      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).eq('is_active', true).maybeSingle();
       if (agent) {
         try {
           const { data: history } = await admin.from('messages').select('direction, content')
@@ -291,14 +292,20 @@ Deno.serve(async (req) => {
           }));
           const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agentId).limit(10);
           const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 4000);
-          const sys = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || 'profissional'}\nTom: ${agent.tone || 'cordial'}\n\nBASE DE CONHECIMENTO:\n${ctx}`;
-          const reply = await callAi(sys, aiHistory, agent.model);
+          let providerCfg: any = null;
+          if (agent.ai_provider_config_id) {
+            const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).eq('user_id', userId).eq('is_active', true).maybeSingle();
+            providerCfg = cfg;
+          }
+          const sys = buildSystemPrompt(agent, ctx);
+          const runtime = resolveAiRuntime(agent, providerCfg);
+          const reply = await callAi(sys, aiHistory, runtime);
           if (reply) {
             // Persist outbound
             await admin.from('messages').insert({
               user_id: userId, client_id: client.id, lead_id: client.lead_id,
               direction: 'outbound', channel: 'whatsapp', content: reply,
-              status: 'pending', agent_id: agentId,
+              status: waCfg?.is_active ? 'sent' : 'pending', agent_id: agentId,
             });
             // Send via WhatsApp directly
             if (waCfg?.is_active) {
