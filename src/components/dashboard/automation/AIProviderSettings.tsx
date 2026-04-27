@@ -10,11 +10,35 @@ import { toast } from "sonner";
 import { Plus, Trash2, KeyRound, CheckCircle2 } from "lucide-react";
 
 const PROVIDERS = [
-  { id: "lovable", label: "Lovable AI (default — sem chave)" },
-  { id: "openai", label: "OpenAI" },
-  { id: "groq", label: "Groq" },
-  { id: "gemini", label: "Google Gemini" },
+  { id: "lovable", label: "Lovable AI (incluso — sem chave)", defaultModel: "google/gemini-3-flash-preview", needsKey: false },
+  { id: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
+  { id: "groq", label: "Groq", defaultModel: "llama-3.3-70b-versatile", needsKey: true },
+  { id: "gemini", label: "Google Gemini (chave própria)", defaultModel: "gemini-2.0-flash-exp", needsKey: true },
 ];
+
+const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
+  lovable: [
+    { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (rápido)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
+    { id: "openai/gpt-5", label: "GPT-5" },
+  ],
+  openai: [
+    { id: "gpt-4o", label: "GPT-4o" },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini" },
+    { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
+  ],
+  groq: [
+    { id: "llama-3.3-70b-versatile", label: "LLaMA 3.3 70B" },
+    { id: "llama-3.1-8b-instant", label: "LLaMA 3.1 8B (rápido)" },
+    { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+  ],
+  gemini: [
+    { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
+    { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+  ],
+};
 
 export default function AIProviderSettings() {
   const { user } = useAuth();
@@ -28,11 +52,23 @@ export default function AIProviderSettings() {
   };
   useEffect(() => { load(); }, [user]);
 
-  const newItem = () => setEditing({ provider: "lovable", label: "", api_key_encrypted: "", default_model: "google/gemini-3-flash-preview", is_active: true, is_default: false });
+  const newItem = () => {
+    const p = PROVIDERS[0];
+    setEditing({ provider: p.id, api_key_encrypted: "", default_model: p.defaultModel, is_active: true, is_default: false });
+  };
+
+  const handleProviderChange = (provId: string) => {
+    const p = PROVIDERS.find(x => x.id === provId);
+    setEditing({ ...editing, provider: provId, default_model: p?.defaultModel || PROVIDER_MODELS[provId]?.[0]?.id || "" });
+  };
 
   const save = async () => {
-    if (!user || !editing.label) { toast.error("Label obrigatório"); return; }
-    const payload: any = { ...editing, user_id: user.id };
+    if (!user) return;
+    const payload: any = {
+      ...editing,
+      user_id: user.id,
+      label: PROVIDERS.find(p => p.id === editing.provider)?.label || editing.provider,
+    };
     delete payload.created_at;
     const { error } = editing.id
       ? await supabase.from("ai_provider_configs").update(payload).eq("id", editing.id)
@@ -43,28 +79,35 @@ export default function AIProviderSettings() {
   };
 
   if (editing) {
+    const provInfo = PROVIDERS.find(p => p.id === editing.provider);
+    const models = PROVIDER_MODELS[editing.provider] || [];
     return (
       <Card className="p-6 space-y-3">
-        <h3 className="font-semibold">{editing.id ? "Editar" : "Nova"} chave de IA</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <h3 className="font-semibold">{editing.id ? "Editar" : "Novo"} provedor</h3>
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <Label>Provedor</Label>
             <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-              value={editing.provider} onChange={(e) => setEditing({ ...editing, provider: e.target.value })}>
+              value={editing.provider} onChange={(e) => handleProviderChange(e.target.value)}>
               {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
           </div>
+
+          {provInfo?.needsKey && (
+            <div>
+              <Label>API Key</Label>
+              <Input type="password" value={editing.api_key_encrypted || ""}
+                onChange={(e) => setEditing({ ...editing, api_key_encrypted: e.target.value })} />
+            </div>
+          )}
+
           <div>
-            <Label>Label</Label>
-            <Input value={editing.label} onChange={(e) => setEditing({ ...editing, label: e.target.value })} placeholder="ex: OpenAI Produção" />
-          </div>
-          <div className="col-span-2">
-            <Label>API Key {editing.provider === "lovable" && "(opcional, já vem incluso)"}</Label>
-            <Input type="password" value={editing.api_key_encrypted || ""} onChange={(e) => setEditing({ ...editing, api_key_encrypted: e.target.value })} />
-          </div>
-          <div className="col-span-2">
             <Label>Modelo padrão</Label>
-            <Input value={editing.default_model || ""} onChange={(e) => setEditing({ ...editing, default_model: e.target.value })} />
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              value={editing.default_model || ""}
+              onChange={(e) => setEditing({ ...editing, default_model: e.target.value })}>
+              {models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
           </div>
         </div>
         <div className="flex gap-2">
@@ -80,21 +123,21 @@ export default function AIProviderSettings() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Cofre de API Keys IA</h3>
+          <h3 className="font-semibold">Provedores de IA</h3>
         </div>
-        <Button size="sm" onClick={newItem}><Plus className="h-4 w-4 mr-1" />Nova chave</Button>
+        <Button size="sm" onClick={newItem}><Plus className="h-4 w-4 mr-1" />Novo provedor</Button>
       </div>
       <Card className="p-3 bg-primary/5 border-primary/30">
         <p className="text-sm flex items-center gap-2 text-foreground">
           <CheckCircle2 className="h-4 w-4 text-primary" />
-          Lovable AI já está incluso e pronto para uso. Adicione chaves próprias só se quiser usar OpenAI/Groq/Gemini diretamente.
+          Lovable AI já está incluso e pronto. Adicione provedores próprios só se quiser usar OpenAI/Groq/Gemini diretamente.
         </p>
       </Card>
       {items.map((it) => (
         <Card key={it.id} className="p-4 flex items-center justify-between">
           <div>
-            <p className="font-medium">{it.label}</p>
-            <p className="text-xs text-muted-foreground">{it.provider} · {it.default_model}</p>
+            <p className="font-medium capitalize">{it.provider}</p>
+            <p className="text-xs text-muted-foreground">{it.default_model}</p>
             {it.is_default && <Badge className="mt-1">Padrão</Badge>}
           </div>
           <div className="flex gap-1">
