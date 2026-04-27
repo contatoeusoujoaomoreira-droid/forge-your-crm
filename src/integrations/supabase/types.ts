@@ -1716,11 +1716,13 @@ export type Database = {
       }
       whatsapp_configs: {
         Row: {
+          ai_auto_reply: boolean
           api_token: string | null
           api_type: string
           auto_create_lead: boolean
           base_url: string | null
           created_at: string
+          default_agent_id: string | null
           default_pipeline_id: string | null
           default_stage_id: string | null
           extra_headers: Json | null
@@ -1731,11 +1733,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_auto_reply?: boolean
           api_token?: string | null
           api_type?: string
           auto_create_lead?: boolean
           base_url?: string | null
           created_at?: string
+          default_agent_id?: string | null
           default_pipeline_id?: string | null
           default_stage_id?: string | null
           extra_headers?: Json | null
@@ -1746,11 +1750,13 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          ai_auto_reply?: boolean
           api_token?: string | null
           api_type?: string
           auto_create_lead?: boolean
           base_url?: string | null
           created_at?: string
+          default_agent_id?: string | null
           default_pipeline_id?: string | null
           default_stage_id?: string | null
           extra_headers?: Json | null

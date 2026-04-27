@@ -26,6 +26,7 @@ export default function InboxPage() {
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [lead, setLead] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [copilotSugs, setCopilotSugs] = useState<string[]>([]);
   const [loadingCopilot, setLoadingCopilot] = useState(false);
@@ -60,7 +61,7 @@ export default function InboxPage() {
 
   // Load when conversation changes
   useEffect(() => {
-    if (!selectedId) { setMessages([]); setConvState(null); setLead(null); return; }
+    if (!selectedId) { setMessages([]); setConvState(null); setLead(null); setActivities([]); return; }
     (async () => {
       const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: true }).limit(200);
       setMessages(msgs || []);
@@ -72,10 +73,15 @@ export default function InboxPage() {
       }
       const cli = clients.find(c => c.id === selectedId);
       if (cli?.lead_id) {
-        const { data: ld } = await supabase.from("leads").select("*").eq("id", cli.lead_id).maybeSingle();
+        const [{ data: ld }, { data: acts }] = await Promise.all([
+          supabase.from("leads").select("*").eq("id", cli.lead_id).maybeSingle(),
+          supabase.from("activities").select("*").eq("lead_id", cli.lead_id).order("created_at", { ascending: false }).limit(20),
+        ]);
         setLead(ld);
+        setActivities(acts || []);
       } else {
         setLead(null);
+        setActivities([]);
       }
     })();
   }, [selectedId, user, clients]);
@@ -306,6 +312,25 @@ export default function InboxPage() {
                   onKeyDown={(e) => e.key === "Enter" && addTag()} />
                 <Button size="sm" variant="outline" onClick={addTag}>+</Button>
               </div>
+            </div>
+          )}
+
+          {/* Activity timeline */}
+          {lead && (
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-[10px] uppercase font-semibold text-muted-foreground">Atividade</p>
+              {activities.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">Sem atividades ainda.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {activities.map(a => (
+                    <div key={a.id} className="text-[11px] border-l-2 border-primary/40 pl-2 py-0.5">
+                      <p className="text-foreground line-clamp-2">{a.description}</p>
+                      <p className="text-muted-foreground/70">{new Date(a.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

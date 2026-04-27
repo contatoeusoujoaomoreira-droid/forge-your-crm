@@ -254,6 +254,39 @@ export default function AutomationHub() {
                 <Label>Criar lead automaticamente ao receber primeira mensagem</Label>
               </div>
 
+              <div className="col-span-2 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex flex-col">
+                    <span className="font-semibold">🤖 Resposta automática por IA</span>
+                    <span className="text-[11px] text-muted-foreground font-normal">
+                      Quando ativo, o agente abaixo responde automaticamente toda mensagem recebida no WhatsApp.
+                    </span>
+                  </Label>
+                  <Switch
+                    checked={waCfg.ai_auto_reply !== false}
+                    onCheckedChange={(v) => setWaCfg({ ...waCfg, ai_auto_reply: v })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Agente IA padrão para responder</Label>
+                  <select
+                    className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                    value={waCfg.default_agent_id || ""}
+                    onChange={(e) => setWaCfg({ ...waCfg, default_agent_id: e.target.value || null })}
+                  >
+                    <option value="">Primeiro agente ativo</option>
+                    {agents.filter(a => a.is_active).map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+                    ))}
+                  </select>
+                  {agents.filter(a => a.is_active).length === 0 && (
+                    <p className="text-[11px] text-amber-600 mt-1">
+                      ⚠ Nenhum agente IA ativo. Crie e ative um agente na aba "Agentes IA".
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="col-span-2">
                 <Label>Headers extras (JSON, opcional)</Label>
                 <Textarea rows={2} value={typeof waCfg.extra_headers === "object" ? JSON.stringify(waCfg.extra_headers) : (waCfg.extra_headers || "")} onChange={(e) => { try { setWaCfg({ ...waCfg, extra_headers: JSON.parse(e.target.value || "{}") }); } catch { setWaCfg({ ...waCfg, extra_headers: e.target.value }); } }} placeholder='{"Client-Token":"..."}' />
