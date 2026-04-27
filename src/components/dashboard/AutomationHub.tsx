@@ -65,6 +65,7 @@ export default function AutomationHub() {
   const [testMsgPhone, setTestMsgPhone] = useState("");
   const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
   const [testMsgSending, setTestMsgSending] = useState(false);
+  const [configuringWebhook, setConfiguringWebhook] = useState(false);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
@@ -97,7 +98,24 @@ export default function AutomationHub() {
       ? await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id)
       : await supabase.from("whatsapp_configs").insert(payload).select().single().then((r) => { if (r.data) setWaCfg(r.data); return r; });
     if (error) toast.error(error.message);
-    else toast.success("Configuração salva!");
+    else {
+      toast.success("Configuração salva!");
+      if (payload.api_type === "z-api" && payload.is_active) configureWebhook(payload, false);
+    }
+  };
+
+  const configureWebhook = async (config = waCfg, showSuccess = true) => {
+    setConfiguringWebhook(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "configure_webhook", config, webhook_url: webhookUrl },
+    });
+    setConfiguringWebhook(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) {
+      if (showSuccess) toast.success("Webhook de recebimento configurado na Z-API!");
+    } else {
+      toast.error(`Webhook não configurado: ${data?.body || data?.error || "erro"}`);
+    }
   };
 
   const testWa = async () => {
