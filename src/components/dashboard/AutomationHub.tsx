@@ -142,15 +142,7 @@ export default function AutomationHub() {
     toast.success("Chave criada! Copie agora — não será exibida novamente.");
   };
 
-  const createAgent = async () => {
-    if (!user || !agentForm.name) return;
-    const { error } = await supabase.from("ai_agents").insert({ ...agentForm, user_id: user.id });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Agente criado!");
-    setAgentForm({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
-    const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-    setAgents(data || []);
-  };
+  // createAgent removed — replaced by AgentBuilder modal
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
