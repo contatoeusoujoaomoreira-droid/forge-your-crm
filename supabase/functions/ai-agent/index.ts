@@ -50,6 +50,13 @@ Deno.serve(async (req) => {
             if (cfg.provider === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
             if (cfg.provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
             if (cfg.default_model) model = cfg.default_model;
+            // Provider-aware fallback: if model doesn't match provider, use a sensible default
+            if (cfg.provider === 'groq' && (model.startsWith('google/') || model.startsWith('openai/'))) {
+              model = 'llama-3.3-70b-versatile';
+            }
+            if (cfg.provider === 'openai' && model.startsWith('google/')) {
+              model = 'gpt-4o-mini';
+            }
           }
         }
         const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
