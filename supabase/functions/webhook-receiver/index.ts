@@ -150,19 +150,20 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
   switch (cfg.api_type) {
     case 'z-api': {
       const url = baseUrl.includes('/instances/') ? `${baseUrl}/send-text` : `${baseUrl}/instances/${instance}/token/${token}/send-text`;
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
-      return;
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'evolution': {
-      await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
-      return;
+      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'ultramsg': {
-      await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
-      return;
+      const resp = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     default: {
-      await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
+      const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
   }
 }
@@ -334,17 +335,19 @@ Deno.serve(async (req) => {
           const runtime = resolveAiRuntime(agent, providerCfg);
           const reply = await callAi(sys, aiHistory, runtime);
           if (reply) {
-            // Persist outbound
+            let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
+            if (waCfg?.is_active) {
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
+              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            }
+            // Persist outbound after attempting external delivery
             await admin.from('messages').insert({
               user_id: userId, client_id: client.id, lead_id: client.lead_id,
               direction: 'outbound', channel: 'whatsapp', content: reply,
-              status: waCfg?.is_active ? 'sent' : 'pending', agent_id: agentId,
+              status: delivery.ok ? 'sent' : 'failed', agent_id: agentId,
+              sender_phone: msg.phone,
+              metadata: { external_status: delivery.status, external_body: delivery.body },
             });
-            // Send via WhatsApp directly
-            if (waCfg?.is_active) {
-              try { await sendWhatsApp(waCfg, msg.phone, reply); }
-              catch (e) { console.error('whatsapp send failed', e); }
-            }
           }
         } catch (e) {
           console.error('AI reply failed', e);
