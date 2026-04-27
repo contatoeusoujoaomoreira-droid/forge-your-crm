@@ -61,7 +61,7 @@ export default function InboxPage() {
 
   // Load when conversation changes
   useEffect(() => {
-    if (!selectedId) { setMessages([]); setConvState(null); setLead(null); return; }
+    if (!selectedId) { setMessages([]); setConvState(null); setLead(null); setActivities([]); return; }
     (async () => {
       const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: true }).limit(200);
       setMessages(msgs || []);
@@ -73,10 +73,15 @@ export default function InboxPage() {
       }
       const cli = clients.find(c => c.id === selectedId);
       if (cli?.lead_id) {
-        const { data: ld } = await supabase.from("leads").select("*").eq("id", cli.lead_id).maybeSingle();
+        const [{ data: ld }, { data: acts }] = await Promise.all([
+          supabase.from("leads").select("*").eq("id", cli.lead_id).maybeSingle(),
+          supabase.from("activities").select("*").eq("lead_id", cli.lead_id).order("created_at", { ascending: false }).limit(20),
+        ]);
         setLead(ld);
+        setActivities(acts || []);
       } else {
         setLead(null);
+        setActivities([]);
       }
     })();
   }, [selectedId, user, clients]);
