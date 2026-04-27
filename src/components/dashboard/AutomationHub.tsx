@@ -10,7 +10,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound } from "lucide-react";
+import LeadImporter from "./automation/LeadImporter";
+import CampaignsList from "./automation/CampaignsList";
+import ChatAutomationsTab from "./automation/ChatAutomationsTab";
+import AIProviderSettings from "./automation/AIProviderSettings";
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API (recomendado)" },
@@ -109,10 +113,14 @@ export default function AutomationHub() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="whatsapp"><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</TabsTrigger>
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
+          <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Chaves IA</TabsTrigger>
+          <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
+          <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
+          <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -248,6 +256,11 @@ export default function AutomationHub() {
             )}
           </Card>
         </TabsContent>
+
+        <TabsContent value="aikeys"><AIProviderSettings /></TabsContent>
+        <TabsContent value="import"><LeadImporter /></TabsContent>
+        <TabsContent value="campaigns"><CampaignsList /></TabsContent>
+        <TabsContent value="chatauto"><ChatAutomationsTab /></TabsContent>
       </Tabs>
     </div>
   );

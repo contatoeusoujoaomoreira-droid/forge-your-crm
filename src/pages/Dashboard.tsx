@@ -9,6 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
+  MessageCircle, Zap,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
@@ -20,16 +21,20 @@ import SchedulesList from "@/components/dashboard/SchedulesList";
 import CheckoutsList from "@/components/dashboard/CheckoutsList";
 import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
+import InboxPage from "@/components/dashboard/InboxPage";
+import AutomationHub from "@/components/dashboard/AutomationHub";
 
 const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
+  { id: "chat", label: "Chat", icon: MessageCircle, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
   { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
   { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
   { id: "checkout", label: "Checkout", icon: ShoppingCart, group: "tools" },
+  { id: "automation", label: "Automação", icon: Zap, group: "tools" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
   { id: "admin", label: "Super Admin", icon: Shield, group: "system" },
 ] as const;
@@ -234,12 +239,14 @@ const Dashboard = () => {
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {activeTab === "crm" && <CRMKanban />}
             {activeTab === "clients" && <CRMClients />}
+            {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
             {activeTab === "pages" && <LandingPagesList />}
             {activeTab === "forms" && <FormsList />}
             {activeTab === "quiz" && <QuizList />}
             {activeTab === "schedules" && <SchedulesList />}
             {activeTab === "checkout" && <CheckoutsList />}
+            {activeTab === "automation" && <AutomationHub />}
             {activeTab === "settings" && <SettingsPage />}
             {activeTab === "admin" && <SuperAdminPanel />}
           </motion.div>
