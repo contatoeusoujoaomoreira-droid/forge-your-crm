@@ -218,10 +218,16 @@ Deno.serve(async (req) => {
   let { data: client } = await admin.from('chat_clients').select('*')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
   if (!client) {
-    const { data: created } = await admin.from('chat_clients').insert({
+    const { data: created, error: createClientErr } = await admin.from('chat_clients').insert({
       user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
     }).select().single();
-    client = created;
+    if (createClientErr) {
+      const { data: existing } = await admin.from('chat_clients').select('*')
+        .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+      client = existing;
+    } else {
+      client = created;
+    }
   } else {
     await admin.from('chat_clients').update({
       name: msg.name || client.name,
@@ -255,7 +261,7 @@ Deno.serve(async (req) => {
   }
 
   // Save inbound message
-  const { data: insertedMsg } = await admin.from('messages').insert({
+  const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
     user_id: userId,
     client_id: client?.id,
     lead_id: client?.lead_id,
@@ -268,7 +274,17 @@ Deno.serve(async (req) => {
     external_message_id: msg.external_message_id,
     sender_phone: msg.phone,
     sender_name: msg.name,
+    created_at: msg.timestamp || new Date().toISOString(),
+    metadata: { provider: 'z-api', raw_type: raw.type || raw.event || null },
   }).select().single();
+  if (insertMsgErr) {
+    if (String(insertMsgErr.code) === '23505') {
+      return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    console.error('message insert failed', insertMsgErr);
+    await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw, error: insertMsgErr.message, status_code: 500 });
+    return new Response(JSON.stringify({ error: 'Could not save inbound message' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
   await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
 
   // Notification
