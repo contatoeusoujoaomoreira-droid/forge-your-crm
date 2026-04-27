@@ -164,6 +164,15 @@ const Dashboard = () => {
             </>
           )}
 
+          {commsTabs.length > 0 && (
+            <>
+              <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+                {sidebarCollapsed ? "—" : "Comunicação"}
+              </p>
+              {renderTabGroup(commsTabs)}
+            </>
+          )}
+
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "Sistema"}
           </p>
