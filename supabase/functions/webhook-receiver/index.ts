@@ -80,20 +80,25 @@ interface NormalizedMsg {
   media_url?: string;
   media_type?: string;
   from_me?: boolean;
+  timestamp?: string;
 }
 
 function normalizeZApi(raw: any): NormalizedMsg {
   const phone = raw.phone || raw.from || raw.sender || '';
   const name = raw.senderName || raw.chatName || raw.notifyName;
-  const text = raw.text?.message || raw.message || raw.body || raw.caption || '';
+  const mediaType = raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined;
+  const mediaCaption = raw.image?.caption || raw.video?.caption || raw.document?.caption || '';
+  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || '';
+  const moment = Number(raw.momment || raw.moment || raw.timestamp || 0);
   return {
     phone: normalizePhone(phone),
     name,
-    content: text,
-    external_message_id: raw.messageId || raw.id,
+    content: text || (mediaType ? `[${mediaType}]` : ''),
+    external_message_id: raw.messageId || raw.messageID || raw.id || raw.key?.id,
     media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl,
-    media_type: raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined,
-    from_me: raw.fromMe === true,
+    media_type: mediaType,
+    from_me: raw.fromMe === true || raw.fromMe === 'true',
+    timestamp: moment ? new Date(moment).toISOString() : undefined,
   };
 }
 
@@ -113,7 +118,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  if (raw.event === 'message' || raw.text || raw.messageId) return normalizeZApi(raw);
+  if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
   if (raw.data?.key) return normalizeEvolution(raw);
   if (raw.phone && raw.message) {
     return { phone: normalizePhone(raw.phone), name: raw.name, content: raw.message };
@@ -145,19 +150,20 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
   switch (cfg.api_type) {
     case 'z-api': {
       const url = baseUrl.includes('/instances/') ? `${baseUrl}/send-text` : `${baseUrl}/instances/${instance}/token/${token}/send-text`;
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
-      return;
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'evolution': {
-      await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
-      return;
+      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'ultramsg': {
-      await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
-      return;
+      const resp = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     default: {
-      await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
+      const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
   }
 }
@@ -213,10 +219,16 @@ Deno.serve(async (req) => {
   let { data: client } = await admin.from('chat_clients').select('*')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
   if (!client) {
-    const { data: created } = await admin.from('chat_clients').insert({
+    const { data: created, error: createClientErr } = await admin.from('chat_clients').insert({
       user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
     }).select().single();
-    client = created;
+    if (createClientErr) {
+      const { data: existing } = await admin.from('chat_clients').select('*')
+        .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+      client = existing;
+    } else {
+      client = created;
+    }
   } else {
     await admin.from('chat_clients').update({
       name: msg.name || client.name,
@@ -250,7 +262,7 @@ Deno.serve(async (req) => {
   }
 
   // Save inbound message
-  const { data: insertedMsg } = await admin.from('messages').insert({
+  const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
     user_id: userId,
     client_id: client?.id,
     lead_id: client?.lead_id,
@@ -263,7 +275,17 @@ Deno.serve(async (req) => {
     external_message_id: msg.external_message_id,
     sender_phone: msg.phone,
     sender_name: msg.name,
+    created_at: msg.timestamp || new Date().toISOString(),
+    metadata: { provider: 'z-api', raw_type: raw.type || raw.event || null },
   }).select().single();
+  if (insertMsgErr) {
+    if (String(insertMsgErr.code) === '23505') {
+      return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    console.error('message insert failed', insertMsgErr);
+    await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw, error: insertMsgErr.message, status_code: 500 });
+    return new Response(JSON.stringify({ error: 'Could not save inbound message' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
   await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
 
   // Notification
@@ -313,17 +335,19 @@ Deno.serve(async (req) => {
           const runtime = resolveAiRuntime(agent, providerCfg);
           const reply = await callAi(sys, aiHistory, runtime);
           if (reply) {
-            // Persist outbound
+            let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
+            if (waCfg?.is_active) {
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
+              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            }
+            // Persist outbound after attempting external delivery
             await admin.from('messages').insert({
               user_id: userId, client_id: client.id, lead_id: client.lead_id,
               direction: 'outbound', channel: 'whatsapp', content: reply,
-              status: waCfg?.is_active ? 'sent' : 'pending', agent_id: agentId,
+              status: delivery.ok ? 'sent' : 'failed', agent_id: agentId,
+              sender_phone: msg.phone,
+              metadata: { external_status: delivery.status, external_body: delivery.body },
             });
-            // Send via WhatsApp directly
-            if (waCfg?.is_active) {
-              try { await sendWhatsApp(waCfg, msg.phone, reply); }
-              catch (e) { console.error('whatsapp send failed', e); }
-            }
           }
         } catch (e) {
           console.error('AI reply failed', e);
