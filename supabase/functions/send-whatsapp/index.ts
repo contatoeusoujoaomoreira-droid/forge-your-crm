@@ -98,11 +98,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, { global: { headers: { Authorization: authHeader } } });
-    const { data: claims, error: authErr } = await userClient.auth.getClaims(authHeader.replace('Bearer ', ''));
-    if (authErr || !claims?.claims?.sub) {
+    const { data: userData, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    const userId = claims.claims.sub;
+    const userId = userData.user.id;
     const body: SendBody = await req.json();
     if (!body.content && !body.media_url) {
       return new Response(JSON.stringify({ error: 'content ou media_url obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
