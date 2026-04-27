@@ -170,19 +170,31 @@ Deno.serve(async (req) => {
   try { raw = await req.json(); } catch { raw = {}; }
 
   const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key') || raw.api_key;
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'Missing API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
-  const keyHash = await sha256(apiKey);
-  const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
-  if (!keyRow) {
-    return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-  await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
+  let userId = '';
 
-  const userId = keyRow.user_id;
+  if (apiKey) {
+    const keyHash = await sha256(apiKey);
+    const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
+    if (!keyRow) {
+      return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
+    userId = keyRow.user_id;
+  } else {
+    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
+    if (instanceFromPayload) {
+      const { data: cfgByInstance } = await admin.from('whatsapp_configs')
+        .select('user_id')
+        .eq('instance_id', instanceFromPayload)
+        .eq('is_active', true)
+        .maybeSingle();
+      userId = cfgByInstance?.user_id || '';
+    }
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Missing API key or known WhatsApp instance' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
 
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
