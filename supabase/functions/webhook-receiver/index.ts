@@ -121,12 +121,12 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], model = 'google/gemini-2.5-flash') {
-  const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
+  const resp = await fetch(runtime.endpoint, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
+      model: runtime.model,
       messages: [{ role: 'system', content: systemPrompt }, ...history],
     }),
   });
