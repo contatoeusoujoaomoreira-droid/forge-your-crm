@@ -50,6 +50,26 @@ async function sendTestMessage(cfg: any, phone: string, content: string) {
   return { ok: false, status: 400, body: `Provider ${cfg.api_type} não suportado` };
 }
 
+async function configureReceivedWebhook(cfg: any, webhookUrl: string) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+
+  if (cfg.api_type !== 'z-api') {
+    return { ok: false, status: 400, body: 'Configuração automática de webhook disponível para Z-API' };
+  }
+
+  const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+  const resp = await fetch(`${root}/update-webhook-received`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ value: webhookUrl }),
+  });
+  return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
@@ -69,6 +89,11 @@ Deno.serve(async (req) => {
     if (body.mode === 'send_test' && body.phone && body.message) {
       const phone = normalizePhone(body.phone);
       const result = await sendTestMessage(cfg, phone, body.message);
+      return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (body.mode === 'configure_webhook' && body.webhook_url) {
+      const result = await configureReceivedWebhook(cfg, body.webhook_url);
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
