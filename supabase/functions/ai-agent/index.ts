@@ -104,26 +104,15 @@ Deno.serve(async (req) => {
     if (body.agent_id) {
       const { data: agent } = await admin.from('ai_agents').select('*').eq('id', body.agent_id).eq('user_id', userId).maybeSingle();
       if (agent) {
-        systemPrompt = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || ''}\nTom: ${agent.tone || 'profissional'}`;
-        model = agent.model || model;
-        // Normalize deprecated/invalid model names
-        if (model === 'google/gemini-3-flash-preview') model = 'google/gemini-2.5-flash';
-        if (model === 'google/gemini-3-pro-preview' || model === 'google/gemini-3.1-pro-preview') model = 'google/gemini-2.5-pro';
+        systemPrompt = buildSystemPrompt(agent);
         if (agent.ai_provider_config_id) {
           const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle();
-          if (cfg && cfg.provider !== 'lovable' && cfg.api_key_encrypted) {
-            apiKey = cfg.api_key_encrypted;
-            if (cfg.provider === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
-            if (cfg.provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-            if (cfg.default_model) model = cfg.default_model;
-            // Provider-aware fallback: if model doesn't match provider, use a sensible default
-            if (cfg.provider === 'groq' && (model.startsWith('google/') || model.startsWith('openai/'))) {
-              model = 'llama-3.3-70b-versatile';
-            }
-            if (cfg.provider === 'openai' && model.startsWith('google/')) {
-              model = 'gpt-4o-mini';
-            }
-          }
+          const runtime = resolveAiRuntime(agent, cfg);
+          endpoint = runtime.endpoint;
+          apiKey = runtime.apiKey;
+          model = runtime.model;
+        } else {
+          model = normalizeLegacyModel(agent.model) || model;
         }
         const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
         if (knowledge?.length) {
