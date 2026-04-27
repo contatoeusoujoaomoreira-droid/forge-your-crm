@@ -270,11 +270,35 @@ export default function AutomationHub() {
                 <Label>Ativo</Label>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button onClick={saveWa}>Salvar</Button>
               <Button variant="outline" onClick={testWa} disabled={testing}>{testing ? "Testando..." : "Testar Conexão"}</Button>
+              <Button variant="outline" onClick={() => setTestMsgOpen(true)}><Send className="h-4 w-4 mr-1" />Enviar mensagem teste</Button>
             </div>
           </Card>
+
+          {testMsgOpen && (
+            <Card className="p-4 space-y-3 border-primary/40">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2"><Send className="h-4 w-4 text-primary" />Disparar mensagem de teste</h3>
+                <Button size="sm" variant="ghost" onClick={() => setTestMsgOpen(false)}>Fechar</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Envia uma mensagem real através do provedor configurado. Use seu próprio número para validar.</p>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <Label>Número (com DDI+DDD, só dígitos)</Label>
+                  <Input value={testMsgPhone} onChange={(e) => setTestMsgPhone(e.target.value)} placeholder="5511999999999" />
+                </div>
+                <div>
+                  <Label>Mensagem</Label>
+                  <Textarea rows={2} value={testMsgContent} onChange={(e) => setTestMsgContent(e.target.value)} />
+                </div>
+                <Button onClick={sendTestMessage} disabled={testMsgSending}>
+                  {testMsgSending ? "Enviando..." : "Disparar agora"}
+                </Button>
+              </div>
+            </Card>
+          )}
 
           <Card className="p-6 space-y-3 border-primary/30">
             <h3 className="font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" />Webhook de Recebimento</h3>
