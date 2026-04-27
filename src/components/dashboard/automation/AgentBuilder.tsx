@@ -30,7 +30,7 @@ const TONES = ["Cordial", "Casual", "Formal", "Entusiasta", "Sério"];
 
 const MODEL_OPTIONS_BY_PROVIDER: Record<string, { id: string; label: string }[]> = {
   lovable: [
-    { id: "google/gemini-2.5-flash", label: "Gemini 3 Flash (rápido — recomendado)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido — recomendado)" },
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (alta qualidade)" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },

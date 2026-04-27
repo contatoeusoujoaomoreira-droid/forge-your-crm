@@ -18,7 +18,7 @@ const PROVIDERS = [
 
 const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
   lovable: [
-    { id: "google/gemini-2.5-flash", label: "Gemini 3 Flash (rápido)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido)" },
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
