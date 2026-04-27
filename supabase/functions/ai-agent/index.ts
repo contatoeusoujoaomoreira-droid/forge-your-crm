@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
     let systemPrompt = 'Você é um assistente útil e profissional.';
-    let model = 'google/gemini-3-flash-preview';
+    let model = 'google/gemini-2.5-flash';
     let apiKey = LOVABLE_API_KEY;
     let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
@@ -40,6 +40,9 @@ Deno.serve(async (req) => {
       if (agent) {
         systemPrompt = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || ''}\nTom: ${agent.tone || 'profissional'}`;
         model = agent.model || model;
+        // Normalize deprecated/invalid model names
+        if (model === 'google/gemini-3-flash-preview') model = 'google/gemini-2.5-flash';
+        if (model === 'google/gemini-3-pro-preview' || model === 'google/gemini-3.1-pro-preview') model = 'google/gemini-2.5-pro';
         if (agent.ai_provider_config_id) {
           const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle();
           if (cfg && cfg.provider !== 'lovable' && cfg.api_key_encrypted) {

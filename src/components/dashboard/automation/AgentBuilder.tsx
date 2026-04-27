@@ -30,7 +30,7 @@ const TONES = ["Cordial", "Casual", "Formal", "Entusiasta", "Sério"];
 
 const MODEL_OPTIONS_BY_PROVIDER: Record<string, { id: string; label: string }[]> = {
   lovable: [
-    { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (rápido — recomendado)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido — recomendado)" },
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (alta qualidade)" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
@@ -84,7 +84,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     tone: "Cordial",
     response_delay_seconds: 15,
     ai_provider_config_id: "",
-    model: "google/gemini-3-flash-preview",
+    model: "google/gemini-2.5-flash",
     system_prompt: "",
     rules: "",
     examples: "",
@@ -129,7 +129,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       setForm({
         type: "atendimento", name: "", display_name: "", personality: "Profissional",
         style: "Consultivo", tone: "Cordial", response_delay_seconds: 15,
-        ai_provider_config_id: "", model: "google/gemini-3-flash-preview",
+        ai_provider_config_id: "", model: "google/gemini-2.5-flash",
         system_prompt: "", rules: "", examples: "", objections: "",
         pipeline_id: "", stage_id: "", routing_rules: [],
         handoff_enabled: false, handoff_keywords: "", stop_words: "",

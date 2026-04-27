@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, KeyRound, CheckCircle2 } from "lucide-react";
 
 const PROVIDERS = [
-  { id: "lovable", label: "Lovable AI (incluso — sem chave)", defaultModel: "google/gemini-3-flash-preview", needsKey: false },
+  { id: "lovable", label: "Lovable AI (incluso — sem chave)", defaultModel: "google/gemini-2.5-flash", needsKey: false },
   { id: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
   { id: "groq", label: "Groq", defaultModel: "llama-3.3-70b-versatile", needsKey: true },
   { id: "gemini", label: "Google Gemini (chave própria)", defaultModel: "gemini-2.0-flash-exp", needsKey: true },
@@ -18,7 +18,7 @@ const PROVIDERS = [
 
 const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
   lovable: [
-    { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (rápido)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido)" },
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
