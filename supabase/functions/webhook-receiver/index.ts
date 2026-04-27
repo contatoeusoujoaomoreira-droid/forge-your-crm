@@ -1,0 +1,228 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
+};
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
+
+async function sha256(str: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const normalizePhone = (raw: string) => (raw || '').replace(/\D/g, '');
+
+interface NormalizedMsg {
+  phone: string;
+  name?: string;
+  content: string;
+  external_message_id?: string;
+  media_url?: string;
+  media_type?: string;
+  from_me?: boolean;
+}
+
+function normalizeZApi(raw: any): NormalizedMsg {
+  const phone = raw.phone || raw.from || raw.sender || '';
+  const name = raw.senderName || raw.chatName || raw.notifyName;
+  const text = raw.text?.message || raw.message || raw.body || raw.caption || '';
+  return {
+    phone: normalizePhone(phone),
+    name,
+    content: text,
+    external_message_id: raw.messageId || raw.id,
+    media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl,
+    media_type: raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined,
+    from_me: raw.fromMe === true,
+  };
+}
+
+function normalizeEvolution(raw: any): NormalizedMsg {
+  const data = raw.data || raw;
+  const key = data.key || {};
+  const msg = data.message || {};
+  const phone = (key.remoteJid || '').split('@')[0];
+  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
+  return {
+    phone: normalizePhone(phone),
+    name: data.pushName,
+    content: text,
+    external_message_id: key.id,
+    from_me: key.fromMe === true,
+  };
+}
+
+function detectAndNormalize(raw: any): NormalizedMsg | null {
+  if (raw.event === 'message' || raw.text || raw.messageId) return normalizeZApi(raw);
+  if (raw.data?.key) return normalizeEvolution(raw);
+  if (raw.phone && raw.message) {
+    return { phone: normalizePhone(raw.phone), name: raw.name, content: raw.message };
+  }
+  return null;
+}
+
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], model = 'google/gemini-3-flash-preview') {
+  const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'system', content: systemPrompt }, ...history],
+    }),
+  });
+  if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
+  const json = await resp.json();
+  return json.choices?.[0]?.message?.content || '';
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+  const url = new URL(req.url);
+  const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key');
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Missing API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
+  const keyHash = await sha256(apiKey);
+  const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
+  if (!keyRow) {
+    return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
+
+  const userId = keyRow.user_id;
+  let raw: any;
+  try { raw = await req.json(); } catch { raw = {}; }
+
+  await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
+
+  const msg = detectAndNormalize(raw);
+  if (!msg || !msg.phone || msg.from_me) {
+    return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // Dedup
+  if (msg.external_message_id) {
+    const { data: dup } = await admin.from('messages').select('id').eq('external_message_id', msg.external_message_id).maybeSingle();
+    if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // Resolve/create client
+  let { data: client } = await admin.from('chat_clients').select('*')
+    .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+  if (!client) {
+    const { data: created } = await admin.from('chat_clients').insert({
+      user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
+    }).select().single();
+    client = created;
+  }
+
+  // Auto-create lead if config says so
+  const { data: waCfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', userId).maybeSingle();
+  if (client && !client.lead_id && waCfg?.auto_create_lead) {
+    let stageId = waCfg.default_stage_id;
+    if (!stageId) {
+      const { data: firstStage } = await admin.from('pipeline_stages').select('id').eq('user_id', userId).order('position').limit(1).maybeSingle();
+      stageId = firstStage?.id;
+    }
+    if (stageId) {
+      const { data: lead } = await admin.from('leads').insert({
+        user_id: userId, name: client.name || msg.phone, phone: msg.phone,
+        stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
+      }).select().single();
+      if (lead) {
+        await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
+        client.lead_id = lead.id;
+      }
+    }
+  }
+
+  // Save inbound message
+  const { data: insertedMsg } = await admin.from('messages').insert({
+    user_id: userId,
+    client_id: client?.id,
+    lead_id: client?.lead_id,
+    direction: 'inbound',
+    channel: 'whatsapp',
+    content: msg.content,
+    media_url: msg.media_url,
+    media_type: msg.media_type,
+    status: 'received',
+    external_message_id: msg.external_message_id,
+    sender_phone: msg.phone,
+    sender_name: msg.name,
+  }).select().single();
+
+  // Notification
+  await admin.from('notifications').insert({
+    user_id: userId,
+    type: 'message',
+    title: `Nova mensagem de ${msg.name || msg.phone}`,
+    message: msg.content?.slice(0, 100),
+    related_id: client?.id,
+  });
+
+  // Get/init conversation_state
+  let { data: convState } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+  if (!convState) {
+    const { data: createdState } = await admin.from('conversation_state').insert({
+      user_id: userId, client_id: client.id, ai_active: true, mode: 'ai',
+    }).select().single();
+    convState = createdState;
+  }
+
+  // AI response if active
+  if (convState?.ai_active && convState?.mode === 'ai') {
+    let agentId = convState.assigned_agent_id;
+    if (!agentId) {
+      const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
+      agentId = defaultAgent?.id;
+    }
+    if (agentId) {
+      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).maybeSingle();
+      if (agent) {
+        try {
+          const { data: history } = await admin.from('messages').select('direction, content')
+            .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);
+          const ordered = (history || []).reverse().filter((m: any) => m.content);
+          const aiHistory = ordered.map((m: any) => ({
+            role: m.direction === 'inbound' ? 'user' : 'assistant',
+            content: m.content,
+          }));
+          const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agentId).limit(10);
+          const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 4000);
+          const sys = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || 'profissional'}\nTom: ${agent.tone || 'cordial'}\n\nBASE DE CONHECIMENTO:\n${ctx}`;
+          const reply = await callAi(sys, aiHistory, agent.model);
+          if (reply) {
+            // Persist outbound
+            await admin.from('messages').insert({
+              user_id: userId, client_id: client.id, lead_id: client.lead_id,
+              direction: 'outbound', channel: 'whatsapp', content: reply,
+              status: 'pending', agent_id: agentId,
+            });
+            // Send via WhatsApp
+            if (waCfg?.is_active) {
+              try {
+                await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp-internal`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'x-internal-key': SUPABASE_SERVICE },
+                  body: JSON.stringify({ user_id: userId, phone: msg.phone, content: reply, client_id: client.id }),
+                });
+              } catch (e) { console.error('internal send failed', e); }
+            }
+          }
+        } catch (e) {
+          console.error('AI reply failed', e);
+        }
+      }
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+});
