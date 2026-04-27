@@ -318,6 +318,9 @@ export default function AutomationHub() {
             <div className="flex gap-2 flex-wrap">
               <Button onClick={saveWa}>Salvar</Button>
               <Button variant="outline" onClick={testWa} disabled={testing}>{testing ? "Testando..." : "Testar Conexão"}</Button>
+              <Button variant="outline" onClick={() => configureWebhook()} disabled={configuringWebhook || waCfg.api_type !== "z-api"}>
+                {configuringWebhook ? "Configurando..." : "Sincronizar recebimento Z-API"}
+              </Button>
               <Button variant="outline" onClick={() => setTestMsgOpen(true)}><Send className="h-4 w-4 mr-1" />Enviar mensagem teste</Button>
             </div>
           </Card>
@@ -347,12 +350,12 @@ export default function AutomationHub() {
 
           <Card className="p-6 space-y-3 border-primary/30">
             <h3 className="font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" />Webhook de Recebimento</h3>
-            <p className="text-sm text-muted-foreground">No painel da Z-API (ou outro provedor), configure o webhook "ao receber" apontando para a URL abaixo. Inclua sua API Key no parâmetro <code className="bg-muted px-1 rounded">?api_key=SUA_KEY</code>.</p>
+            <p className="text-sm text-muted-foreground">No Z-API, o webhook "Ao receber" precisa apontar para a URL abaixo. Use o botão “Sincronizar recebimento Z-API” para configurar automaticamente.</p>
             <div className="flex gap-2">
               <Input readOnly value={webhookUrl} className="font-mono text-xs" />
               <Button size="icon" variant="outline" onClick={() => copyToClipboard(webhookUrl)}><Copy className="h-4 w-4" /></Button>
             </div>
-            <p className="text-xs text-muted-foreground">Crie uma API Key na próxima aba e cole na URL como query param.</p>
+            <p className="text-xs text-muted-foreground">Quando o WhatsApp receber uma mensagem, ela será salva no Chat em tempo real e o agente ativo responderá se a IA estiver ligada.</p>
           </Card>
         </TabsContent>
 
