@@ -54,8 +54,13 @@ export type Database = {
           agent_id: string
           content: string
           created_at: string
+          error: string | null
+          file_path: string | null
+          file_size: number | null
           id: string
+          mime_type: string | null
           source_url: string | null
+          status: string
           title: string | null
           type: string
           user_id: string
@@ -64,8 +69,13 @@ export type Database = {
           agent_id: string
           content: string
           created_at?: string
+          error?: string | null
+          file_path?: string | null
+          file_size?: number | null
           id?: string
+          mime_type?: string | null
           source_url?: string | null
+          status?: string
           title?: string | null
           type?: string
           user_id?: string
@@ -74,8 +84,13 @@ export type Database = {
           agent_id?: string
           content?: string
           created_at?: string
+          error?: string | null
+          file_path?: string | null
+          file_size?: number | null
           id?: string
+          mime_type?: string | null
           source_url?: string | null
+          status?: string
           title?: string | null
           type?: string
           user_id?: string
@@ -593,6 +608,7 @@ export type Database = {
       }
       conversation_flows: {
         Row: {
+          agent_id: string | null
           created_at: string
           description: string | null
           edges: Json
@@ -600,10 +616,12 @@ export type Database = {
           is_active: boolean
           name: string
           nodes: Json
+          trigger_keywords: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          agent_id?: string | null
           created_at?: string
           description?: string | null
           edges?: Json
@@ -611,10 +629,12 @@ export type Database = {
           is_active?: boolean
           name: string
           nodes?: Json
+          trigger_keywords?: string | null
           updated_at?: string
           user_id?: string
         }
         Update: {
+          agent_id?: string | null
           created_at?: string
           description?: string | null
           edges?: Json
@@ -622,6 +642,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           nodes?: Json
+          trigger_keywords?: string | null
           updated_at?: string
           user_id?: string
         }

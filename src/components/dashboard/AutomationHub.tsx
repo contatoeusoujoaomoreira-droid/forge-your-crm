@@ -10,12 +10,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch } from "lucide-react";
 import LeadImporter from "./automation/LeadImporter";
 import CampaignsList from "./automation/CampaignsList";
 import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
+import FlowsBuilder from "./automation/FlowsBuilder";
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
@@ -161,6 +162,7 @@ export default function AutomationHub() {
           <TabsTrigger value="whatsapp"><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</TabsTrigger>
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
+          <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
@@ -388,6 +390,7 @@ export default function AutomationHub() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="flows"><FlowsBuilder /></TabsContent>
         <TabsContent value="aikeys"><AIProviderSettings /></TabsContent>
         <TabsContent value="import"><LeadImporter /></TabsContent>
         <TabsContent value="campaigns"><CampaignsList /></TabsContent>

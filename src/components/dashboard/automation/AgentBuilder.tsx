@@ -190,10 +190,15 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       title: knTitle || (knType === "url" ? knUrl : "Item"),
       content: knType === "url" ? knUrl : knContent,
       source_url: knType === "url" ? knUrl : null,
+      status: knType === "url" ? "processing" : "ready",
     };
-    const { error } = await supabase.from("agent_knowledge").insert(item);
+    const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
     if (error) { toast.error(error.message); return; }
     toast.success("Adicionado à base");
+    if (knType === "url" && row) {
+      supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
+        .then(() => loadKnowledge(agent.id));
+    }
     setKnTitle(""); setKnContent(""); setKnUrl("");
     loadKnowledge(agent.id);
   };
@@ -536,18 +541,34 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   )}
                   {knType === "file" && (
                     <div>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.txt,.docx" className="text-sm"
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.txt,.docx,.md,.csv,.json,.mp4,.mp3,.wav,.webp" className="text-sm"
                         onChange={async (e) => {
-                          const f = e.target.files?.[0]; if (!f) return;
-                          if (f.size > 5 * 1024 * 1024) { toast.error("Máx 5MB"); return; }
-                          const text = await f.text().catch(() => `[Arquivo: ${f.name}]`);
-                          setKnContent(text.slice(0, 20000));
+                          const f = e.target.files?.[0]; if (!f || !user || !agent?.id) return;
                           setKnTitle(f.name);
+                          toast.info(`Enviando ${f.name}...`);
+                          // Upload to storage under user-id folder (any size)
+                          const path = `${user.id}/${agent.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                          const { error: upErr } = await supabase.storage.from("agent-knowledge").upload(path, f, { upsert: false });
+                          if (upErr) { toast.error(upErr.message); return; }
+                          // Insert knowledge row marked as processing, then trigger extraction
+                          const { data: row, error: insErr } = await supabase.from("agent_knowledge").insert({
+                            agent_id: agent.id, user_id: user.id, type: "file",
+                            title: f.name, content: "", file_path: path, file_size: f.size,
+                            mime_type: f.type, status: "processing",
+                          } as any).select().single();
+                          if (insErr) { toast.error(insErr.message); return; }
+                          await supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } });
+                          toast.success("Arquivo processado! Conteúdo extraído.");
+                          setKnTitle("");
+                          loadKnowledge(agent.id);
                         }} />
-                      <p className="text-xs text-muted-foreground mt-1">PDF, imagem, txt — extração simples (até 5MB).</p>
+                      <p className="text-xs text-muted-foreground mt-1">Aceita qualquer tamanho. PDFs e imagens são transcritos por IA. Vídeos/áudios são referenciados.</p>
                     </div>
                   )}
-                  <Button onClick={addKnowledge}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
+                  {knType !== "file" && <Button onClick={addKnowledge}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>}
+                  {knType === "url" && (
+                    <p className="text-xs text-muted-foreground">URLs são baixadas e o conteúdo da página é extraído automaticamente após adicionar.</p>
+                  )}
                 </Card>
 
                 <Card className="p-4">
