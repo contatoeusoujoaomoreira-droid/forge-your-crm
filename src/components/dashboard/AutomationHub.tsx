@@ -51,6 +51,8 @@ export default function AutomationHub() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [providerKeys, setProviderKeys] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [agentForm, setAgentForm] = useState({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
@@ -61,16 +63,20 @@ export default function AutomationHub() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [cfg, keys, ags, providers] = await Promise.all([
+      const [cfg, keys, ags, providers, pls, sts] = await Promise.all([
         supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
+        supabase.from("pipelines").select("*").eq("user_id", user.id),
+        supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       ]);
       if (cfg.data) setWaCfg(cfg.data);
       setApiKeys(keys.data || []);
       setAgents(ags.data || []);
       setProviderKeys(providers.data || []);
+      setPipelines(pls.data || []);
+      setStages(sts.data || []);
     })();
   }, [user]);
 
