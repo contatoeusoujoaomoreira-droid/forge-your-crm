@@ -206,15 +206,10 @@ Deno.serve(async (req) => {
               direction: 'outbound', channel: 'whatsapp', content: reply,
               status: 'pending', agent_id: agentId,
             });
-            // Send via WhatsApp
+            // Send via WhatsApp directly
             if (waCfg?.is_active) {
-              try {
-                await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp-internal`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'x-internal-key': SUPABASE_SERVICE },
-                  body: JSON.stringify({ user_id: userId, phone: msg.phone, content: reply, client_id: client.id }),
-                });
-              } catch (e) { console.error('internal send failed', e); }
+              try { await sendWhatsApp(waCfg, msg.phone, reply); }
+              catch (e) { console.error('whatsapp send failed', e); }
             }
           }
         } catch (e) {
