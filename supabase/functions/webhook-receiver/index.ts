@@ -166,7 +166,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
-  const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key');
+  let raw: any;
+  try { raw = await req.json(); } catch { raw = {}; }
+
+  const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key') || raw.api_key;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'Missing API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
@@ -180,8 +183,6 @@ Deno.serve(async (req) => {
   await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
 
   const userId = keyRow.user_id;
-  let raw: any;
-  try { raw = await req.json(); } catch { raw = {}; }
 
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
@@ -204,6 +205,16 @@ Deno.serve(async (req) => {
       user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
     }).select().single();
     client = created;
+  } else {
+    await admin.from('chat_clients').update({
+      name: msg.name || client.name,
+      updated_at: new Date().toISOString(),
+      source: client.source || 'whatsapp',
+    }).eq('id', client.id);
+  }
+
+  if (!client) {
+    return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Auto-create lead if config says so
