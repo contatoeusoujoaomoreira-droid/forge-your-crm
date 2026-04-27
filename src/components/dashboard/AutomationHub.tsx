@@ -17,11 +17,32 @@ import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 const PROVIDERS = [
-  { id: "z-api", label: "Z-API (recomendado)" },
+  { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
   { id: "ultramsg", label: "UltraMsg" },
   { id: "custom", label: "Custom" },
 ];
+
+const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanceLabel: string; helpUrl?: string; helpText?: string }> = {
+  "z-api": {
+    base: "https://api.z-api.io/instances/SEU_INSTANCE/token/SEU_TOKEN",
+    tokenLabel: "Token (da URL da instância)",
+    instanceLabel: "Instance ID",
+    helpUrl: "https://app.z-api.io",
+    helpText: "Painel Z-API → sua instância → copie a URL completa da API (já contém Instance ID e Token).",
+  },
+  botconversa: {
+    base: "https://backend.botconversa.com.br/api/v1",
+    tokenLabel: "API Key (X-API-Key do BotConversa)",
+    instanceLabel: "Subscriber/Bot ID (opcional)",
+    helpUrl: "https://app.botconversa.com.br",
+    helpText: "Painel BotConversa → Integrações → API → copie a API Key.",
+  },
+  evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
+  ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
+  custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
+};
 
 export default function AutomationHub() {
   const { user } = useAuth();
@@ -30,6 +51,8 @@ export default function AutomationHub() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [providerKeys, setProviderKeys] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [agentForm, setAgentForm] = useState({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
@@ -40,16 +63,20 @@ export default function AutomationHub() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [cfg, keys, ags, providers] = await Promise.all([
+      const [cfg, keys, ags, providers, pls, sts] = await Promise.all([
         supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
+        supabase.from("pipelines").select("*").eq("user_id", user.id),
+        supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       ]);
       if (cfg.data) setWaCfg(cfg.data);
       setApiKeys(keys.data || []);
       setAgents(ags.data || []);
       setProviderKeys(providers.data || []);
+      setPipelines(pls.data || []);
+      setStages(sts.data || []);
     })();
   }, [user]);
 
@@ -125,37 +152,97 @@ export default function AutomationHub() {
 
         <TabsContent value="whatsapp" className="space-y-4">
           <Card className="p-6 space-y-4">
-            <h3 className="font-semibold">Provedor WhatsApp</h3>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-semibold">Provedor WhatsApp</h3>
+                <p className="text-xs text-muted-foreground">Conecte qualquer API de WhatsApp (Z-API, BotConversa, Evolution, UltraMsg ou Custom).</p>
+              </div>
+              {PROVIDER_HINTS[waCfg.api_type]?.helpUrl && (
+                <a href={PROVIDER_HINTS[waCfg.api_type].helpUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline shrink-0">Abrir painel do provedor →</a>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Tipo</Label>
+                <Label>Tipo de API</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={waCfg.api_type} onChange={(e) => setWaCfg({ ...waCfg, api_type: e.target.value })}>
                   {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                 </select>
+                {PROVIDER_HINTS[waCfg.api_type]?.helpText && (
+                  <p className="text-xs text-muted-foreground mt-1">{PROVIDER_HINTS[waCfg.api_type].helpText}</p>
+                )}
               </div>
               <div>
-                <Label>Instance ID</Label>
+                <Label>{PROVIDER_HINTS[waCfg.api_type]?.instanceLabel || "Instance ID"}</Label>
                 <Input value={waCfg.instance_id || ""} onChange={(e) => setWaCfg({ ...waCfg, instance_id: e.target.value })} placeholder="3ABC..." />
               </div>
               <div className="col-span-2">
-                <Label>Base URL</Label>
-                <Input value={waCfg.base_url || ""} onChange={(e) => setWaCfg({ ...waCfg, base_url: e.target.value })} placeholder="https://api.z-api.io" />
+                <Label>URL Base da API</Label>
+                <Input value={waCfg.base_url || ""} onChange={(e) => setWaCfg({ ...waCfg, base_url: e.target.value })} placeholder={PROVIDER_HINTS[waCfg.api_type]?.base} />
+                {waCfg.api_type === "z-api" && (
+                  <p className="text-xs text-muted-foreground mt-1">Cole a URL completa da "API da instância mobile" (já contém Instance ID e Token).</p>
+                )}
               </div>
               <div className="col-span-2">
-                <Label>Token</Label>
+                <Label>{PROVIDER_HINTS[waCfg.api_type]?.tokenLabel || "Token / API Key"}</Label>
                 <Input type="password" value={waCfg.api_token || ""} onChange={(e) => setWaCfg({ ...waCfg, api_token: e.target.value })} />
               </div>
+
+              {waCfg.api_type === "z-api" && (
+                <div className="col-span-2">
+                  <Label>Client-Token (Segurança Z-API — obrigatório)</Label>
+                  <Input
+                    type="password"
+                    value={(typeof waCfg.extra_headers === "object" ? waCfg.extra_headers?.["Client-Token"] : "") || ""}
+                    onChange={(e) => {
+                      const cur = typeof waCfg.extra_headers === "object" ? { ...waCfg.extra_headers } : {};
+                      cur["Client-Token"] = e.target.value;
+                      setWaCfg({ ...waCfg, extra_headers: cur });
+                    }}
+                    placeholder="Fa1234567890abcdef..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Painel Z-API → sua instância → aba "Segurança" → copie o Client-Token.</p>
+                </div>
+              )}
+
+              <div>
+                <Label>Pipeline padrão para novos leads</Label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                  value={waCfg.default_pipeline_id || ""}
+                  onChange={(e) => setWaCfg({ ...waCfg, default_pipeline_id: e.target.value || null, default_stage_id: null })}
+                >
+                  <option value="">Pipeline padrão</option>
+                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Etapa inicial</Label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                  value={waCfg.default_stage_id || ""}
+                  onChange={(e) => setWaCfg({ ...waCfg, default_stage_id: e.target.value || null })}
+                >
+                  <option value="">Primeira etapa</option>
+                  {stages.filter(s => !waCfg.default_pipeline_id || s.pipeline_id === waCfg.default_pipeline_id).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2 flex items-center gap-2">
+                <Switch checked={waCfg.auto_create_lead} onCheckedChange={(v) => setWaCfg({ ...waCfg, auto_create_lead: v })} />
+                <Label>Criar lead automaticamente ao receber primeira mensagem</Label>
+              </div>
+
               <div className="col-span-2">
-                <Label>Headers extras (JSON, ex: Z-API Client-Token)</Label>
+                <Label>Headers extras (JSON, opcional)</Label>
                 <Textarea rows={2} value={typeof waCfg.extra_headers === "object" ? JSON.stringify(waCfg.extra_headers) : (waCfg.extra_headers || "")} onChange={(e) => { try { setWaCfg({ ...waCfg, extra_headers: JSON.parse(e.target.value || "{}") }); } catch { setWaCfg({ ...waCfg, extra_headers: e.target.value }); } }} placeholder='{"Client-Token":"..."}' />
               </div>
+
               <div className="flex items-center gap-2">
                 <Switch checked={waCfg.is_active} onCheckedChange={(v) => setWaCfg({ ...waCfg, is_active: v })} />
                 <Label>Ativo</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={waCfg.auto_create_lead} onCheckedChange={(v) => setWaCfg({ ...waCfg, auto_create_lead: v })} />
-                <Label>Auto-criar lead</Label>
               </div>
             </div>
             <div className="flex gap-2">

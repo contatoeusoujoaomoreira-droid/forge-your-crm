@@ -64,6 +64,17 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text };
     }
+    case 'botconversa': {
+      // BotConversa: POST {base}/webhook/subscriber/{phone}/send_message/  (API Key in header)
+      const url = `${baseUrl}/webhook/subscriber/${phone}/send_message/`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'API-KEY': token, ...extra },
+        body: JSON.stringify({ type: hasMedia ? 'image' : 'text', value: hasMedia ? body.media_url : body.content, caption: body.content }),
+      });
+      const text = await resp.text();
+      return { ok: resp.ok, status: resp.status, body: text };
+    }
     case 'custom': {
       const resp = await fetch(baseUrl, {
         method: 'POST',
