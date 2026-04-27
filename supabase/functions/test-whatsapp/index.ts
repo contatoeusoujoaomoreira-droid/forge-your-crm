@@ -97,6 +97,17 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (body.mode === 'configure_saved_webhook' && body.webhook_url) {
+      const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { data: savedCfg } = await admin.from('whatsapp_configs').select('*')
+        .eq('user_id', userData.user.id).eq('is_active', true).maybeSingle();
+      if (!savedCfg) {
+        return new Response(JSON.stringify({ ok: false, status: 404, body: 'WhatsApp ativo não encontrado' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const result = await configureReceivedWebhook(savedCfg, body.webhook_url);
+      return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // ----- Default: connection check -----
     let testUrl = '';
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
