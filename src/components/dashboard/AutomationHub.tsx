@@ -108,6 +108,24 @@ export default function AutomationHub() {
     else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
   };
 
+  const sendTestMessage = async () => {
+    if (!testMsgPhone || !testMsgContent) { toast.error("Preencha telefone e mensagem"); return; }
+    setTestMsgSending(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "send_test", config: waCfg, phone: testMsgPhone, message: testMsgContent },
+    });
+    setTestMsgSending(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) { toast.success("Mensagem enviada com sucesso! Verifique o WhatsApp."); setTestMsgOpen(false); }
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro desconhecido"}`);
+  };
+
+  const reloadAgents = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    setAgents(data || []);
+  };
+
   const createApiKey = async () => {
     if (!user || !newKeyLabel) return;
     const raw = `obc_${crypto.randomUUID().replace(/-/g, "")}`;
