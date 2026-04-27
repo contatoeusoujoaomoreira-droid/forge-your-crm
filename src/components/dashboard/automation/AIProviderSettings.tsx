@@ -19,7 +19,6 @@ const PROVIDERS = [
 const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
   lovable: [
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido)" },
-    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
     { id: "openai/gpt-5", label: "GPT-5" },
@@ -35,9 +34,17 @@ const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
     { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
   ],
   gemini: [
-    { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
+    { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
   ],
+};
+
+const normalizeModelForProvider = (provider: string, model?: string | null) => {
+  const raw = (model || "").trim();
+  if (raw === "google/gemini-3-flash-preview") return provider === "groq" ? "llama-3.3-70b-versatile" : provider === "openai" ? "gpt-4o-mini" : provider === "gemini" ? "gemini-2.0-flash" : "google/gemini-2.5-flash";
+  if (raw === "gemini-2.0-flash-exp") return "gemini-2.0-flash";
+  const ids = (PROVIDER_MODELS[provider] || []).map((m) => m.id);
+  return ids.includes(raw) ? raw : (ids[0] || "google/gemini-2.5-flash");
 };
 
 export default function AIProviderSettings() {
@@ -64,10 +71,12 @@ export default function AIProviderSettings() {
 
   const save = async () => {
     if (!user) return;
+    const provider = editing.provider || "lovable";
     const payload: any = {
       ...editing,
+      default_model: normalizeModelForProvider(provider, editing.default_model),
       user_id: user.id,
-      label: PROVIDERS.find(p => p.id === editing.provider)?.label || editing.provider,
+      label: PROVIDERS.find(p => p.id === provider)?.label || provider,
     };
     delete payload.created_at;
     const { error } = editing.id
