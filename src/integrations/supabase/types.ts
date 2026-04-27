@@ -85,14 +85,29 @@ export type Database = {
       ai_agents: {
         Row: {
           ai_provider_config_id: string | null
+          auto_close_enabled: boolean
+          auto_close_message: string | null
+          business_hours: Json
           created_at: string
+          display_name: string | null
+          examples: string | null
+          handoff_enabled: boolean
+          handoff_keywords: string | null
           id: string
+          inactivity_timeout_minutes: number | null
           is_active: boolean
           max_tokens: number | null
+          message_limit: number | null
           model: string | null
           name: string
+          objections: string | null
           personality: string | null
+          pipeline_id: string | null
           response_delay_seconds: number | null
+          routing_rules: Json
+          rules: string | null
+          stage_id: string | null
+          stop_words: string | null
           style: string | null
           system_prompt: string
           tone: string | null
@@ -103,14 +118,29 @@ export type Database = {
         }
         Insert: {
           ai_provider_config_id?: string | null
+          auto_close_enabled?: boolean
+          auto_close_message?: string | null
+          business_hours?: Json
           created_at?: string
+          display_name?: string | null
+          examples?: string | null
+          handoff_enabled?: boolean
+          handoff_keywords?: string | null
           id?: string
+          inactivity_timeout_minutes?: number | null
           is_active?: boolean
           max_tokens?: number | null
+          message_limit?: number | null
           model?: string | null
           name: string
+          objections?: string | null
           personality?: string | null
+          pipeline_id?: string | null
           response_delay_seconds?: number | null
+          routing_rules?: Json
+          rules?: string | null
+          stage_id?: string | null
+          stop_words?: string | null
           style?: string | null
           system_prompt?: string
           tone?: string | null
@@ -121,14 +151,29 @@ export type Database = {
         }
         Update: {
           ai_provider_config_id?: string | null
+          auto_close_enabled?: boolean
+          auto_close_message?: string | null
+          business_hours?: Json
           created_at?: string
+          display_name?: string | null
+          examples?: string | null
+          handoff_enabled?: boolean
+          handoff_keywords?: string | null
           id?: string
+          inactivity_timeout_minutes?: number | null
           is_active?: boolean
           max_tokens?: number | null
+          message_limit?: number | null
           model?: string | null
           name?: string
+          objections?: string | null
           personality?: string | null
+          pipeline_id?: string | null
           response_delay_seconds?: number | null
+          routing_rules?: Json
+          rules?: string | null
+          stage_id?: string | null
+          stop_words?: string | null
           style?: string | null
           system_prompt?: string
           tone?: string | null

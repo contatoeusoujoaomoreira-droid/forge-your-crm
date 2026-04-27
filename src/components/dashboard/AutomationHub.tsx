@@ -10,11 +10,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil } from "lucide-react";
 import LeadImporter from "./automation/LeadImporter";
 import CampaignsList from "./automation/CampaignsList";
 import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
+import AgentBuilder from "./automation/AgentBuilder";
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
@@ -55,8 +56,14 @@ export default function AutomationHub() {
   const [stages, setStages] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
-  const [agentForm, setAgentForm] = useState({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
+  // agent form state moved to AgentBuilder modal
   const [testing, setTesting] = useState(false);
+  const [agentBuilderOpen, setAgentBuilderOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<any>(null);
+  const [testMsgOpen, setTestMsgOpen] = useState(false);
+  const [testMsgPhone, setTestMsgPhone] = useState("");
+  const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
+  const [testMsgSending, setTestMsgSending] = useState(false);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
@@ -101,6 +108,24 @@ export default function AutomationHub() {
     else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
   };
 
+  const sendTestMessage = async () => {
+    if (!testMsgPhone || !testMsgContent) { toast.error("Preencha telefone e mensagem"); return; }
+    setTestMsgSending(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "send_test", config: waCfg, phone: testMsgPhone, message: testMsgContent },
+    });
+    setTestMsgSending(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) { toast.success("Mensagem enviada com sucesso! Verifique o WhatsApp."); setTestMsgOpen(false); }
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro desconhecido"}`);
+  };
+
+  const reloadAgents = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    setAgents(data || []);
+  };
+
   const createApiKey = async () => {
     if (!user || !newKeyLabel) return;
     const raw = `obc_${crypto.randomUUID().replace(/-/g, "")}`;
@@ -117,15 +142,7 @@ export default function AutomationHub() {
     toast.success("Chave criada! Copie agora — não será exibida novamente.");
   };
 
-  const createAgent = async () => {
-    if (!user || !agentForm.name) return;
-    const { error } = await supabase.from("ai_agents").insert({ ...agentForm, user_id: user.id });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Agente criado!");
-    setAgentForm({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
-    const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-    setAgents(data || []);
-  };
+  // createAgent removed — replaced by AgentBuilder modal
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -144,7 +161,7 @@ export default function AutomationHub() {
           <TabsTrigger value="whatsapp"><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</TabsTrigger>
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
-          <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Chaves IA</TabsTrigger>
+          <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
@@ -245,11 +262,35 @@ export default function AutomationHub() {
                 <Label>Ativo</Label>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button onClick={saveWa}>Salvar</Button>
               <Button variant="outline" onClick={testWa} disabled={testing}>{testing ? "Testando..." : "Testar Conexão"}</Button>
+              <Button variant="outline" onClick={() => setTestMsgOpen(true)}><Send className="h-4 w-4 mr-1" />Enviar mensagem teste</Button>
             </div>
           </Card>
+
+          {testMsgOpen && (
+            <Card className="p-4 space-y-3 border-primary/40">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2"><Send className="h-4 w-4 text-primary" />Disparar mensagem de teste</h3>
+                <Button size="sm" variant="ghost" onClick={() => setTestMsgOpen(false)}>Fechar</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Envia uma mensagem real através do provedor configurado. Use seu próprio número para validar.</p>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <Label>Número (com DDI+DDD, só dígitos)</Label>
+                  <Input value={testMsgPhone} onChange={(e) => setTestMsgPhone(e.target.value)} placeholder="5511999999999" />
+                </div>
+                <div>
+                  <Label>Mensagem</Label>
+                  <Textarea rows={2} value={testMsgContent} onChange={(e) => setTestMsgContent(e.target.value)} />
+                </div>
+                <Button onClick={sendTestMessage} disabled={testMsgSending}>
+                  {testMsgSending ? "Enviando..." : "Disparar agora"}
+                </Button>
+              </div>
+            </Card>
+          )}
 
           <Card className="p-6 space-y-3 border-primary/30">
             <h3 className="font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" />Webhook de Recebimento</h3>
@@ -303,36 +344,39 @@ export default function AutomationHub() {
         </TabsContent>
 
         <TabsContent value="agents" className="space-y-4">
-          <Card className="p-6 space-y-3">
-            <h3 className="font-semibold">Criar agente IA</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="Nome (ex: SDR)" value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} />
-              <select className="h-10 px-3 rounded-md border border-input bg-background" value={agentForm.type} onChange={(e) => setAgentForm({ ...agentForm, type: e.target.value })}>
-                <option value="atendimento">Atendimento</option>
-                <option value="prospeccao">Prospecção</option>
-                <option value="sdr">SDR</option>
-                <option value="closer">Closer</option>
-                <option value="suporte">Suporte</option>
-              </select>
-              <Input placeholder="Personalidade (ex: empático, direto)" value={agentForm.personality} onChange={(e) => setAgentForm({ ...agentForm, personality: e.target.value })} />
-              <Input placeholder="Tom (ex: profissional, descontraído)" value={agentForm.tone} onChange={(e) => setAgentForm({ ...agentForm, tone: e.target.value })} />
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Agentes de IA</h3>
+              <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
-            <Textarea rows={5} placeholder="System Prompt — instrução principal do agente" value={agentForm.system_prompt} onChange={(e) => setAgentForm({ ...agentForm, system_prompt: e.target.value })} />
-            <Button onClick={createAgent}>Criar Agente</Button>
-            <p className="text-xs text-muted-foreground">Por padrão usa Lovable AI (Gemini Flash). Sem custo de setup adicional.</p>
-          </Card>
+            <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" />Novo Agente
+            </Button>
+          </div>
           <Card className="p-4">
-            {agents.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">Nenhum agente criado</p> : (
+            {agents.length === 0 ? (
+              <div className="text-center py-8">
+                <Bot className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Nenhum agente criado ainda</p>
+                <Button className="mt-3" onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-1" />Criar primeiro agente
+                </Button>
+              </div>
+            ) : (
               <ul className="divide-y divide-border">
                 {agents.map(a => (
                   <li key={a.id} className="py-3 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{a.name}</p>
-                      <p className="text-xs text-muted-foreground">{a.type} · tokens: {a.total_tokens_used || 0}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{a.name} {a.display_name && <span className="text-muted-foreground">({a.display_name})</span>}</p>
+                      <p className="text-xs text-muted-foreground">{a.type} · {a.model} · tokens: {a.total_tokens_used || 0}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Ativo" : "Inativo"}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingAgent(a); setAgentBuilderOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={async () => {
+                        if (!confirm("Excluir agente?")) return;
                         await supabase.from("ai_agents").delete().eq("id", a.id);
                         setAgents(agents.filter(x => x.id !== a.id));
                       }}>Excluir</Button>
@@ -349,6 +393,13 @@ export default function AutomationHub() {
         <TabsContent value="campaigns"><CampaignsList /></TabsContent>
         <TabsContent value="chatauto"><ChatAutomationsTab /></TabsContent>
       </Tabs>
+
+      <AgentBuilder
+        open={agentBuilderOpen}
+        onOpenChange={setAgentBuilderOpen}
+        agent={editingAgent}
+        onSaved={() => { reloadAgents(); setAgentBuilderOpen(false); }}
+      />
     </div>
   );
 }
