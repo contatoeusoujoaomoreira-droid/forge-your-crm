@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.generate-landing-page]
 verify_jwt = false
+
+[functions.webhook-receiver]
+verify_jwt = false
+
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.ai-agent]
+verify_jwt = false
+
+[functions.test-whatsapp]
+verify_jwt = false
