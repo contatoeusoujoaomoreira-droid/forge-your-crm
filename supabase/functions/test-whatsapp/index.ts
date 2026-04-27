@@ -22,8 +22,16 @@ Deno.serve(async (req) => {
     let testUrl = '';
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     switch (cfg.api_type) {
-      case 'z-api':
-        testUrl = `${baseUrl}/instances/${instance}/token/${token}/status`;
+      case 'z-api': {
+        // base_url may already include /instances/X/token/Y or just the host
+        const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+        testUrl = `${root}/status`;
+        if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
+        break;
+      }
+      case 'botconversa':
+        testUrl = `${baseUrl}/webhook/subscriber/`;
+        headers['API-KEY'] = token;
         if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
         break;
       case 'evolution':
