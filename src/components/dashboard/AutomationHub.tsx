@@ -10,11 +10,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil } from "lucide-react";
 import LeadImporter from "./automation/LeadImporter";
 import CampaignsList from "./automation/CampaignsList";
 import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
+import AgentBuilder from "./automation/AgentBuilder";
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
