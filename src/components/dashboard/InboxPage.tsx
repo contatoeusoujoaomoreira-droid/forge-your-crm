@@ -26,6 +26,7 @@ export default function InboxPage() {
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [lead, setLead] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [copilotSugs, setCopilotSugs] = useState<string[]>([]);
   const [loadingCopilot, setLoadingCopilot] = useState(false);
