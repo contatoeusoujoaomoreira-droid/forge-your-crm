@@ -27,7 +27,6 @@ import AutomationHub from "@/components/dashboard/AutomationHub";
 const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
-  { id: "chat", label: "Chat", icon: MessageCircle, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
@@ -35,6 +34,7 @@ const allTabs = [
   { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
   { id: "checkout", label: "Checkout", icon: ShoppingCart, group: "tools" },
   { id: "automation", label: "Automação", icon: Zap, group: "tools" },
+  { id: "chat", label: "Chat", icon: MessageCircle, group: "comms" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
   { id: "admin", label: "Super Admin", icon: Shield, group: "system" },
 ] as const;
