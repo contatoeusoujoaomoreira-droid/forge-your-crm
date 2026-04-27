@@ -21,6 +21,8 @@ import SchedulesList from "@/components/dashboard/SchedulesList";
 import CheckoutsList from "@/components/dashboard/CheckoutsList";
 import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
+import InboxPage from "@/components/dashboard/InboxPage";
+import AutomationHub from "@/components/dashboard/AutomationHub";
 
 const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
