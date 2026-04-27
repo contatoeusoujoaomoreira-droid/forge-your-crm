@@ -11,8 +11,10 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
-interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; }
+interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; }
+
+const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -52,8 +54,20 @@ export default function InboxPage() {
     const ch = supabase.channel("inbox-msgs")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` }, (p) => {
         const m = p.new as Message;
-        if (m.client_id === selectedId) setMessages(prev => [...prev, m]);
+        if (m.client_id === selectedId) {
+          setMessages(prev => prev.some(x => x.id === m.id || (!!m.external_message_id && x.external_message_id === m.external_message_id))
+            ? prev
+            : [...prev, m].sort(byCreatedAt));
+        }
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).then(r => setClients(r.data || []));
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_clients", filter: `user_id=eq.${user.id}` }, (p) => {
+        const c = p.new as Client;
+        setClients(prev => prev.some(x => x.id === c.id) ? prev : [c, ...prev]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_clients", filter: `user_id=eq.${user.id}` }, (p) => {
+        const c = p.new as Client;
+        setClients(prev => [c, ...prev.filter(x => x.id !== c.id)]);
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -63,8 +77,8 @@ export default function InboxPage() {
   useEffect(() => {
     if (!selectedId) { setMessages([]); setConvState(null); setLead(null); setActivities([]); return; }
     (async () => {
-      const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: true }).limit(200);
-      setMessages(msgs || []);
+      const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: false }).limit(300);
+      setMessages(((msgs || []) as Message[]).sort(byCreatedAt));
       const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
       if (st) setConvState(st as any);
       else if (user) {
