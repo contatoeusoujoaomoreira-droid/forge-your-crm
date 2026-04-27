@@ -31,7 +31,6 @@ const TONES = ["Cordial", "Casual", "Formal", "Entusiasta", "Sério"];
 const MODEL_OPTIONS_BY_PROVIDER: Record<string, { id: string; label: string }[]> = {
   lovable: [
     { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido — recomendado)" },
-    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (alta qualidade)" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
     { id: "openai/gpt-5", label: "GPT-5 (premium)" },
@@ -47,9 +46,17 @@ const MODEL_OPTIONS_BY_PROVIDER: Record<string, { id: string; label: string }[]>
     { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
   ],
   gemini: [
-    { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
+    { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
   ],
+};
+
+const normalizeModelForProvider = (provider: string, model?: string | null) => {
+  const raw = (model || "").trim();
+  if (raw === "google/gemini-3-flash-preview") return provider === "groq" ? "llama-3.3-70b-versatile" : provider === "openai" ? "gpt-4o-mini" : provider === "gemini" ? "gemini-2.0-flash" : "google/gemini-2.5-flash";
+  if (raw === "gemini-2.0-flash-exp") return "gemini-2.0-flash";
+  const ids = (MODEL_OPTIONS_BY_PROVIDER[provider] || []).map((m) => m.id);
+  return ids.includes(raw) ? raw : (ids[0] || "google/gemini-2.5-flash");
 };
 
 interface Props {
@@ -158,7 +165,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       return;
     }
     setSaving(true);
-    const payload: any = { ...form, user_id: user.id };
+    const payload: any = { ...form, user_id: user.id, model: normalizeModelForProvider(providerType, form.model) };
     delete payload.created_at;
     delete payload.updated_at;
     delete payload.total_tokens_used;
@@ -340,7 +347,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     const prov = providers.find(p => p.id === id);
                     const ptype = prov?.provider || "lovable";
                     const defaultModel = MODEL_OPTIONS_BY_PROVIDER[ptype]?.[0]?.id || form.model;
-                    setForm({ ...form, ai_provider_config_id: id, model: prov?.default_model || defaultModel });
+                    setForm({ ...form, ai_provider_config_id: id, model: normalizeModelForProvider(ptype, prov?.default_model || defaultModel) });
                   }}>
                   <option value="">Lovable AI (padrão — sem chave)</option>
                   {providers.map(p => <option key={p.id} value={p.id}>{p.provider} {p.is_default && "⭐"}</option>)}
@@ -349,7 +356,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               <div>
                 <Label>Modelo IA</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                  value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}>
+                  value={normalizeModelForProvider(providerType, form.model)} onChange={(e) => setForm({ ...form, model: e.target.value })}>
                   {modelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>

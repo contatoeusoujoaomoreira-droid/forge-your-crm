@@ -16,6 +16,72 @@ interface Body {
   mode?: 'reply' | 'copilot' | 'summary';
 }
 
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  lovable: 'google/gemini-2.5-flash',
+  openai: 'gpt-4o-mini',
+  groq: 'llama-3.3-70b-versatile',
+  gemini: 'gemini-2.0-flash',
+};
+
+const normalizeLegacyModel = (model?: string | null) => {
+  const m = (model || '').trim();
+  if (!m) return '';
+  if (m === 'google/gemini-3-flash-preview') return 'google/gemini-2.5-flash';
+  if (m === 'google/gemini-3-pro-preview' || m === 'google/gemini-3.1-pro-preview') return 'google/gemini-2.5-pro';
+  if (m === 'gemini-2.0-flash-exp') return 'gemini-2.0-flash';
+  return m;
+};
+
+const modelMatchesProvider = (provider: string, model: string) => {
+  if (provider === 'lovable') return model.startsWith('google/') || model.startsWith('openai/');
+  if (provider === 'openai') return model.startsWith('gpt-') || model.startsWith('o');
+  if (provider === 'groq') return model.startsWith('llama-') || model.startsWith('mixtral-');
+  if (provider === 'gemini') return model.startsWith('gemini-');
+  return true;
+};
+
+function resolveAiRuntime(agent: any, cfg?: any) {
+  const provider = cfg?.provider || 'lovable';
+  let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+  let apiKey = LOVABLE_API_KEY;
+
+  if (provider === 'openai' && cfg?.api_key_encrypted) {
+    endpoint = 'https://api.openai.com/v1/chat/completions';
+    apiKey = cfg.api_key_encrypted;
+  } else if (provider === 'groq' && cfg?.api_key_encrypted) {
+    endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+    apiKey = cfg.api_key_encrypted;
+  } else if (provider === 'gemini' && cfg?.api_key_encrypted) {
+    endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+    apiKey = cfg.api_key_encrypted;
+  }
+
+  let agentModel = normalizeLegacyModel(agent?.model);
+  if (provider === 'openai' && agentModel.startsWith('openai/')) agentModel = agentModel.replace('openai/', '');
+  if (provider === 'gemini' && agentModel.startsWith('google/')) agentModel = agentModel.replace('google/', '');
+
+  let cfgModel = normalizeLegacyModel(cfg?.default_model);
+  if (provider === 'openai' && cfgModel.startsWith('openai/')) cfgModel = cfgModel.replace('openai/', '');
+  if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
+
+  const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
+  const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  return { endpoint, apiKey, model };
+}
+
+function buildSystemPrompt(agent: any) {
+  return [
+    agent.system_prompt || 'Você é um assistente útil e profissional.',
+    `Nome de apresentação: ${agent.display_name || agent.name || 'Agente'}`,
+    `Personalidade: ${agent.personality || 'profissional'}`,
+    `Estilo: ${agent.style || 'consultivo'}`,
+    `Tom: ${agent.tone || 'cordial'}`,
+    agent.rules ? `Regras e restrições:\n${agent.rules}` : '',
+    agent.examples ? `Exemplos de conversa:\n${agent.examples}` : '',
+    agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -38,26 +104,15 @@ Deno.serve(async (req) => {
     if (body.agent_id) {
       const { data: agent } = await admin.from('ai_agents').select('*').eq('id', body.agent_id).eq('user_id', userId).maybeSingle();
       if (agent) {
-        systemPrompt = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || ''}\nTom: ${agent.tone || 'profissional'}`;
-        model = agent.model || model;
-        // Normalize deprecated/invalid model names
-        if (model === 'google/gemini-3-flash-preview') model = 'google/gemini-2.5-flash';
-        if (model === 'google/gemini-3-pro-preview' || model === 'google/gemini-3.1-pro-preview') model = 'google/gemini-2.5-pro';
+        systemPrompt = buildSystemPrompt(agent);
         if (agent.ai_provider_config_id) {
           const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle();
-          if (cfg && cfg.provider !== 'lovable' && cfg.api_key_encrypted) {
-            apiKey = cfg.api_key_encrypted;
-            if (cfg.provider === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
-            if (cfg.provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-            if (cfg.default_model) model = cfg.default_model;
-            // Provider-aware fallback: if model doesn't match provider, use a sensible default
-            if (cfg.provider === 'groq' && (model.startsWith('google/') || model.startsWith('openai/'))) {
-              model = 'llama-3.3-70b-versatile';
-            }
-            if (cfg.provider === 'openai' && model.startsWith('google/')) {
-              model = 'gpt-4o-mini';
-            }
-          }
+          const runtime = resolveAiRuntime(agent, cfg);
+          endpoint = runtime.endpoint;
+          apiKey = runtime.apiKey;
+          model = runtime.model;
+        } else {
+          model = normalizeLegacyModel(agent.model) || model;
         }
         const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
         if (knowledge?.length) {

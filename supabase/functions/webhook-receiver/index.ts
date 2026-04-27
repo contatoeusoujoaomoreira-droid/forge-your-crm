@@ -9,12 +9,68 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  lovable: 'google/gemini-2.5-flash',
+  openai: 'gpt-4o-mini',
+  groq: 'llama-3.3-70b-versatile',
+  gemini: 'gemini-2.0-flash',
+};
+
 async function sha256(str: string) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 const normalizePhone = (raw: string) => (raw || '').replace(/\D/g, '');
+
+const normalizeLegacyModel = (model?: string | null) => {
+  const m = (model || '').trim();
+  if (!m) return '';
+  if (m === 'google/gemini-3-flash-preview') return 'google/gemini-2.5-flash';
+  if (m === 'google/gemini-3-pro-preview' || m === 'google/gemini-3.1-pro-preview') return 'google/gemini-2.5-pro';
+  if (m === 'gemini-2.0-flash-exp') return 'gemini-2.0-flash';
+  return m;
+};
+
+const modelMatchesProvider = (provider: string, model: string) => {
+  if (provider === 'lovable') return model.startsWith('google/') || model.startsWith('openai/');
+  if (provider === 'openai') return model.startsWith('gpt-') || model.startsWith('o');
+  if (provider === 'groq') return model.startsWith('llama-') || model.startsWith('mixtral-');
+  if (provider === 'gemini') return model.startsWith('gemini-');
+  return true;
+};
+
+function resolveAiRuntime(agent: any, cfg?: any) {
+  const provider = cfg?.provider || 'lovable';
+  let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+  let apiKey = LOVABLE_API_KEY;
+  if (provider === 'openai' && cfg?.api_key_encrypted) { endpoint = 'https://api.openai.com/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  if (provider === 'groq' && cfg?.api_key_encrypted) { endpoint = 'https://api.groq.com/openai/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  if (provider === 'gemini' && cfg?.api_key_encrypted) { endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  let agentModel = normalizeLegacyModel(agent?.model);
+  if (provider === 'openai' && agentModel.startsWith('openai/')) agentModel = agentModel.replace('openai/', '');
+  if (provider === 'gemini' && agentModel.startsWith('google/')) agentModel = agentModel.replace('google/', '');
+  let cfgModel = normalizeLegacyModel(cfg?.default_model);
+  if (provider === 'openai' && cfgModel.startsWith('openai/')) cfgModel = cfgModel.replace('openai/', '');
+  if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
+  const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
+  const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  return { endpoint, apiKey, model };
+}
+
+function buildSystemPrompt(agent: any, ctx: string) {
+  return [
+    agent.system_prompt || 'Você é um assistente profissional no WhatsApp.',
+    `Nome de apresentação: ${agent.display_name || agent.name || 'Agente'}`,
+    `Personalidade: ${agent.personality || 'profissional'}`,
+    `Estilo: ${agent.style || 'consultivo'}`,
+    `Tom: ${agent.tone || 'cordial'}`,
+    agent.rules ? `Regras e restrições:\n${agent.rules}` : '',
+    agent.examples ? `Exemplos de conversa:\n${agent.examples}` : '',
+    agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
+    ctx ? `BASE DE CONHECIMENTO:\n${ctx}` : '',
+  ].filter(Boolean).join('\n\n');
+}
 
 interface NormalizedMsg {
   phone: string;
@@ -65,12 +121,12 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], model = 'google/gemini-2.5-flash') {
-  const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
+  const resp = await fetch(runtime.endpoint, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
+      model: runtime.model,
       messages: [{ role: 'system', content: systemPrompt }, ...history],
     }),
   });
@@ -110,22 +166,35 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
-  const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key');
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'Missing API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-
-  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
-  const keyHash = await sha256(apiKey);
-  const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
-  if (!keyRow) {
-    return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-  await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
-
-  const userId = keyRow.user_id;
   let raw: any;
   try { raw = await req.json(); } catch { raw = {}; }
+
+  const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key') || raw.api_key;
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
+  let userId = '';
+
+  if (apiKey) {
+    const keyHash = await sha256(apiKey);
+    const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
+    if (!keyRow) {
+      return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
+    userId = keyRow.user_id;
+  } else {
+    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
+    if (instanceFromPayload) {
+      const { data: cfgByInstance } = await admin.from('whatsapp_configs')
+        .select('user_id')
+        .eq('instance_id', instanceFromPayload)
+        .eq('is_active', true)
+        .maybeSingle();
+      userId = cfgByInstance?.user_id || '';
+    }
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Missing API key or known WhatsApp instance' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
 
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
@@ -136,7 +205,7 @@ Deno.serve(async (req) => {
 
   // Dedup
   if (msg.external_message_id) {
-    const { data: dup } = await admin.from('messages').select('id').eq('external_message_id', msg.external_message_id).maybeSingle();
+    const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -148,6 +217,16 @@ Deno.serve(async (req) => {
       user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
     }).select().single();
     client = created;
+  } else {
+    await admin.from('chat_clients').update({
+      name: msg.name || client.name,
+      updated_at: new Date().toISOString(),
+      source: client.source || 'whatsapp',
+    }).eq('id', client.id);
+  }
+
+  if (!client) {
+    return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Auto-create lead if config says so
@@ -185,6 +264,7 @@ Deno.serve(async (req) => {
     sender_phone: msg.phone,
     sender_name: msg.name,
   }).select().single();
+  await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
 
   // Notification
   await admin.from('notifications').insert({
@@ -212,7 +292,7 @@ Deno.serve(async (req) => {
       agentId = defaultAgent?.id;
     }
     if (agentId) {
-      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).maybeSingle();
+      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).eq('is_active', true).maybeSingle();
       if (agent) {
         try {
           const { data: history } = await admin.from('messages').select('direction, content')
@@ -224,14 +304,20 @@ Deno.serve(async (req) => {
           }));
           const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agentId).limit(10);
           const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 4000);
-          const sys = `${agent.system_prompt}\n\nPersonalidade: ${agent.personality || 'profissional'}\nTom: ${agent.tone || 'cordial'}\n\nBASE DE CONHECIMENTO:\n${ctx}`;
-          const reply = await callAi(sys, aiHistory, agent.model);
+          let providerCfg: any = null;
+          if (agent.ai_provider_config_id) {
+            const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).eq('user_id', userId).eq('is_active', true).maybeSingle();
+            providerCfg = cfg;
+          }
+          const sys = buildSystemPrompt(agent, ctx);
+          const runtime = resolveAiRuntime(agent, providerCfg);
+          const reply = await callAi(sys, aiHistory, runtime);
           if (reply) {
             // Persist outbound
             await admin.from('messages').insert({
               user_id: userId, client_id: client.id, lead_id: client.lead_id,
               direction: 'outbound', channel: 'whatsapp', content: reply,
-              status: 'pending', agent_id: agentId,
+              status: waCfg?.is_active ? 'sent' : 'pending', agent_id: agentId,
             });
             // Send via WhatsApp directly
             if (waCfg?.is_active) {
