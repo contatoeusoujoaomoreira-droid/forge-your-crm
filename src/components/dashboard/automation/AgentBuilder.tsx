@@ -347,7 +347,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     const prov = providers.find(p => p.id === id);
                     const ptype = prov?.provider || "lovable";
                     const defaultModel = MODEL_OPTIONS_BY_PROVIDER[ptype]?.[0]?.id || form.model;
-                    setForm({ ...form, ai_provider_config_id: id, model: prov?.default_model || defaultModel });
+                    setForm({ ...form, ai_provider_config_id: id, model: normalizeModelForProvider(ptype, prov?.default_model || defaultModel) });
                   }}>
                   <option value="">Lovable AI (padrão — sem chave)</option>
                   {providers.map(p => <option key={p.id} value={p.id}>{p.provider} {p.is_default && "⭐"}</option>)}
@@ -356,7 +356,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               <div>
                 <Label>Modelo IA</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                  value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}>
+                  value={normalizeModelForProvider(providerType, form.model)} onChange={(e) => setForm({ ...form, model: e.target.value })}>
                   {modelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>
