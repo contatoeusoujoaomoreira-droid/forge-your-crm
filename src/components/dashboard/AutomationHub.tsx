@@ -56,7 +56,7 @@ export default function AutomationHub() {
   const [stages, setStages] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
-  const [agentForm, setAgentForm] = useState({ name: "", type: "atendimento", system_prompt: "", personality: "", tone: "profissional" });
+  // agent form state moved to AgentBuilder modal
   const [testing, setTesting] = useState(false);
   const [agentBuilderOpen, setAgentBuilderOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<any>(null);
