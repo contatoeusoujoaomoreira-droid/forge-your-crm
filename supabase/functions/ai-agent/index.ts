@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
     let systemPrompt = 'Você é um assistente útil e profissional.';
-    let model = 'google/gemini-3-flash-preview';
+    let model = 'google/gemini-2.5-flash';
     let apiKey = LOVABLE_API_KEY;
     let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
