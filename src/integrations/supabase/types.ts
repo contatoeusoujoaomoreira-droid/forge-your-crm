@@ -49,6 +49,165 @@ export type Database = {
           },
         ]
       }
+      agent_knowledge: {
+        Row: {
+          agent_id: string
+          content: string
+          created_at: string
+          id: string
+          source_url: string | null
+          title: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          created_at?: string
+          id?: string
+          source_url?: string | null
+          title?: string | null
+          type?: string
+          user_id?: string
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          source_url?: string | null
+          title?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_agents: {
+        Row: {
+          ai_provider_config_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          max_tokens: number | null
+          model: string | null
+          name: string
+          personality: string | null
+          response_delay_seconds: number | null
+          style: string | null
+          system_prompt: string
+          tone: string | null
+          total_tokens_used: number | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_provider_config_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_tokens?: number | null
+          model?: string | null
+          name: string
+          personality?: string | null
+          response_delay_seconds?: number | null
+          style?: string | null
+          system_prompt?: string
+          tone?: string | null
+          total_tokens_used?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          ai_provider_config_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_tokens?: number | null
+          model?: string | null
+          name?: string
+          personality?: string | null
+          response_delay_seconds?: number | null
+          style?: string | null
+          system_prompt?: string
+          tone?: string | null
+          total_tokens_used?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_provider_configs: {
+        Row: {
+          api_key_encrypted: string | null
+          created_at: string
+          default_model: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          label: string
+          provider: string
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          default_model?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label: string
+          provider?: string
+          user_id?: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          default_model?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label?: string
+          provider?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      api_keys: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          key_hash: string
+          key_preview: string | null
+          label: string
+          last_used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_hash: string
+          key_preview?: string | null
+          label: string
+          last_used_at?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key_hash?: string
+          key_preview?: string | null
+          label?: string
+          last_used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           cancellation_token: string | null
@@ -162,6 +321,153 @@ export type Database = {
           },
         ]
       }
+      campaign_contacts: {
+        Row: {
+          campaign_id: string
+          client_id: string | null
+          converted_at: string | null
+          created_at: string
+          email: string | null
+          failure_reason: string | null
+          follow_ups_sent: number | null
+          id: string
+          last_message_at: string | null
+          lead_id: string | null
+          metadata: Json | null
+          name: string | null
+          phone: string
+          replied_at: string | null
+          sent_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          client_id?: string | null
+          converted_at?: string | null
+          created_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          follow_ups_sent?: number | null
+          id?: string
+          last_message_at?: string | null
+          lead_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone: string
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          client_id?: string | null
+          converted_at?: string | null
+          created_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          follow_ups_sent?: number | null
+          id?: string
+          last_message_at?: string | null
+          lead_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone?: string
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_automations: {
+        Row: {
+          actions: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          priority: number | null
+          total_triggered: number | null
+          trigger_type: string
+          trigger_value: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number | null
+          total_triggered?: number | null
+          trigger_type: string
+          trigger_value?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          actions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number | null
+          total_triggered?: number | null
+          trigger_type?: string
+          trigger_value?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_clients: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          id: string
+          lead_id: string | null
+          metadata: Json | null
+          name: string | null
+          phone: string | null
+          source: string | null
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       checkouts: {
         Row: {
           created_at: string
@@ -201,6 +507,120 @@ export type Database = {
           title?: string
           user_id?: string
           whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      conversation_flow_sessions: {
+        Row: {
+          client_id: string
+          current_node_id: string | null
+          flow_id: string
+          id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+          variables: Json
+        }
+        Insert: {
+          client_id: string
+          current_node_id?: string | null
+          flow_id: string
+          id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          variables?: Json
+        }
+        Update: {
+          client_id?: string
+          current_node_id?: string | null
+          flow_id?: string
+          id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          variables?: Json
+        }
+        Relationships: []
+      }
+      conversation_flows: {
+        Row: {
+          created_at: string
+          description: string | null
+          edges: Json
+          id: string
+          is_active: boolean
+          name: string
+          nodes: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          nodes?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          nodes?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversation_state: {
+        Row: {
+          ai_active: boolean
+          assigned_agent_id: string | null
+          assigned_user_id: string | null
+          client_id: string
+          id: string
+          last_human_reply_at: string | null
+          marked_unread: boolean
+          mode: string
+          pinned: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_active?: boolean
+          assigned_agent_id?: string | null
+          assigned_user_id?: string | null
+          client_id: string
+          id?: string
+          last_human_reply_at?: string | null
+          marked_unread?: boolean
+          mode?: string
+          pinned?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_active?: boolean
+          assigned_agent_id?: string | null
+          assigned_user_id?: string | null
+          client_id?: string
+          id?: string
+          last_human_reply_at?: string | null
+          marked_unread?: boolean
+          mode?: string
+          pinned?: boolean
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -624,6 +1044,72 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string | null
+          channel: string
+          client_id: string | null
+          content: string | null
+          created_at: string
+          direction: string
+          external_message_id: string | null
+          id: string
+          is_internal_note: boolean
+          is_read: boolean
+          lead_id: string | null
+          media_type: string | null
+          media_url: string | null
+          metadata: Json | null
+          sender_name: string | null
+          sender_phone: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          channel?: string
+          client_id?: string | null
+          content?: string | null
+          created_at?: string
+          direction?: string
+          external_message_id?: string | null
+          id?: string
+          is_internal_note?: boolean
+          is_read?: boolean
+          lead_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          metadata?: Json | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          channel?: string
+          client_id?: string | null
+          content?: string | null
+          created_at?: string
+          direction?: string
+          external_message_id?: string | null
+          id?: string
+          is_internal_note?: boolean
+          is_read?: boolean
+          lead_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          metadata?: Json | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -847,6 +1333,111 @@ export type Database = {
         }
         Relationships: []
       }
+      prospecting_campaigns: {
+        Row: {
+          agent_id: string | null
+          business_hours: Json | null
+          channel: string
+          created_at: string
+          daily_limit: number | null
+          delay_max_seconds: number | null
+          delay_min_seconds: number | null
+          description: string | null
+          flow_id: string | null
+          follow_up_delay_hours: number | null
+          follow_up_enabled: boolean | null
+          id: string
+          max_follow_ups: number | null
+          message_template: string | null
+          name: string
+          pipeline_id: string | null
+          stage_id: string | null
+          status: string
+          total_converted: number | null
+          total_replied: number | null
+          total_sent: number | null
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          business_hours?: Json | null
+          channel?: string
+          created_at?: string
+          daily_limit?: number | null
+          delay_max_seconds?: number | null
+          delay_min_seconds?: number | null
+          description?: string | null
+          flow_id?: string | null
+          follow_up_delay_hours?: number | null
+          follow_up_enabled?: boolean | null
+          id?: string
+          max_follow_ups?: number | null
+          message_template?: string | null
+          name: string
+          pipeline_id?: string | null
+          stage_id?: string | null
+          status?: string
+          total_converted?: number | null
+          total_replied?: number | null
+          total_sent?: number | null
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          agent_id?: string | null
+          business_hours?: Json | null
+          channel?: string
+          created_at?: string
+          daily_limit?: number | null
+          delay_max_seconds?: number | null
+          delay_min_seconds?: number | null
+          description?: string | null
+          flow_id?: string | null
+          follow_up_delay_hours?: number | null
+          follow_up_enabled?: boolean | null
+          id?: string
+          max_follow_ups?: number | null
+          message_template?: string | null
+          name?: string
+          pipeline_id?: string | null
+          stage_id?: string | null
+          status?: string
+          total_converted?: number | null
+          total_replied?: number | null
+          total_sent?: number | null
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quick_replies: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          shortcut: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          shortcut: string
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          shortcut?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       quiz_responses: {
         Row: {
           completed_at: string
@@ -1017,6 +1608,90 @@ export type Database = {
         Update: {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          created_at: string
+          direction: string
+          error: string | null
+          event: string | null
+          id: string
+          payload: Json | null
+          source: string | null
+          status_code: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          error?: string | null
+          event?: string | null
+          id?: string
+          payload?: Json | null
+          source?: string | null
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          error?: string | null
+          event?: string | null
+          id?: string
+          payload?: Json | null
+          source?: string | null
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_configs: {
+        Row: {
+          api_token: string | null
+          api_type: string
+          auto_create_lead: boolean
+          base_url: string | null
+          created_at: string
+          default_pipeline_id: string | null
+          default_stage_id: string | null
+          extra_headers: Json | null
+          id: string
+          instance_id: string | null
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_token?: string | null
+          api_type?: string
+          auto_create_lead?: boolean
+          base_url?: string | null
+          created_at?: string
+          default_pipeline_id?: string | null
+          default_stage_id?: string | null
+          extra_headers?: Json | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          api_token?: string | null
+          api_type?: string
+          auto_create_lead?: boolean
+          base_url?: string | null
+          created_at?: string
+          default_pipeline_id?: string | null
+          default_stage_id?: string | null
+          extra_headers?: Json | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
