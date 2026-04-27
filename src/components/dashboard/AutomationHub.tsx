@@ -17,11 +17,32 @@ import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 const PROVIDERS = [
-  { id: "z-api", label: "Z-API (recomendado)" },
+  { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
   { id: "ultramsg", label: "UltraMsg" },
   { id: "custom", label: "Custom" },
 ];
+
+const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanceLabel: string; helpUrl?: string; helpText?: string }> = {
+  "z-api": {
+    base: "https://api.z-api.io/instances/SEU_INSTANCE/token/SEU_TOKEN",
+    tokenLabel: "Token (da URL da instância)",
+    instanceLabel: "Instance ID",
+    helpUrl: "https://app.z-api.io",
+    helpText: "Painel Z-API → sua instância → copie a URL completa da API (já contém Instance ID e Token).",
+  },
+  botconversa: {
+    base: "https://backend.botconversa.com.br/api/v1",
+    tokenLabel: "API Key (X-API-Key do BotConversa)",
+    instanceLabel: "Subscriber/Bot ID (opcional)",
+    helpUrl: "https://app.botconversa.com.br",
+    helpText: "Painel BotConversa → Integrações → API → copie a API Key.",
+  },
+  evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
+  ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
+  custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
+};
 
 export default function AutomationHub() {
   const { user } = useAuth();
