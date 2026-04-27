@@ -204,9 +204,9 @@ Deno.serve(async (req) => {
     convState = createdState;
   }
 
-  // AI response if active
-  if (convState?.ai_active && convState?.mode === 'ai') {
-    let agentId = convState.assigned_agent_id;
+  // AI response if active globally AND for this conversation
+  if (waCfg?.ai_auto_reply !== false && convState?.ai_active && convState?.mode === 'ai') {
+    let agentId = convState.assigned_agent_id || waCfg?.default_agent_id;
     if (!agentId) {
       const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
       agentId = defaultAgent?.id;
