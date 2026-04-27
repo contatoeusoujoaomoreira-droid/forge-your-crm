@@ -106,6 +106,7 @@ const Dashboard = () => {
 
   const crmTabs = tabs.filter((t) => t.group === "crm");
   const toolsTabs = tabs.filter((t) => t.group === "tools");
+  const commsTabs = tabs.filter((t) => t.group === "comms");
   const systemTabs = tabs.filter((t) => t.group === "system");
 
   const notifIcon = (type: string) => {
