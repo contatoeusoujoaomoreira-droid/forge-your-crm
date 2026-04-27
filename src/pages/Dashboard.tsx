@@ -9,6 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
+  MessageCircle, Zap,
 } from "lucide-react";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
