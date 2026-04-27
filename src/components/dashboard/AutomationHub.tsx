@@ -113,10 +113,14 @@ export default function AutomationHub() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="whatsapp"><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</TabsTrigger>
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
+          <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Chaves IA</TabsTrigger>
+          <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
+          <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
+          <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
