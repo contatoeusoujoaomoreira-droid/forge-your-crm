@@ -134,6 +134,22 @@ export default function LeadImporter() {
     toast.success(`${ok} importados • ${skip} ignorados`);
   };
 
+  const loadManualNumbers = () => {
+    const lines = manualText.split(/[\n,;]/).map(s => s.trim()).filter(Boolean);
+    if (lines.length === 0) { toast.error("Cole ao menos um número"); return; }
+    const data = lines.map(line => {
+      // Allow "Nome - 5511999999999" or just number
+      const m = line.match(/^(.+?)\s*[-–|]\s*(.+)$/);
+      const name = m ? m[1].trim() : "";
+      const phone = m ? m[2].trim() : line;
+      return { Nome: name, Telefone: phone };
+    });
+    setRows(data);
+    setHeaders(["Nome", "Telefone"]);
+    setMapping({ name: "Nome", phone: "Telefone" });
+    toast.success(`${data.length} números carregados — confira o destino e clique Importar`);
+  };
+
   return (
     <div className="space-y-4">
       <Card className="p-6">
