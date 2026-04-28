@@ -184,6 +184,10 @@ const SuperAdminPanel = () => {
   };
 
   const handleUpdateBalance = async (u: ManagedUser, credits_balance: number) => {
+    if (u.tier === "super_admin") {
+      toast({ title: "Créditos ilimitados", description: "Super Admin não tem limite de saldo." });
+      return;
+    }
     try {
       await callEdge({ action: "update_user", managed_user_id: u.id, credits_balance });
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, credits_balance } : x));
