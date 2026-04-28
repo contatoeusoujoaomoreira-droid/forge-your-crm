@@ -215,15 +215,24 @@ const Dashboard = () => {
           <h1 className="text-lg font-semibold text-foreground">
             {tabs.find((t) => t.id === activeTab)?.label}
           </h1>
-          <div className="relative">
-            <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/60 border border-border">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-mono">{planInfo.creditsBalance}</span>
+              <span className="text-[10px] text-muted-foreground">/ {planInfo.creditsMonthly}</span>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary ml-1">
+                {PLAN_DEFINITIONS[planInfo.plan].label}
+              </Badge>
+            </div>
+            <div className="relative">
+              <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
+                <Bell className="h-5 w-5 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
 
             <AnimatePresence>
               {showNotifications && (
