@@ -80,8 +80,15 @@ export default function InboxPage() {
           setMessages(prev => prev.some(x => x.id === m.id || (!!m.external_message_id && x.external_message_id === m.external_message_id))
             ? prev
             : [...prev, m].sort(byCreatedAt));
+        } else if (m.direction === "inbound" && m.client_id) {
+          setUnreadByClient(prev => ({ ...prev, [m.client_id!]: (prev[m.client_id!] || 0) + 1 }));
         }
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).then(r => setClients(r.data || []));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` }, (p) => {
+        const m = p.new as Message;
+        // Update status (✓✓) live
+        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, status: m.status, is_read: m.is_read } : x));
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_clients", filter: `user_id=eq.${user.id}` }, (p) => {
         const c = p.new as Client;
