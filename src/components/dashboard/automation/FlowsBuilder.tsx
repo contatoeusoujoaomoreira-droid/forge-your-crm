@@ -209,6 +209,11 @@ export default function FlowsBuilder() {
             ))}
           </div>
         )}
+        <FlowTemplatesModal open={showTemplates} onOpenChange={setShowTemplates} onPick={(t: FlowTemplate) => {
+          setShowTemplates(false);
+          setEditing({ name: t.name, description: t.description, is_active: true, nodes: t.nodes, edges: t.edges, agent_id: null, trigger_keywords: t.trigger_keywords });
+          toast.success(`Template "${t.name}" carregado — clique em Salvar para gravar.`);
+        }} />
       </div>
     );
   }
