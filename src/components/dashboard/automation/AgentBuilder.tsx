@@ -115,7 +115,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [knTitle, setKnTitle] = useState("");
   const [knContent, setKnContent] = useState("");
-  const [knType, setKnType] = useState<"text" | "url" | "file">("text");
+  const [knType, setKnType] = useState<"text" | "site" | "link" | "document" | "image">("text");
   const [knUrl, setKnUrl] = useState("");
   const [knCategory, setKnCategory] = useState("");
   const [knDescription, setKnDescription] = useState("");
