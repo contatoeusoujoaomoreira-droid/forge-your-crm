@@ -52,13 +52,19 @@ export type Database = {
       agent_knowledge: {
         Row: {
           agent_id: string
+          category: string | null
           content: string
           created_at: string
+          description: string | null
           error: string | null
+          external_links: Json
           file_path: string | null
           file_size: number | null
           id: string
+          keywords: string[] | null
+          media_urls: Json
           mime_type: string | null
+          priority: number
           source_url: string | null
           status: string
           title: string | null
@@ -67,13 +73,19 @@ export type Database = {
         }
         Insert: {
           agent_id: string
+          category?: string | null
           content: string
           created_at?: string
+          description?: string | null
           error?: string | null
+          external_links?: Json
           file_path?: string | null
           file_size?: number | null
           id?: string
+          keywords?: string[] | null
+          media_urls?: Json
           mime_type?: string | null
+          priority?: number
           source_url?: string | null
           status?: string
           title?: string | null
@@ -82,13 +94,19 @@ export type Database = {
         }
         Update: {
           agent_id?: string
+          category?: string | null
           content?: string
           created_at?: string
+          description?: string | null
           error?: string | null
+          external_links?: Json
           file_path?: string | null
           file_size?: number | null
           id?: string
+          keywords?: string[] | null
+          media_urls?: Json
           mime_type?: string | null
+          priority?: number
           source_url?: string | null
           status?: string
           title?: string | null

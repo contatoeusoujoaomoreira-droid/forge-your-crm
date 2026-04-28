@@ -82,6 +82,49 @@ function buildSystemPrompt(agent: any) {
   ].filter(Boolean).join('\n\n');
 }
 
+// Pontuação simples por palavras-chave + categoria + texto livre
+function scoreKnowledgeItem(item: any, queryLower: string, queryTokens: string[]): number {
+  let score = 0;
+  const cat = (item.category || '').toLowerCase();
+  if (cat && queryLower.includes(cat)) score += 10;
+  const kws: string[] = Array.isArray(item.keywords) ? item.keywords : [];
+  for (const kw of kws) {
+    const k = (kw || '').toLowerCase().trim();
+    if (!k) continue;
+    if (queryLower.includes(k)) score += 6;
+    else if (queryTokens.some(t => k.includes(t) || t.includes(k))) score += 2;
+  }
+  const title = (item.title || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 2 && title.includes(t)) score += 3;
+  const desc = (item.description || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 3 && desc.includes(t)) score += 1;
+  const content = (item.content || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 4 && content.includes(t)) score += 0.5;
+  // small boost if has media/links available (more useful response)
+  if (Array.isArray(item.media_urls) && item.media_urls.length) score += 0.5;
+  if (Array.isArray(item.external_links) && item.external_links.length) score += 0.5;
+  return score;
+}
+
+function findRelevantKnowledge(items: any[], userText: string, topN = 5): any[] {
+  const ql = (userText || '').toLowerCase();
+  const tokens = ql.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+  const scored = items.map(it => ({ it, s: scoreKnowledgeItem(it, ql, tokens) }));
+  return scored.filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, topN).map(x => x.it);
+}
+
+// Heurísticas leves de intenção para handoff/qualificação
+function detectIntent(text: string, agent: any): { handoff: boolean; qualified: boolean; wantsMedia: boolean } {
+  const t = (text || '').toLowerCase();
+  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,ajuda real,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => t.includes(k));
+  const qualifiedKws = ['quero comprar','fechar','contrato','cartão','pix','quanto custa exatamente','agendar visita','marcar reunião','enviar proposta','cnpj','meu cpf'];
+  const qualified = qualifiedKws.some(k => t.includes(k));
+  const mediaKws = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'];
+  const wantsMedia = mediaKws.some(k => t.includes(k));
+  return { handoff, qualified, wantsMedia };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -133,10 +176,36 @@ Deno.serve(async (req) => {
           if (providerType === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
           else if (providerType === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
         }
-        const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
+        // === BASE DE CONHECIMENTO CONTEXTUAL ===
+        // Pega todos os itens, faz scoring pela última mensagem do usuário,
+        // e injeta os top-N como contexto. Recursos selecionados são retornados
+        // ao chamador para envio automático (imagens/links nomeados).
+        const { data: knowledge } = await admin.from('agent_knowledge')
+          .select('id, title, category, description, keywords, content, media_urls, external_links, source_url')
+          .eq('agent_id', body.agent_id);
+        const lastUser = [...body.messages].reverse().find(m => m.role === 'user')?.content || '';
+        let selected: any[] = [];
         if (knowledge?.length) {
-          systemPrompt += `\n\nBASE DE CONHECIMENTO:\n${knowledge.map(k => k.content).join('\n\n').slice(0, 4000)}`;
+          selected = findRelevantKnowledge(knowledge, lastUser, 5);
+          // Fallback: se nada combinou, usa os 3 mais recentes (compatibilidade)
+          const baseItems = selected.length ? selected : knowledge.slice(0, 3);
+          const ctx = baseItems.map((k: any) => {
+            const links = Array.isArray(k.external_links) ? k.external_links.map((l: any) => `  - ${l.title}: ${l.url}`).join('\n') : '';
+            const imgs = Array.isArray(k.media_urls) && k.media_urls.length ? `  (${k.media_urls.length} imagem(ns) anexada(s) — disponível para envio)` : '';
+            return [
+              `# ${k.title}${k.category ? ` [${k.category}]` : ''}`,
+              k.description ? `Descrição: ${k.description}` : '',
+              Array.isArray(k.keywords) && k.keywords.length ? `Palavras-chave: ${k.keywords.join(', ')}` : '',
+              k.content ? k.content.slice(0, 1500) : '',
+              links ? `Links:\n${links}` : '',
+              imgs,
+            ].filter(Boolean).join('\n');
+          }).join('\n\n---\n\n').slice(0, 6000);
+
+          systemPrompt += `\n\nBASE DE CONHECIMENTO RELEVANTE PARA ESTA CONVERSA:\n${ctx}\n\nQuando o cliente pedir imagens, fotos ou catálogo, mencione que vai enviar e o sistema anexará automaticamente. Se houver mais de uma opção, organize em lista. Use as descrições e links acima de forma natural.`;
         }
+        // Guarda para retorno
+        (globalThis as any).__selectedKnowledge = selected;
       }
     }
 
@@ -184,7 +253,18 @@ Deno.serve(async (req) => {
         });
       } catch (e) { console.warn('topup credit deduction failed', e); }
     }
-    return new Response(JSON.stringify({ content, tokens: tokensUsed }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Anexos: imagens e links dos itens de KB selecionados (para envio automático)
+    const selected: any[] = ((globalThis as any).__selectedKnowledge as any[]) || [];
+    const attachments = {
+      images: selected.flatMap(s => Array.isArray(s.media_urls) ? s.media_urls : []).slice(0, 8),
+      links: selected.flatMap(s => Array.isArray(s.external_links) ? s.external_links : []).slice(0, 6),
+      sources: selected.map(s => ({ id: s.id, title: s.title, category: s.category })),
+    };
+    // Intent (handoff/qualificação) para o caller (webhook ou UI) agir
+    const lastUserText = [...body.messages].reverse().find(m => m.role === 'user')?.content || '';
+    const intent = body.agent_id ? detectIntent(lastUserText, { handoff_keywords: undefined }) : { handoff: false, qualified: false, wantsMedia: false };
+
+    return new Response(JSON.stringify({ content, tokens: tokensUsed, attachments, intent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('ai-agent', e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

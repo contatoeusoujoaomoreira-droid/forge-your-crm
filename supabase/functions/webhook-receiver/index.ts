@@ -368,6 +368,67 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
 }
 
+// Send single image via WhatsApp (Z-API supported, others fallback to text link)
+async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, caption?: string) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+  try {
+    if (cfg.api_type === 'z-api') {
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      const resp = await fetch(`${root}/send-image`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...extra },
+        body: JSON.stringify({ phone, image: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'evolution') {
+      const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
+        body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+  } catch (e) { console.error('image send fail', e); }
+  // Fallback: send caption + link as text
+  return await sendWhatsApp(cfg, phone, `${caption ? caption + '\n' : ''}${imageUrl}`);
+}
+
+// === KB CONTEXTUAL SEARCH (mirror of ai-agent logic) ===
+function scoreKb(item: any, ql: string, tokens: string[]): number {
+  let s = 0;
+  const cat = (item.category || '').toLowerCase();
+  if (cat && ql.includes(cat)) s += 10;
+  const kws: string[] = Array.isArray(item.keywords) ? item.keywords : [];
+  for (const kw of kws) {
+    const k = (kw || '').toLowerCase().trim(); if (!k) continue;
+    if (ql.includes(k)) s += 6;
+    else if (tokens.some(t => k.includes(t) || t.includes(k))) s += 2;
+  }
+  const title = (item.title || '').toLowerCase();
+  for (const t of tokens) if (t.length > 2 && title.includes(t)) s += 3;
+  const desc = (item.description || '').toLowerCase();
+  for (const t of tokens) if (t.length > 3 && desc.includes(t)) s += 1;
+  const content = (item.content || '').toLowerCase();
+  for (const t of tokens) if (t.length > 4 && content.includes(t)) s += 0.5;
+  return s;
+}
+function findKb(items: any[], q: string, n = 5): any[] {
+  const ql = (q || '').toLowerCase();
+  const tokens = ql.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+  return items.map(it => ({ it, s: scoreKb(it, ql, tokens) }))
+    .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, n).map(x => x.it);
+}
+function detectIntent(text: string, agent: any) {
+  const t = (text || '').toLowerCase();
+  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => t.includes(k));
+  const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
+  const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
+  return { handoff, qualified, wantsMedia };
+}
+
 // Send Z-API interactive button list. `buttons` is array of label strings (max 3).
 async function sendWhatsAppButtons(cfg: any, phone: string, content: string, buttons: string[]) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -795,8 +856,29 @@ Deno.serve(async (req) => {
         role: m.direction === 'inbound' ? 'user' : 'assistant',
         content: m.content,
       }));
-      const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agent.id).limit(20);
-      const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 8000);
+      // === KB CONTEXTUAL: busca por categoria/keywords da última msg do cliente ===
+      const lastUserText = msg.content || ordered.filter((m: any) => m.direction === 'inbound').slice(-1)[0]?.content || '';
+      const { data: knowledge } = await admin.from('agent_knowledge')
+        .select('id, title, category, description, keywords, content, media_urls, external_links')
+        .eq('agent_id', agent.id);
+      const selected = knowledge?.length ? findKb(knowledge, lastUserText, 5) : [];
+      const baseItems = selected.length ? selected : (knowledge || []).slice(0, 3);
+      const ctx = baseItems.map((k: any) => {
+        const links = Array.isArray(k.external_links) && k.external_links.length
+          ? k.external_links.map((l: any) => `  - ${l.title}: ${l.url}`).join('\n') : '';
+        const imgs = Array.isArray(k.media_urls) && k.media_urls.length
+          ? `(${k.media_urls.length} imagem(ns) disponível(is) — sistema enviará automaticamente se o cliente pedir)` : '';
+        return [
+          `# ${k.title}${k.category ? ` [${k.category}]` : ''}`,
+          k.description ? `Descrição: ${k.description}` : '',
+          Array.isArray(k.keywords) && k.keywords.length ? `Palavras-chave: ${k.keywords.join(', ')}` : '',
+          k.content ? String(k.content).slice(0, 1500) : '',
+          links ? `Links:\n${links}` : '',
+          imgs,
+        ].filter(Boolean).join('\n');
+      }).join('\n\n---\n\n').slice(0, 8000);
+
+      const intent = detectIntent(lastUserText, agent);
       const sys = buildSystemPrompt(agent, ctx);
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAi(sys, aiHistory, runtime);
@@ -804,9 +886,15 @@ Deno.serve(async (req) => {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
         const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
+
+        // Anexar links nomeados ao final do texto se existirem nos itens selecionados
+        const linksToAppend = selected.flatMap((s: any) => Array.isArray(s.external_links) ? s.external_links : []).slice(0, 4);
+        const replyWithLinks = linksToAppend.length
+          ? `${reply}\n\n${linksToAppend.map((l: any) => `🔗 *${l.title}*: ${l.url}`).join('\n')}`
+          : reply;
+
         if (waCfg?.is_active) {
           if (shouldReplyWithVoice) {
-            // Show "recording..." while generating audio
             if (agent.simulate_recording !== false) await sendPresence(waCfg, msg.phone, 'recording');
             const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
             if (audioDataUrl) {
@@ -814,12 +902,11 @@ Deno.serve(async (req) => {
               catch (e) { console.error('audio send fail', e); }
             }
             if (!voiceUsed) {
-              try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, replyWithLinks) || delivery; }
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; }
             }
           } else {
-            // Split + simulate typing per chunk
-            const chunks = (agent.split_long_messages !== false) ? splitMessage(reply) : [reply];
+            const chunks = (agent.split_long_messages !== false) ? splitMessage(replyWithLinks) : [replyWithLinks];
             for (let i = 0; i < chunks.length; i++) {
               const chunk = chunks[i];
               if (agent.simulate_typing !== false) {
@@ -831,17 +918,60 @@ Deno.serve(async (req) => {
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
             }
           }
+
+          // === ENVIAR IMAGENS dos itens selecionados se cliente pediu ou agente mencionou ===
+          const replyMentionsMedia = /imagem|imagens|foto|fotos|envio|envia|mostra|catálogo|catalogo|drive/i.test(reply);
+          if ((intent.wantsMedia || replyMentionsMedia) && selected.length) {
+            const imagesToSend = selected.flatMap((s: any) =>
+              (Array.isArray(s.media_urls) ? s.media_urls : []).slice(0, 3).map((url: string) => ({ url, caption: s.title }))
+            ).slice(0, 6);
+            for (const img of imagesToSend) {
+              try {
+                const sent = await sendWhatsAppImage(waCfg, msg.phone, img.url, img.caption);
+                await admin.from('messages').insert({
+                  user_id: userId, client_id: client.id, lead_id: client.lead_id,
+                  direction: 'outbound', channel: 'whatsapp', content: img.caption || '',
+                  media_url: img.url, media_type: 'image', status: sent.ok ? 'sent' : 'failed',
+                  agent_id: agent.id, sender_phone: msg.phone,
+                  metadata: { from_kb: true, external_status: sent.status },
+                });
+              } catch (e) { console.error('kb image send fail', e); }
+            }
+          }
         }
+
         await admin.from('messages').insert({
           user_id: userId, client_id: client.id, lead_id: client.lead_id,
-          direction: 'outbound', channel: 'whatsapp', content: reply,
+          direction: 'outbound', channel: 'whatsapp', content: replyWithLinks,
           status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id,
           sender_phone: msg.phone,
           media_type: voiceUsed ? 'audio' : null,
-          metadata: { external_status: delivery.status, external_body: delivery.body, voice: voiceUsed },
+          metadata: {
+            external_status: delivery.status, external_body: delivery.body, voice: voiceUsed,
+            kb_sources: selected.map((s: any) => ({ id: s.id, title: s.title, category: s.category })),
+            intent,
+          },
         });
-        // Deduct 1 credit for AI response
-        await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, voice: voiceUsed } });
+
+        // === HANDOFF AUTOMÁTICO se cliente pediu humano ou se qualificou ===
+        if (intent.handoff || intent.qualified) {
+          await admin.from('conversation_state').upsert({
+            user_id: userId, client_id: client.id,
+            ai_active: false, mode: 'manual',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'client_id' });
+          await admin.from('notifications').insert({
+            user_id: userId,
+            type: intent.handoff ? 'handoff' : 'qualified',
+            title: intent.handoff ? '🙋 Cliente pediu atendimento humano' : '✅ Lead qualificado',
+            message: `${client.name || msg.phone}: "${(lastUserText || '').slice(0, 100)}"`,
+            related_id: client.id,
+            metadata: { phone: msg.phone, intent },
+          });
+        }
+
+        // Credit deduction
+        await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, voice: voiceUsed, kb_used: selected.length } });
       }
     } catch (e) {
       console.error('AI reply failed', e);
