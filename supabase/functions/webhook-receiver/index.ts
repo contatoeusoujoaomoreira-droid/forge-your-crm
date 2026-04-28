@@ -445,6 +445,16 @@ Deno.serve(async (req) => {
 
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
+  // Status callback (delivered / read) — update existing message status (✓✓ ticks)
+  const statusCb = detectStatusCallback(raw);
+  if (statusCb?.external_message_id) {
+    await admin.from('messages')
+      .update({ status: statusCb.status })
+      .eq('user_id', userId)
+      .eq('external_message_id', statusCb.external_message_id);
+    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   const msg = detectAndNormalize(raw);
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
