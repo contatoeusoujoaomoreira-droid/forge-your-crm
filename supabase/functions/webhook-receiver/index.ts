@@ -480,13 +480,19 @@ Deno.serve(async (req) => {
   let transcript = '';
   let imageDescription = '';
   let inboundContent = msg.content;
-  if (msg.media_type === 'audio' && msg.media_url && openaiKey && (agent?.transcribe_audio !== false)) {
-    transcript = await transcribeAudio(msg.media_url, openaiKey);
-    if (transcript) inboundContent = transcript;
+  if (msg.media_type === 'audio' && msg.media_url && (agent?.transcribe_audio !== false)) {
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
+    if (transcript) {
+      inboundContent = transcript;
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    }
   }
-  if (msg.media_type === 'image' && msg.media_url && openaiKey && (agent?.understand_images !== false)) {
-    imageDescription = await describeImage(msg.media_url, openaiKey);
-    if (imageDescription) inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+  if (msg.media_type === 'image' && msg.media_url && (agent?.understand_images !== false)) {
+    imageDescription = await describeImage(msg.media_url, providerCfg, openaiKey);
+    if (imageDescription) {
+      inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'image_vision', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    }
   }
 
   const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
