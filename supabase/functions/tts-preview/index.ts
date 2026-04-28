@@ -28,6 +28,19 @@ Deno.serve(async (req) => {
     const input = String(text).slice(0, 1000);
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+    // Charge credits per 100 chars (skipped for super_admin/unlimited inside the RPC)
+    const action = provider === 'elevenlabs' ? 'tts_elevenlabs' : 'tts_openai';
+    const charge = await admin.rpc('deduct_credits_by_action', {
+      _user_id: userData.user.id, _action: action,
+      _quantity: Math.max(1, Math.ceil(input.length / 100)),
+      _metadata: { provider, voice, chars: input.length },
+    });
+    const cr: any = charge.data;
+    if (cr && cr.ok === false) {
+      return new Response(JSON.stringify({ error: 'Créditos insuficientes', needed: cr.needed, balance: cr.balance }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Omni Audio = native. Tries user's OpenAI key first (real audio).
     // If unavailable, signals the browser to render via SpeechSynthesis (no error).
     if (provider === 'omni') {
