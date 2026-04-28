@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       try {
         await admin.rpc('deduct_credits_by_action', {
           _user_id: userId, _action: 'chat_message_long', _quantity: 1,
-          _metadata: { agent_id: body.agent_id || null, model, tokens: tokensUsed, stage: 'topup' },
+          _metadata: { agent_id: body.agent_id || null, model, tokens: tokensUsed, stage: 'topup', model_provider: providerType, model_id: model },
         });
       } catch (e) { console.warn('topup credit deduction failed', e); }
     }
