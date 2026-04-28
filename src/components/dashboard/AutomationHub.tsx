@@ -579,10 +579,44 @@ export default function AutomationHub() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="flows"><FlowsBuilder /></TabsContent>
-        <TabsContent value="aikeys"><AIProviderSettings /></TabsContent>
+        <TabsContent value="flows" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Fluxos de conversa
+            <InfoHint title="Como usar Fluxos" steps={[
+              "Fluxos são roteiros automáticos: ao receber certas palavras-chave, o sistema segue passos pré-definidos.",
+              "Crie nós (mensagem, pergunta, condição, ação) e conecte-os arrastando.",
+              "Vincule a um agente IA para que ele assuma após o fluxo terminar.",
+              "Use para qualificação inicial, FAQ, agendamentos ou coleta de dados.",
+            ]} />
+          </div>
+          <FlowsBuilder />
+        </TabsContent>
+        <TabsContent value="aikeys" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Provedores de IA
+            <InfoHint title="Como cadastrar um Provedor" steps={[
+              "Adicione chaves de IA externas (OpenAI, Groq, Gemini) ou use a Lovable AI (sem chave).",
+              "Defina um modelo padrão (ex: gpt-4o-mini, llama-3.3-70b, gemini-2.0-flash).",
+              "Marque um como padrão — será usado pelos agentes que não tiverem provedor próprio.",
+              "Cada agente pode escolher seu provedor + modelo na aba 'Agentes IA'.",
+            ]} />
+          </div>
+          <AIProviderSettings />
+        </TabsContent>
         <TabsContent value="import"><LeadImporter /></TabsContent>
-        <TabsContent value="campaigns"><CampaignsList /></TabsContent>
+        <TabsContent value="campaigns" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Campanhas de prospecção
+            <InfoHint title="Como rodar uma Campanha" steps={[
+              "Importe contatos no módulo CRM → Importar (lista CSV ou números manuais).",
+              "Crie uma campanha, escolha o agente IA que conduzirá a conversa e o template inicial.",
+              "Defina horário comercial, intervalo entre disparos e limite diário (evita banimento).",
+              "Ative follow-ups automáticos para reativar quem não respondeu.",
+              "Acompanhe métricas: enviadas, respondidas, convertidas em leads quentes.",
+            ]} />
+          </div>
+          <CampaignsList />
+        </TabsContent>
       </Tabs>
 
       <AgentBuilder
