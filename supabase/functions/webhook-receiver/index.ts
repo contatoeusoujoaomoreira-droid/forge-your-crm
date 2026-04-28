@@ -585,10 +585,11 @@ Deno.serve(async (req) => {
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
-        // If incoming was audio AND voice is enabled AND we have an openai key, reply with audio
         const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
         if (waCfg?.is_active) {
           if (shouldReplyWithVoice) {
+            // Show "recording..." while generating audio
+            if (agent.simulate_recording !== false) await sendPresence(waCfg, msg.phone, 'recording');
             const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
             if (audioDataUrl) {
               try { delivery = await sendWhatsAppAudio(waCfg, msg.phone, audioDataUrl) || delivery; voiceUsed = delivery.ok; }
@@ -599,8 +600,18 @@ Deno.serve(async (req) => {
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; }
             }
           } else {
-            try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
-            catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            // Split + simulate typing per chunk
+            const chunks = (agent.split_long_messages !== false) ? splitMessage(reply) : [reply];
+            for (let i = 0; i < chunks.length; i++) {
+              const chunk = chunks[i];
+              if (agent.simulate_typing !== false) {
+                await sendPresence(waCfg, msg.phone, 'composing');
+                const delayMs = Math.min(4000, 600 + chunk.length * 25);
+                await new Promise((r) => setTimeout(r, delayMs));
+              }
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, chunk) || delivery; }
+              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            }
           }
         }
         await admin.from('messages').insert({
@@ -611,6 +622,8 @@ Deno.serve(async (req) => {
           media_type: voiceUsed ? 'audio' : null,
           metadata: { external_status: delivery.status, external_body: delivery.body, voice: voiceUsed },
         });
+        // Deduct 1 credit for AI response
+        await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, voice: voiceUsed } });
       }
     } catch (e) {
       console.error('AI reply failed', e);
