@@ -93,14 +93,16 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
 
   const save = async () => {
     if (!targetUserId || !apiKey.trim()) { toast.error("Informe a chave"); return; }
+    const finalScopes = scopes.length === 0 ? ["all"] : scopes;
+    const scopeStr = finalScopes.join(",");
     setSaving(true);
     const { error } = await supabase.from("user_api_keys").insert({
-      user_id: targetUserId, provider, scope, label: label || `${provider}-${scope}`, api_key: apiKey.trim(),
+      user_id: targetUserId, provider, scope: scopeStr, label: label || `${provider}-${scopeStr}`, api_key: apiKey.trim(),
     } as any);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Chave salva!");
-    setApiKey(""); setLabel("");
+    setApiKey(""); setLabel(""); setScopes(["all"]);
     load();
   };
 
