@@ -467,7 +467,14 @@ Deno.serve(async (req) => {
 
   // Atomic upsert client (prevents duplicates on race conditions)
   const { data: upserted } = await admin.from('chat_clients').upsert(
-    { user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp', updated_at: new Date().toISOString() },
+    {
+      user_id: userId,
+      phone: msg.phone,
+      name: msg.name || msg.phone,
+      source: 'whatsapp',
+      metadata: { is_group: (msg as any).is_group === true },
+      updated_at: new Date().toISOString(),
+    },
     { onConflict: 'user_id,phone' }
   ).select().single();
   let client: any = upserted;
