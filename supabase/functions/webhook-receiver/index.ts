@@ -557,12 +557,12 @@ Deno.serve(async (req) => {
   // Try fetching profile picture from Z-API if we don't have one in the payload
   const fetchZapiProfilePic = async (): Promise<string | undefined> => {
     try {
-      const { data: prov } = await admin.from('whatsapp_providers')
-        .select('provider, base_url, api_token, instance_id, extra_headers')
+      const { data: prov } = await admin.from('whatsapp_configs')
+        .select('api_type, base_url, api_token, instance_id, extra_headers')
         .eq('user_id', userId).eq('is_active', true).maybeSingle();
       if (!prov) return undefined;
       const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document)$/, '');
-      if ((prov.provider || '').toLowerCase() === 'z-api') {
+      if ((prov.api_type || '').toLowerCase() === 'z-api') {
         const url = baseUrl.includes('/instances/')
           ? `${baseUrl}/profile-picture?phone=${msg.phone}`
           : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}/profile-picture?phone=${msg.phone}`;
