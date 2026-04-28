@@ -325,7 +325,11 @@ export default function InboxPage() {
                         <p className="text-[11px] italic opacity-80 mb-1">🖼️ {imgDesc}</p>
                       )}
                       {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                      <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{m.agent_id ? " · 🤖" : ""}</p>
+                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1">
+                        {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        {m.agent_id ? " · 🤖" : ""}
+                        {m.metadata?.sent_from_phone && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                      </p>
                     </div>
                   </div>
                 );
