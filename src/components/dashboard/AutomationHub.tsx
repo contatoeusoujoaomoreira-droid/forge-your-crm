@@ -235,7 +235,64 @@ export default function AutomationHub() {
     else toast.error(`Falhou: ${data?.body || data?.error || "erro desconhecido"}`);
   };
 
-  const reloadAgents = async () => {
+  // ===== Per-config (inline) helpers =====
+  const updateLocalConn = (id: string | null, patch: any) => {
+    if (id === null) {
+      setDraftConn((d: any) => ({ ...d, ...patch }));
+    } else {
+      setWaConfigs(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+    }
+  };
+
+  const saveConn = async (cfg: any) => {
+    if (!user) return;
+    setSavingId(cfg.id || "__draft__");
+    try {
+      if (cfg.instance_id) {
+        const { data: dup } = await supabase.from("whatsapp_configs").select("id, user_id").eq("instance_id", cfg.instance_id).eq("is_active", true);
+        const conflict = (dup || []).find((d: any) => d.id !== cfg.id);
+        if (conflict) { toast.error("Este Instance ID já está ativo em outra conexão."); return; }
+      }
+      const payload = { ...cfg, user_id: user.id };
+      delete payload.created_at; delete payload.updated_at;
+      if (cfg.id) {
+        const { error } = await supabase.from("whatsapp_configs").update(payload).eq("id", cfg.id);
+        if (error) { toast.error(error.message); return; }
+        toast.success("Conexão salva!");
+      } else {
+        const { data, error } = await supabase.from("whatsapp_configs").insert(payload).select().single();
+        if (error) { toast.error(error.message); return; }
+        toast.success("Conexão criada!");
+        setDraftConn(null);
+        if (data) setExpandedConn(data.id);
+      }
+      await reloadWaConfigs();
+      if (cfg.api_type === "z-api" && cfg.is_active) configureWebhook(cfg, false);
+    } finally { setSavingId(null); }
+  };
+
+  const testConn = async (cfg: any) => {
+    setTesting(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", { body: cfg });
+    setTesting(false);
+    if (error) toast.error(error.message);
+    else if (data?.ok) toast.success("Conexão OK!");
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+  };
+
+  const sendTestFor = async (cfg: any) => {
+    if (!testMsgPhone || !testMsgContent) { toast.error("Preencha telefone e mensagem"); return; }
+    setTestMsgSending(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "send_test", config: cfg, phone: testMsgPhone, message: testMsgContent },
+    });
+    setTestMsgSending(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) { toast.success("Mensagem enviada!"); setTestMsgOpen(false); }
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+  };
+
+
     if (!user) return;
     const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
     setAgents(data || []);
