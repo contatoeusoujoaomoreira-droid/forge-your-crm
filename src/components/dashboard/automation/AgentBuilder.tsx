@@ -417,16 +417,38 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     const defaultModel = MODEL_OPTIONS_BY_PROVIDER[ptype]?.[0]?.id || form.model;
                     setForm({ ...form, ai_provider_config_id: id, model: normalizeModelForProvider(ptype, prov?.default_model || defaultModel) });
                   }}>
-                  <option value="">Padrão do sistema (sem chave)</option>
-                  {providers.map(p => <option key={p.id} value={p.id}>{p.provider} {p.is_default && "⭐"}</option>)}
+                  <option value="">Padrão do sistema (sem chave) — usa créditos da plataforma</option>
+                  {providers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.is_own_key ? "🔑 " : ""}{p.label || p.provider} {p.is_default && "⭐"} {p.is_own_key ? "(sua chave — só 1 crédito por mensagem)" : ""}
+                    </option>
+                  ))}
                 </select>
+                {currentProvider?.is_own_key && (
+                  <p className="text-[11px] text-primary mt-1">✓ Usando sua chave de API — você paga direto ao provedor. Cobramos apenas 1 crédito de roteamento por mensagem.</p>
+                )}
               </div>
               <div>
-                <Label>Modelo IA</Label>
+                <Label>Modelo IA <span className="text-[10px] text-muted-foreground font-normal">(custo em créditos por mensagem)</span></Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
                   value={normalizeModelForProvider(providerType, form.model)} onChange={(e) => setForm({ ...form, model: e.target.value })}>
-                  {modelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  {modelOptions.map(m => {
+                    const mc = modelCosts.find((c) => c.provider === providerType && c.model === m.id);
+                    const cost = currentProvider?.is_own_key ? 1 : (mc?.credits_per_message || 1);
+                    return <option key={m.id} value={m.id}>{m.label} — {cost} {cost === 1 ? "crédito" : "créditos"}/msg</option>;
+                  })}
                 </select>
+                {(() => {
+                  const cur = modelCosts.find((c) => c.provider === providerType && c.model === normalizeModelForProvider(providerType, form.model));
+                  const credits = currentProvider?.is_own_key ? 1 : (cur?.credits_per_message || 1);
+                  return (
+                    <div className="mt-2 text-xs flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                      <span>💰 Custo estimado:</span>
+                      <Badge variant="secondary">{credits} {credits === 1 ? "crédito" : "créditos"}</Badge>
+                      <span className="text-muted-foreground">por mensagem do agente</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </TabsContent>
