@@ -96,7 +96,9 @@ function normalizeZApi(raw: any): NormalizedMsg {
     : undefined;
   const mediaCaption = raw.image?.caption || raw.video?.caption || raw.document?.caption || '';
   const reactionEmoji = raw.reaction?.value || raw.reaction?.emoji || raw.reaction?.text;
-  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || (reactionEmoji ? reactionEmoji : '');
+  // Z-API interactive button reply: { buttonsResponseMessage: { message, buttonId } } or top-level fields
+  const buttonReplyText = raw.buttonsResponseMessage?.message || raw.buttonReply?.label || raw.buttonReply?.message || raw.listResponseMessage?.message || raw.selectedButtonId || raw.buttonId;
+  const text = buttonReplyText || raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || (reactionEmoji ? reactionEmoji : '');
   const moment = Number(raw.momment || raw.moment || raw.timestamp || 0);
   const isGroup = !!(raw.isGroup || raw.participantPhone || raw.groupId || (typeof raw.chatName === 'string' && raw.chatName !== name));
   return {
@@ -363,7 +365,28 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
 }
 
-// Show "typing" / "recording" presence on the WhatsApp instance.
+// Send Z-API interactive button list. `buttons` is array of label strings (max 3).
+async function sendWhatsAppButtons(cfg: any, phone: string, content: string, buttons: string[]) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+  if (cfg.api_type === 'z-api') {
+    const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+    const buttonList = {
+      buttons: buttons.slice(0, 3).map((label, i) => ({ id: String(i + 1), label })),
+    };
+    const resp = await fetch(`${root}/send-button-list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...extra },
+      body: JSON.stringify({ phone, message: content, buttonList }),
+    });
+    if (resp.ok) return { ok: true, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    // Fallback to text + numbered list when buttons unsupported on instance
+  }
+  const numbered = `${content}\n\n${buttons.slice(0, 3).map((b, i) => `${i + 1}. ${b}`).join('\n')}\n\n_Responda com o número da opção._`;
+  return await sendWhatsApp(cfg, phone, numbered);
+}
 async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'recording') {
   try {
     const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -646,8 +669,119 @@ Deno.serve(async (req) => {
     related_id: client?.id,
   });
 
-  // AI auto-reply
-  if (waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
+  // ===== Conversation Flow runner (interactive buttons / collect / message) =====
+  // Has higher priority than AI auto-reply when an active session exists OR a flow keyword matches.
+  let flowHandled = false;
+  try {
+    const { data: existingSession } = await admin.from('conversation_flow_sessions')
+      .select('*').eq('client_id', client.id).eq('status', 'active').maybeSingle();
+
+    let session = existingSession;
+    let flowDef: any = null;
+
+    if (session) {
+      const { data: f } = await admin.from('conversation_flows').select('*').eq('id', session.flow_id).maybeSingle();
+      flowDef = f;
+    } else {
+      // Try to match a flow by trigger keyword (case-insensitive substring)
+      const text = (inboundContent || '').toLowerCase().trim();
+      const { data: flows } = await admin.from('conversation_flows').select('*')
+        .eq('user_id', userId).eq('is_active', true);
+      for (const f of flows || []) {
+        const kw = (f.trigger_keywords || '').toLowerCase().split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
+        if (kw.length && kw.some((k: string) => text.includes(k))) { flowDef = f; break; }
+      }
+      if (flowDef) {
+        const startNode = (flowDef.nodes || []).find((n: any) => n.id === 'start') || (flowDef.nodes || [])[0];
+        if (startNode) {
+          const { data: created } = await admin.from('conversation_flow_sessions').insert({
+            user_id: userId, client_id: client.id, flow_id: flowDef.id,
+            current_node_id: startNode.id, variables: {}, status: 'active',
+          }).select().single();
+          session = created;
+        }
+      }
+    }
+
+    if (session && flowDef) {
+      flowHandled = true;
+      const nodes: any[] = flowDef.nodes || [];
+      const edges: any[] = flowDef.edges || [];
+      let currentNodeId: string | null = session.current_node_id;
+      const variables: Record<string, any> = { ...(session.variables || {}) };
+
+      const findNode = (id: string | null) => nodes.find((n: any) => n.id === id) || null;
+      const nextDefault = (id: string) => {
+        const e = edges.find((x: any) => x.from === id && x.meta !== 'button');
+        return e?.to || null;
+      };
+
+      // First, if waiting on buttons or collect, consume incoming message
+      const cur = findNode(currentNodeId);
+      if (cur?.type === 'buttons') {
+        const list = (cur.data?.buttons || []) as any[];
+        const text = (inboundContent || '').trim().toLowerCase();
+        const idx = list.findIndex((b: any, i: number) => {
+          const lbl = (typeof b === 'string' ? b : b.label || '').toLowerCase();
+          return text === lbl || text === String(i + 1) || (lbl && text.includes(lbl));
+        });
+        if (idx >= 0) {
+          const picked = list[idx];
+          const target = (typeof picked === 'object' && picked.target) ? picked.target : nextDefault(currentNodeId!);
+          variables[`${currentNodeId}_choice`] = typeof picked === 'string' ? picked : picked.label;
+          currentNodeId = target;
+        } else {
+          // unknown reply: just re-send buttons with hint
+          if (waCfg?.is_active) await sendWhatsAppButtons(waCfg, msg.phone, `Não entendi. ${cur.data?.content || 'Escolha uma opção:'}`, list.map((b: any) => typeof b === 'string' ? b : b.label));
+          await admin.from('conversation_flow_sessions').update({ variables, updated_at: new Date().toISOString() }).eq('id', session.id);
+          return new Response(JSON.stringify({ ok: true, flow: 'awaiting_button' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      } else if (cur?.type === 'collect') {
+        variables[cur.data?.variable || 'value'] = inboundContent || '';
+        currentNodeId = nextDefault(currentNodeId!);
+      }
+
+      // Walk forward, executing nodes until pause/end
+      const maxSteps = 20;
+      for (let step = 0; step < maxSteps && currentNodeId; step++) {
+        const node = findNode(currentNodeId);
+        if (!node) break;
+        if (node.type === 'message') {
+          if (waCfg?.is_active && node.data?.content) await sendWhatsApp(waCfg, msg.phone, String(node.data.content));
+          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.content || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id } });
+          currentNodeId = nextDefault(currentNodeId);
+        } else if (node.type === 'buttons') {
+          const list = (node.data?.buttons || []) as any[];
+          const labels = list.map((b: any) => typeof b === 'string' ? b : b.label).filter(Boolean);
+          if (waCfg?.is_active) await sendWhatsAppButtons(waCfg, msg.phone, node.data?.content || 'Escolha uma opção:', labels);
+          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.content || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id, buttons: labels } });
+          await admin.from('conversation_flow_sessions').update({ current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
+          return new Response(JSON.stringify({ ok: true, flow: 'paused_buttons' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } else if (node.type === 'collect') {
+          if (waCfg?.is_active && node.data?.question) await sendWhatsApp(waCfg, msg.phone, String(node.data.question));
+          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.question || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id } });
+          await admin.from('conversation_flow_sessions').update({ current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
+          return new Response(JSON.stringify({ ok: true, flow: 'paused_collect' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } else if (node.type === 'wait') {
+          // soft wait: just advance
+          currentNodeId = nextDefault(currentNodeId);
+        } else if (node.type === 'end') {
+          await admin.from('conversation_flow_sessions').update({ status: 'completed', current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
+          return new Response(JSON.stringify({ ok: true, flow: 'completed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } else {
+          // condition / filter / ai / media / crm not yet executed deeply — just advance
+          currentNodeId = nextDefault(currentNodeId);
+        }
+      }
+      await admin.from('conversation_flow_sessions').update({ current_node_id: currentNodeId, variables, status: currentNodeId ? 'active' : 'completed', updated_at: new Date().toISOString() }).eq('id', session.id);
+      return new Response(JSON.stringify({ ok: true, flow: 'advanced' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  } catch (e) {
+    console.error('flow runner error', e);
+  }
+
+  // AI auto-reply (skipped if flow handled the message)
+  if (!flowHandled && waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
     try {
       const { data: history } = await admin.from('messages').select('direction, content')
         .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);

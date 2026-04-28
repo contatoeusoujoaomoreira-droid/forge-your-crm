@@ -81,7 +81,20 @@ Deno.serve(async (req: Request) => {
       if (ai_credits !== undefined) updates.ai_credits = ai_credits;
       if (full_name !== undefined) updates.full_name = full_name;
       if (plan !== undefined) updates.plan = plan;
-      if (tier !== undefined) updates.tier = tier;
+      if (tier !== undefined) {
+        updates.tier = tier;
+        // Tier dictates plan when not explicitly overridden
+        if (plan === undefined) {
+          if (tier === "super_admin") updates.plan = "enterprise";
+          else if (tier === "professional") updates.plan = "pro";
+          else if (tier === "basic") updates.plan = "start";
+        }
+        // Super admins get unlimited-ish credit pool
+        if (tier === "super_admin") {
+          if (credits_balance === undefined) updates.credits_balance = 999999;
+          if (credits_monthly === undefined) updates.credits_monthly = 999999;
+        }
+      }
       if (credits_balance !== undefined) updates.credits_balance = credits_balance;
       if (credits_monthly !== undefined) updates.credits_monthly = credits_monthly;
       const { data: mu } = await supabaseAdmin.from("managed_users").update(updates).eq("id", managed_user_id).select().single();
@@ -96,9 +109,9 @@ Deno.serve(async (req: Request) => {
           await supabaseAdmin.from("user_roles").insert({ user_id: mu.user_id, role: newRole });
         }
         const profileUpdates: any = {};
-        if (plan !== undefined) profileUpdates.plan = plan;
-        if (credits_balance !== undefined) profileUpdates.credits_balance = credits_balance;
-        if (credits_monthly !== undefined) profileUpdates.credits_monthly = credits_monthly;
+        if (updates.plan !== undefined) profileUpdates.plan = updates.plan;
+        if (updates.credits_balance !== undefined) profileUpdates.credits_balance = updates.credits_balance;
+        if (updates.credits_monthly !== undefined) profileUpdates.credits_monthly = updates.credits_monthly;
         if (Object.keys(profileUpdates).length) {
           await supabaseAdmin.from("profiles").update(profileUpdates).eq("user_id", mu.user_id);
         }
