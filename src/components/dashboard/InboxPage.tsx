@@ -11,7 +11,7 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
 
