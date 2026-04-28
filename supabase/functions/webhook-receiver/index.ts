@@ -491,15 +491,16 @@ Deno.serve(async (req) => {
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
+  const avatarUrl = (msg as any).avatar_url || undefined;
   // Atomic upsert client (prevents duplicates on race conditions)
   const { data: upserted } = await admin.from('chat_clients').upsert(
     {
       user_id: userId,
       phone: msg.phone,
       name: msg.name || msg.phone,
-      avatar_url: (msg as any).avatar_url || null,
+      avatar_url: avatarUrl,
       source: 'whatsapp',
-      metadata: { is_group: (msg as any).is_group === true, profile_pic_url: (msg as any).avatar_url || null },
+      metadata: { is_group: (msg as any).is_group === true, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,phone' }
