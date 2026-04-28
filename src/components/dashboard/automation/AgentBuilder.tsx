@@ -457,33 +457,42 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 </div>
                 <Switch checked={form.voice_enabled} onCheckedChange={(v) => setForm({ ...form, voice_enabled: v })} />
               </div>
-              {form.voice_enabled && (
+              {form.voice_enabled && (() => {
+                const provKey = form.voice_provider || "omni";
+                const provDef = VOICE_PROVIDERS[provKey] || VOICE_PROVIDERS.omni;
+                return (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Provedor de voz</Label>
                       <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                        value={form.voice_provider || "openai"} onChange={(e) => setForm({ ...form, voice_provider: e.target.value })}>
-                        <option value="openai">OpenAI TTS (recomendado)</option>
+                        value={provKey} onChange={(e) => {
+                          const next = e.target.value;
+                          const firstVoice = VOICE_PROVIDERS[next]?.voices?.[0]?.id || "alloy";
+                          setForm({ ...form, voice_provider: next, voice_id: firstVoice });
+                        }}>
+                        {Object.entries(VOICE_PROVIDERS).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
                       </select>
-                      <p className="text-[11px] text-muted-foreground mt-1">Requer chave OpenAI configurada em "Provedores".</p>
+                      {provDef.help && <p className="text-[11px] text-muted-foreground mt-1">{provDef.help}</p>}
                     </div>
                     <div>
                       <Label className="text-xs">Voz</Label>
                       <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                        value={form.voice_id || "alloy"} onChange={(e) => setForm({ ...form, voice_id: e.target.value })}>
-                        {OPENAI_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                        value={form.voice_id || provDef.voices[0]?.id} onChange={(e) => setForm({ ...form, voice_id: e.target.value })}>
+                        {provDef.voices.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
                       </select>
                     </div>
                   </div>
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
                       const { data, error } = await supabase.functions.invoke("tts-preview", {
-                        body: { voice: form.voice_id || "alloy", text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
+                        body: { provider: provKey, voice: form.voice_id || provDef.voices[0]?.id, text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
                       });
                       if (error) throw error;
                       if (data?.audio) { const a = new Audio(data.audio); a.play(); }
-                      else toast.error("Não foi possível gerar a prévia. Verifique a chave OpenAI.");
+                      else toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
                     } catch (e: any) { toast.error(e.message || "Erro ao gerar prévia"); }
                   }}>
                     <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
@@ -494,7 +503,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                       onCheckedChange={(v) => setForm({ ...form, reply_to_audio_with_audio: v })} />
                   </div>
                 </>
-              )}
+                );
+              })()}
             </Card>
 
             <Card className="p-4 space-y-3">
