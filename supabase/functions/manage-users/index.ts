@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SEED_SUPER_ADMIN_EMAILS = new Set([
+  "jpm19990@gmail.com",
+  "miih.br97.moreira@gmail.com",
+  "contatoeusoujoaomoreira@gmail.com",
+]);
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -69,12 +75,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "list_users") {
+      await supabaseAdmin.rpc("sync_super_admin_entitlements").catch(() => null);
       const { data } = await supabaseAdmin.from("managed_users").select("*").order("created_at", { ascending: false });
       return new Response(JSON.stringify({ users: data || [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "update_user") {
       const { managed_user_id, is_active, permissions, ai_credits, full_name, plan, tier, credits_balance, credits_monthly } = body;
+      const { data: currentMu } = await supabaseAdmin.from("managed_users").select("*").eq("id", managed_user_id).single();
+      const isSeedSuper = currentMu?.email ? SEED_SUPER_ADMIN_EMAILS.has(String(currentMu.email).toLowerCase()) : false;
+      const isSuperTier = tier === "super_admin" || currentMu?.tier === "super_admin" || isSeedSuper;
       const updates: any = {};
       if (is_active !== undefined) updates.is_active = is_active;
       if (permissions !== undefined) updates.permissions = permissions;
@@ -94,6 +104,13 @@ Deno.serve(async (req: Request) => {
           if (credits_balance === undefined) updates.credits_balance = 999999;
           if (credits_monthly === undefined) updates.credits_monthly = 999999;
         }
+      }
+      if (isSuperTier) {
+        updates.tier = "super_admin";
+        updates.plan = "enterprise";
+        updates.ai_credits = 999999;
+        if (credits_balance === undefined) updates.credits_balance = 999999;
+        if (credits_monthly === undefined) updates.credits_monthly = 999999;
       }
       if (credits_balance !== undefined) updates.credits_balance = credits_balance;
       if (credits_monthly !== undefined) updates.credits_monthly = credits_monthly;
