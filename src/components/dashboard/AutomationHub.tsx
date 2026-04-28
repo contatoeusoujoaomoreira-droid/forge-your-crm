@@ -15,6 +15,7 @@ import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import LeadImporter from "./automation/LeadImporter";
 import ImportedListsViewer from "./automation/ImportedListsViewer";
+import CreditsBadge from "./automation/CreditsBadge";
 import CampaignsList from "./automation/CampaignsList";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
