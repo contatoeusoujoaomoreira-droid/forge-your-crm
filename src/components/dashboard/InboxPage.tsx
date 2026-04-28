@@ -540,7 +540,7 @@ export default function InboxPage() {
 
       {/* Sidebar */}
       {selected && (
-        <Card className="w-80 p-4 space-y-4 overflow-y-auto">
+        <Card className="w-full lg:w-80 p-4 space-y-4 overflow-y-auto hidden lg:block">
           {/* Lead linkage */}
           <div>
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Lead Vinculado</p>
