@@ -1,222 +1,130 @@
+## Plano de Implementação — Pacote completo
 
-# Plano: Módulos AUTOMAÇÃO + CHAT (CRM Religare)
+### 1. Multimídia descontada do provedor do usuário
+- **Transcrição (áudio recebido)** e **interpretação de imagem** passam a usar o provedor que o agente tem configurado (`ai_provider_config_id`): se for `groq`, usa Groq Whisper; se `openai`, usa Whisper OpenAI; se `gemini` ou `omni`, usa Gemini multimodal via Lovable AI Gateway (consome créditos Lovable + créditos internos).
+- Atualizar `webhook-receiver/index.ts`: helper `transcribeAudio(provider, key, url)` e `analyzeImage(provider, key, url)` com switch por provedor. Fallback gracioso (não bloqueia a conversa).
 
-## Resumo
+### 2. Corrigir erro do "Ouvir prévia" (Omni Audio 500)
+- `tts-preview/index.ts`: Omni Audio passa a usar o **Lovable AI Gateway** corretamente (`https://ai.gateway.lovable.dev/v1/...`) em vez de chamar `api.openai.com` com `LOVABLE_API_KEY` (que não é uma chave OpenAI). 
+- Implementar contenção: em falha, retornar 200 com `{ fallback: true, error }` e o front faz fallback para `SpeechSynthesisUtterance` do navegador, mostrando toast informativo.
+- Adicionar provedores extras de TTS: **Groq** (PlayAI/whisper-tts) e voz nativa via Lovable AI quando disponível.
 
-Adicionar dois módulos completos ao Omni Builder CRM:
-1. **AUTOMAÇÃO** — importação de leads, campanhas de prospecção ativa via WhatsApp (Z-API), motor de disparos inteligentes, agentes IA multi-provider, fluxos híbridos.
-2. **CHAT** — inbox em tempo real estilo Kommo, controle IA on/off por conversa, intervenção humana, modo copiloto, gestão de lead inline.
+### 3. Agentes de IA — novas opções
+Adicionar à tabela `ai_agents`:
+- `split_long_messages` (bool, default true) — divide respostas longas em múltiplas mensagens com pequenos delays.
+- `max_message_chars` (int, default 350) — tamanho de cada parte.
+- `simulate_typing` (bool, default true) — envia presença "digitando…" antes de texto.
+- `simulate_recording` (bool, default true) — envia presença "gravando áudio…" antes de áudio.
 
-Tudo nativo, sem quebrar funcionalidades existentes (CRM, Forms, Quiz, Agenda, Checkout, Pages, Notificações).
+No `webhook-receiver`/`send-whatsapp` antes de cada mensagem chamar Z-API/Evolution endpoints de **chat-state** (`/send-presence` composing/recording) com duração proporcional ao tamanho.
 
----
+### 4. Templates prontos de Agentes e Fluxos
+- Nova aba/modal "Templates" no AgentBuilder com cards: **Atendimento**, **SDR/Qualificador**, **Suporte N1**, **Follow-up**, **Recuperação de Carrinho**, **Pesquisa NPS**, **Agendador**. Cada um traz `system_prompt`, `tone`, `rules`, `objections`, `examples`, `voice_*` pré-preenchidos. Botão "Usar template" cria um agente pronto para editar/ativar.
+- Mesmo conceito em `FlowsBuilder`: templates prontos — **Disparo de Campanha**, **Follow-up 3 toques**, **Boas-vindas + Qualificação**, **Pós-venda**, **Reativação fria**. Editor visual de nós (mensagem → espera → condição → próxima).
 
-## Pré-requisito: Z-API (configurado pelo usuário)
+### 5. Campanhas — seleção de Pipelines/Etapas de origem
+Adicionar à `prospecting_campaigns`:
+- `source_pipelines` (jsonb array de `{pipeline_id, stage_ids[]}`) — múltiplos pipelines/etapas que alimentam a campanha.
+- `target_pipeline_id` / `target_stage_id` — para onde o lead vai após resposta.
 
-A Z-API é externa e requer credenciais do usuário (Instance ID + Token + Client-Token). O sistema:
-- Aceita as credenciais via interface (armazenadas em `whatsapp_configs` por usuário)
-- Faz envios via Edge Function `send-whatsapp` (server-side, sem expor token)
-- Recebe mensagens via Edge Function pública `webhook-receiver` (URL informada na Z-API pelo usuário)
+UI em `CampaignsList`: ao criar/editar, multi-select de pipelines e checklist de etapas; preview do total de leads elegíveis em tempo real.
 
-Suporte multi-provider (Z-API default, Evolution, UltraMsg, Custom) — usuário escolhe.
+### 6. Painel lateral do Chat (sidebar do contato) — paridade com o print
+Refatorar `InboxPage.tsx` painel direito:
+- Cabeçalho com avatar, nome, telefone, empresa, tag de status (Novo/Cliente), **Ticket Médio**.
+- Bloco **Funil & Etapa**: lead vinculado, transferir pipeline, mover etapa, "Ver Lead no Pipeline".
+- **Transferir Conversa** para outro membro/atendente.
+- **Automação & IA**: switch IA Ativa, lista de agentes/fluxos vinculados.
+- **Tags** editáveis.
+- **Notas internas** (privadas para a equipe).
+- **Atividade**: timeline de disparos/automações.
+- Co-Piloto de Vendas no rodapé (sugestões via Lovable AI).
+- Atalhos no input: `Enter enviar · Shift+Enter nova linha · Alt+N nota · 📎 anexar · 🎤 áudio · /` para `quick_replies`.
 
----
+### 7. Identidade do usuário no header + créditos visíveis e descontáveis
+- Header (`Dashboard.tsx` sidebar footer já mostra email): trocar para **nome completo** (`profiles.full_name`) e **plano**.
+- Topo do dashboard: badge "⚡ N créditos" sempre visível.
+- Tabela `profiles`: adicionar `plan` (`start|pro|enterprise`), `credits_balance` (int), `credits_monthly` (int).
+- Tabela nova `credit_transactions` (user_id, amount, reason, ref_id, created_at) para histórico.
+- Edge function `consume-credits` (service-role) chamada em: resposta com áudio do agente, geração de imagem, geração de página/quiz/form via IA, transcrição, análise de imagem. Custos default configuráveis pelo super admin.
 
-## Fase 1 — Schema do Banco (Migration única)
+### 8. Planos e limites
+| Plano | Preço | Créditos | Módulos | Atendentes extras |
+|---|---|---|---|---|
+| **Start** | R$ 197 | 50 | CRM, Analytics, Forms | 0 |
+| **Pro** | R$ 397 | 100 | + Quiz, Pages | até 5 |
+| **Enterprise** | R$ 497 | 200 | + Agenda, Automação, Agentes IA, Fluxos, Campanhas, Chat | até 20 |
 
-Tabelas novas:
+- Coluna `plan` em `profiles` controla acesso aos módulos no `Dashboard.tsx` (esconder itens do menu).
+- SuperAdmin define plano e pode override de limites por usuário.
 
-| Tabela | Função |
-|---|---|
-| `whatsapp_configs` | Config do provedor WhatsApp por usuário (api_type, base_url, api_token, instance_id, extra_headers, default_pipeline_id, default_stage_id, auto_create_lead, is_active) |
-| `messages` | Mensagens in/out (client_id, lead_id, direction, content, media_url, media_type, status, external_message_id, channel, metadata) |
-| `api_keys` | Chaves de autenticação para webhook-receiver (key_hash SHA-256, label, last_used_at) |
-| `ai_provider_configs` | Cofre de API Keys IA (provider: groq/openai/gemini/lovable, label, api_key_encrypted, is_default, is_active) |
-| `ai_agents` | Agentes IA (name, type: atendimento/prospeccao/sdr/closer/suporte, personality, tone, system_prompt, ai_provider_config_id, model, max_tokens, is_active) |
-| `agent_knowledge` | Base de conhecimento por agente (type: text/url/pdf, content, source_url) |
-| `prospecting_campaigns` | Campanhas (name, agent_id, flow_id, pipeline_id, stage_id, channel, status, daily_limit, business_hours, delay_min, delay_max) |
-| `campaign_contacts` | Leads vinculados à campanha (status: pending/sent/replied/converted/failed, sent_at, last_message_at) |
-| `conversation_flows` | Fluxos visuais (name, nodes JSONB, edges JSONB) |
-| `conversation_flow_sessions` | Sessões ativas (client_id, flow_id, current_node_id, variables JSONB) |
-| `chat_automations` | Regras gatilho→ação para o chat (trigger_type, trigger_value, actions JSONB, priority, is_active) |
-| `conversation_state` | Por conversa: ai_active (bool), assigned_agent_id, assigned_user_id, mode: ai/human/copilot, last_human_reply_at |
-| `quick_replies` | Respostas rápidas (shortcut, content) |
-| `webhook_logs` | Logs de webhook entrada/saída (direction, event, payload, status, error) |
+### 9. Atendentes / Sub-usuários por plano
+- Tabela nova `team_members` (owner_user_id, member_user_id, role, permissions jsonb, created_at).
+- Em `SettingsPage` nova aba **Equipe**: dono do plano (Pro/Enterprise) convida atendentes por email — limite conforme plano (5/20). SuperAdmin pode aumentar manualmente via override.
+- Atendentes recebem leads transferidos, conversas, com permissões granulares (ver pipelines, responder, criar campanhas, etc.).
+- Filtro em `InboxPage` "Transferir Conversa" lista apenas membros do dono do workspace.
 
-Todas com RLS por `user_id`. Realtime habilitado para `messages` e `conversation_state`.
+### 10. Novo módulo "Importados" (lista de contatos importados)
+- Tabela nova `imported_contact_lists` (id, user_id, file_name, total, pending, converted, created_at).
+- Tabela nova `imported_contacts` (id, list_id, user_id, name, email, phone, company, status `pending|converted`, lead_id nullable, raw jsonb, created_at).
+- Nova rota/aba **Importados** abaixo de **Importar** no menu lateral, com a UI do print: header "Contatos Importados — N contatos · N pendentes · N convertidos", busca, filtros Pendentes/Data, lista por arquivo expandível com botão "Converter Todos" e "Converter" por linha (cria `lead` e marca status).
 
----
-
-## Fase 2 — Edge Functions
-
-| Função | Responsabilidade |
-|---|---|
-| `send-whatsapp` | Envio multi-provider (Z-API, Evolution, UltraMsg, Custom). Sanitiza URL, monta payload, salva em `messages` |
-| `webhook-receiver` | Recebe webhooks (autentica via `api_keys` SHA-256). Normaliza payload por provedor. Detecta grupo. Dedup por `external_message_id`. Cria/resolve cliente. Auto-cria lead. Dispara automações + flows + agente IA. Cria notificação |
-| `ai-agent` | Proxy IA multi-provider. Lê `ai_provider_configs`, monta histórico (últimas 30 msgs) + system prompt + conhecimento, chama provedor (Lovable AI por default, Groq/OpenAI/Gemini se configurado), retorna resposta. Aplica delay humanizado |
-| `prospecting-engine` | Cron-like: busca campanhas ativas, contatos `pending`, respeita horário comercial e daily_limit, randomiza delay, dispara via `send-whatsapp`, marca `sent_at` |
-| `test-whatsapp` | Diagnóstico: envia ping para validar credenciais |
-| `chat-copilot` | Copiloto: dado histórico, retorna sugestões de resposta + resumo + próximo passo (não envia) |
-
-Todas com `verify_jwt = false` (validação interna via JWT ou API Key). CORS configurado.
-
----
-
-## Fase 3 — Módulo AUTOMAÇÃO (UI)
-
-Nova entrada na sidebar do `Dashboard.tsx`: **Automação** (ícone Zap).
-
-Componente `AutomationHub.tsx` com sub-abas:
-
-1. **Importação de Leads** (`LeadImporter.tsx`)
-   - Upload CSV/XLSX (parse client-side com biblioteca `papaparse` + `xlsx`)
-   - Mapeamento de colunas → campos (nome, telefone, email, tags, origem)
-   - Seleção: pipeline, etapa, tag inicial
-   - Opção: "Adicionar direto a campanha" (escolhe campanha)
-   - Preview antes de importar + dedup por telefone/email
-
-2. **Campanhas** (`CampaignsList.tsx` + `CampaignEditor.tsx`)
-   - CRUD de campanhas
-   - Configuração: nome, lista (importada/CRM), canal (WhatsApp), agente OU fluxo
-   - Tipo: disparo único / sequência / baseado em comportamento
-   - Regras: delay min/max, horário comercial, limite/dia, randomização
-   - Vínculo CRM: pipeline + etapa + ações automáticas (respondeu→mover, sem resposta→follow-up)
-   - Botão: Iniciar / Pausar / Duplicar
-
-3. **Agentes IA** (`AgentsLibrary.tsx`)
-   - CRUD de múltiplos agentes (SDR, Closer, Suporte etc)
-   - Editor com abas: Identidade, Instruções (prompt), Conhecimento (texto/URL/PDF), Configuração (provider, model, delay)
-   - Templates pré-prontos (Atendente SAC, Recepcionista, Qualificador)
-   - Sandbox de teste (`AgentTestChat.tsx`) — simula conversa
-   - Log de tokens consumidos por agente
-
-4. **Fluxos** (`FlowsList.tsx` + `FlowCanvas.tsx`)
-   - Construtor visual (React Flow ou implementação custom em SVG)
-   - Tipos de nó: message, input, options, condition, action, delay, ai_context, end
-   - Templates: Boas-vindas, Prospecção, Pesquisa, Re-engajamento
-
-5. **Cofre de API Keys IA** (`AIProviderSettings.tsx`)
-   - CRUD para Lovable AI (default), Groq, OpenAI, Gemini, Claude
-   - Teste de conexão
-   - Marca padrão por provedor
-
-6. **Automações de Chat** (`ChatAutomationsTab.tsx`)
-   - CRUD gatilho→ações (multi-step)
-   - Gatilhos: any_message, keyword, regex, first_message, no_response_xh, intent_detected, stage_entry, business_hours/off_hours
-   - Ações: ai_agent, auto_reply, pause_agent, add_to_pipeline, move_stage, add_tag, assign_to, start_flow
+### 11. Refatorar "Importar" para o layout do print
+- `LeadImporter.tsx`: cabeçalho "Importar Contatos · Importe via arquivo ou cole sua lista", botão "Ver N contatos importados".
+- Campo **Tag de campanha (opcional)**.
+- **Tipo de lista**: 3 cards selecionáveis — *Leads/Contatos Novos*, *Clientes Efetivados*, *Misto*.
+- Toggle **Importar Arquivo / Colar Contatos**.
+- Dropzone grande "Arraste seu arquivo aqui" + helper "CSV, TXT, Excel — aceita listas com apenas telefone, email ou nome".
+- Após importar grava em `imported_contact_lists` + `imported_contacts` (não cria leads diretamente — conversão é feita em "Importados").
 
 ---
 
-## Fase 4 — Módulo CHAT / INBOX (UI)
+### Detalhes técnicos (resumo)
 
-Nova entrada na sidebar: **Chat** (ícone MessageCircle).
+**Migrations principais**
+```sql
+ALTER TABLE profiles ADD COLUMN plan text DEFAULT 'start',
+  ADD COLUMN credits_balance int DEFAULT 50,
+  ADD COLUMN credits_monthly int DEFAULT 50;
 
-Layout 3 colunas em `InboxPage.tsx`:
+ALTER TABLE ai_agents
+  ADD COLUMN split_long_messages bool DEFAULT true,
+  ADD COLUMN max_message_chars int DEFAULT 350,
+  ADD COLUMN simulate_typing bool DEFAULT true,
+  ADD COLUMN simulate_recording bool DEFAULT true;
 
-**Coluna esquerda — `ConversationList.tsx` (340px)**
-- Lista de conversas agregadas por `client_id`
-- Filtros: Todos / Não lidos / Aguardando / Individual / Grupos
-- Busca por nome/telefone
-- Badges: campanha, tags, IA on/off
-- Realtime via subscription em `messages`
+ALTER TABLE prospecting_campaigns
+  ADD COLUMN source_pipelines jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN target_pipeline_id text,
+  ADD COLUMN target_stage_id text;
 
-**Coluna central — `ChatArea.tsx`**
-- Histórico paginado (lazy load no scroll up)
-- Envio: texto, mídia (upload bucket `chat-media`), áudio (MediaRecorder)
-- Respostas rápidas (`/` abre menu)
-- Notas internas (Alt+N)
-- Separadores de data
-- Indicador "digitando" e status da mensagem
-- Banner de aviso se WhatsApp inativo
+CREATE TABLE credit_transactions (...);
+CREATE TABLE team_members (...);
+CREATE TABLE imported_contact_lists (...);
+CREATE TABLE imported_contacts (...);
+```
 
-**Coluna direita — `ChatSidebar.tsx` (288px)**
-- Perfil do cliente (avatar, nome editável, telefone)
-- Controle IA da conversa:
-  - Toggle: **IA Ativa / Pausada / Modo Copiloto**
-  - Select: trocar agente
-  - Botão: Reiniciar fluxo
-- Origem: badge "Veio da campanha X — Etapa Y"
-- Funil/Etapa do lead (select inline)
-- Tags (toggle)
-- Notas internas + Timeline de atividades
+**Edge functions novas/atualizadas**
+- `consume-credits` (nova) — debita e registra.
+- `tts-preview` — fix Omni via Lovable Gateway, fallback gracioso, +Groq.
+- `webhook-receiver` — transcrição/visão por provedor do agente, presença typing/recording, split de mensagens longas, cobrança de créditos.
+- `send-whatsapp` — suporte a presença e envio fracionado.
+- `manage-users` — campos `plan`, `team_member_limit`, `permissions` expandidos.
 
-**Modo Copiloto (`CopilotPanel.tsx`)**
-- Chama `chat-copilot` Edge Function
-- Mostra: 3 sugestões de resposta + resumo da conversa + próximo passo recomendado
-- Clicar em sugestão → preenche o input
+**Arquivos front principais**
+- `Dashboard.tsx` — header com nome+plano+créditos, gating por plano, novo item "Importados".
+- `AgentBuilder.tsx` — toggles novos + modal de Templates.
+- `FlowsBuilder.tsx` — Templates de fluxo + editor visual.
+- `CampaignsList.tsx` — multi-pipeline source/target.
+- `InboxPage.tsx` — painel lateral completo conforme print.
+- `LeadImporter.tsx` — refator para layout do print.
+- Novos: `ImportedContacts.tsx`, `TeamMembers.tsx` (em SettingsPage).
 
-**Intervenção humana**
-- Quando usuário responde, IA pausa automaticamente (configurável em `conversation_state.mode`)
-- Botão "Devolver para IA" reativa
-
----
-
-## Fase 5 — Integração com sistema existente
-
-- **Notificações**: nova mensagem inbound gera entrada em `notifications` (já existe)
-- **CRM Events** (`crm-events.ts`): novos eventos `lead_imported`, `campaign_started`, `reply_detected`, `intent_detected`
-- **Forms/Quiz/Agenda/Checkout**: ao gerar lead, opcionalmente vincular a campanha de boas-vindas
-- **CRMKanban**: badge "Veio da campanha" no lead; chat history inline (já existe `LeadViewer`, adicionar aba "Chat")
-
----
-
-## Fase 6 — Detalhes técnicos
-
-**Hooks/libs a criar:**
-- `src/hooks/useInbox.tsx` — estado central do chat (conversations, messages, realtime, paginação)
-- `src/lib/whatsapp-providers.ts` — definições e validações por provedor
-- `src/lib/flow-engine.ts` — runner de fluxos client-side (preview) e helpers
-- `src/lib/ai-router.ts` — abstração de chamada IA (default Lovable AI)
-
-**Bibliotecas a instalar:**
-- `papaparse` + `xlsx` (importação)
-- `reactflow` (canvas de fluxos) — opcional, fallback custom
-- `react-markdown` (renderização de respostas IA no chat)
-
-**Storage bucket:**
-- `chat-media` (público) para mídias enviadas/recebidas
-
-**Realtime:**
-- Habilitar em `messages` e `conversation_state` via `ALTER PUBLICATION supabase_realtime ADD TABLE`
-
-**IA default:**
-- Lovable AI Gateway (Gemini Flash) já disponível via `LOVABLE_API_KEY` — sem custo de setup
-- Usuário pode adicionar Groq/OpenAI/Gemini próprios para escalar
-
----
-
-## Fase 7 — Ordem de execução (sem deixar pela metade)
-
-1. **Migration completa** (todas as tabelas + RLS + realtime + bucket)
-2. **Edge Functions base**: `send-whatsapp`, `webhook-receiver`, `ai-agent`, `test-whatsapp`
-3. **Sidebar Dashboard**: adicionar entradas "Automação" e "Chat"
-4. **Configuração WhatsApp** (sub-aba Automação): permite usuário conectar Z-API
-5. **Cofre de API Keys IA** (mesmo painel)
-6. **Inbox completo** (3 colunas, realtime, envio/recebimento, controle IA)
-7. **Agentes IA** (CRUD + sandbox de teste)
-8. **Automações de chat** (gatilho→ação)
-9. **Importação de leads** (CSV/XLSX)
-10. **Campanhas de prospecção** (CRUD + engine + cron via pg_cron ou trigger periódico)
-11. **Fluxos visuais** (canvas + runner)
-12. **Modo Copiloto** + integração final com CRM/Notificações
-
-Cada fase entregue completa antes de iniciar a próxima, com QA visual no preview.
-
----
-
-## Garantias
-
-- ✅ Zero remoção/quebra: todos os módulos atuais permanecem intactos
-- ✅ Nativo: nada depende de SaaS externo além da própria Z-API (configurada pelo usuário)
-- ✅ Multi-tenant: isolamento via RLS por `user_id`
-- ✅ Pronto para IA: arquitetura multi-provider e multi-agente desde o início
-- ✅ Escalável: Edge Functions para processamento pesado, realtime para UI
-
----
-
-## O que o usuário precisará fazer (após aprovar)
-
-1. Criar conta na Z-API (ou outro provedor) e obter Instance ID + Token
-2. Colar credenciais na nova aba **Automação → WhatsApp**
-3. Copiar a URL do webhook gerada e colar no painel da Z-API
-4. (Opcional) Adicionar API Keys próprias de Groq/OpenAI/Gemini se quiser modelos específicos — caso contrário, Lovable AI já funciona out-of-the-box
+### Ordem de execução
+1. Migrations + edge functions (créditos, TTS fix, webhook multimídia).
+2. Header de plano/créditos + gating de módulos.
+3. AgentBuilder (toggles + templates) e FlowsBuilder (templates).
+4. CampaignsList (pipelines source/target).
+5. InboxPage painel lateral completo.
+6. LeadImporter refatorado + módulo Importados.
+7. Equipe/Atendentes em Settings.
