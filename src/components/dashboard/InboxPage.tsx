@@ -472,7 +472,7 @@ export default function InboxPage() {
             <p className="text-[10px] text-muted-foreground">Transferir pausa a IA e atribui a conversa ao atendente.</p>
           </div>
 
-          {/* Notes block (composer) */}
+          {/* Tags */}
           {lead && (
             <div className="border-t border-border pt-3 space-y-2">
               <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"><Tag className="h-3 w-3" />Tags</p>
