@@ -199,6 +199,37 @@ export default function LeadImporter() {
             <Badge variant="secondary">{rows.length} linhas detectadas</Badge>
           </Card>
 
+          <Card className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Pré-visualização da lista ({rows.length})</h3>
+              <Button size="sm" variant="ghost" onClick={() => { setRows([]); setHeaders([]); setMapping({}); }}>Limpar</Button>
+            </div>
+            <div className="max-h-64 overflow-auto rounded border border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-secondary/40 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2">#</th>
+                    <th className="text-left p-2">Nome</th>
+                    <th className="text-left p-2">Telefone</th>
+                    <th className="text-left p-2">E-mail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 200).map((r, i) => (
+                    <tr key={i} className="border-t border-border/50">
+                      <td className="p-2 text-muted-foreground">{i + 1}</td>
+                      <td className="p-2">{mapping.name ? r[mapping.name] : "—"}</td>
+                      <td className="p-2 font-mono">{mapping.phone ? normalizePhone(String(r[mapping.phone] || "")) : "—"}</td>
+                      <td className="p-2">{mapping.email ? r[mapping.email] : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {rows.length > 200 && <p className="text-[10px] text-muted-foreground">Mostrando primeiras 200 de {rows.length} linhas.</p>}
+          </Card>
+
+
           <Card className="p-6 space-y-3">
             <h3 className="font-semibold">Destino CRM</h3>
             <div className="grid grid-cols-3 gap-3">
