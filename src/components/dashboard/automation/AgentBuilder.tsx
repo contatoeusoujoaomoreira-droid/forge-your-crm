@@ -270,27 +270,49 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     if (!agent?.id) { toast.error("Salve o agente primeiro"); return; }
     if (!user) return;
     const keywordsArr = knKeywords.split(",").map(s => s.trim()).filter(Boolean);
-    const item: any = {
-      agent_id: agent.id,
-      user_id: user.id,
-      type: knType,
-      title: knTitle || (knType === "url" ? knUrl : "Item"),
-      content: knType === "url" ? knUrl : knContent,
-      source_url: knType === "url" ? knUrl : null,
-      status: knType === "url" ? "processing" : "ready",
-      category: knCategory || null,
-      description: knDescription || null,
-      keywords: keywordsArr,
-      media_urls: knMediaUrls,
-      external_links: knLinks,
-    };
-    const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
-    if (error) { toast.error(error.message); return; }
-    toast.success("Adicionado à base");
-    if (knType === "url" && row) {
-      supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
-        .then(() => loadKnowledge(agent.id));
+
+    // Validation per type
+    if (knType === "text" && !knContent.trim()) { toast.error("Conteúdo de texto obrigatório"); return; }
+    if (knType === "site" && !knUrl.trim()) { toast.error("Informe a URL do site"); return; }
+    if (knType === "link" && knLinks.length === 0) { toast.error("Adicione ao menos um link"); return; }
+    if (knType === "image" && knMediaUrls.length === 0) { toast.error("Anexe ao menos uma imagem"); return; }
+
+    // Image type: create one knowledge item per image so each can have its own description
+    if (knType === "image") {
+      for (const url of knMediaUrls) {
+        await supabase.from("agent_knowledge").insert({
+          agent_id: agent.id, user_id: user.id, type: "image",
+          title: knTitle || "Imagem", content: knDescription || "",
+          source_url: url, status: "ready",
+          category: knCategory || null, description: knDescription || null,
+          keywords: keywordsArr, media_urls: [url], external_links: [],
+        } as any);
+      }
+      toast.success(`${knMediaUrls.length} imagem(ns) adicionada(s)`);
+    } else {
+      const item: any = {
+        agent_id: agent.id,
+        user_id: user.id,
+        type: knType === "site" ? "url" : knType, // keep DB compat: site stored as 'url'
+        title: knTitle || (knType === "site" ? knUrl : knType === "link" ? "Coleção de links" : "Item"),
+        content: knType === "site" ? knUrl : knContent,
+        source_url: knType === "site" ? knUrl : null,
+        status: knType === "site" ? "processing" : "ready",
+        category: knCategory || null,
+        description: knDescription || null,
+        keywords: keywordsArr,
+        media_urls: knMediaUrls,
+        external_links: knLinks,
+      };
+      const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
+      if (error) { toast.error(error.message); return; }
+      toast.success("Adicionado à base");
+      if (knType === "site" && row) {
+        supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
+          .then(() => loadKnowledge(agent.id));
+      }
     }
+
     setKnTitle(""); setKnContent(""); setKnUrl("");
     setKnCategory(""); setKnDescription(""); setKnKeywords("");
     setKnMediaUrls([]); setKnLinks([]);
