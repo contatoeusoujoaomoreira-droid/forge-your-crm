@@ -90,7 +90,7 @@ const Analytics = () => {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: "Total Leads", value: stats.totalLeads, icon: Users, color: "text-blue-400" },
           { label: "Valor Pipeline", value: `R$ ${stats.totalValue.toLocaleString("pt-BR")}`, icon: DollarSign, color: "text-primary" },
@@ -112,7 +112,7 @@ const Analytics = () => {
       </div>
 
       {/* Module Stats */}
-      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {[
           { label: "Pages", value: stats.totalPages, sub: `${stats.totalPageViews} views`, icon: Globe, color: "text-blue-400" },
           { label: "Forms", value: stats.totalForms, sub: `${stats.totalFormResponses} respostas`, icon: FileText, color: "text-primary" },
