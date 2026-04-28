@@ -1392,6 +1392,42 @@ export type Database = {
         }
         Relationships: []
       }
+      model_credit_costs: {
+        Row: {
+          created_at: string
+          credits_per_message: number
+          id: string
+          is_active: boolean
+          label: string
+          model: string
+          notes: string | null
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credits_per_message?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          model: string
+          notes?: string | null
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credits_per_message?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          model?: string
+          notes?: string | null
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
