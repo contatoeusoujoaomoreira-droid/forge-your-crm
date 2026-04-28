@@ -42,6 +42,7 @@ export default function LeadImporter() {
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(0);
   const [skipped, setSkipped] = useState(0);
+  const [manualText, setManualText] = useState("");
 
   // Load pipelines on mount
   useState(() => {
