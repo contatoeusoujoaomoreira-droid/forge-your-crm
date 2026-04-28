@@ -262,14 +262,27 @@ export default function InboxPage() {
           </div>
         ) : (
           <>
-            <div className="p-3 border-b border-border flex items-center justify-between">
-              <div>
-                <p className="font-medium">{selected.name || selected.phone}</p>
-                <p className="text-xs text-muted-foreground">{selected.phone}</p>
+            <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">{selected.name || selected.phone}</p>
+                  <Badge variant={isClient ? "default" : "secondary"} className="text-[10px]">
+                    {isClient ? "Cliente" : "Novo"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
               </div>
-              <Badge variant={convState?.ai_active ? "default" : "secondary"}>
-                {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA Ativa</> : <><User className="h-3 w-3 mr-1" />Humano</>}
-              </Badge>
+              <div className="flex items-center gap-2 shrink-0">
+                {avgTicket > 0 && (
+                  <Badge variant="outline" className="text-[10px] gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    Ticket médio R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                  </Badge>
+                )}
+                <Badge variant={convState?.ai_active ? "default" : "secondary"}>
+                  {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA</> : <><User className="h-3 w-3 mr-1" />Humano</>}
+                </Badge>
+              </div>
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
               {messages.map(m => {
