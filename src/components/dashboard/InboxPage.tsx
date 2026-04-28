@@ -188,9 +188,45 @@ export default function InboxPage() {
     }
   };
 
+  const addInternalNote = async () => {
+    if (!noteInput.trim() || !selectedId || !user) return;
+    const text = noteInput.trim();
+    setNoteInput("");
+    const { data, error } = await supabase.from("messages").insert({
+      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
+      content: text, direction: "outbound", channel: "internal",
+      is_internal_note: true, status: "sent",
+    }).select().single();
+    if (error) { toast.error(error.message); return; }
+    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
+    if (lead?.id) {
+      await supabase.from("activities").insert({
+        user_id: user.id, lead_id: lead.id, type: "note", description: `Nota interna: ${text}`,
+      });
+    }
+    toast.success("Nota interna adicionada");
+  };
+
+  const transferTo = async (memberUserId: string) => {
+    if (!convState) return;
+    await supabase.from("conversation_state").update({
+      assigned_user_id: memberUserId || null,
+      ai_active: false, mode: "human",
+    }).eq("id", convState.id);
+    setConvState({ ...convState, assigned_user_id: memberUserId || null, ai_active: false, mode: "human" } as any);
+    const member = teamMembers.find(m => m.member_user_id === memberUserId);
+    toast.success(`Conversa transferida${member ? ` para ${member.full_name || member.member_email}` : ""}. IA pausada.`);
+  };
+
+  const onComposerKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composeMode === "note" ? addInternalNote() : send(); }
+    if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); setComposeMode(m => m === "note" ? "reply" : "note"); }
+  };
+
   const filtered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
+  const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
 
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-3">
