@@ -263,7 +263,18 @@ export default function AutomationHub() {
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp</h3>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp
+                  <InfoHint title="Como conectar um WhatsApp" steps={[
+                    "Clique em 'Nova conexão' e dê um nome (ex: Comercial).",
+                    "Escolha o provedor (Z-API recomendado) e cole a URL completa da instância no campo 'URL Base'.",
+                    "Cole o Token e (Z-API) o Client-Token da aba Segurança.",
+                    "Escolha o agente IA padrão e o pipeline para novos leads.",
+                    "Clique em Salvar — o webhook é configurado automaticamente.",
+                    "Teste com 'Enviar mensagem teste' usando seu próprio número.",
+                    "Cada Instance ID só pode estar ATIVO em uma conta por vez.",
+                  ]} />
+                </h3>
                 <p className="text-xs text-muted-foreground">Gerencie múltiplas instâncias. Cada uma pode ter seu agente IA próprio.</p>
               </div>
               <Button size="sm" onClick={newConnection}><Plus className="h-4 w-4 mr-1" />Nova conexão</Button>
