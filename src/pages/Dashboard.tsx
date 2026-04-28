@@ -107,6 +107,8 @@ const Dashboard = () => {
     if (tab.id === "admin") return isSuperAdmin;
     if (tab.id === "settings") return true;
     if (isSuperAdmin) return true;
+    // Plan-based gating (super admin always passes above)
+    if (!planInfo.hasModule(tab.id)) return false;
     if (!userPermissions) return true;
     return userPermissions[tab.id] !== false;
   });
