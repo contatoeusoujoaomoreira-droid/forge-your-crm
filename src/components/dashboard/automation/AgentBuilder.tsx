@@ -487,12 +487,21 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   </div>
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
+                      const text = `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?`;
                       const { data, error } = await supabase.functions.invoke("tts-preview", {
-                        body: { provider: provKey, voice: form.voice_id || provDef.voices[0]?.id, text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
+                        body: { provider: provKey, voice: form.voice_id || provDef.voices[0]?.id, text },
                       });
                       if (error) throw error;
-                      if (data?.audio) { const a = new Audio(data.audio); a.play(); }
-                      else toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
+                      if (data?.audio) {
+                        const a = new Audio(data.audio); a.play();
+                      } else if (data?.engine === "browser" && "speechSynthesis" in window) {
+                        const u = new SpeechSynthesisUtterance(data.text || text);
+                        u.lang = "pt-BR";
+                        window.speechSynthesis.speak(u);
+                        toast.success("Reproduzindo via voz nativa do navegador (Omni Audio)");
+                      } else {
+                        toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
+                      }
                     } catch (e: any) { toast.error(e.message || "Erro ao gerar prévia"); }
                   }}>
                     <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
