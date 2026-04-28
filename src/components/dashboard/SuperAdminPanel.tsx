@@ -149,6 +149,37 @@ const SuperAdminPanel = () => {
     }
   };
 
+  const handleUpdatePlan = async (u: ManagedUser, plan: string) => {
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, plan });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, plan } : x));
+      toast({ title: "Plano atualizado!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateTier = async (u: ManagedUser, tier: string) => {
+    if (!confirm(`Alterar hierarquia para "${tier}"? Isso afeta o acesso ao painel.`)) return;
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, tier });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, tier } : x));
+      toast({ title: "Hierarquia atualizada!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateBalance = async (u: ManagedUser, credits_balance: number) => {
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, credits_balance });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, credits_balance } : x));
+      toast({ title: "Saldo de créditos atualizado!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (u: ManagedUser) => {
     if (!confirm(`Remover ${u.email}? Isso excluirá a conta permanentemente.`)) return;
     try {
