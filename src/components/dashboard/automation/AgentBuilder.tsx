@@ -269,6 +269,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const addKnowledge = async () => {
     if (!agent?.id) { toast.error("Salve o agente primeiro"); return; }
     if (!user) return;
+    const keywordsArr = knKeywords.split(",").map(s => s.trim()).filter(Boolean);
     const item: any = {
       agent_id: agent.id,
       user_id: user.id,
@@ -277,6 +278,11 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       content: knType === "url" ? knUrl : knContent,
       source_url: knType === "url" ? knUrl : null,
       status: knType === "url" ? "processing" : "ready",
+      category: knCategory || null,
+      description: knDescription || null,
+      keywords: keywordsArr,
+      media_urls: knMediaUrls,
+      external_links: knLinks,
     };
     const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
     if (error) { toast.error(error.message); return; }
@@ -286,6 +292,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         .then(() => loadKnowledge(agent.id));
     }
     setKnTitle(""); setKnContent(""); setKnUrl("");
+    setKnCategory(""); setKnDescription(""); setKnKeywords("");
+    setKnMediaUrls([]); setKnLinks([]);
     loadKnowledge(agent.id);
   };
 
