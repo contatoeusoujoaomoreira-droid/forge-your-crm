@@ -268,6 +268,10 @@ export default function AutomationHub() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Nome desta conexão</Label>
+                <Input value={waCfg.label || ""} onChange={(e) => setWaCfg({ ...waCfg, label: e.target.value })} placeholder="Ex: Comercial · 11 9999-9999" />
+              </div>
               <div>
                 <Label>Tipo de API</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={waCfg.api_type} onChange={(e) => setWaCfg({ ...waCfg, api_type: e.target.value })}>
