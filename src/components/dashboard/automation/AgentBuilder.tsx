@@ -744,9 +744,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 <Card className="p-4 space-y-3">
                   <h4 className="font-semibold">Adicionar à base</h4>
                   <p className="text-xs text-muted-foreground">
-                    Organize os conteúdos por <strong>categoria</strong> (ex: "venda", "aluguel", "cardápio").
-                    Quando o cliente mencionar algo relacionado, o agente busca pela categoria/palavras-chave e
-                    pode enviar imagens e links automaticamente.
+                    Organize os conteúdos por <strong>categoria</strong> (ex: produtos, serviços, planos, FAQ, cardápio, imóveis, cursos, peças, agendamentos…).
+                    Quando o cliente perguntar sobre algo relacionado, o agente busca pela categoria/palavras-chave e
+                    pode enviar imagens e links automaticamente — funciona para qualquer segmento.
                   </p>
                   <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant={knType === "text" ? "default" : "outline"} onClick={() => setKnType("text")}>
@@ -761,11 +761,11 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <Input placeholder="Título (ex: Apto 2 quartos Centro)" value={knTitle} onChange={(e) => setKnTitle(e.target.value)} />
-                    <Input placeholder="Categoria (ex: venda, aluguel, cardápio)" value={knCategory} onChange={(e) => setKnCategory(e.target.value)} />
+                    <Input placeholder="Título (ex: Plano Pro / Pizza Margherita / Curso Avançado)" value={knTitle} onChange={(e) => setKnTitle(e.target.value)} />
+                    <Input placeholder="Categoria (ex: planos, cardápio, cursos, serviços)" value={knCategory} onChange={(e) => setKnCategory(e.target.value)} />
                   </div>
                   <Input
-                    placeholder="Palavras-chave separadas por vírgula (ex: 2 quartos, garagem, vista mar)"
+                    placeholder="Palavras-chave separadas por vírgula (ex: preço, orçamento, horário, entrega)"
                     value={knKeywords}
                     onChange={(e) => setKnKeywords(e.target.value)}
                   />
@@ -780,7 +780,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     <Input placeholder="https://..." value={knUrl} onChange={(e) => setKnUrl(e.target.value)} />
                   )}
                   {knType === "text" && (
-                    <Textarea rows={4} placeholder="Cole aqui o texto, FAQ, política, descrição completa..." value={knContent} onChange={(e) => setKnContent(e.target.value)} />
+                    <Textarea rows={4} placeholder="Cole aqui o texto, FAQ, política, descrição completa, especificações..." value={knContent} onChange={(e) => setKnContent(e.target.value)} />
                   )}
 
                   {/* Imagens (múltiplas) */}
@@ -820,7 +820,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   <div className="space-y-2">
                     <Label className="text-xs flex items-center gap-1"><Link2 className="h-3 w-3" /> Links externos (Drive, catálogo, vídeo)</Label>
                     <div className="flex gap-2">
-                      <Input placeholder="Nome (ex: Fotos do imóvel)" value={knNewLinkTitle} onChange={(e) => setKnNewLinkTitle(e.target.value)} />
+                      <Input placeholder="Nome (ex: Catálogo Drive, Cardápio, Vídeo demo)" value={knNewLinkTitle} onChange={(e) => setKnNewLinkTitle(e.target.value)} />
                       <Input placeholder="https://drive.google.com/..." value={knNewLinkUrl} onChange={(e) => setKnNewLinkUrl(e.target.value)} />
                       <Button type="button" size="sm" variant="outline" onClick={() => {
                         if (!knNewLinkTitle || !knNewLinkUrl) return;

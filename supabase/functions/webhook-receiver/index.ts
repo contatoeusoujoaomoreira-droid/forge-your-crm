@@ -750,10 +750,13 @@ Deno.serve(async (req) => {
       flowDef = f;
     } else {
       // Try to match a flow by trigger keyword (case-insensitive substring)
+      // Only flows with trigger_mode = 'keyword' (or null/legacy) participate in auto keyword matching.
       const text = (inboundContent || '').toLowerCase().trim();
       const { data: flows } = await admin.from('conversation_flows').select('*')
         .eq('user_id', userId).eq('is_active', true);
       for (const f of flows || []) {
+        const mode = (f.trigger_mode || 'keyword');
+        if (mode !== 'keyword') continue; // campaign_only / manual flows never auto-trigger
         const kw = (f.trigger_keywords || '').toLowerCase().split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
         if (kw.length && kw.some((k: string) => text.includes(k))) { flowDef = f; break; }
       }

@@ -668,6 +668,7 @@ export type Database = {
           name: string
           nodes: Json
           trigger_keywords: string | null
+          trigger_mode: string
           updated_at: string
           user_id: string
         }
@@ -681,6 +682,7 @@ export type Database = {
           name: string
           nodes?: Json
           trigger_keywords?: string | null
+          trigger_mode?: string
           updated_at?: string
           user_id?: string
         }
@@ -694,6 +696,7 @@ export type Database = {
           name?: string
           nodes?: Json
           trigger_keywords?: string | null
+          trigger_mode?: string
           updated_at?: string
           user_id?: string
         }
