@@ -72,6 +72,15 @@ Deno.serve(async (req) => {
     const { data: kn } = await admin.from('agent_knowledge').select('*').eq('id', body.knowledge_id).eq('user_id', userId).maybeSingle();
     if (!kn) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
+    // Pre-charge credits for knowledge ingestion (super_admin / unlimited skipped)
+    const { data: pre } = await admin.rpc('deduct_credits_by_action', {
+      _user_id: userId, _action: 'knowledge_ingest', _quantity: 1,
+      _metadata: { knowledge_id: kn.id, type: kn.type, mime: kn.mime_type || null },
+    });
+    if (pre && (pre as any).ok === false) {
+      return new Response(JSON.stringify({ error: 'Créditos insuficientes para processar conhecimento.', code: 'insufficient_credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     await admin.from('agent_knowledge').update({ status: 'processing', error: null }).eq('id', kn.id);
 
     let extracted = '';
