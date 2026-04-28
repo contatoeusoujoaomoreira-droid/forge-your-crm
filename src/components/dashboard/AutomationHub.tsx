@@ -477,7 +477,16 @@ export default function AutomationHub() {
 
         <TabsContent value="apikeys" className="space-y-4">
           <Card className="p-6 space-y-3">
-            <h3 className="font-semibold">Criar nova API Key</h3>
+            <h3 className="font-semibold flex items-center gap-2">
+              Criar nova API Key
+              <InfoHint title="Para que serve uma API Key?" steps={[
+                "Permite que sistemas externos (n8n, Zapier, Make, scripts próprios) enviem dados para o seu CRM com segurança.",
+                "Use no header 'x-api-key' ao chamar o webhook-receiver para entregar mensagens/leads em nome da sua conta.",
+                "Não é necessária se você só usa Z-API (a instância já identifica sua conta).",
+                "Crie uma chave por integração para poder revogar individualmente.",
+                "A chave aparece UMA única vez — copie e guarde em local seguro.",
+              ]} />
+            </h3>
             <div className="flex gap-2">
               <Input placeholder="Ex: WhatsApp Z-API" value={newKeyLabel} onChange={(e) => setNewKeyLabel(e.target.value)} />
               <Button onClick={createApiKey}>Gerar</Button>
