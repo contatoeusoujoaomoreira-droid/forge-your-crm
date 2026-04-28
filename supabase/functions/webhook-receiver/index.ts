@@ -55,7 +55,7 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
   const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
   const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
-  return { endpoint, apiKey, model };
+  return { endpoint, apiKey, model, provider };
 }
 
 function buildSystemPrompt(agent: any, ctx: string) {
@@ -126,6 +126,80 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
+// Transcribe audio via OpenAI Whisper. Returns text or '' on failure.
+async function transcribeAudio(audioUrl: string, openaiKey: string): Promise<string> {
+  try {
+    const audioResp = await fetch(audioUrl);
+    if (!audioResp.ok) return '';
+    const buf = await audioResp.arrayBuffer();
+    const blob = new Blob([buf], { type: 'audio/ogg' });
+    const fd = new FormData();
+    fd.append('file', blob, 'audio.ogg');
+    fd.append('model', 'whisper-1');
+    fd.append('language', 'pt');
+    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${openaiKey}` },
+      body: fd,
+    });
+    if (!r.ok) { console.error('whisper failed', await r.text()); return ''; }
+    const j = await r.json();
+    return j.text || '';
+  } catch (e) {
+    console.error('transcribeAudio error', e);
+    return '';
+  }
+}
+
+// Describe image via GPT-4o vision. Returns short description.
+async function describeImage(imageUrl: string, openaiKey: string): Promise<string> {
+  try {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases, foco no que é relevante para atendimento de cliente).' },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        }],
+        max_tokens: 200,
+      }),
+    });
+    if (!r.ok) return '';
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content || '';
+  } catch (e) {
+    console.error('describeImage error', e);
+    return '';
+  }
+}
+
+// Generate audio with OpenAI TTS, returns base64 data URL
+async function generateTtsBase64(text: string, voice: string, openaiKey: string): Promise<string> {
+  try {
+    const r = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input: text.slice(0, 4000), response_format: 'mp3' }),
+    });
+    if (!r.ok) { console.error('TTS failed', await r.text()); return ''; }
+    const buf = new Uint8Array(await r.arrayBuffer());
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < buf.length; i += chunk) {
+      binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+    }
+    return `data:audio/mpeg;base64,${btoa(binary)}`;
+  } catch (e) {
+    console.error('TTS error', e);
+    return '';
+  }
+}
+
 async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
   const resp = await fetch(runtime.endpoint, {
     method: 'POST',
@@ -140,7 +214,7 @@ async function callAi(systemPrompt: string, history: { role: string; content: st
   return json.choices?.[0]?.message?.content || '';
 }
 
-const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '');
+const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '').replace(/\/send-audio$/, '');
 
 async function sendWhatsApp(cfg: any, phone: string, content: string) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -149,8 +223,8 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
   const extra = cfg.extra_headers || {};
   switch (cfg.api_type) {
     case 'z-api': {
-      const url = baseUrl.includes('/instances/') ? `${baseUrl}/send-text` : `${baseUrl}/instances/${instance}/token/${token}/send-text`;
-      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      const resp = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'evolution': {
@@ -168,6 +242,24 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
   }
 }
 
+async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+  if (cfg.api_type === 'z-api') {
+    const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+    const resp = await fetch(`${root}/send-audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...extra },
+      body: JSON.stringify({ phone, audio: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  // Other providers: fall back to text — caller already has text reply
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -178,6 +270,7 @@ Deno.serve(async (req) => {
   const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key') || raw.api_key;
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
   let userId = '';
+  let matchedConfig: any = null;
 
   if (apiKey) {
     const keyHash = await sha256(apiKey);
@@ -191,11 +284,11 @@ Deno.serve(async (req) => {
     const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
     if (instanceFromPayload) {
       const { data: cfgByInstance } = await admin.from('whatsapp_configs')
-        .select('user_id')
+        .select('*')
         .eq('instance_id', instanceFromPayload)
         .eq('is_active', true)
         .maybeSingle();
-      userId = cfgByInstance?.user_id || '';
+      if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
     }
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Missing API key or known WhatsApp instance' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -209,13 +302,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // Dedup
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // Resolve/create client
   let { data: client } = await admin.from('chat_clients').select('*')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
   if (!client) {
@@ -241,8 +332,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // Auto-create lead if config says so
-  const { data: waCfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', userId).maybeSingle();
+  // Use matched config (multi-instance) if available; otherwise fallback to first active for the user
+  const { data: waCfg } = matchedConfig
+    ? { data: matchedConfig }
+    : await admin.from('whatsapp_configs').select('*').eq('user_id', userId).eq('is_active', true).order('created_at').limit(1).maybeSingle();
+
   if (client && !client.lead_id && waCfg?.auto_create_lead) {
     let stageId = waCfg.default_stage_id;
     if (!stageId) {
@@ -261,14 +355,62 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Save inbound message
+  // Resolve agent + provider config (need OpenAI key for whisper/vision/tts)
+  let agentId: string | null = null;
+  let agent: any = null;
+  let providerCfg: any = null;
+  let { data: convStateInit } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+  if (!convStateInit) {
+    const { data: createdState } = await admin.from('conversation_state').insert({
+      user_id: userId, client_id: client.id, ai_active: true, mode: 'ai',
+    }).select().single();
+    convStateInit = createdState;
+  }
+
+  agentId = convStateInit?.assigned_agent_id || waCfg?.default_agent_id || null;
+  if (!agentId) {
+    const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
+    agentId = defaultAgent?.id;
+  }
+  if (agentId) {
+    const { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).maybeSingle();
+    agent = ag;
+    if (agent?.ai_provider_config_id) {
+      const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).eq('user_id', userId).maybeSingle();
+      providerCfg = cfg;
+    }
+  }
+
+  // Determine an OpenAI key to use for media (whisper/vision/tts)
+  let openaiKey = '';
+  if (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) openaiKey = providerCfg.api_key_encrypted;
+  if (!openaiKey) {
+    const { data: anyOpenAi } = await admin.from('ai_provider_configs')
+      .select('api_key_encrypted').eq('user_id', userId).eq('provider', 'openai')
+      .not('api_key_encrypted', 'is', null).limit(1).maybeSingle();
+    if (anyOpenAi?.api_key_encrypted) openaiKey = anyOpenAi.api_key_encrypted;
+  }
+
+  // If audio + transcription enabled, transcribe and append to content
+  let transcript = '';
+  let imageDescription = '';
+  let inboundContent = msg.content;
+  if (msg.media_type === 'audio' && msg.media_url && openaiKey && (agent?.transcribe_audio !== false)) {
+    transcript = await transcribeAudio(msg.media_url, openaiKey);
+    if (transcript) inboundContent = transcript;
+  }
+  if (msg.media_type === 'image' && msg.media_url && openaiKey && (agent?.understand_images !== false)) {
+    imageDescription = await describeImage(msg.media_url, openaiKey);
+    if (imageDescription) inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+  }
+
   const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
     user_id: userId,
     client_id: client?.id,
     lead_id: client?.lead_id,
     direction: 'inbound',
     channel: 'whatsapp',
-    content: msg.content,
+    content: inboundContent,
     media_url: msg.media_url,
     media_type: msg.media_type,
     status: 'received',
@@ -276,7 +418,13 @@ Deno.serve(async (req) => {
     sender_phone: msg.phone,
     sender_name: msg.name,
     created_at: msg.timestamp || new Date().toISOString(),
-    metadata: { provider: 'z-api', raw_type: raw.type || raw.event || null },
+    metadata: {
+      provider: 'z-api',
+      raw_type: raw.type || raw.event || null,
+      transcript: transcript || undefined,
+      image_description: imageDescription || undefined,
+      original_caption: msg.content !== inboundContent ? msg.content : undefined,
+    },
   }).select().single();
   if (insertMsgErr) {
     if (String(insertMsgErr.code) === '23505') {
@@ -288,71 +436,61 @@ Deno.serve(async (req) => {
   }
   await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
 
-  // Notification
   await admin.from('notifications').insert({
     user_id: userId,
     type: 'message',
     title: `Nova mensagem de ${msg.name || msg.phone}`,
-    message: msg.content?.slice(0, 100),
+    message: inboundContent?.slice(0, 100),
     related_id: client?.id,
   });
 
-  // Get/init conversation_state
-  let { data: convState } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
-  if (!convState) {
-    const { data: createdState } = await admin.from('conversation_state').insert({
-      user_id: userId, client_id: client.id, ai_active: true, mode: 'ai',
-    }).select().single();
-    convState = createdState;
-  }
-
-  // AI response if active globally AND for this conversation
-  if (waCfg?.ai_auto_reply !== false && convState?.ai_active && convState?.mode === 'ai') {
-    let agentId = convState.assigned_agent_id || waCfg?.default_agent_id;
-    if (!agentId) {
-      const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
-      agentId = defaultAgent?.id;
-    }
-    if (agentId) {
-      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).eq('is_active', true).maybeSingle();
-      if (agent) {
-        try {
-          const { data: history } = await admin.from('messages').select('direction, content')
-            .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);
-          const ordered = (history || []).reverse().filter((m: any) => m.content);
-          const aiHistory = ordered.map((m: any) => ({
-            role: m.direction === 'inbound' ? 'user' : 'assistant',
-            content: m.content,
-          }));
-          const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agentId).limit(10);
-          const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 4000);
-          let providerCfg: any = null;
-          if (agent.ai_provider_config_id) {
-            const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).eq('user_id', userId).eq('is_active', true).maybeSingle();
-            providerCfg = cfg;
-          }
-          const sys = buildSystemPrompt(agent, ctx);
-          const runtime = resolveAiRuntime(agent, providerCfg);
-          const reply = await callAi(sys, aiHistory, runtime);
-          if (reply) {
-            let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
-            if (waCfg?.is_active) {
-              try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
-              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+  // AI auto-reply
+  if (waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
+    try {
+      const { data: history } = await admin.from('messages').select('direction, content')
+        .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);
+      const ordered = (history || []).reverse().filter((m: any) => m.content);
+      const aiHistory = ordered.map((m: any) => ({
+        role: m.direction === 'inbound' ? 'user' : 'assistant',
+        content: m.content,
+      }));
+      const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', agent.id).limit(20);
+      const ctx = (knowledge || []).map((k: any) => k.content).join('\n\n').slice(0, 8000);
+      const sys = buildSystemPrompt(agent, ctx);
+      const runtime = resolveAiRuntime(agent, providerCfg);
+      const reply = await callAi(sys, aiHistory, runtime);
+      if (reply) {
+        let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
+        let voiceUsed = false;
+        // If incoming was audio AND voice is enabled AND we have an openai key, reply with audio
+        const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
+        if (waCfg?.is_active) {
+          if (shouldReplyWithVoice) {
+            const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
+            if (audioDataUrl) {
+              try { delivery = await sendWhatsAppAudio(waCfg, msg.phone, audioDataUrl) || delivery; voiceUsed = delivery.ok; }
+              catch (e) { console.error('audio send fail', e); }
             }
-            // Persist outbound after attempting external delivery
-            await admin.from('messages').insert({
-              user_id: userId, client_id: client.id, lead_id: client.lead_id,
-              direction: 'outbound', channel: 'whatsapp', content: reply,
-              status: delivery.ok ? 'sent' : 'failed', agent_id: agentId,
-              sender_phone: msg.phone,
-              metadata: { external_status: delivery.status, external_body: delivery.body },
-            });
+            if (!voiceUsed) {
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
+              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; }
+            }
+          } else {
+            try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
+            catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
           }
-        } catch (e) {
-          console.error('AI reply failed', e);
         }
+        await admin.from('messages').insert({
+          user_id: userId, client_id: client.id, lead_id: client.lead_id,
+          direction: 'outbound', channel: 'whatsapp', content: reply,
+          status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id,
+          sender_phone: msg.phone,
+          media_type: voiceUsed ? 'audio' : null,
+          metadata: { external_status: delivery.status, external_body: delivery.body, voice: voiceUsed },
+        });
       }
+    } catch (e) {
+      console.error('AI reply failed', e);
     }
   }
 
