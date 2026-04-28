@@ -197,6 +197,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       setPipelines(pl.data || []);
       setStages(st.data || []);
       setModelCosts(mc.data || []);
+      setElevenConnected((pr.data || []).some((p: any) => p.provider === 'elevenlabs' && p.api_key_encrypted));
     })();
   }, [user, open]);
 
