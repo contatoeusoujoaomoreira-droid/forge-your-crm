@@ -9,14 +9,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch, Info } from "lucide-react";
 import LeadImporter from "./automation/LeadImporter";
 import CampaignsList from "./automation/CampaignsList";
-import ChatAutomationsTab from "./automation/ChatAutomationsTab";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
+
+// Reusable info tooltip with step-by-step content (hover or focus to view)
+function InfoHint({ title, steps }: { title: string; steps: string[] }) {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" aria-label={`Ajuda: ${title}`} className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition">
+            <Info className="h-3 w-3" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-sm text-left">
+          <p className="font-semibold text-xs mb-1">{title}</p>
+          <ol className="list-decimal list-inside text-xs space-y-1">
+            {steps.map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
@@ -124,6 +145,19 @@ export default function AutomationHub() {
 
   const saveWa = async () => {
     if (!user) return;
+    // Validate duplicate instance_id (a single Z-API instance cannot route to two CRM accounts)
+    if (waCfg.instance_id) {
+      const { data: dup } = await supabase
+        .from("whatsapp_configs")
+        .select("id, user_id")
+        .eq("instance_id", waCfg.instance_id)
+        .eq("is_active", true);
+      const conflict = (dup || []).find((d: any) => d.id !== waCfg.id);
+      if (conflict) {
+        toast.error("Este Instance ID já está ativo em outra conexão. Desative-a antes ou use outra instância.");
+        return;
+      }
+    }
     const payload = { ...waCfg, user_id: user.id };
     delete payload.created_at;
     delete payload.updated_at;
@@ -223,14 +257,24 @@ export default function AutomationHub() {
           <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-          <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp</h3>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp
+                  <InfoHint title="Como conectar um WhatsApp" steps={[
+                    "Clique em 'Nova conexão' e dê um nome (ex: Comercial).",
+                    "Escolha o provedor (Z-API recomendado) e cole a URL completa da instância no campo 'URL Base'.",
+                    "Cole o Token e (Z-API) o Client-Token da aba Segurança.",
+                    "Escolha o agente IA padrão e o pipeline para novos leads.",
+                    "Clique em Salvar — o webhook é configurado automaticamente.",
+                    "Teste com 'Enviar mensagem teste' usando seu próprio número.",
+                    "Cada Instance ID só pode estar ATIVO em uma conta por vez.",
+                  ]} />
+                </h3>
                 <p className="text-xs text-muted-foreground">Gerencie múltiplas instâncias. Cada uma pode ter seu agente IA próprio.</p>
               </div>
               <Button size="sm" onClick={newConnection}><Plus className="h-4 w-4 mr-1" />Nova conexão</Button>
@@ -433,7 +477,16 @@ export default function AutomationHub() {
 
         <TabsContent value="apikeys" className="space-y-4">
           <Card className="p-6 space-y-3">
-            <h3 className="font-semibold">Criar nova API Key</h3>
+            <h3 className="font-semibold flex items-center gap-2">
+              Criar nova API Key
+              <InfoHint title="Para que serve uma API Key?" steps={[
+                "Permite que sistemas externos (n8n, Zapier, Make, scripts próprios) enviem dados para o seu CRM com segurança.",
+                "Use no header 'x-api-key' ao chamar o webhook-receiver para entregar mensagens/leads em nome da sua conta.",
+                "Não é necessária se você só usa Z-API (a instância já identifica sua conta).",
+                "Crie uma chave por integração para poder revogar individualmente.",
+                "A chave aparece UMA única vez — copie e guarde em local seguro.",
+              ]} />
+            </h3>
             <div className="flex gap-2">
               <Input placeholder="Ex: WhatsApp Z-API" value={newKeyLabel} onChange={(e) => setNewKeyLabel(e.target.value)} />
               <Button onClick={createApiKey}>Gerar</Button>
@@ -474,7 +527,17 @@ export default function AutomationHub() {
         <TabsContent value="agents" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Agentes de IA</h3>
+              <h3 className="font-semibold flex items-center gap-2">
+                Agentes de IA
+                <InfoHint title="Como criar um Agente IA" steps={[
+                  "Clique em 'Novo Agente' e dê um nome + função (atendimento, SDR, closer, etc).",
+                  "Defina personalidade, tom de voz e o prompt do sistema (instruções de comportamento).",
+                  "Escolha o provedor de IA (Lovable, OpenAI, Groq, Gemini) e o modelo.",
+                  "Em 'Voz & Mídia' habilite transcrição de áudio, leitura de imagens e voz para responder.",
+                  "Adicione base de conhecimento (textos/PDFs) para respostas contextuais.",
+                  "Ative o agente e vincule a uma conexão WhatsApp para começar a responder automaticamente.",
+                ]} />
+              </h3>
               <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
             <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
@@ -516,11 +579,44 @@ export default function AutomationHub() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="flows"><FlowsBuilder /></TabsContent>
-        <TabsContent value="aikeys"><AIProviderSettings /></TabsContent>
+        <TabsContent value="flows" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Fluxos de conversa
+            <InfoHint title="Como usar Fluxos" steps={[
+              "Fluxos são roteiros automáticos: ao receber certas palavras-chave, o sistema segue passos pré-definidos.",
+              "Crie nós (mensagem, pergunta, condição, ação) e conecte-os arrastando.",
+              "Vincule a um agente IA para que ele assuma após o fluxo terminar.",
+              "Use para qualificação inicial, FAQ, agendamentos ou coleta de dados.",
+            ]} />
+          </div>
+          <FlowsBuilder />
+        </TabsContent>
+        <TabsContent value="aikeys" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Provedores de IA
+            <InfoHint title="Como cadastrar um Provedor" steps={[
+              "Adicione chaves de IA externas (OpenAI, Groq, Gemini) ou use a Lovable AI (sem chave).",
+              "Defina um modelo padrão (ex: gpt-4o-mini, llama-3.3-70b, gemini-2.0-flash).",
+              "Marque um como padrão — será usado pelos agentes que não tiverem provedor próprio.",
+              "Cada agente pode escolher seu provedor + modelo na aba 'Agentes IA'.",
+            ]} />
+          </div>
+          <AIProviderSettings />
+        </TabsContent>
         <TabsContent value="import"><LeadImporter /></TabsContent>
-        <TabsContent value="campaigns"><CampaignsList /></TabsContent>
-        <TabsContent value="chatauto"><ChatAutomationsTab /></TabsContent>
+        <TabsContent value="campaigns" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            Campanhas de prospecção
+            <InfoHint title="Como rodar uma Campanha" steps={[
+              "Importe contatos no módulo CRM → Importar (lista CSV ou números manuais).",
+              "Crie uma campanha, escolha o agente IA que conduzirá a conversa e o template inicial.",
+              "Defina horário comercial, intervalo entre disparos e limite diário (evita banimento).",
+              "Ative follow-ups automáticos para reativar quem não respondeu.",
+              "Acompanhe métricas: enviadas, respondidas, convertidas em leads quentes.",
+            ]} />
+          </div>
+          <CampaignsList />
+        </TabsContent>
       </Tabs>
 
       <AgentBuilder

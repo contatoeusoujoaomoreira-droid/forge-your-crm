@@ -283,15 +283,28 @@ Deno.serve(async (req) => {
   } else {
     const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
     if (instanceFromPayload) {
-      const { data: cfgByInstance } = await admin.from('whatsapp_configs')
+      // Use limit(1) instead of maybeSingle so duplicate instance_ids never break routing
+      const { data: cfgRows } = await admin.from('whatsapp_configs')
         .select('*')
         .eq('instance_id', instanceFromPayload)
         .eq('is_active', true)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      const cfgByInstance = cfgRows?.[0];
       if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
+      // Fallback: try inactive configs as a last resort to still log who owns it
+      if (!userId) {
+        const { data: anyRows } = await admin.from('whatsapp_configs')
+          .select('*').eq('instance_id', instanceFromPayload)
+          .order('updated_at', { ascending: false }).limit(1);
+        const any = anyRows?.[0];
+        if (any) { userId = any.user_id; matchedConfig = any; }
+      }
     }
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing API key or known WhatsApp instance' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Log the orphan webhook so admins can debug
+      try { await admin.from('webhook_logs').insert({ direction: 'inbound', source: 'whatsapp', payload: raw, error: `No matching instance: ${instanceFromPayload || '(empty)'}`, status_code: 401 }); } catch {}
+      return new Response(JSON.stringify({ error: 'Missing API key or known WhatsApp instance', instance: instanceFromPayload }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
