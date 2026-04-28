@@ -74,13 +74,35 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "update_user") {
-      const { managed_user_id, is_active, permissions, ai_credits, full_name } = body;
+      const { managed_user_id, is_active, permissions, ai_credits, full_name, plan, tier, credits_balance, credits_monthly } = body;
       const updates: any = {};
       if (is_active !== undefined) updates.is_active = is_active;
       if (permissions !== undefined) updates.permissions = permissions;
       if (ai_credits !== undefined) updates.ai_credits = ai_credits;
       if (full_name !== undefined) updates.full_name = full_name;
-      await supabaseAdmin.from("managed_users").update(updates).eq("id", managed_user_id);
+      if (plan !== undefined) updates.plan = plan;
+      if (tier !== undefined) updates.tier = tier;
+      if (credits_balance !== undefined) updates.credits_balance = credits_balance;
+      if (credits_monthly !== undefined) updates.credits_monthly = credits_monthly;
+      const { data: mu } = await supabaseAdmin.from("managed_users").update(updates).eq("id", managed_user_id).select().single();
+
+      // Sync to user_roles + profiles when we have a linked auth user
+      if (mu?.user_id) {
+        if (tier !== undefined) {
+          // Reset roles to a single canonical one based on tier
+          const roleMap: Record<string, string> = { super_admin: "super_admin", professional: "user", basic: "user" };
+          const newRole = roleMap[tier] || "user";
+          await supabaseAdmin.from("user_roles").delete().eq("user_id", mu.user_id);
+          await supabaseAdmin.from("user_roles").insert({ user_id: mu.user_id, role: newRole });
+        }
+        const profileUpdates: any = {};
+        if (plan !== undefined) profileUpdates.plan = plan;
+        if (credits_balance !== undefined) profileUpdates.credits_balance = credits_balance;
+        if (credits_monthly !== undefined) profileUpdates.credits_monthly = credits_monthly;
+        if (Object.keys(profileUpdates).length) {
+          await supabaseAdmin.from("profiles").update(profileUpdates).eq("user_id", mu.user_id);
+        }
+      }
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
