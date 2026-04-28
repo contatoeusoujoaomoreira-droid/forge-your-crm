@@ -184,9 +184,10 @@ export default function AutomationHub() {
         return;
       }
     }
-    const payload = { ...waCfg, user_id: user.id };
+    const payload: any = { ...waCfg, user_id: user.id };
     delete payload.created_at;
     delete payload.updated_at;
+    if (!payload.id) delete payload.id;
     let error: any = null;
     if (waCfg.id) {
       const r = await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id);
