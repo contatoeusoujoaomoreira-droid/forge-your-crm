@@ -13,8 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   MessageCircle, Zap, User, Brain, GitBranch, BookOpen, FlaskConical,
-  Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2
+  Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
+
+const OPENAI_VOICES = [
+  { id: "alloy", label: "Alloy (neutra, equilibrada)", gender: "neutra" },
+  { id: "echo", label: "Echo (masculina, suave)", gender: "masculina" },
+  { id: "fable", label: "Fable (masculina, expressiva)", gender: "masculina" },
+  { id: "onyx", label: "Onyx (masculina, grave)", gender: "masculina" },
+  { id: "nova", label: "Nova (feminina, jovem)", gender: "feminina" },
+  { id: "shimmer", label: "Shimmer (feminina, calorosa)", gender: "feminina" },
+];
 
 const AGENT_TYPES = [
   { id: "atendimento", label: "Atendimento", icon: "🎧" },
@@ -108,6 +117,12 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     auto_close_enabled: false,
     auto_close_message: "",
     is_active: true,
+    voice_enabled: false,
+    voice_provider: "openai",
+    voice_id: "alloy",
+    reply_to_audio_with_audio: true,
+    transcribe_audio: true,
+    understand_images: true,
   });
 
   useEffect(() => {
@@ -143,6 +158,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
         auto_close_enabled: false, auto_close_message: "", is_active: true,
+        voice_enabled: false, voice_provider: "openai", voice_id: "alloy",
+        reply_to_audio_with_audio: true, transcribe_audio: true, understand_images: true,
       });
       setKnowledge([]);
     }
@@ -273,9 +290,10 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         </Card>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid grid-cols-5 w-full">
+          <TabsList className="grid grid-cols-6 w-full">
             <TabsTrigger value="identidade"><User className="h-4 w-4 mr-1" />Identidade</TabsTrigger>
             <TabsTrigger value="comportamento"><Brain className="h-4 w-4 mr-1" />Comportamento</TabsTrigger>
+            <TabsTrigger value="voz"><Mic className="h-4 w-4 mr-1" />Voz & Mídia</TabsTrigger>
             <TabsTrigger value="roteamento"><GitBranch className="h-4 w-4 mr-1" />Roteamento</TabsTrigger>
             <TabsTrigger value="conhecimento"><BookOpen className="h-4 w-4 mr-1" />Conhecimento</TabsTrigger>
             <TabsTrigger value="testar"><FlaskConical className="h-4 w-4 mr-1" />Testar</TabsTrigger>
@@ -396,6 +414,72 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               <Textarea rows={4} value={form.objections || ""}
                 onChange={(e) => setForm({ ...form, objections: e.target.value })}
                 placeholder="Objeção: Está caro&#10;Resposta: Entendo. Considere que o investimento se paga em..." />
+            </Card>
+          </TabsContent>
+
+          {/* VOZ & MIDIA */}
+          <TabsContent value="voz" className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="flex items-center gap-2"><Mic className="h-4 w-4" /> Resposta por voz (TTS)</Label>
+                  <p className="text-xs text-muted-foreground">Quando o lead enviar áudio, o agente responde em áudio com a voz escolhida.</p>
+                </div>
+                <Switch checked={form.voice_enabled} onCheckedChange={(v) => setForm({ ...form, voice_enabled: v })} />
+              </div>
+              {form.voice_enabled && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Provedor de voz</Label>
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                        value={form.voice_provider || "openai"} onChange={(e) => setForm({ ...form, voice_provider: e.target.value })}>
+                        <option value="openai">OpenAI TTS (recomendado)</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground mt-1">Requer chave OpenAI configurada em "Provedores".</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Voz</Label>
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                        value={form.voice_id || "alloy"} onChange={(e) => setForm({ ...form, voice_id: e.target.value })}>
+                        {OPENAI_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    try {
+                      const { data, error } = await supabase.functions.invoke("tts-preview", {
+                        body: { voice: form.voice_id || "alloy", text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
+                      });
+                      if (error) throw error;
+                      if (data?.audio) { const a = new Audio(data.audio); a.play(); }
+                      else toast.error("Não foi possível gerar a prévia. Verifique a chave OpenAI.");
+                    } catch (e: any) { toast.error(e.message || "Erro ao gerar prévia"); }
+                  }}>
+                    <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
+                  </Button>
+                  <div className="flex items-center justify-between border-t pt-3">
+                    <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                    <Switch checked={form.reply_to_audio_with_audio !== false}
+                      onCheckedChange={(v) => setForm({ ...form, reply_to_audio_with_audio: v })} />
+                  </div>
+                </>
+              )}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold">Compreensão multimídia</h4>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">📜 Transcrever áudios recebidos (Whisper)</Label>
+                <Switch checked={form.transcribe_audio !== false}
+                  onCheckedChange={(v) => setForm({ ...form, transcribe_audio: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">🖼️ Interpretar imagens recebidas (Visão)</Label>
+                <Switch checked={form.understand_images !== false}
+                  onCheckedChange={(v) => setForm({ ...form, understand_images: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Ambos requerem chave OpenAI configurada em "Provedores". O agente responderá com base no conteúdo transcrito/descrito.</p>
             </Card>
           </TabsContent>
 

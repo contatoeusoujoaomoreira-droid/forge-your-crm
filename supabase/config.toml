@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.test-whatsapp]
 verify_jwt = false
+
+[functions.tts-preview]
+verify_jwt = false
