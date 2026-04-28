@@ -312,17 +312,27 @@ const SuperAdminPanel = () => {
         <div className="space-y-2">
           {users.map(u => (
             <div key={u.id} className="surface-card rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                     {(u.full_name || u.email)[0].toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{u.full_name || "Sem nome"}</p>
-                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{u.full_name || "Sem nome"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                     {u.is_active ? "Ativo" : "Inativo"}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    u.tier === "super_admin" ? "bg-purple-500/15 text-purple-600 dark:text-purple-300"
+                    : u.tier === "professional" ? "bg-primary/15 text-primary"
+                    : "bg-secondary text-muted-foreground"
+                  }`}>
+                    {TIER_OPTIONS.find(t => t.value === (u.tier || "basic"))?.label}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium uppercase">
+                    {u.plan || "trial"}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                     {u.ai_credits} créditos IA
