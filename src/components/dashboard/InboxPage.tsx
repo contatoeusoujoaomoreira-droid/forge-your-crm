@@ -11,7 +11,7 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
-interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; }
+interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; metadata?: any; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; }
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -227,14 +227,37 @@ export default function InboxPage() {
               </Badge>
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
-              {messages.map(m => (
-                <div key={m.id} className={`flex ${m.direction === "outbound" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${m.direction === "outbound" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
-                    {m.content}
-                    <p className={`text-[10px] mt-1 opacity-60`}>{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{m.agent_id ? " · 🤖" : ""}</p>
+              {messages.map(m => {
+                const isOut = m.direction === "outbound";
+                const transcript = m.metadata?.transcript;
+                const imgDesc = m.metadata?.image_description;
+                return (
+                  <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                      {m.media_type === "audio" && m.media_url && (
+                        <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
+                      )}
+                      {m.media_type === "image" && m.media_url && (
+                        <img src={m.media_url} alt="" className="rounded mb-1 max-h-64 object-contain" loading="lazy" />
+                      )}
+                      {m.media_type === "video" && m.media_url && (
+                        <video controls src={m.media_url} className="rounded mb-1 max-h-64" preload="none" />
+                      )}
+                      {m.media_type === "document" && m.media_url && (
+                        <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-xs flex items-center gap-1 mb-1">📎 Abrir documento</a>
+                      )}
+                      {transcript && (
+                        <p className="text-[11px] italic opacity-80 mb-1">📝 "{transcript}"</p>
+                      )}
+                      {imgDesc && (
+                        <p className="text-[11px] italic opacity-80 mb-1">🖼️ {imgDesc}</p>
+                      )}
+                      {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
+                      <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{m.agent_id ? " · 🤖" : ""}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             {copilotSugs.length > 0 && (
               <div className="px-3 py-2 border-t border-border bg-secondary/30 space-y-1">
