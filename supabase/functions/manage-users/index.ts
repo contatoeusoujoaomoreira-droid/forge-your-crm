@@ -112,8 +112,8 @@ Deno.serve(async (req: Request) => {
         if (credits_balance === undefined) updates.credits_balance = 999999;
         if (credits_monthly === undefined) updates.credits_monthly = 999999;
       }
-      if (credits_balance !== undefined) updates.credits_balance = credits_balance;
-      if (credits_monthly !== undefined) updates.credits_monthly = credits_monthly;
+      if (!isSuperTier && credits_balance !== undefined) updates.credits_balance = credits_balance;
+      if (!isSuperTier && credits_monthly !== undefined) updates.credits_monthly = credits_monthly;
       const { data: mu } = await supabaseAdmin.from("managed_users").update(updates).eq("id", managed_user_id).select().single();
 
       // Sync to user_roles + profiles when we have a linked auth user
