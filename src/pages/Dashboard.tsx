@@ -29,11 +29,11 @@ import InboxPage from "@/components/dashboard/InboxPage";
 import AutomationHub from "@/components/dashboard/AutomationHub";
 
 const allTabs = [
+  { id: "analytics", label: "Dashboard", icon: BarChart3, group: "crm" },
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
   { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
-  { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
   { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
