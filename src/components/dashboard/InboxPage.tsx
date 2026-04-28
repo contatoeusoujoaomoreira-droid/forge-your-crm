@@ -247,21 +247,78 @@ export default function InboxPage() {
   const onComposerKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composeMode === "note" ? addInternalNote() : send(); }
     if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); setComposeMode(m => m === "note" ? "reply" : "note"); }
+    // "/" at the start opens shortcut hints (just focus + leave it for the user to pick a quick reply later)
   };
 
-  const filtered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const handleAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !selectedId || !user) return;
+    e.target.value = "";
+    const path = `${user.id}/${selectedId}/${Date.now()}-${f.name}`;
+    const { error: upErr } = await supabase.storage.from("chat-media").upload(path, f, { upsert: true });
+    if (upErr) { toast.error(upErr.message); return; }
+    const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+    const isImg = f.type.startsWith("image/");
+    const mediaType = isImg ? "image" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "document";
+    const { data, error } = await supabase.from("messages").insert({
+      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
+      direction: "outbound", channel: "whatsapp", content: f.name,
+      media_url: pub.publicUrl, media_type: mediaType, status: "sent",
+    }).select().single();
+    if (error) { toast.error(error.message); return; }
+    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
+    toast.success("Anexo enviado");
+  };
+
+  const isGroupClient = (c: Client) =>
+    c.metadata?.is_group === true ||
+    (c.phone || "").length > 15 || // group jids tend to be longer
+    /\bgroup\b/i.test(c.name || "");
+
+  const baseFiltered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const counts = {
+    all: baseFiltered.length,
+    unread: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
+    waiting: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
+    individual: baseFiltered.filter(c => !isGroupClient(c)).length,
+    groups: baseFiltered.filter(c => isGroupClient(c)).length,
+  };
+  const filtered = baseFiltered.filter(c => {
+    if (filterTab === "unread" || filterTab === "waiting") return (unreadByClient[c.id] || 0) > 0;
+    if (filterTab === "individual") return !isGroupClient(c);
+    if (filterTab === "groups") return isGroupClient(c);
+    return true;
+  });
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
   const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
 
+  const FilterChip = ({ id, label, count }: { id: FilterTab; label: string; count: number }) => (
+    <button
+      onClick={() => setFilterTab(id)}
+      className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full border transition-colors whitespace-nowrap ${
+        filterTab === id ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
+      }`}
+    >
+      {label} <span className="opacity-70">({count})</span>
+    </button>
+  );
+
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-3">
-      {/* Conversations list */}
-      <Card className="w-72 flex flex-col">
-        <div className="p-3 border-b border-border">
+    <div className="flex h-[calc(100dvh-7rem)] gap-3 flex-col md:flex-row">
+      {/* Conversations list — hide on mobile when a chat is selected */}
+      <Card className={`w-full md:w-72 flex-col ${selected && showSidebarMobile ? "hidden" : "flex"} ${selected ? "hidden md:flex" : "flex"}`}>
+        <div className="p-3 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input className="pl-8" placeholder="Buscar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            <FilterChip id="all" label="Todos" count={counts.all} />
+            <FilterChip id="unread" label="N. lidos" count={counts.unread} />
+            <FilterChip id="waiting" label="Aguard." count={counts.waiting} />
+            <FilterChip id="individual" label="Indiv." count={counts.individual} />
+            <FilterChip id="groups" label="Grupos" count={counts.groups} />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -270,13 +327,25 @@ export default function InboxPage() {
               <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
               Nenhuma conversa.<br /><span className="text-xs">Conecte WhatsApp em Automação.</span>
             </div>
-          ) : filtered.map(c => (
-            <button key={c.id} onClick={() => setSelectedId(c.id)}
-              className={`w-full text-left p-3 border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""}`}>
-              <p className="font-medium text-sm truncate">{c.name || c.phone}</p>
-              <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
-            </button>
-          ))}
+          ) : filtered.map(c => {
+            const u = unreadByClient[c.id] || 0;
+            const isGroup = isGroupClient(c);
+            return (
+              <button key={c.id} onClick={() => setSelectedId(c.id)}
+                className={`w-full text-left p-3 border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-sm truncate flex items-center gap-1">
+                    {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
+                    {c.name || c.phone}
+                  </p>
+                  {u > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+              </button>
+            );
+          })}
         </div>
       </Card>
 
