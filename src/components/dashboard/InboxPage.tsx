@@ -108,6 +108,12 @@ export default function InboxPage() {
     (async () => {
       const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: false }).limit(300);
       setMessages(((msgs || []) as Message[]).sort(byCreatedAt));
+      // Mark inbound messages as read
+      if (user) {
+        await supabase.from("messages").update({ is_read: true })
+          .eq("user_id", user.id).eq("client_id", selectedId).eq("is_read", false);
+        setUnreadByClient(prev => { const c = { ...prev }; delete c[selectedId]; return c; });
+      }
       const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
       if (st) setConvState(st as any);
       else if (user) {
