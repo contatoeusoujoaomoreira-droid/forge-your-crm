@@ -114,6 +114,7 @@ export type Database = {
           max_tokens: number | null
           message_limit: number | null
           model: string | null
+          multimedia_provider_config_id: string | null
           name: string
           objections: string | null
           personality: string | null
@@ -122,6 +123,9 @@ export type Database = {
           response_delay_seconds: number | null
           routing_rules: Json
           rules: string | null
+          simulate_recording: boolean
+          simulate_typing: boolean
+          split_long_messages: boolean
           stage_id: string | null
           stop_words: string | null
           style: string | null
@@ -153,6 +157,7 @@ export type Database = {
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
+          multimedia_provider_config_id?: string | null
           name: string
           objections?: string | null
           personality?: string | null
@@ -161,6 +166,9 @@ export type Database = {
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
+          simulate_recording?: boolean
+          simulate_typing?: boolean
+          split_long_messages?: boolean
           stage_id?: string | null
           stop_words?: string | null
           style?: string | null
@@ -192,6 +200,7 @@ export type Database = {
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
+          multimedia_provider_config_id?: string | null
           name?: string
           objections?: string | null
           personality?: string | null
@@ -200,6 +209,9 @@ export type Database = {
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
+          simulate_recording?: boolean
+          simulate_typing?: boolean
+          split_long_messages?: boolean
           stage_id?: string | null
           stop_words?: string | null
           style?: string | null
@@ -758,6 +770,33 @@ export type Database = {
           },
         ]
       }
+      credit_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          kind: string
+          metadata: Json
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          kind: string
+          metadata?: Json
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_domains: {
         Row: {
           created_at: string
@@ -896,6 +935,78 @@ export type Database = {
           webhook_url?: string | null
           whatsapp_message?: string | null
           whatsapp_redirect?: string | null
+        }
+        Relationships: []
+      }
+      imported_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          lead_id: string | null
+          list_id: string
+          metadata: Json
+          name: string | null
+          phone: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          list_id: string
+          metadata?: Json
+          name?: string | null
+          phone?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          list_id?: string
+          metadata?: Json
+          name?: string | null
+          phone?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      imported_lists: {
+        Row: {
+          created_at: string
+          id: string
+          list_type: string
+          name: string
+          tag: string | null
+          total_contacts: number
+          total_converted: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_type?: string
+          name: string
+          tag?: string | null
+          total_contacts?: number
+          total_converted?: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_type?: string
+          name?: string
+          tag?: string | null
+          total_contacts?: number
+          total_converted?: number
+          user_id?: string
         }
         Relationships: []
       }
@@ -1394,24 +1505,39 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          credits_balance: number
+          credits_used: number
           full_name: string | null
           id: string
+          plan: string
+          plan_renewed_at: string
+          team_seats: number
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          credits_balance?: number
+          credits_used?: number
           full_name?: string | null
           id?: string
+          plan?: string
+          plan_renewed_at?: string
+          team_seats?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          credits_balance?: number
+          credits_used?: number
           full_name?: string | null
           id?: string
+          plan?: string
+          plan_renewed_at?: string
+          team_seats?: number
           updated_at?: string
           user_id?: string
         }
@@ -1818,6 +1944,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      deduct_credits: {
+        Args: {
+          _amount: number
+          _kind: string
+          _metadata?: Json
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

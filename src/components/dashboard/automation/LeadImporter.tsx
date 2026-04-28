@@ -102,6 +102,12 @@ export default function LeadImporter() {
     setSkipped(0);
     let ok = 0, skip = 0;
 
+    // Create the imported list record (groups all contacts of this batch)
+    const listName = tagInicial || `Importação ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    const { data: list } = await supabase.from("imported_lists").insert({
+      user_id: user.id, name: listName, list_type: "leads", tag: tagInicial || null,
+    }).select().single();
+
     for (const row of rows) {
       const phone = normalizePhone(String(row[mapping.phone] || ""));
       if (!phone) { skip++; continue; }
@@ -118,20 +124,42 @@ export default function LeadImporter() {
       // Dedup: by phone for this user
       const { data: existing } = await supabase
         .from("leads").select("id").eq("user_id", user.id).eq("phone", phone).maybeSingle();
-      if (existing) { skip++; continue; }
 
-      const { error } = await supabase.from("leads").insert({
-        user_id: user.id, name, email, phone, company, source,
-        tags, status: "new",
-        pipeline_id: pipelineId || null, stage_id: stageId || null,
-      });
-      if (error) skip++; else ok++;
+      let leadId: string | null = existing?.id || null;
+      let status: "pending" | "converted" | "duplicated" = "pending";
+
+      if (existing) {
+        skip++;
+        status = "duplicated";
+      } else {
+        const { data: ins, error } = await supabase.from("leads").insert({
+          user_id: user.id, name, email, phone, company, source,
+          tags, status: "new",
+          pipeline_id: pipelineId || null, stage_id: stageId || null,
+        }).select("id").single();
+        if (error) { skip++; status = "duplicated"; }
+        else { ok++; leadId = ins.id; status = "converted"; }
+      }
+
+      if (list) {
+        await supabase.from("imported_contacts").insert({
+          user_id: user.id, list_id: list.id, phone, email, name,
+          status, lead_id: leadId,
+          metadata: { company, source, tags },
+        });
+      }
+    }
+
+    if (list) {
+      await supabase.from("imported_lists").update({
+        total_contacts: rows.length, total_converted: ok,
+      }).eq("id", list.id);
     }
 
     setImported(ok);
     setSkipped(skip);
     setImporting(false);
-    toast.success(`${ok} importados • ${skip} ignorados`);
+    toast.success(`${ok} importados • ${skip} ignorados • Lista "${listName}" criada`);
   };
 
   const loadManualNumbers = () => {

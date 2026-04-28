@@ -126,20 +126,40 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
-// Transcribe audio via OpenAI Whisper. Returns text or '' on failure.
-async function transcribeAudio(audioUrl: string, openaiKey: string): Promise<string> {
+// Transcribe audio. Tries the agent's selected provider first (Groq Whisper, OpenAI Whisper),
+// then falls back to OpenAI key. Returns text or '' on failure.
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
     const audioResp = await fetch(audioUrl);
     if (!audioResp.ok) return '';
     const buf = await audioResp.arrayBuffer();
     const blob = new Blob([buf], { type: 'audio/ogg' });
+
+    // Groq Whisper (fast + cheap) when user selected Groq
+    if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
+      const fd = new FormData();
+      fd.append('file', blob, 'audio.ogg');
+      fd.append('model', 'whisper-large-v3-turbo');
+      fd.append('language', 'pt');
+      const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${providerCfg.api_key_encrypted}` },
+        body: fd,
+      });
+      if (r.ok) { const j = await r.json(); return j.text || ''; }
+      console.error('groq whisper failed', await r.text());
+    }
+
+    // OpenAI Whisper fallback
+    const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
+    if (!key) return '';
     const fd = new FormData();
     fd.append('file', blob, 'audio.ogg');
     fd.append('model', 'whisper-1');
     fd.append('language', 'pt');
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}` },
+      headers: { Authorization: `Bearer ${key}` },
       body: fd,
     });
     if (!r.ok) { console.error('whisper failed', await r.text()); return ''; }
@@ -151,12 +171,29 @@ async function transcribeAudio(audioUrl: string, openaiKey: string): Promise<str
   }
 }
 
-// Describe image via GPT-4o vision. Returns short description.
-async function describeImage(imageUrl: string, openaiKey: string): Promise<string> {
+// Describe image via the agent's selected vision provider.
+async function describeImage(imageUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
+    // Gemini vision when user selected Google
+    if (providerCfg?.provider === 'google' && providerCfg?.api_key_encrypted) {
+      const imgResp = await fetch(imageUrl);
+      const ct = imgResp.headers.get('content-type') || 'image/jpeg';
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(await imgResp.arrayBuffer())));
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${providerCfg.api_key_encrypted}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [
+          { text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases).' },
+          { inline_data: { mime_type: ct, data: b64 } },
+        ]}]}),
+      });
+      if (r.ok) { const j = await r.json(); return j.candidates?.[0]?.content?.parts?.[0]?.text || ''; }
+    }
+
+    const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
+    if (!key) return '';
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [{
@@ -286,6 +323,38 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   }
   // Other providers: fall back to text — caller already has text reply
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
+}
+
+// Show "typing" / "recording" presence on the WhatsApp instance.
+async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'recording') {
+  try {
+    const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+    const token = cfg.api_token || '';
+    const instance = cfg.instance_id || '';
+    const extra = cfg.extra_headers || {};
+    if (cfg.api_type === 'z-api') {
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      // Z-API: send-chat-state with state composing|recording
+      await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
+    } else if (cfg.api_type === 'evolution') {
+      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    }
+  } catch (_) { /* ignore */ }
+}
+
+// Split a long reply into 1-3 natural chunks.
+function splitMessage(text: string, max = 320): string[] {
+  if (!text) return [];
+  if (text.length <= max) return [text];
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const chunks: string[] = [];
+  let cur = '';
+  for (const s of sentences) {
+    if ((cur + ' ' + s).trim().length > max && cur) { chunks.push(cur.trim()); cur = s; }
+    else { cur = (cur ? cur + ' ' : '') + s; }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, 4);
 }
 
 Deno.serve(async (req) => {
@@ -443,13 +512,19 @@ Deno.serve(async (req) => {
   let transcript = '';
   let imageDescription = '';
   let inboundContent = msg.content;
-  if (msg.media_type === 'audio' && msg.media_url && openaiKey && (agent?.transcribe_audio !== false)) {
-    transcript = await transcribeAudio(msg.media_url, openaiKey);
-    if (transcript) inboundContent = transcript;
+  if (msg.media_type === 'audio' && msg.media_url && (agent?.transcribe_audio !== false)) {
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
+    if (transcript) {
+      inboundContent = transcript;
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    }
   }
-  if (msg.media_type === 'image' && msg.media_url && openaiKey && (agent?.understand_images !== false)) {
-    imageDescription = await describeImage(msg.media_url, openaiKey);
-    if (imageDescription) inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+  if (msg.media_type === 'image' && msg.media_url && (agent?.understand_images !== false)) {
+    imageDescription = await describeImage(msg.media_url, providerCfg, openaiKey);
+    if (imageDescription) {
+      inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'image_vision', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    }
   }
 
   const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
@@ -510,10 +585,11 @@ Deno.serve(async (req) => {
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
-        // If incoming was audio AND voice is enabled AND we have an openai key, reply with audio
         const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
         if (waCfg?.is_active) {
           if (shouldReplyWithVoice) {
+            // Show "recording..." while generating audio
+            if (agent.simulate_recording !== false) await sendPresence(waCfg, msg.phone, 'recording');
             const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
             if (audioDataUrl) {
               try { delivery = await sendWhatsAppAudio(waCfg, msg.phone, audioDataUrl) || delivery; voiceUsed = delivery.ok; }
@@ -524,8 +600,18 @@ Deno.serve(async (req) => {
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; }
             }
           } else {
-            try { delivery = await sendWhatsApp(waCfg, msg.phone, reply) || delivery; }
-            catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            // Split + simulate typing per chunk
+            const chunks = (agent.split_long_messages !== false) ? splitMessage(reply) : [reply];
+            for (let i = 0; i < chunks.length; i++) {
+              const chunk = chunks[i];
+              if (agent.simulate_typing !== false) {
+                await sendPresence(waCfg, msg.phone, 'composing');
+                const delayMs = Math.min(4000, 600 + chunk.length * 25);
+                await new Promise((r) => setTimeout(r, delayMs));
+              }
+              try { delivery = await sendWhatsApp(waCfg, msg.phone, chunk) || delivery; }
+              catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
+            }
           }
         }
         await admin.from('messages').insert({
@@ -536,6 +622,8 @@ Deno.serve(async (req) => {
           media_type: voiceUsed ? 'audio' : null,
           metadata: { external_status: delivery.status, external_body: delivery.body, voice: voiceUsed },
         });
+        // Deduct 1 credit for AI response
+        await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, voice: voiceUsed } });
       }
     } catch (e) {
       console.error('AI reply failed', e);

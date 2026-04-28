@@ -487,12 +487,21 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   </div>
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
+                      const text = `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?`;
                       const { data, error } = await supabase.functions.invoke("tts-preview", {
-                        body: { provider: provKey, voice: form.voice_id || provDef.voices[0]?.id, text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
+                        body: { provider: provKey, voice: form.voice_id || provDef.voices[0]?.id, text },
                       });
                       if (error) throw error;
-                      if (data?.audio) { const a = new Audio(data.audio); a.play(); }
-                      else toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
+                      if (data?.audio) {
+                        const a = new Audio(data.audio); a.play();
+                      } else if (data?.engine === "browser" && "speechSynthesis" in window) {
+                        const u = new SpeechSynthesisUtterance(data.text || text);
+                        u.lang = "pt-BR";
+                        window.speechSynthesis.speak(u);
+                        toast.success("Reproduzindo via voz nativa do navegador (Omni Audio)");
+                      } else {
+                        toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
+                      }
                     } catch (e: any) { toast.error(e.message || "Erro ao gerar prévia"); }
                   }}>
                     <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
@@ -519,7 +528,27 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 <Switch checked={form.understand_images !== false}
                   onCheckedChange={(v) => setForm({ ...form, understand_images: v })} />
               </div>
-              <p className="text-[11px] text-muted-foreground">Ambos requerem chave OpenAI configurada em "Provedores". O agente responderá com base no conteúdo transcrito/descrito.</p>
+              <p className="text-[11px] text-muted-foreground">A transcrição/visão usa o provedor selecionado em "Modelo de IA" (Groq Whisper, Gemini Vision ou OpenAI). O custo é descontado da sua chave do próprio provedor.</p>
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold">Comportamento humano</h4>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">⌨️ Simular "digitando..."</Label>
+                <Switch checked={form.simulate_typing !== false}
+                  onCheckedChange={(v) => setForm({ ...form, simulate_typing: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">🎙️ Simular "gravando áudio..."</Label>
+                <Switch checked={form.simulate_recording !== false}
+                  onCheckedChange={(v) => setForm({ ...form, simulate_recording: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">✂️ Dividir respostas longas em mensagens menores</Label>
+                <Switch checked={form.split_long_messages !== false}
+                  onCheckedChange={(v) => setForm({ ...form, split_long_messages: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Deixa a conversa mais natural — o agente "digita" antes de mandar e quebra textos longos em partes.</p>
             </Card>
           </TabsContent>
 

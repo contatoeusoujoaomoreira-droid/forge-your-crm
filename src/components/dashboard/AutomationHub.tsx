@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch, Info, Eye, EyeOff, ChevronDown, ChevronRight, Trash2, Save, FlaskConical } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import LeadImporter from "./automation/LeadImporter";
+import ImportedListsViewer from "./automation/ImportedListsViewer";
+import CreditsBadge from "./automation/CreditsBadge";
 import CampaignsList from "./automation/CampaignsList";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
@@ -323,9 +325,12 @@ export default function AutomationHub() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="text-primary" /> Automação</h2>
-        <p className="text-sm text-muted-foreground">Conecte WhatsApp, configure agentes IA e dispare campanhas de prospecção ativa.</p>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="text-primary" /> Automação</h2>
+          <p className="text-sm text-muted-foreground">Conecte WhatsApp, configure agentes IA e dispare campanhas de prospecção ativa.</p>
+        </div>
+        <CreditsBadge />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -336,6 +341,8 @@ export default function AutomationHub() {
           <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
+          <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
+          <TabsTrigger value="imported"><CheckCircle2 className="h-4 w-4 mr-1" />Importados</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -687,6 +694,7 @@ export default function AutomationHub() {
           <AIProviderSettings />
         </TabsContent>
         <TabsContent value="import"><LeadImporter /></TabsContent>
+        <TabsContent value="imported"><ImportedListsViewer /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção
