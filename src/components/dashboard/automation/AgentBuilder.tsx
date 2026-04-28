@@ -13,8 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   MessageCircle, Zap, User, Brain, GitBranch, BookOpen, FlaskConical,
-  Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2
+  Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
+
+const OPENAI_VOICES = [
+  { id: "alloy", label: "Alloy (neutra, equilibrada)", gender: "neutra" },
+  { id: "echo", label: "Echo (masculina, suave)", gender: "masculina" },
+  { id: "fable", label: "Fable (masculina, expressiva)", gender: "masculina" },
+  { id: "onyx", label: "Onyx (masculina, grave)", gender: "masculina" },
+  { id: "nova", label: "Nova (feminina, jovem)", gender: "feminina" },
+  { id: "shimmer", label: "Shimmer (feminina, calorosa)", gender: "feminina" },
+];
 
 const AGENT_TYPES = [
   { id: "atendimento", label: "Atendimento", icon: "🎧" },
@@ -108,6 +117,12 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     auto_close_enabled: false,
     auto_close_message: "",
     is_active: true,
+    voice_enabled: false,
+    voice_provider: "openai",
+    voice_id: "alloy",
+    reply_to_audio_with_audio: true,
+    transcribe_audio: true,
+    understand_images: true,
   });
 
   useEffect(() => {
@@ -143,6 +158,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
         auto_close_enabled: false, auto_close_message: "", is_active: true,
+        voice_enabled: false, voice_provider: "openai", voice_id: "alloy",
+        reply_to_audio_with_audio: true, transcribe_audio: true, understand_images: true,
       });
       setKnowledge([]);
     }
