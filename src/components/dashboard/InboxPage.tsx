@@ -42,13 +42,18 @@ export default function InboxPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }] = await Promise.all([
+      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }, { data: tm }, { data: orders }] = await Promise.all([
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
+        supabase.from("team_members").select("*").eq("owner_user_id", user.id).eq("is_active", true),
+        supabase.from("orders").select("total").eq("status", "paid").limit(500),
       ]);
       setClients(cs || []); setAgents(ag || []); setPipelines(pls || []); setStages(sts || []);
+      setTeamMembers(tm || []);
+      const totals = (orders || []).map((o: any) => Number(o.total || 0)).filter((n: number) => n > 0);
+      setAvgTicket(totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0);
     })();
   }, [user]);
 
