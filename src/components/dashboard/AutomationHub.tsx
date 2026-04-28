@@ -257,7 +257,6 @@ export default function AutomationHub() {
           <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-          <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
