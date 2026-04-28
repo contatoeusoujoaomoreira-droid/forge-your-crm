@@ -190,7 +190,15 @@ const Dashboard = () => {
 
         <div className="border-t border-sidebar-border p-3">
           {!sidebarCollapsed && (
-            <p className="text-xs text-sidebar-foreground truncate mb-2 px-1">{user?.email}</p>
+            <div className="mb-2 px-1 space-y-1">
+              <p className="text-xs font-medium text-sidebar-accent-foreground truncate">{planInfo.fullName || user?.email}</p>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary">
+                  {PLAN_DEFINITIONS[planInfo.plan].label}
+                </Badge>
+                <span className="text-[10px] text-sidebar-foreground">⚡ {planInfo.creditsBalance}</span>
+              </div>
+            </div>
           )}
           <div className="flex items-center gap-1">
             <ThemeToggle className="text-sidebar-foreground" />
