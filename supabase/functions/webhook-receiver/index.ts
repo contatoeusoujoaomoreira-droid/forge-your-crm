@@ -325,7 +325,37 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
 }
 
-Deno.serve(async (req) => {
+// Show "typing" / "recording" presence on the WhatsApp instance.
+async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'recording') {
+  try {
+    const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+    const token = cfg.api_token || '';
+    const instance = cfg.instance_id || '';
+    const extra = cfg.extra_headers || {};
+    if (cfg.api_type === 'z-api') {
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      // Z-API: send-chat-state with state composing|recording
+      await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
+    } else if (cfg.api_type === 'evolution') {
+      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    }
+  } catch (_) { /* ignore */ }
+}
+
+// Split a long reply into 1-3 natural chunks.
+function splitMessage(text: string, max = 320): string[] {
+  if (!text) return [];
+  if (text.length <= max) return [text];
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const chunks: string[] = [];
+  let cur = '';
+  for (const s of sentences) {
+    if ((cur + ' ' + s).trim().length > max && cur) { chunks.push(cur.trim()); cur = s; }
+    else { cur = (cur ? cur + ' ' : '') + s; }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, 4);
+}
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
