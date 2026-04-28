@@ -643,6 +643,18 @@ export default function AutomationHub() {
               </Button>
             </div>
           </div>
+          <Card className="p-3 bg-muted/40 border-dashed">
+            <p className="text-xs leading-relaxed">
+              <strong>💡 Como funcionam vários agentes em um único número:</strong> você pode ter quantos agentes quiser ativos ao mesmo tempo. O sistema escolhe qual responde a cada conversa seguindo esta ordem:
+            </p>
+            <ol className="text-xs mt-2 ml-4 list-decimal space-y-1 text-muted-foreground">
+              <li><strong>Agente já vinculado à conversa</strong> (uma vez atribuído, ele continua respondendo aquele lead).</li>
+              <li><strong>Regras de Roteamento</strong> do agente (palavra-chave + pipeline/etapa) — defina-as em cada agente na aba "Roteamento".</li>
+              <li><strong>Pipeline/Etapa atual do lead no CRM</strong> — agentes configurados para aquela etapa assumem novos leads.</li>
+              <li><strong>Agente padrão da conexão WhatsApp</strong> (selecionado em "WhatsApp → Agente padrão").</li>
+            </ol>
+            <p className="text-xs mt-2 text-muted-foreground">Exemplo: um agente "SDR" para leads novos, um "Closer" para etapa de proposta e um "Suporte" disparado pela palavra "ajuda" — todos no mesmo número.</p>
+          </Card>
           <Card className="p-4">
             {agents.length === 0 ? (
               <div className="text-center py-8">
