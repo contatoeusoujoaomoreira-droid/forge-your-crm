@@ -118,6 +118,7 @@ export type Database = {
           objections: string | null
           personality: string | null
           pipeline_id: string | null
+          reply_to_audio_with_audio: boolean
           response_delay_seconds: number | null
           routing_rules: Json
           rules: string | null
@@ -127,9 +128,14 @@ export type Database = {
           system_prompt: string
           tone: string | null
           total_tokens_used: number | null
+          transcribe_audio: boolean
           type: string
+          understand_images: boolean
           updated_at: string
           user_id: string
+          voice_enabled: boolean
+          voice_id: string | null
+          voice_provider: string
         }
         Insert: {
           ai_provider_config_id?: string | null
@@ -151,6 +157,7 @@ export type Database = {
           objections?: string | null
           personality?: string | null
           pipeline_id?: string | null
+          reply_to_audio_with_audio?: boolean
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
@@ -160,9 +167,14 @@ export type Database = {
           system_prompt?: string
           tone?: string | null
           total_tokens_used?: number | null
+          transcribe_audio?: boolean
           type?: string
+          understand_images?: boolean
           updated_at?: string
           user_id?: string
+          voice_enabled?: boolean
+          voice_id?: string | null
+          voice_provider?: string
         }
         Update: {
           ai_provider_config_id?: string | null
@@ -184,6 +196,7 @@ export type Database = {
           objections?: string | null
           personality?: string | null
           pipeline_id?: string | null
+          reply_to_audio_with_audio?: boolean
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
@@ -193,9 +206,14 @@ export type Database = {
           system_prompt?: string
           tone?: string | null
           total_tokens_used?: number | null
+          transcribe_audio?: boolean
           type?: string
+          understand_images?: boolean
           updated_at?: string
           user_id?: string
+          voice_enabled?: boolean
+          voice_id?: string | null
+          voice_provider?: string
         }
         Relationships: []
       }
@@ -1729,6 +1747,7 @@ export type Database = {
           id: string
           instance_id: string | null
           is_active: boolean
+          label: string | null
           updated_at: string
           user_id: string
         }
@@ -1746,6 +1765,7 @@ export type Database = {
           id?: string
           instance_id?: string | null
           is_active?: boolean
+          label?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1763,6 +1783,7 @@ export type Database = {
           id?: string
           instance_id?: string | null
           is_active?: boolean
+          label?: string | null
           updated_at?: string
           user_id?: string
         }
