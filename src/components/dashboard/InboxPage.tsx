@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
@@ -32,6 +32,10 @@ export default function InboxPage() {
   const [tagInput, setTagInput] = useState("");
   const [copilotSugs, setCopilotSugs] = useState<string[]>([]);
   const [loadingCopilot, setLoadingCopilot] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [noteInput, setNoteInput] = useState("");
+  const [composeMode, setComposeMode] = useState<"reply" | "note">("reply");
+  const [avgTicket, setAvgTicket] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial load
