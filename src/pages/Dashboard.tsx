@@ -269,6 +269,7 @@ const Dashboard = () => {
               )}
             </AnimatePresence>
           </div>
+          </div>
         </header>
 
         <div className="p-6">
