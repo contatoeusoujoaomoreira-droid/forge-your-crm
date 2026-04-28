@@ -49,7 +49,8 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
 export default function AutomationHub() {
   const { user } = useAuth();
   const [tab, setTab] = useState("whatsapp");
-  const [waCfg, setWaCfg] = useState<any>({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true });
+  const [waConfigs, setWaConfigs] = useState<any[]>([]);
+  const [waCfg, setWaCfg] = useState<any>({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, label: "Principal" });
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [providerKeys, setProviderKeys] = useState<any[]>([]);
@@ -72,15 +73,17 @@ export default function AutomationHub() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [cfg, keys, ags, providers, pls, sts] = await Promise.all([
-        supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).maybeSingle(),
+      const [cfgs, keys, ags, providers, pls, sts] = await Promise.all([
+        supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       ]);
-      if (cfg.data) setWaCfg(cfg.data);
+      const list = cfgs.data || [];
+      setWaConfigs(list);
+      if (list[0]) setWaCfg(list[0]);
       setApiKeys(keys.data || []);
       setAgents(ags.data || []);
       setProviderKeys(providers.data || []);
@@ -89,17 +92,54 @@ export default function AutomationHub() {
     })();
   }, [user]);
 
+  const reloadWaConfigs = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).order("created_at", { ascending: true });
+    setWaConfigs(data || []);
+    if (data && waCfg?.id) {
+      const found = data.find((c: any) => c.id === waCfg.id);
+      if (found) setWaCfg(found);
+    }
+  };
+
+  const newConnection = () => {
+    setWaCfg({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}` });
+  };
+
+  const deleteConnection = async (id: string) => {
+    if (!confirm("Excluir esta conexão WhatsApp?")) return;
+    const { error } = await supabase.from("whatsapp_configs").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Conexão excluída");
+    const remaining = waConfigs.filter(c => c.id !== id);
+    setWaConfigs(remaining);
+    if (waCfg?.id === id) setWaCfg(remaining[0] || { api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, label: "Principal" });
+  };
+
+  const toggleConnectionActive = async (cfg: any) => {
+    const { error } = await supabase.from("whatsapp_configs").update({ is_active: !cfg.is_active }).eq("id", cfg.id);
+    if (error) { toast.error(error.message); return; }
+    reloadWaConfigs();
+  };
+
   const saveWa = async () => {
     if (!user) return;
     const payload = { ...waCfg, user_id: user.id };
     delete payload.created_at;
     delete payload.updated_at;
-    const { error } = waCfg.id
-      ? await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id)
-      : await supabase.from("whatsapp_configs").insert(payload).select().single().then((r) => { if (r.data) setWaCfg(r.data); return r; });
+    let error: any = null;
+    if (waCfg.id) {
+      const r = await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id);
+      error = r.error;
+    } else {
+      const r = await supabase.from("whatsapp_configs").insert(payload).select().single();
+      error = r.error;
+      if (r.data) setWaCfg(r.data);
+    }
     if (error) toast.error(error.message);
     else {
-      toast.success("Configuração salva!");
+      toast.success("Conexão salva!");
+      await reloadWaConfigs();
       if (payload.api_type === "z-api" && payload.is_active) configureWebhook(payload, false);
     }
   };
@@ -184,10 +224,38 @@ export default function AutomationHub() {
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
-          <TabsTrigger value="chatauto"><Workflow className="h-4 w-4 mr-1" />Auto. Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp</h3>
+                <p className="text-xs text-muted-foreground">Gerencie múltiplas instâncias. Cada uma pode ter seu agente IA próprio.</p>
+              </div>
+              <Button size="sm" onClick={newConnection}><Plus className="h-4 w-4 mr-1" />Nova conexão</Button>
+            </div>
+            {waConfigs.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-3">Nenhuma conexão criada. Preencha o formulário abaixo e salve.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {waConfigs.map((c) => (
+                  <li key={c.id} className={`py-2 px-2 flex items-center justify-between rounded ${waCfg?.id === c.id ? "bg-primary/5" : ""}`}>
+                    <button className="flex-1 text-left" onClick={() => setWaCfg(c)}>
+                      <p className="text-sm font-medium">{c.label || "(sem nome)"} <span className="text-xs text-muted-foreground">· {c.api_type}</span></p>
+                      <p className="text-[11px] text-muted-foreground">{c.instance_id || c.base_url || "—"}</p>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={c.is_active} onCheckedChange={() => toggleConnectionActive(c)} />
+                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Ativa" : "Inativa"}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => deleteConnection(c.id)}>Excluir</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <Card className="p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -200,6 +268,10 @@ export default function AutomationHub() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Nome desta conexão</Label>
+                <Input value={waCfg.label || ""} onChange={(e) => setWaCfg({ ...waCfg, label: e.target.value })} placeholder="Ex: Comercial · 11 9999-9999" />
+              </div>
               <div>
                 <Label>Tipo de API</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={waCfg.api_type} onChange={(e) => setWaCfg({ ...waCfg, api_type: e.target.value })}>
