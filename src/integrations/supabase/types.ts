@@ -1939,6 +1939,48 @@ export type Database = {
         }
         Relationships: []
       }
+      user_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          label: string | null
+          metadata: Json
+          provider: string
+          scope: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label?: string | null
+          metadata?: Json
+          provider: string
+          scope?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          label?: string | null
+          metadata?: Json
+          provider?: string
+          scope?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -2105,6 +2147,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      user_usage_stats: { Args: { _user_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "user" | "professional" | "basic"
