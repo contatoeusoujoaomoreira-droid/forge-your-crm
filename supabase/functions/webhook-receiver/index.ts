@@ -178,21 +178,49 @@ async function describeImage(imageUrl: string, openaiKey: string): Promise<strin
   }
 }
 
-// Generate audio with OpenAI TTS, returns base64 data URL
-async function generateTtsBase64(text: string, voice: string, openaiKey: string): Promise<string> {
+// Generate audio (Omni native via LOVABLE/OpenAI, OpenAI direct, or ElevenLabs)
+async function generateTtsBase64(text: string, voice: string, openaiKey: string, provider: string = 'omni', elevenKey: string = ''): Promise<string> {
   try {
+    const input = text.slice(0, 4000);
+    if (provider === 'elevenlabs' && elevenKey) {
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
+        method: 'POST',
+        headers: { 'xi-api-key': elevenKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input, model_id: 'eleven_multilingual_v2' }),
+      });
+      if (!r.ok) { console.error('ElevenLabs TTS failed', await r.text()); return ''; }
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let binary = ''; const chunk = 0x8000;
+      for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+      return `data:audio/mpeg;base64,${btoa(binary)}`;
+    }
+    // Omni native uses LOVABLE_API_KEY against OpenAI; fallback to user openaiKey
+    const key = (provider === 'omni' && LOVABLE_API_KEY) ? LOVABLE_API_KEY : openaiKey;
+    if (!key) return '';
     const r = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input: text.slice(0, 4000), response_format: 'mp3' }),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input, response_format: 'mp3' }),
     });
-    if (!r.ok) { console.error('TTS failed', await r.text()); return ''; }
-    const buf = new Uint8Array(await r.arrayBuffer());
-    let binary = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < buf.length; i += chunk) {
-      binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+    if (!r.ok) {
+      // Fallback to user openaiKey if omni gateway fails
+      if (provider === 'omni' && openaiKey && openaiKey !== key) {
+        const r2 = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input, response_format: 'mp3' }),
+        });
+        if (!r2.ok) { console.error('TTS fallback failed', await r2.text()); return ''; }
+        const buf = new Uint8Array(await r2.arrayBuffer());
+        let binary = ''; const chunk = 0x8000;
+        for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+        return `data:audio/mpeg;base64,${btoa(binary)}`;
+      }
+      console.error('TTS failed', await r.text()); return '';
     }
+    const buf = new Uint8Array(await r.arrayBuffer());
+    let binary = ''; const chunk = 0x8000;
+    for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
     return `data:audio/mpeg;base64,${btoa(binary)}`;
   } catch (e) {
     console.error('TTS error', e);
