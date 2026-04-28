@@ -107,6 +107,9 @@ export default function AutomationHub() {
   const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
   const [testMsgSending, setTestMsgSending] = useState(false);
   const [configuringWebhook, setConfiguringWebhook] = useState(false);
+  const [expandedConn, setExpandedConn] = useState<string | null>(null);
+  const [draftConn, setDraftConn] = useState<any | null>(null); // unsaved new connection
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
