@@ -385,7 +385,6 @@ export default function InboxPage() {
                 )}
               </div>
             </div>
-            </div>
           </>
         )}
       </Card>
