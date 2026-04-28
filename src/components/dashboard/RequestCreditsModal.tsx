@@ -13,8 +13,8 @@ interface Props {
   onOpenChange: (v: boolean) => void;
 }
 
-const SUPPORT_WHATSAPP = "5511999999999"; // ajustável pelo super admin
-const SUPPORT_EMAIL = "suporte@omnibuildercrm.online";
+const SUPPORT_WHATSAPP = "5549998372865";
+const SUPPORT_EMAIL = "omnibuildercrm@gmail.com";
 
 export default function RequestCreditsModal({ open, onOpenChange }: Props) {
   const { user } = useAuth();

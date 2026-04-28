@@ -552,18 +552,52 @@ Deno.serve(async (req) => {
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  const avatarUrl = (msg as any).avatar_url || undefined;
-  // Atomic upsert client (prevents duplicates on race conditions)
+  let avatarUrl: string | undefined = (msg as any).avatar_url || undefined;
+
+  // Try fetching profile picture from Z-API if we don't have one in the payload
+  const fetchZapiProfilePic = async (): Promise<string | undefined> => {
+    try {
+      const { data: prov } = await admin.from('whatsapp_configs')
+        .select('api_type, base_url, api_token, instance_id, extra_headers')
+        .eq('user_id', userId).eq('is_active', true).maybeSingle();
+      if (!prov) return undefined;
+      const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document)$/, '');
+      if ((prov.api_type || '').toLowerCase() === 'z-api') {
+        const url = baseUrl.includes('/instances/')
+          ? `${baseUrl}/profile-picture?phone=${msg.phone}`
+          : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}/profile-picture?phone=${msg.phone}`;
+        const headers: Record<string,string> = { 'Content-Type': 'application/json', ...((prov as any).extra_headers || {}) };
+        const r = await fetch(url, { headers });
+        if (!r.ok) return undefined;
+        const j = await r.json().catch(() => null);
+        return j?.link || j?.profilePicture || j?.url || undefined;
+      }
+    } catch (_) { /* noop */ }
+    return undefined;
+  };
+
+  // Check if client already exists & has avatar — avoid overwriting with null
+  const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
+    .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+
+  if (!avatarUrl && !existingPre?.avatar_url) {
+    avatarUrl = await fetchZapiProfilePic();
+  }
+
+  const upsertPayload: any = {
+    user_id: userId,
+    phone: msg.phone,
+    name: msg.name || existingPre?.['name' as any] || msg.phone,
+    source: 'whatsapp',
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    updated_at: new Date().toISOString(),
+  };
+  // Only set avatar if we have a fresh one — never wipe existing
+  if (avatarUrl) upsertPayload.avatar_url = avatarUrl;
+  else if (existingPre?.avatar_url) upsertPayload.avatar_url = existingPre.avatar_url;
+
   const { data: upserted } = await admin.from('chat_clients').upsert(
-    {
-      user_id: userId,
-      phone: msg.phone,
-      name: msg.name || msg.phone,
-      avatar_url: avatarUrl,
-      source: 'whatsapp',
-      metadata: { is_group: (msg as any).is_group === true, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
-      updated_at: new Date().toISOString(),
-    },
+    upsertPayload,
     { onConflict: 'user_id,phone' }
   ).select().single();
   let client: any = upserted;
