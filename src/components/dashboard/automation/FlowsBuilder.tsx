@@ -75,6 +75,7 @@ export default function FlowsBuilder() {
     edges: [],
     agent_id: null,
     trigger_keywords: "",
+    trigger_mode: "keyword",
   });
 
   const save = async () => {
@@ -224,20 +225,39 @@ export default function FlowsBuilder() {
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <Card className="p-3 flex items-center gap-2 flex-wrap">
-        <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>← Voltar</Button>
-        <Input className="w-48" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Nome do fluxo" />
-        <Input className="flex-1 min-w-[200px]" placeholder="Palavras-chave (ativam o fluxo)" value={editing.trigger_keywords || ""} onChange={(e) => setEditing({ ...editing, trigger_keywords: e.target.value })} />
-        <select className="h-9 px-2 rounded-md border border-input bg-background text-sm" value={editing.agent_id || ""} onChange={(e) => setEditing({ ...editing, agent_id: e.target.value || null })}>
-          <option value="">Sem agente vinculado</option>
-          {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-        <div className="flex items-center gap-1">
-          <Switch checked={editing.is_active} onCheckedChange={(v) => setEditing({ ...editing, is_active: v })} />
-          <Label className="text-xs">Ativo</Label>
+      <Card className="p-3 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>← Voltar</Button>
+          <Input className="w-48" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Nome do fluxo" />
+          <select
+            className="h-9 px-2 rounded-md border border-input bg-background text-sm"
+            value={editing.trigger_mode || "keyword"}
+            onChange={(e) => setEditing({ ...editing, trigger_mode: e.target.value })}
+            title="Como este fluxo será disparado"
+          >
+            <option value="keyword">🔑 Por palavra-chave (qualquer conversa)</option>
+            <option value="campaign_only">📣 Somente em campanhas (follow-up)</option>
+            <option value="manual">✋ Manual (via API/regra)</option>
+          </select>
+          {(editing.trigger_mode || "keyword") === "keyword" && (
+            <Input className="flex-1 min-w-[200px]" placeholder="Palavras-chave (ex: orçamento, preço, agendar)" value={editing.trigger_keywords || ""} onChange={(e) => setEditing({ ...editing, trigger_keywords: e.target.value })} />
+          )}
+          <select className="h-9 px-2 rounded-md border border-input bg-background text-sm" value={editing.agent_id || ""} onChange={(e) => setEditing({ ...editing, agent_id: e.target.value || null })}>
+            <option value="">Sem agente vinculado</option>
+            {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <div className="flex items-center gap-1">
+            <Switch checked={editing.is_active} onCheckedChange={(v) => setEditing({ ...editing, is_active: v })} />
+            <Label className="text-xs">Ativo</Label>
+          </div>
+          <Button size="sm" onClick={() => setShowAddPanel(true)}><Plus className="h-4 w-4 mr-1" />Adicionar Nó</Button>
+          <Button size="sm" onClick={save}><Save className="h-4 w-4 mr-1" />Salvar</Button>
         </div>
-        <Button size="sm" onClick={() => setShowAddPanel(true)}><Plus className="h-4 w-4 mr-1" />Adicionar Nó</Button>
-        <Button size="sm" onClick={save}><Save className="h-4 w-4 mr-1" />Salvar</Button>
+        <p className="text-[11px] text-muted-foreground">
+          {(editing.trigger_mode || "keyword") === "keyword" && "Este fluxo entra em ação assim que o cliente enviar uma mensagem que contenha alguma das palavras-chave acima."}
+          {editing.trigger_mode === "campaign_only" && "Este fluxo é exclusivo de campanhas — não roda automaticamente em chats. Selecione-o ao criar/editar uma campanha."}
+          {editing.trigger_mode === "manual" && "Este fluxo só inicia quando disparado por uma regra ou chamada de API. Ideal para integrações."}
+        </p>
       </Card>
 
       <div className="flex gap-3" style={{ height: "calc(100vh - 18rem)" }}>
