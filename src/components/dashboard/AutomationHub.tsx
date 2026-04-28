@@ -258,8 +258,9 @@ export default function AutomationHub() {
         const conflict = (dup || []).find((d: any) => d.id !== cfg.id);
         if (conflict) { toast.error("Este Instance ID já está ativo em outra conexão."); return; }
       }
-      const payload = { ...cfg, user_id: user.id };
+      const payload: any = { ...cfg, user_id: user.id };
       delete payload.created_at; delete payload.updated_at;
+      if (!payload.id) delete payload.id;
       if (cfg.id) {
         const { error } = await supabase.from("whatsapp_configs").update(payload).eq("id", cfg.id);
         if (error) { toast.error(error.message); return; }
