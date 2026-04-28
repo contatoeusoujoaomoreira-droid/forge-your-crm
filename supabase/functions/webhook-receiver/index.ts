@@ -740,7 +740,14 @@ Deno.serve(async (req) => {
   let transcript = '';
   let imageDescription = '';
   let inboundContent = msg.content;
-  if (msg.media_type === 'audio' && msg.media_url && (agent?.transcribe_audio !== false)) {
+  // Force transcription when audio arrives. If "reply_to_audio_with_audio" is OFF,
+  // the agent must still understand the audio (transcribe → respond as text).
+  const mustTranscribe = msg.media_type === 'audio' && msg.media_url && (
+    agent?.transcribe_audio !== false ||
+    (agent?.voice_enabled && agent?.reply_to_audio_with_audio === false) ||
+    !agent?.voice_enabled
+  );
+  if (mustTranscribe) {
     transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
     if (transcript) {
       inboundContent = transcript;
