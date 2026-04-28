@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
-interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; metadata?: any; }
-interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
+interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
+interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
+
+type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
