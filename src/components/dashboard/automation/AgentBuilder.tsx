@@ -328,6 +328,25 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     if (agent?.id) loadKnowledge(agent.id);
   };
 
+  const saveElevenLabsKey = async () => {
+    if (!user || !elevenKeyInput.trim()) { toast.error("Informe sua API Key do ElevenLabs"); return; }
+    setElevenSaving(true);
+    try {
+      const { error } = await supabase.from("ai_provider_configs").insert({
+        user_id: user.id,
+        provider: "elevenlabs",
+        label: "ElevenLabs",
+        api_key_encrypted: elevenKeyInput.trim(),
+        is_active: true,
+      });
+      if (error) throw error;
+      toast.success("ElevenLabs conectado!");
+      setElevenKeyInput("");
+      setElevenConnected(true);
+    } catch (e: any) { toast.error(e.message || "Erro ao salvar chave"); }
+    finally { setElevenSaving(false); }
+  };
+
   const addRoutingRule = () => {
     setForm({ ...form, routing_rules: [...form.routing_rules, { keyword: "", pipeline_id: "", stage_id: "", description: "" }] });
   };
