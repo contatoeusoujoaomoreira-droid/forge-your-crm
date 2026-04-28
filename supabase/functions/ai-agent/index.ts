@@ -253,7 +253,18 @@ Deno.serve(async (req) => {
         });
       } catch (e) { console.warn('topup credit deduction failed', e); }
     }
-    return new Response(JSON.stringify({ content, tokens: tokensUsed }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Anexos: imagens e links dos itens de KB selecionados (para envio automático)
+    const selected: any[] = ((globalThis as any).__selectedKnowledge as any[]) || [];
+    const attachments = {
+      images: selected.flatMap(s => Array.isArray(s.media_urls) ? s.media_urls : []).slice(0, 8),
+      links: selected.flatMap(s => Array.isArray(s.external_links) ? s.external_links : []).slice(0, 6),
+      sources: selected.map(s => ({ id: s.id, title: s.title, category: s.category })),
+    };
+    // Intent (handoff/qualificação) para o caller (webhook ou UI) agir
+    const lastUserText = [...body.messages].reverse().find(m => m.role === 'user')?.content || '';
+    const intent = body.agent_id ? detectIntent(lastUserText, { handoff_keywords: undefined }) : { handoff: false, qualified: false, wantsMedia: false };
+
+    return new Response(JSON.stringify({ content, tokens: tokensUsed, attachments, intent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('ai-agent', e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
