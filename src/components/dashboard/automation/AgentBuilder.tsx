@@ -117,6 +117,14 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [knContent, setKnContent] = useState("");
   const [knType, setKnType] = useState<"text" | "url" | "file">("text");
   const [knUrl, setKnUrl] = useState("");
+  const [knCategory, setKnCategory] = useState("");
+  const [knDescription, setKnDescription] = useState("");
+  const [knKeywords, setKnKeywords] = useState("");
+  const [knMediaUrls, setKnMediaUrls] = useState<string[]>([]);
+  const [knLinks, setKnLinks] = useState<{ title: string; url: string }[]>([]);
+  const [knNewLinkTitle, setKnNewLinkTitle] = useState("");
+  const [knNewLinkUrl, setKnNewLinkUrl] = useState("");
+  const [knUploading, setKnUploading] = useState(false);
   const [testMessages, setTestMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [testInput, setTestInput] = useState("");
   const [testing, setTesting] = useState(false);
