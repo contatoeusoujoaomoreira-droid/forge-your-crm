@@ -145,6 +145,19 @@ export default function AutomationHub() {
 
   const saveWa = async () => {
     if (!user) return;
+    // Validate duplicate instance_id (a single Z-API instance cannot route to two CRM accounts)
+    if (waCfg.instance_id) {
+      const { data: dup } = await supabase
+        .from("whatsapp_configs")
+        .select("id, user_id")
+        .eq("instance_id", waCfg.instance_id)
+        .eq("is_active", true);
+      const conflict = (dup || []).find((d: any) => d.id !== waCfg.id);
+      if (conflict) {
+        toast.error("Este Instance ID já está ativo em outra conexão. Desative-a antes ou use outra instância.");
+        return;
+      }
+    }
     const payload = { ...waCfg, user_id: user.id };
     delete payload.created_at;
     delete payload.updated_at;
