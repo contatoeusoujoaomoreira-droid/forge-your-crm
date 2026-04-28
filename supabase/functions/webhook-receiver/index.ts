@@ -955,7 +955,9 @@ Deno.serve(async (req) => {
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
-        const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
+        const voiceProv = agent.voice_provider || 'omni';
+        const hasVoiceKey = voiceProv === 'elevenlabs' ? !!elevenKey : !!(openaiKey || LOVABLE_API_KEY);
+        const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && hasVoiceKey;
 
         // Anexar links nomeados ao final do texto se existirem nos itens selecionados
         const linksToAppend = selected.flatMap((s: any) => Array.isArray(s.external_links) ? s.external_links : []).slice(0, 4);
@@ -966,7 +968,7 @@ Deno.serve(async (req) => {
         if (waCfg?.is_active) {
           if (shouldReplyWithVoice) {
             if (agent.simulate_recording !== false) await sendPresence(waCfg, msg.phone, 'recording');
-            const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
+            const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey, voiceProv, elevenKey);
             if (audioDataUrl) {
               try { delivery = await sendWhatsAppAudio(waCfg, msg.phone, audioDataUrl) || delivery; voiceUsed = delivery.ok; }
               catch (e) { console.error('audio send fail', e); }
