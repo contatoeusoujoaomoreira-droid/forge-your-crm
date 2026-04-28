@@ -82,6 +82,49 @@ function buildSystemPrompt(agent: any) {
   ].filter(Boolean).join('\n\n');
 }
 
+// Pontuação simples por palavras-chave + categoria + texto livre
+function scoreKnowledgeItem(item: any, queryLower: string, queryTokens: string[]): number {
+  let score = 0;
+  const cat = (item.category || '').toLowerCase();
+  if (cat && queryLower.includes(cat)) score += 10;
+  const kws: string[] = Array.isArray(item.keywords) ? item.keywords : [];
+  for (const kw of kws) {
+    const k = (kw || '').toLowerCase().trim();
+    if (!k) continue;
+    if (queryLower.includes(k)) score += 6;
+    else if (queryTokens.some(t => k.includes(t) || t.includes(k))) score += 2;
+  }
+  const title = (item.title || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 2 && title.includes(t)) score += 3;
+  const desc = (item.description || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 3 && desc.includes(t)) score += 1;
+  const content = (item.content || '').toLowerCase();
+  for (const t of queryTokens) if (t.length > 4 && content.includes(t)) score += 0.5;
+  // small boost if has media/links available (more useful response)
+  if (Array.isArray(item.media_urls) && item.media_urls.length) score += 0.5;
+  if (Array.isArray(item.external_links) && item.external_links.length) score += 0.5;
+  return score;
+}
+
+function findRelevantKnowledge(items: any[], userText: string, topN = 5): any[] {
+  const ql = (userText || '').toLowerCase();
+  const tokens = ql.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+  const scored = items.map(it => ({ it, s: scoreKnowledgeItem(it, ql, tokens) }));
+  return scored.filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, topN).map(x => x.it);
+}
+
+// Heurísticas leves de intenção para handoff/qualificação
+function detectIntent(text: string, agent: any): { handoff: boolean; qualified: boolean; wantsMedia: boolean } {
+  const t = (text || '').toLowerCase();
+  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,ajuda real,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => t.includes(k));
+  const qualifiedKws = ['quero comprar','fechar','contrato','cartão','pix','quanto custa exatamente','agendar visita','marcar reunião','enviar proposta','cnpj','meu cpf'];
+  const qualified = qualifiedKws.some(k => t.includes(k));
+  const mediaKws = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'];
+  const wantsMedia = mediaKws.some(k => t.includes(k));
+  return { handoff, qualified, wantsMedia };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
