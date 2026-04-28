@@ -528,7 +528,27 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 <Switch checked={form.understand_images !== false}
                   onCheckedChange={(v) => setForm({ ...form, understand_images: v })} />
               </div>
-              <p className="text-[11px] text-muted-foreground">Ambos requerem chave OpenAI configurada em "Provedores". O agente responderá com base no conteúdo transcrito/descrito.</p>
+              <p className="text-[11px] text-muted-foreground">A transcrição/visão usa o provedor selecionado em "Modelo de IA" (Groq Whisper, Gemini Vision ou OpenAI). O custo é descontado da sua chave do próprio provedor.</p>
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold">Comportamento humano</h4>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">⌨️ Simular "digitando..."</Label>
+                <Switch checked={form.simulate_typing !== false}
+                  onCheckedChange={(v) => setForm({ ...form, simulate_typing: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">🎙️ Simular "gravando áudio..."</Label>
+                <Switch checked={form.simulate_recording !== false}
+                  onCheckedChange={(v) => setForm({ ...form, simulate_recording: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">✂️ Dividir respostas longas em mensagens menores</Label>
+                <Switch checked={form.split_long_messages !== false}
+                  onCheckedChange={(v) => setForm({ ...form, split_long_messages: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Deixa a conversa mais natural — o agente "digita" antes de mandar e quebra textos longos em partes.</p>
             </Card>
           </TabsContent>
 
