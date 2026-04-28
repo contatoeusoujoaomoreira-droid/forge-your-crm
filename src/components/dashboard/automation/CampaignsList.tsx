@@ -26,24 +26,41 @@ export default function CampaignsList() {
 
   const load = async () => {
     if (!user) return;
-    const [c, a, p, s] = await Promise.all([
+    const [c, a, p, s, f] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
+      supabase.from("conversation_flows").select("id,name").eq("user_id", user.id).eq("is_active", true),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
     setPipelines(p.data || []);
     setStages(s.data || []);
+    setFlows(f.data || []);
   };
   useEffect(() => { load(); }, [user]);
 
-  const newCampaign = () => setEditing({
-    name: "", description: "", agent_id: "", message_template: "Olá {{name}}, tudo bem?",
-    daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
-    source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
-  });
+  const newCampaign = () => setShowType(true);
+
+  const startFromKind = (kind: "agent" | "flow" | "template" | "blank") => {
+    setShowType(false);
+    const base: any = {
+      name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
+      daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
+      source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
+    };
+    if (kind === "template") {
+      const tpl = CAMPAIGN_TEMPLATES.prospect[0];
+      setEditing({ ...base, name: tpl.name, description: tpl.description, message_template: tpl.message_template });
+    } else if (kind === "flow") {
+      setEditing({ ...base, name: "Campanha com fluxo" });
+    } else if (kind === "agent") {
+      setEditing({ ...base, name: "Campanha com agente" });
+    } else {
+      setEditing(base);
+    }
+  };
 
   const save = async () => {
     if (!user || !editing.name) { toast.error("Nome obrigatório"); return; }
