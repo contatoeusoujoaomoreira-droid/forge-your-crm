@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import TeamMembersSection from "./settings/TeamMembersSection";
 import {
   Globe, Key, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   Info, AlertCircle, CheckCircle2, RefreshCw, ExternalLink, Shield,
@@ -539,6 +540,8 @@ const SettingsPage = () => {
           </div>
         )}
       </section>
+
+      <TeamMembersSection />
     </div>
   );
 };
