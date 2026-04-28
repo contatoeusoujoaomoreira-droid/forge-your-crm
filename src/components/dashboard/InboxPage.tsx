@@ -326,9 +326,28 @@ export default function InboxPage() {
       {/* Conversations list — hide on mobile when a chat is selected */}
       <Card className={`w-full min-w-0 md:w-72 md:shrink-0 flex-col ${selected && showSidebarMobile ? "hidden" : "flex"} ${selected ? "hidden md:flex" : "flex"}`}>
         <div className="p-3 border-b border-border space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Buscar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="relative flex items-center gap-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-8" placeholder="Buscar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Sincronizar fotos de perfil dos contatos"
+              onClick={async () => {
+                toast.loading("Buscando fotos de perfil...", { id: "sync-avatars" });
+                const { data, error } = await supabase.functions.invoke("sync-chat-avatars");
+                if (error) { toast.error("Falha ao sincronizar", { id: "sync-avatars" }); return; }
+                const updated = (data as any)?.updated || 0;
+                toast.success(`${updated} foto(s) atualizada(s)`, { id: "sync-avatars" });
+                // Refresh client list
+                const { data: cs } = await supabase.from("chat_clients").select("*").eq("user_id", user!.id).order("updated_at", { ascending: false });
+                if (cs) setClients(cs as any);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
           <div className="flex gap-1.5 overflow-x-auto safe-scrollbar pb-1 -mx-1 px-1">
             <FilterChip id="all" label="Todos" count={counts.all} />
