@@ -40,7 +40,24 @@ function InfoHint({ title, steps }: { title: string; steps: string[] }) {
   );
 }
 
-const PROVIDERS = [
+// Sensitive input with show/hide toggle + copy button
+function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value: string; onChange: (v: string) => void; placeholder?: string; allowCopy?: boolean }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex gap-1">
+      <Input type={show ? "text" : "password"} value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="font-mono text-xs" />
+      <Button type="button" size="icon" variant="outline" onClick={() => setShow(s => !s)} title={show ? "Esconder" : "Mostrar"}>
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </Button>
+      {allowCopy && value && (
+        <Button type="button" size="icon" variant="outline" onClick={() => { navigator.clipboard.writeText(value); toast.success("Copiado!"); }} title="Copiar">
+          <Copy className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
   { id: "z-api", label: "Z-API · z-api.io" },
   { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
