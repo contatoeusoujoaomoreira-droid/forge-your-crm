@@ -31,7 +31,7 @@ export default function CampaignsList() {
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
-      supabase.from("conversation_flows").select("id,name").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("conversation_flows").select("id,name,trigger_mode").eq("user_id", user.id).eq("is_active", true),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
@@ -142,8 +142,15 @@ export default function CampaignsList() {
             <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
               value={editing.flow_id || ""} onChange={(e) => setEditing({ ...editing, flow_id: e.target.value })}>
               <option value="">— Não usar fluxo —</option>
-              {flows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {flows.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}{f.trigger_mode === "campaign_only" ? " (exclusivo de campanha)" : ""}
+                </option>
+              ))}
             </select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Quando o lead responder, este fluxo continua a conversa automaticamente. Use fluxos com modo "campanha" para isolar do chat geral.
+            </p>
           </div>
           <div>
             <Label>Templates de mensagem</Label>
