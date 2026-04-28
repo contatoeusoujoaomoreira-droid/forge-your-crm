@@ -446,7 +446,33 @@ export default function InboxPage() {
             </select>
           </div>
 
-          {/* Tags */}
+          {/* Transfer conversation */}
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+              <UsersIcon className="h-3 w-3" /> Transferir Conversa
+            </p>
+            {teamMembers.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Sem atendentes ativos. Convide em <strong>Configurações → Equipe</strong>.
+              </p>
+            ) : (
+              <select
+                className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                value={convState?.assigned_user_id || ""}
+                onChange={(e) => transferTo(e.target.value)}
+              >
+                <option value="">— Sem atendente atribuído —</option>
+                {teamMembers.filter(m => !!m.member_user_id).map((m: any) => (
+                  <option key={m.id} value={m.member_user_id}>
+                    {m.full_name || m.member_email}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-[10px] text-muted-foreground">Transferir pausa a IA e atribui a conversa ao atendente.</p>
+          </div>
+
+          {/* Notes block (composer) */}
           {lead && (
             <div className="border-t border-border pt-3 space-y-2">
               <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"><Tag className="h-3 w-3" />Tags</p>
