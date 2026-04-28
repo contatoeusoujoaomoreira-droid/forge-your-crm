@@ -60,6 +60,13 @@ export default function InboxPage() {
       setTeamMembers(tm || []);
       const totals = (orders || []).map((o: any) => Number(o.total || 0)).filter((n: number) => n > 0);
       setAvgTicket(totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0);
+      // unread counts
+      const { data: unread } = await supabase.from("messages")
+        .select("client_id")
+        .eq("user_id", user.id).eq("direction", "inbound").eq("is_read", false).limit(2000);
+      const map: Record<string, number> = {};
+      (unread || []).forEach((m: any) => { if (m.client_id) map[m.client_id] = (map[m.client_id] || 0) + 1; });
+      setUnreadByClient(map);
     })();
   }, [user]);
 
