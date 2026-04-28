@@ -959,7 +959,7 @@ Deno.serve(async (req) => {
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',
             updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,client_id' });
+          }, { onConflict: 'client_id' });
           await admin.from('notifications').insert({
             user_id: userId,
             type: intent.handoff ? 'handoff' : 'qualified',
