@@ -350,7 +350,7 @@ export default function InboxPage() {
       </Card>
 
       {/* Chat */}
-      <Card className="flex-1 flex flex-col">
+      <Card className={`flex-1 flex-col min-w-0 ${selected ? "flex" : "hidden md:flex"}`}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Selecione uma conversa
@@ -358,20 +358,28 @@ export default function InboxPage() {
         ) : (
           <>
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-              <div className="min-w-0">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="md:hidden p-1.5 rounded-md hover:bg-secondary"
+                aria-label="Voltar"
+              ><ArrowLeft className="h-4 w-4" /></button>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium truncate">{selected.name || selected.phone}</p>
                   <Badge variant={isClient ? "default" : "secondary"} className="text-[10px]">
                     {isClient ? "Cliente" : "Novo"}
                   </Badge>
+                  {isGroupClient(selected) && (
+                    <Badge variant="outline" className="text-[10px] gap-1"><UsersIcon className="h-3 w-3" />Grupo</Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {avgTicket > 0 && (
-                  <Badge variant="outline" className="text-[10px] gap-1">
+                  <Badge variant="outline" className="text-[10px] gap-1 hidden sm:inline-flex">
                     <DollarSign className="h-3 w-3" />
-                    Ticket médio R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                    Ticket R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
                   </Badge>
                 )}
                 <Badge variant={convState?.ai_active ? "default" : "secondary"}>
@@ -385,6 +393,9 @@ export default function InboxPage() {
                 const isNote = (m as any).is_internal_note === true || (m as any).channel === "internal";
                 const transcript = m.metadata?.transcript;
                 const imgDesc = m.metadata?.image_description;
+                const reactionEmoji = m.metadata?.reaction_emoji;
+                const isReaction = m.media_type === "reaction" || !!reactionEmoji;
+                const isSticker = m.media_type === "sticker";
                 if (isNote) {
                   return (
                     <div key={m.id} className="flex justify-center">
@@ -392,15 +403,24 @@ export default function InboxPage() {
                         <div className="flex items-center gap-1 mb-1 text-[10px] uppercase font-bold opacity-70">
                           <StickyNote className="h-3 w-3" /> Nota interna
                         </div>
-                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
                         <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (isReaction) {
+                  return (
+                    <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                      <div className="text-2xl px-2 py-1 rounded-full bg-secondary/60 border border-border">
+                        {reactionEmoji || m.content || "❤️"}
                       </div>
                     </div>
                   );
                 }
                 return (
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                       {m.media_type === "audio" && m.media_url && (
                         <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
                       )}
@@ -410,8 +430,15 @@ export default function InboxPage() {
                       {m.media_type === "video" && m.media_url && (
                         <video controls src={m.media_url} className="rounded mb-1 max-h-64" preload="none" />
                       )}
+                      {isSticker && m.media_url && (
+                        <img src={m.media_url} alt="sticker" className="h-32 w-32 object-contain mb-1" loading="lazy" />
+                      )}
                       {m.media_type === "document" && m.media_url && (
-                        <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-xs flex items-center gap-1 mb-1">📎 Abrir documento</a>
+                        <a href={m.media_url} target="_blank" rel="noreferrer"
+                           className="flex items-center gap-2 underline text-xs mb-1 p-2 rounded bg-background/30">
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{m.metadata?.document_filename || m.content || "Abrir documento"}</span>
+                        </a>
                       )}
                       {transcript && (
                         <p className="text-[11px] italic opacity-80 mb-1">📝 "{transcript}"</p>
@@ -419,11 +446,17 @@ export default function InboxPage() {
                       {imgDesc && (
                         <p className="text-[11px] italic opacity-80 mb-1">🖼️ {imgDesc}</p>
                       )}
-                      {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1">
-                        {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        {m.agent_id ? " · 🤖" : ""}
-                        {m.metadata?.sent_from_phone && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                      {m.content && !isSticker && <p className="whitespace-pre-wrap break-words">{m.content}</p>}
+                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1 flex-wrap">
+                        <span>{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        {m.agent_id ? <span>· 🤖</span> : null}
+                        {m.metadata?.sent_from_phone && <span className="text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                        {isOut && (
+                          m.status === "read" ? <CheckCheck className="h-3 w-3 text-sky-300" />
+                          : m.status === "delivered" ? <CheckCheck className="h-3 w-3" />
+                          : m.status === "failed" ? <span className="text-destructive-foreground">!</span>
+                          : <Check className="h-3 w-3" />
+                        )}
                       </p>
                     </div>
                   </div>
