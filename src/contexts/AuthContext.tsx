@@ -43,12 +43,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from("managed_users")
       .select("permissions, is_active")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (mu) {
       setUserPermissions(mu.permissions as Record<string, boolean>);
     } else if (roles.includes("super_admin")) {
       setUserPermissions(null); // null = full access
+    } else {
+      setUserPermissions(null); // no managed record = no overrides; rely on plan defaults
     }
   };
 
@@ -78,6 +80,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Live-refresh permissions/roles when super admin updates them
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`auth-perms-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "managed_users", filter: `user_id=eq.${user.id}` }, () => {
+        checkRole(user.id);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_roles", filter: `user_id=eq.${user.id}` }, () => {
+        checkRole(user.id);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

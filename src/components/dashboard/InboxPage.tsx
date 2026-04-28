@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const ClientAvatar = ({ client, className = "h-10 w-10" }: { client?: Client | n
 
 export default function InboxPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -620,7 +622,7 @@ export default function InboxPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">{lead.name}</p>
                 <p className="text-xs text-muted-foreground">R$ {Number(lead.value || 0).toLocaleString("pt-BR")}</p>
-                <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => window.location.href = `/dashboard?tab=crm`}>
+                <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => navigate(`/dashboard?tab=crm&lead=${lead.id}`)}>
                   <ExternalLink className="h-3 w-3 mr-1" />Ver no Pipeline
                 </Button>
               </div>

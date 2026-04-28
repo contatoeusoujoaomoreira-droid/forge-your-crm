@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -62,13 +62,36 @@ const Dashboard = () => {
   const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
   const planInfo = useUserPlan();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("analytics");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "analytics";
+  const focusLeadId = searchParams.get("lead");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRequestCredits, setShowRequestCredits] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  // Sync URL when activeTab changes from clicks
+  useEffect(() => {
+    const current = searchParams.get("tab");
+    if (current !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", activeTab);
+      if (activeTab !== "crm") next.delete("lead");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // React to back/forward navigation that changes the tab in URL
+  useEffect(() => {
+    const urlTab = searchParams.get("tab") as Tab | null;
+    if (urlTab && urlTab !== activeTab) setActiveTab(urlTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -301,7 +324,7 @@ const Dashboard = () => {
 
         <div className="max-w-full overflow-x-hidden p-3 pb-24 sm:p-6 sm:pb-24 md:pb-6">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {activeTab === "crm" && <CRMKanban />}
+            {activeTab === "crm" && <CRMKanban focusLeadId={focusLeadId || undefined} />}
             {activeTab === "clients" && <CRMClients />}
             {activeTab === "import" && <LeadImporter onShowImported={() => setActiveTab("imported")} />}
             {activeTab === "imported" && <ImportedListsViewer />}

@@ -73,7 +73,8 @@ const statusOptions = [
 
 const isWonStage = (stageName: string) => WON_STAGE_PATTERNS.some(p => stageName.toLowerCase().includes(p));
 
-const CRMKanban = () => {
+interface CRMKanbanProps { focusLeadId?: string }
+const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [stages, setStages] = useState<Stage[]>([]);
@@ -134,6 +135,19 @@ const CRMKanban = () => {
   const [customMessage, setCustomMessage] = useState("");
   const [showNewPipelineDialog, setShowNewPipelineDialog] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+
+  // Auto-open lead detail when arriving via ?lead=<id> (e.g. from Chat)
+  useEffect(() => {
+    if (!focusLeadId || leads.length === 0) return;
+    const target = leads.find(l => l.id === focusLeadId);
+    if (target) {
+      const pid = (target as any).pipeline_id;
+      if (pid && pid !== activePipeline) setActivePipeline(pid);
+      setEditLead({ ...target });
+      setEditTab("info");
+      setEditOpen(true);
+    }
+  }, [focusLeadId, leads]);
 
   const fetchData = async () => {
     if (!user) return;
