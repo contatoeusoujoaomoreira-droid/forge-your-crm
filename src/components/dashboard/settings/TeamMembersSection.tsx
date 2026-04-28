@@ -42,6 +42,8 @@ export default function TeamMembersSection() {
     if (!user) return;
     const { data } = await supabase.from("team_members").select("*").eq("owner_user_id", user.id).order("created_at", { ascending: false });
     setMembers((data || []) as any);
+    const { data: prof } = await supabase.from("profiles").select("team_seats").eq("user_id", user.id).maybeSingle();
+    setSeatOverride((prof as any)?.team_seats ?? null);
   };
   useEffect(() => { load(); }, [user]);
 
