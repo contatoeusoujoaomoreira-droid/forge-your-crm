@@ -274,54 +274,56 @@ async function describeImage(imageUrl: string, providerCfg: any, openaiKey: stri
   }
 }
 
-// Generate audio (Omni native via LOVABLE/OpenAI, OpenAI direct, or ElevenLabs)
+// Generate audio. Priority:
+//  - elevenlabs (if configured)
+//  - openai (user key) — including 'omni' since Lovable Gateway does NOT support TTS
+//  - elevenlabs as last resort if available
 async function generateTtsBase64(text: string, voice: string, openaiKey: string, provider: string = 'omni', elevenKey: string = ''): Promise<string> {
-  try {
-    const input = text.slice(0, 4000);
-    if (provider === 'elevenlabs' && elevenKey) {
-      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
+  const input = text.slice(0, 4000);
+  const toMp3DataUrl = async (resp: Response) => {
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    let binary = ''; const chunk = 0x8000;
+    for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+    return `data:audio/mpeg;base64,${btoa(binary)}`;
+  };
+  const tryEleven = async (vid: string) => {
+    if (!elevenKey) return '';
+    try {
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=mp3_44100_128`, {
         method: 'POST',
         headers: { 'xi-api-key': elevenKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: input, model_id: 'eleven_multilingual_v2' }),
       });
-      if (!r.ok) { console.error('ElevenLabs TTS failed', await r.text()); return ''; }
-      const buf = new Uint8Array(await r.arrayBuffer());
-      let binary = ''; const chunk = 0x8000;
-      for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
-      return `data:audio/mpeg;base64,${btoa(binary)}`;
-    }
-    // Omni native uses LOVABLE_API_KEY against OpenAI; fallback to user openaiKey
-    const key = (provider === 'omni' && LOVABLE_API_KEY) ? LOVABLE_API_KEY : openaiKey;
-    if (!key) return '';
-    const r = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input, response_format: 'mp3' }),
-    });
-    if (!r.ok) {
-      // Fallback to user openaiKey if omni gateway fails
-      if (provider === 'omni' && openaiKey && openaiKey !== key) {
-        const r2 = await fetch('https://api.openai.com/v1/audio/speech', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'tts-1', voice: voice || 'alloy', input, response_format: 'mp3' }),
-        });
-        if (!r2.ok) { console.error('TTS fallback failed', await r2.text()); return ''; }
-        const buf = new Uint8Array(await r2.arrayBuffer());
-        let binary = ''; const chunk = 0x8000;
-        for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
-        return `data:audio/mpeg;base64,${btoa(binary)}`;
-      }
-      console.error('TTS failed', await r.text()); return '';
-    }
-    const buf = new Uint8Array(await r.arrayBuffer());
-    let binary = ''; const chunk = 0x8000;
-    for (let i = 0; i < buf.length; i += chunk) binary += String.fromCharCode(...buf.subarray(i, i + chunk));
-    return `data:audio/mpeg;base64,${btoa(binary)}`;
-  } catch (e) {
-    console.error('TTS error', e);
-    return '';
+      if (!r.ok) { console.error('ElevenLabs TTS failed', r.status, (await r.text()).slice(0,200)); return ''; }
+      return await toMp3DataUrl(r);
+    } catch (e) { console.error('ElevenLabs TTS error', e); return ''; }
+  };
+  const tryOpenAi = async (vid: string) => {
+    if (!openaiKey) return '';
+    try {
+      const r = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'tts-1', voice: vid || 'alloy', input, response_format: 'mp3' }),
+      });
+      if (!r.ok) { console.error('OpenAI TTS failed', r.status, (await r.text()).slice(0,200)); return ''; }
+      return await toMp3DataUrl(r);
+    } catch (e) { console.error('OpenAI TTS error', e); return ''; }
+  };
+
+  // Provider preference
+  if (provider === 'elevenlabs') {
+    const a = await tryEleven(voice || '21m00Tcm4TlvDq8ikWAM');
+    if (a) return a;
+    // fallback to openai
+    return await tryOpenAi('alloy');
   }
+  // omni / openai: try OpenAI key first (real audio); if missing, try ElevenLabs
+  const isOpenAiVoice = ['alloy','echo','fable','onyx','nova','shimmer','coral','sage','verse','ash'].includes(voice);
+  const a = await tryOpenAi(isOpenAiVoice ? voice : 'alloy');
+  if (a) return a;
+  console.warn('TTS: no OpenAI key — falling back to ElevenLabs if available');
+  return await tryEleven(elevenKey ? '21m00Tcm4TlvDq8ikWAM' : '');
 }
 
 async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
