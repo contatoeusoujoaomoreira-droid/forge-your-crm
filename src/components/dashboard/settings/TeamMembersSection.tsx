@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -24,7 +24,8 @@ const PLAN_LIMITS: Record<string, number> = { start: 0, pro: 5, enterprise: 20 }
 
 export default function TeamMembersSection() {
   const { user } = useAuth();
-  const { plan, planLabel } = useUserPlan();
+  const { plan } = useUserPlan();
+  const planLabel = PLAN_DEFINITIONS[plan]?.label || "Start";
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [email, setEmail] = useState("");
