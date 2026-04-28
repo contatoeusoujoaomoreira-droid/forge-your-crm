@@ -368,6 +368,67 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
 }
 
+// Send single image via WhatsApp (Z-API supported, others fallback to text link)
+async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, caption?: string) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+  try {
+    if (cfg.api_type === 'z-api') {
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      const resp = await fetch(`${root}/send-image`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...extra },
+        body: JSON.stringify({ phone, image: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'evolution') {
+      const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
+        body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+  } catch (e) { console.error('image send fail', e); }
+  // Fallback: send caption + link as text
+  return await sendWhatsApp(cfg, phone, `${caption ? caption + '\n' : ''}${imageUrl}`);
+}
+
+// === KB CONTEXTUAL SEARCH (mirror of ai-agent logic) ===
+function scoreKb(item: any, ql: string, tokens: string[]): number {
+  let s = 0;
+  const cat = (item.category || '').toLowerCase();
+  if (cat && ql.includes(cat)) s += 10;
+  const kws: string[] = Array.isArray(item.keywords) ? item.keywords : [];
+  for (const kw of kws) {
+    const k = (kw || '').toLowerCase().trim(); if (!k) continue;
+    if (ql.includes(k)) s += 6;
+    else if (tokens.some(t => k.includes(t) || t.includes(k))) s += 2;
+  }
+  const title = (item.title || '').toLowerCase();
+  for (const t of tokens) if (t.length > 2 && title.includes(t)) s += 3;
+  const desc = (item.description || '').toLowerCase();
+  for (const t of tokens) if (t.length > 3 && desc.includes(t)) s += 1;
+  const content = (item.content || '').toLowerCase();
+  for (const t of tokens) if (t.length > 4 && content.includes(t)) s += 0.5;
+  return s;
+}
+function findKb(items: any[], q: string, n = 5): any[] {
+  const ql = (q || '').toLowerCase();
+  const tokens = ql.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+  return items.map(it => ({ it, s: scoreKb(it, ql, tokens) }))
+    .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, n).map(x => x.it);
+}
+function detectIntent(text: string, agent: any) {
+  const t = (text || '').toLowerCase();
+  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => t.includes(k));
+  const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
+  const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
+  return { handoff, qualified, wantsMedia };
+}
+
 // Send Z-API interactive button list. `buttons` is array of label strings (max 3).
 async function sendWhatsAppButtons(cfg: any, phone: string, content: string, buttons: string[]) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
