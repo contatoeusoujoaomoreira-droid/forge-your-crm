@@ -215,6 +215,7 @@ export default function CampaignsList() {
           </div>
         </div>
 
+        <div className="flex gap-2 pt-2 border-t border-border">
           <Button onClick={save}>Salvar</Button>
           <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
         </div>
