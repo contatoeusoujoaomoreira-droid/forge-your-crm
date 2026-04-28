@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
   const msg = detectAndNormalize(raw);
-  if (!msg || !msg.phone || msg.from_me) {
+  if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -417,29 +417,53 @@ Deno.serve(async (req) => {
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  let { data: client } = await admin.from('chat_clients').select('*')
-    .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+  // Atomic upsert client (prevents duplicates on race conditions)
+  const { data: upserted } = await admin.from('chat_clients').upsert(
+    { user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp', updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,phone' }
+  ).select().single();
+  let client: any = upserted;
   if (!client) {
-    const { data: created, error: createClientErr } = await admin.from('chat_clients').insert({
-      user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp',
-    }).select().single();
-    if (createClientErr) {
-      const { data: existing } = await admin.from('chat_clients').select('*')
-        .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
-      client = existing;
-    } else {
-      client = created;
-    }
-  } else {
-    await admin.from('chat_clients').update({
-      name: msg.name || client.name,
-      updated_at: new Date().toISOString(),
-      source: client.source || 'whatsapp',
-    }).eq('id', client.id);
+    const { data: existing } = await admin.from('chat_clients').select('*')
+      .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+    client = existing;
   }
 
   if (!client) {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // If message was sent FROM the user's own phone (manual reply via WhatsApp app),
+  // mirror it as outbound and force human takeover (disable AI for this conversation)
+  if (msg.from_me) {
+    // Ensure conversation_state exists and disable AI
+    const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+    if (csExisting) {
+      await admin.from('conversation_state').update({
+        ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq('id', csExisting.id);
+    } else {
+      await admin.from('conversation_state').insert({
+        user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
+      });
+    }
+    await admin.from('messages').insert({
+      user_id: userId,
+      client_id: client.id,
+      lead_id: client.lead_id,
+      direction: 'outbound',
+      channel: 'whatsapp',
+      content: msg.content || (msg.media_type ? `[${msg.media_type}]` : ''),
+      media_url: msg.media_url,
+      media_type: msg.media_type,
+      status: 'sent',
+      external_message_id: msg.external_message_id,
+      sender_phone: msg.phone,
+      created_at: msg.timestamp || new Date().toISOString(),
+      metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null },
+    });
+    await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
+    return new Response(JSON.stringify({ ok: true, mirrored: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Use matched config (multi-instance) if available; otherwise fallback to first active for the user
