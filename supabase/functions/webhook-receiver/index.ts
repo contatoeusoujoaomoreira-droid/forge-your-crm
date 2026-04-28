@@ -96,7 +96,9 @@ function normalizeZApi(raw: any): NormalizedMsg {
     : undefined;
   const mediaCaption = raw.image?.caption || raw.video?.caption || raw.document?.caption || '';
   const reactionEmoji = raw.reaction?.value || raw.reaction?.emoji || raw.reaction?.text;
-  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || (reactionEmoji ? reactionEmoji : '');
+  // Z-API interactive button reply: { buttonsResponseMessage: { message, buttonId } } or top-level fields
+  const buttonReplyText = raw.buttonsResponseMessage?.message || raw.buttonReply?.label || raw.buttonReply?.message || raw.listResponseMessage?.message || raw.selectedButtonId || raw.buttonId;
+  const text = buttonReplyText || raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || (reactionEmoji ? reactionEmoji : '');
   const moment = Number(raw.momment || raw.moment || raw.timestamp || 0);
   const isGroup = !!(raw.isGroup || raw.participantPhone || raw.groupId || (typeof raw.chatName === 'string' && raw.chatName !== name));
   return {
