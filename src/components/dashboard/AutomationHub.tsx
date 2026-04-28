@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import LeadImporter from "./automation/LeadImporter";
 import ImportedListsViewer from "./automation/ImportedListsViewer";
 import CreditsBadge from "./automation/CreditsBadge";
+import AgentTemplatesModal, { AgentTemplate } from "./automation/AgentTemplatesModal";
 import CampaignsList from "./automation/CampaignsList";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
