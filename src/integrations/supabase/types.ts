@@ -773,6 +773,78 @@ export type Database = {
           },
         ]
       }
+      credit_costs: {
+        Row: {
+          action: string
+          created_at: string
+          credits_per_unit: number
+          id: string
+          label: string
+          markup_multiplier: number
+          notes: string | null
+          provider_cost_estimate: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          credits_per_unit?: number
+          id?: string
+          label: string
+          markup_multiplier?: number
+          notes?: string | null
+          provider_cost_estimate?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          credits_per_unit?: number
+          id?: string
+          label?: string
+          markup_multiplier?: number
+          notes?: string | null
+          provider_cost_estimate?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          message: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       credit_transactions: {
         Row: {
           amount: number
@@ -1211,33 +1283,42 @@ export type Database = {
           ai_credits: number
           created_at: string
           created_by: string | null
+          credits_balance: number
+          credits_monthly: number
           email: string
           full_name: string | null
           id: string
           is_active: boolean
           permissions: Json
+          plan: string
           user_id: string | null
         }
         Insert: {
           ai_credits?: number
           created_at?: string
           created_by?: string | null
+          credits_balance?: number
+          credits_monthly?: number
           email: string
           full_name?: string | null
           id?: string
           is_active?: boolean
           permissions?: Json
+          plan?: string
           user_id?: string | null
         }
         Update: {
           ai_credits?: number
           created_at?: string
           created_by?: string | null
+          credits_balance?: number
+          credits_monthly?: number
           email?: string
           full_name?: string | null
           id?: string
           is_active?: boolean
           permissions?: Json
+          plan?: string
           user_id?: string | null
         }
         Relationships: []
@@ -1995,6 +2076,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_credit_request: { Args: { _request_id: string }; Returns: Json }
       deduct_credits: {
         Args: {
           _amount: number
@@ -2003,6 +2085,15 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      deduct_credits_by_action: {
+        Args: {
+          _action: string
+          _metadata?: Json
+          _quantity?: number
+          _user_id: string
+        }
+        Returns: Json
       }
       has_role: {
         Args: {
