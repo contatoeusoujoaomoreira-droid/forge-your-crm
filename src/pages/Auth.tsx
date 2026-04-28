@@ -91,10 +91,10 @@ const Auth = () => {
         <div className="surface-card rounded-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold">
-              <span className="text-gradient-lime">Forge</span> <span className="text-foreground">AI</span>
+              <span className="text-gradient-lime">Omni</span> <span className="text-foreground">Builder CRM</span>
             </h1>
             <p className="text-muted-foreground mt-2 text-sm">
-              {mode === "forgot" ? "Recuperar senha" : "Acesse sua conta"}
+              {mode === "forgot" ? "Recuperar senha" : "Sua plataforma all-in-one de CRM, automação e vendas"}
             </p>
           </div>
 

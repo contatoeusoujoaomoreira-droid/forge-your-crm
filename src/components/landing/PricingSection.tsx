@@ -13,7 +13,7 @@ const plans = [
     features: ["1 Pipeline", "100 Leads", "3 Landing Pages", "Forms ilimitados", "1 Quiz", "Analytics básico", "Link de agendamento", "Checkout básico"],
     highlight: false,
     cta: "Quero o Básico",
-    whatsMsg: "Olá! Quero assinar o plano *Básico* do Forge AI (R$67/mês). Como prossigo?",
+    whatsMsg: "Olá! Quero assinar o plano *Básico* do Omni Builder CRM (R$67/mês). Como prossigo?",
   },
   {
     name: "Pro",
@@ -23,7 +23,7 @@ const plans = [
     features: ["Pipelines ilimitados", "Leads ilimitados", "10 Landing Pages", "Forms + Quiz ilimitados", "Analytics avançado", "Pixel & UTM tracking", "Domínio próprio", "IA nativa (100 créditos)", "Suporte prioritário"],
     highlight: true,
     cta: "Quero o Pro",
-    whatsMsg: "Olá! Quero assinar o plano *Pro* do Forge AI (R$97/mês). Como prossigo?",
+    whatsMsg: "Olá! Quero assinar o plano *Pro* do Omni Builder CRM (R$97/mês). Como prossigo?",
   },
   {
     name: "Enterprise",
@@ -33,7 +33,7 @@ const plans = [
     features: ["Tudo do Pro", "Landing Pages ilimitadas", "White label", "API access", "Onboarding dedicado", "IA ilimitada", "SLA garantido", "Gerente de conta"],
     highlight: false,
     cta: "Falar com Consultor",
-    whatsMsg: "Olá! Tenho interesse no plano *Enterprise* do Forge AI. Gostaria de uma consultoria personalizada.",
+    whatsMsg: "Olá! Tenho interesse no plano *Enterprise* do Omni Builder CRM. Gostaria de uma consultoria personalizada.",
   },
 ];
 

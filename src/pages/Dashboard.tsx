@@ -159,7 +159,7 @@ const Dashboard = () => {
         />
       )}
       <motion.aside animate={{ width: sidebarCollapsed ? 64 : 240 }} transition={{ duration: 0.2 }}
-        className={`fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-border bg-sidebar transition-transform duration-200 md:translate-x-0 ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+        className={`fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-border bg-sidebar transition-transform duration-200 md:translate-x-0 pb-20 md:pb-0 ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-border">
           {!sidebarCollapsed && (
             <a href="/" className="text-lg font-bold tracking-tight">

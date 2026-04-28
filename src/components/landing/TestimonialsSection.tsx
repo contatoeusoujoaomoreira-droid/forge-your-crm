@@ -21,15 +21,15 @@ import amandaImg from "@/assets/testimonials/amanda.jpg";
 import gustavoImg from "@/assets/testimonials/gustavo.jpg";
 
 const testimonials = [
-  { name: "Camila Ferreira", role: "CEO, Lumiar Digital", text: "Eu estava perdida com planilhas e perdendo leads. O Forge AI organizou tudo e minhas vendas triplicaram em 3 meses.", photo: camilaImg },
+  { name: "Camila Ferreira", role: "CEO, Lumiar Digital", text: "Eu estava perdida com planilhas e perdendo leads. O Omni Builder CRM organizou tudo e minhas vendas triplicaram em 3 meses.", photo: camilaImg },
   { name: "Rafael Oliveira", role: "Founder, Growth Lab", text: "O quiz interativo capturou 4x mais leads qualificados que meus formulários antigos. Game changer total.", photo: rafaelImg },
   { name: "Juliana Costa", role: "CMO, Vetta Marketing", text: "Finalmente um CRM que não precisa de manual. Arrastar e soltar leads entre etapas é intuitivo demais.", photo: julianaImg },
   { name: "Pedro Mendes", role: "Diretor, AutoTech Solutions", text: "A landing page builder salvou R$15mil que eu gastaria com agência. E converte mais do que a anterior.", photo: pedroImg },
-  { name: "Mariana Santos", role: "Consultora de Vendas", text: "Meu sonho era ter tudo num lugar só: CRM, landing pages, agenda. Encontrei no Forge AI e nunca mais saí.", photo: marianaImg },
+  { name: "Mariana Santos", role: "Consultora de Vendas", text: "Meu sonho era ter tudo num lugar só: CRM, landing pages, agenda. Encontrei no Omni Builder CRM e nunca mais saí.", photo: marianaImg },
   { name: "Lucas Andrade", role: "Growth Hacker, ScaleUp", text: "Os analytics me mostram exatamente de onde vêm as conversões. Já cortei 40% do gasto com ads inúteis.", photo: lucasImg },
-  { name: "Beatriz Lima", role: "Empreendedora", text: "Eu não sabia nem mexer em ferramentas de marketing. O Forge AI é tão simples que criei minha primeira página em 10 min.", photo: beatrizImg },
+  { name: "Beatriz Lima", role: "Empreendedora", text: "Eu não sabia nem mexer em ferramentas de marketing. O Omni Builder CRM é tão simples que criei minha primeira página em 10 min.", photo: beatrizImg },
   { name: "Thiago Ramos", role: "CEO, Digital Storm", text: "A integração quiz → CRM → WhatsApp automatizou todo meu funil. Recebi lead qualificado dormindo.", photo: thiagoImg },
-  { name: "Fernanda Alves", role: "Head de Marketing, Nexus", text: "Testei 5 plataformas antes. Nenhuma tinha tudo junto assim. O Forge AI é absurdamente completo.", photo: fernandaImg },
+  { name: "Fernanda Alves", role: "Head de Marketing, Nexus", text: "Testei 5 plataformas antes. Nenhuma tinha tudo junto assim. O Omni Builder CRM é absurdamente completo.", photo: fernandaImg },
   { name: "Diego Souza", role: "Dono, Hamburgueria Brasa", text: "O checkout com redirect pro WhatsApp triplicou meus pedidos delivery. Simples, bonito, funciona.", photo: diegoImg },
   { name: "Priscila Nogueira", role: "Coach de Carreira", text: "Minha agenda ficou profissional e os clientes agendam sozinhos. Zero ligações e zero confusão.", photo: priscilaImg },
   { name: "André Martins", role: "Fundador, LeadPro", text: "O pipeline visual mudou meu jogo. Consigo ver exatamente onde cada negociação está travada.", photo: andreImg },
@@ -73,7 +73,7 @@ const TestimonialsSection = () => {
             Quem usa, <span className="text-gradient-lime">recomenda</span>
           </h2>
           <p className="text-muted-foreground mt-4 text-center max-w-xl mx-auto">
-            +500 empresas crescendo com Forge AI
+            +500 empresas crescendo com o Omni Builder CRM
           </p>
         </motion.div>
       </div>
