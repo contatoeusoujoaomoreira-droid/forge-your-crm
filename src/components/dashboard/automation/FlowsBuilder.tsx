@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Plus, Trash2, GitBranch, MessageSquare, Menu as MenuIcon, MousePointerClick,
-  Database, Sparkles, Clock, Hourglass, GitFork, Filter, Image as ImgIcon, X, Save,
+  Database, Sparkles, Clock, Hourglass, GitFork, Filter, Image as ImgIcon, X, Save, FileText,
 } from "lucide-react";
+import FlowTemplatesModal, { FlowTemplate } from "./FlowTemplatesModal";
 
 const NODE_TYPES = [
   { id: "message", label: "Mensagem", icon: MessageSquare, color: "#3b82f6" },
