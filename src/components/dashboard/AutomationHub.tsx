@@ -105,6 +105,7 @@ export default function AutomationHub() {
   const [testing, setTesting] = useState(false);
   const [agentBuilderOpen, setAgentBuilderOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<any>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [testMsgOpen, setTestMsgOpen] = useState(false);
   const [testMsgPhone, setTestMsgPhone] = useState("");
   const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
