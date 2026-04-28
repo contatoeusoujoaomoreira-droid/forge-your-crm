@@ -14,6 +14,7 @@ import {
 import UsageHistoryTab from "./superadmin/UsageHistoryTab";
 import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
+import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
 import UserApiKeysSection from "./UserApiKeysSection";
 
