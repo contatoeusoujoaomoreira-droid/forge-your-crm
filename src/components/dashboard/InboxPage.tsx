@@ -287,8 +287,22 @@ export default function InboxPage() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
               {messages.map(m => {
                 const isOut = m.direction === "outbound";
+                const isNote = (m as any).is_internal_note === true || (m as any).channel === "internal";
                 const transcript = m.metadata?.transcript;
                 const imgDesc = m.metadata?.image_description;
+                if (isNote) {
+                  return (
+                    <div key={m.id} className="flex justify-center">
+                      <div className="max-w-[85%] rounded-lg px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+                        <div className="flex items-center gap-1 mb-1 text-[10px] uppercase font-bold opacity-70">
+                          <StickyNote className="h-3 w-3" /> Nota interna
+                        </div>
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
@@ -325,12 +339,52 @@ export default function InboxPage() {
                 ))}
               </div>
             )}
-            <div className="p-3 border-t border-border flex gap-2">
-              <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
-                <Sparkles className="h-4 w-4" />
-              </Button>
-              <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Digite uma mensagem..." />
-              <Button onClick={send}><Send className="h-4 w-4" /></Button>
+            <div className="border-t border-border">
+              <div className="px-3 pt-2 flex items-center gap-1">
+                <button
+                  onClick={() => setComposeMode("reply")}
+                  className={`text-[11px] px-2 py-1 rounded ${composeMode === "reply" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+                >Responder</button>
+                <button
+                  onClick={() => setComposeMode("note")}
+                  className={`text-[11px] px-2 py-1 rounded flex items-center gap-1 ${composeMode === "note" ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-secondary"}`}
+                >
+                  <StickyNote className="h-3 w-3" /> Nota interna
+                </button>
+                <span className="text-[10px] text-muted-foreground ml-auto hidden md:block">
+                  Enter envia · Alt+N alterna · ✨ copiloto
+                </span>
+              </div>
+              <div className="p-3 flex gap-2">
+                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+                {composeMode === "note" ? (
+                  <>
+                    <Input
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      onKeyDown={onComposerKey}
+                      placeholder="Nota interna (visível apenas para sua equipe)..."
+                      className="border-amber-500/40 focus-visible:ring-amber-500"
+                    />
+                    <Button onClick={addInternalNote} variant="secondary" className="bg-amber-500 hover:bg-amber-600 text-white">
+                      <StickyNote className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={onComposerKey}
+                      placeholder="Digite uma mensagem..."
+                    />
+                    <Button onClick={send}><Send className="h-4 w-4" /></Button>
+                  </>
+                )}
+              </div>
+            </div>
             </div>
           </>
         )}
