@@ -148,7 +148,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     auto_close_message: "",
     is_active: true,
     voice_enabled: false,
-    voice_provider: "openai",
+    voice_provider: "omni",
     voice_id: "alloy",
     reply_to_audio_with_audio: true,
     transcribe_audio: true,
@@ -188,7 +188,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
         auto_close_enabled: false, auto_close_message: "", is_active: true,
-        voice_enabled: false, voice_provider: "openai", voice_id: "alloy",
+        voice_enabled: false, voice_provider: "omni", voice_id: "alloy",
         reply_to_audio_with_audio: true, transcribe_audio: true, understand_images: true,
       });
       setKnowledge([]);
