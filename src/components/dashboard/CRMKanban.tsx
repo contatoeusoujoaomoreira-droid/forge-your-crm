@@ -136,6 +136,19 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [showNewPipelineDialog, setShowNewPipelineDialog] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
 
+  // Auto-open lead detail when arriving via ?lead=<id> (e.g. from Chat)
+  useEffect(() => {
+    if (!focusLeadId || leads.length === 0) return;
+    const target = leads.find(l => l.id === focusLeadId);
+    if (target) {
+      const pid = (target as any).pipeline_id;
+      if (pid && pid !== activePipeline) setActivePipeline(pid);
+      setEditLead({ ...target });
+      setEditTab("info");
+      setEditOpen(true);
+    }
+  }, [focusLeadId, leads]);
+
   const fetchData = async () => {
     if (!user) return;
     const { data: pipeData } = await supabase.from("pipelines").select("*").eq("user_id", user.id).order("created_at");
