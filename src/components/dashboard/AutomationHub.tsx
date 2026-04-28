@@ -324,9 +324,12 @@ export default function AutomationHub() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="text-primary" /> Automação</h2>
-        <p className="text-sm text-muted-foreground">Conecte WhatsApp, configure agentes IA e dispare campanhas de prospecção ativa.</p>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2"><Zap className="text-primary" /> Automação</h2>
+          <p className="text-sm text-muted-foreground">Conecte WhatsApp, configure agentes IA e dispare campanhas de prospecção ativa.</p>
+        </div>
+        <CreditsBadge />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
