@@ -630,9 +630,14 @@ export default function AutomationHub() {
               </h3>
               <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
-            <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" />Novo Agente
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-1" />Templates prontos
+              </Button>
+              <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1" />Novo Agente
+              </Button>
+            </div>
           </div>
           <Card className="p-4">
             {agents.length === 0 ? (
