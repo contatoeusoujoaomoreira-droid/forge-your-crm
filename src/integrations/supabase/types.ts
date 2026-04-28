@@ -1291,6 +1291,7 @@ export type Database = {
           is_active: boolean
           permissions: Json
           plan: string
+          tier: string
           user_id: string | null
         }
         Insert: {
@@ -1305,6 +1306,7 @@ export type Database = {
           is_active?: boolean
           permissions?: Json
           plan?: string
+          tier?: string
           user_id?: string | null
         }
         Update: {
@@ -1319,6 +1321,7 @@ export type Database = {
           is_active?: boolean
           permissions?: Json
           plan?: string
+          tier?: string
           user_id?: string | null
         }
         Relationships: []
@@ -2104,7 +2107,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "super_admin" | "admin" | "user"
+      app_role: "super_admin" | "admin" | "user" | "professional" | "basic"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2232,7 +2235,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "admin", "user"],
+      app_role: ["super_admin", "admin", "user", "professional", "basic"],
     },
   },
 } as const
