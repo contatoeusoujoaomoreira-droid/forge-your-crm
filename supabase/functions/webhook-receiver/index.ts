@@ -86,20 +86,32 @@ interface NormalizedMsg {
 function normalizeZApi(raw: any): NormalizedMsg {
   const phone = raw.phone || raw.from || raw.sender || '';
   const name = raw.senderName || raw.chatName || raw.notifyName;
-  const mediaType = raw.image ? 'image' : raw.video ? 'video' : raw.audio ? 'audio' : raw.document ? 'document' : undefined;
+  // Detect more media types: image, video, audio, document, sticker, reaction
+  const mediaType = raw.image ? 'image'
+    : raw.video ? 'video'
+    : raw.audio ? 'audio'
+    : raw.document ? 'document'
+    : raw.sticker ? 'sticker'
+    : raw.reaction ? 'reaction'
+    : undefined;
   const mediaCaption = raw.image?.caption || raw.video?.caption || raw.document?.caption || '';
-  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || '';
+  const reactionEmoji = raw.reaction?.value || raw.reaction?.emoji || raw.reaction?.text;
+  const text = raw.text?.message || raw.message?.text || raw.message || raw.body || raw.caption || mediaCaption || (reactionEmoji ? reactionEmoji : '');
   const moment = Number(raw.momment || raw.moment || raw.timestamp || 0);
+  const isGroup = !!(raw.isGroup || raw.participantPhone || raw.groupId || (typeof raw.chatName === 'string' && raw.chatName !== name));
   return {
     phone: normalizePhone(phone),
     name,
     content: text || (mediaType ? `[${mediaType}]` : ''),
     external_message_id: raw.messageId || raw.messageID || raw.id || raw.key?.id,
-    media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl,
+    media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl || raw.sticker?.stickerUrl,
     media_type: mediaType,
     from_me: raw.fromMe === true || raw.fromMe === 'true',
     timestamp: moment ? new Date(moment).toISOString() : undefined,
-  };
+    is_group: isGroup,
+    reaction_emoji: reactionEmoji,
+    document_filename: raw.document?.fileName || raw.document?.filename,
+  } as any;
 }
 
 function normalizeEvolution(raw: any): NormalizedMsg {
@@ -107,14 +119,40 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   const key = data.key || {};
   const msg = data.message || {};
   const phone = (key.remoteJid || '').split('@')[0];
+  const isGroup = (key.remoteJid || '').includes('@g.us');
   const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
+  const reactionEmoji = msg.reactionMessage?.text;
+  const mediaType = msg.imageMessage ? 'image'
+    : msg.videoMessage ? 'video'
+    : msg.audioMessage ? 'audio'
+    : msg.documentMessage ? 'document'
+    : msg.stickerMessage ? 'sticker'
+    : reactionEmoji ? 'reaction'
+    : undefined;
   return {
     phone: normalizePhone(phone),
     name: data.pushName,
-    content: text,
+    content: text || reactionEmoji || (mediaType ? `[${mediaType}]` : ''),
     external_message_id: key.id,
     from_me: key.fromMe === true,
-  };
+    media_type: mediaType,
+    is_group: isGroup,
+    reaction_emoji: reactionEmoji,
+  } as any;
+}
+
+// Status callback (delivered / read) — used to update ✓✓ ticks on existing messages.
+function detectStatusCallback(raw: any): { external_message_id?: string; status: string } | null {
+  // Z-API: { type: 'MessageStatusCallback', status: 'READ'|'RECEIVED'|'PLAYED', messageId }
+  const t = (raw?.type || raw?.event || '').toString().toLowerCase();
+  if (t.includes('status') && (raw.messageId || raw.id)) {
+    const s = (raw.status || raw.ack || '').toString().toLowerCase();
+    let mapped = 'sent';
+    if (s.includes('read') || s.includes('played') || raw.ack === 3 || raw.ack === 4) mapped = 'read';
+    else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
+    return { external_message_id: raw.messageId || raw.id, status: mapped };
+  }
+  return null;
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
@@ -407,6 +445,16 @@ Deno.serve(async (req) => {
 
   await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw });
 
+  // Status callback (delivered / read) — update existing message status (✓✓ ticks)
+  const statusCb = detectStatusCallback(raw);
+  if (statusCb?.external_message_id) {
+    await admin.from('messages')
+      .update({ status: statusCb.status })
+      .eq('user_id', userId)
+      .eq('external_message_id', statusCb.external_message_id);
+    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   const msg = detectAndNormalize(raw);
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -419,7 +467,14 @@ Deno.serve(async (req) => {
 
   // Atomic upsert client (prevents duplicates on race conditions)
   const { data: upserted } = await admin.from('chat_clients').upsert(
-    { user_id: userId, phone: msg.phone, name: msg.name || msg.phone, source: 'whatsapp', updated_at: new Date().toISOString() },
+    {
+      user_id: userId,
+      phone: msg.phone,
+      name: msg.name || msg.phone,
+      source: 'whatsapp',
+      metadata: { is_group: (msg as any).is_group === true },
+      updated_at: new Date().toISOString(),
+    },
     { onConflict: 'user_id,phone' }
   ).select().single();
   let client: any = upserted;

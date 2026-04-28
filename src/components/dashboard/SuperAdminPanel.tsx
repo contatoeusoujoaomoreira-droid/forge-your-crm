@@ -24,7 +24,26 @@ interface ManagedUser {
   permissions: Record<string, boolean>;
   created_at: string;
   user_id: string | null;
+  plan?: string | null;
+  tier?: string | null;
+  credits_balance?: number | null;
+  credits_monthly?: number | null;
 }
+
+const PLAN_OPTIONS = [
+  { value: "trial", label: "Trial (teste)" },
+  { value: "start", label: "Start" },
+  { value: "pro", label: "Pro" },
+  { value: "business", label: "Business" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "custom", label: "Custom" },
+];
+
+const TIER_OPTIONS = [
+  { value: "super_admin", label: "Super Admin", desc: "Acesso total ao painel admin" },
+  { value: "professional", label: "Profissional", desc: "Conta com plano pago" },
+  { value: "basic", label: "Básico (teste)", desc: "Acesso de avaliação" },
+];
 
 const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   crm: { label: "CRM", icon: LayoutDashboard },
@@ -125,6 +144,37 @@ const SuperAdminPanel = () => {
       await callEdge({ action: "update_user", managed_user_id: u.id, ai_credits: credits });
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ai_credits: credits } : x));
       toast({ title: "Créditos atualizados!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdatePlan = async (u: ManagedUser, plan: string) => {
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, plan });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, plan } : x));
+      toast({ title: "Plano atualizado!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateTier = async (u: ManagedUser, tier: string) => {
+    if (!confirm(`Alterar hierarquia para "${tier}"? Isso afeta o acesso ao painel.`)) return;
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, tier });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, tier } : x));
+      toast({ title: "Hierarquia atualizada!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateBalance = async (u: ManagedUser, credits_balance: number) => {
+    try {
+      await callEdge({ action: "update_user", managed_user_id: u.id, credits_balance });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, credits_balance } : x));
+      toast({ title: "Saldo de créditos atualizado!" });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
@@ -262,17 +312,27 @@ const SuperAdminPanel = () => {
         <div className="space-y-2">
           {users.map(u => (
             <div key={u.id} className="surface-card rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                     {(u.full_name || u.email)[0].toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{u.full_name || "Sem nome"}</p>
-                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{u.full_name || "Sem nome"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${u.is_active ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                     {u.is_active ? "Ativo" : "Inativo"}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    u.tier === "super_admin" ? "bg-purple-500/15 text-purple-600 dark:text-purple-300"
+                    : u.tier === "professional" ? "bg-primary/15 text-primary"
+                    : "bg-secondary text-muted-foreground"
+                  }`}>
+                    {TIER_OPTIONS.find(t => t.value === (u.tier || "basic"))?.label}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium uppercase">
+                    {u.plan || "trial"}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                     {u.ai_credits} créditos IA
@@ -313,17 +373,58 @@ const SuperAdminPanel = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Créditos IA:</label>
-                    <Input
-                      type="number"
-                      defaultValue={u.ai_credits}
-                      onBlur={e => {
-                        const v = Number(e.target.value);
-                        if (v !== u.ai_credits) handleUpdateCredits(u, v);
-                      }}
-                      className="w-24 h-7 text-xs bg-secondary/50 border-border"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Hierarquia</label>
+                      <select
+                        value={u.tier || "basic"}
+                        onChange={(e) => handleUpdateTier(u, e.target.value)}
+                        className="w-full h-8 text-xs rounded-md border border-border bg-secondary/50 px-2"
+                      >
+                        {TIER_OPTIONS.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Plano</label>
+                      <select
+                        value={u.plan || "trial"}
+                        onChange={(e) => handleUpdatePlan(u, e.target.value)}
+                        className="w-full h-8 text-xs rounded-md border border-border bg-secondary/50 px-2"
+                      >
+                        {PLAN_OPTIONS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Créditos IA (cota módulo IA)</label>
+                      <Input
+                        type="number"
+                        defaultValue={u.ai_credits}
+                        onBlur={e => {
+                          const v = Number(e.target.value);
+                          if (v !== u.ai_credits) handleUpdateCredits(u, v);
+                        }}
+                        className="h-8 text-xs bg-secondary/50 border-border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Saldo de créditos do plano</label>
+                      <Input
+                        type="number"
+                        defaultValue={u.credits_balance ?? 0}
+                        onBlur={e => {
+                          const v = Number(e.target.value);
+                          if (v !== (u.credits_balance ?? 0)) handleUpdateBalance(u, v);
+                        }}
+                        className="h-8 text-xs bg-secondary/50 border-border"
+                      />
+                    </div>
                   </div>
 
                   <div className="text-[10px] text-muted-foreground">

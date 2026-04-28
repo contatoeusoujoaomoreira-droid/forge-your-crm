@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
-interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; metadata?: any; }
-interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
+interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
+interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
+
+type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
@@ -36,6 +38,10 @@ export default function InboxPage() {
   const [noteInput, setNoteInput] = useState("");
   const [composeMode, setComposeMode] = useState<"reply" | "note">("reply");
   const [avgTicket, setAvgTicket] = useState<number>(0);
+  const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [unreadByClient, setUnreadByClient] = useState<Record<string, number>>({});
+  const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial load
@@ -54,6 +60,13 @@ export default function InboxPage() {
       setTeamMembers(tm || []);
       const totals = (orders || []).map((o: any) => Number(o.total || 0)).filter((n: number) => n > 0);
       setAvgTicket(totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0);
+      // unread counts
+      const { data: unread } = await supabase.from("messages")
+        .select("client_id")
+        .eq("user_id", user.id).eq("direction", "inbound").eq("is_read", false).limit(2000);
+      const map: Record<string, number> = {};
+      (unread || []).forEach((m: any) => { if (m.client_id) map[m.client_id] = (map[m.client_id] || 0) + 1; });
+      setUnreadByClient(map);
     })();
   }, [user]);
 
@@ -67,8 +80,15 @@ export default function InboxPage() {
           setMessages(prev => prev.some(x => x.id === m.id || (!!m.external_message_id && x.external_message_id === m.external_message_id))
             ? prev
             : [...prev, m].sort(byCreatedAt));
+        } else if (m.direction === "inbound" && m.client_id) {
+          setUnreadByClient(prev => ({ ...prev, [m.client_id!]: (prev[m.client_id!] || 0) + 1 }));
         }
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).then(r => setClients(r.data || []));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `user_id=eq.${user.id}` }, (p) => {
+        const m = p.new as Message;
+        // Update status (✓✓) live
+        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, status: m.status, is_read: m.is_read } : x));
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_clients", filter: `user_id=eq.${user.id}` }, (p) => {
         const c = p.new as Client;
@@ -88,6 +108,12 @@ export default function InboxPage() {
     (async () => {
       const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: false }).limit(300);
       setMessages(((msgs || []) as Message[]).sort(byCreatedAt));
+      // Mark inbound messages as read
+      if (user) {
+        await supabase.from("messages").update({ is_read: true })
+          .eq("user_id", user.id).eq("client_id", selectedId).eq("is_read", false);
+        setUnreadByClient(prev => { const c = { ...prev }; delete c[selectedId]; return c; });
+      }
       const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
       if (st) setConvState(st as any);
       else if (user) {
@@ -221,21 +247,78 @@ export default function InboxPage() {
   const onComposerKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composeMode === "note" ? addInternalNote() : send(); }
     if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); setComposeMode(m => m === "note" ? "reply" : "note"); }
+    // "/" at the start opens shortcut hints (just focus + leave it for the user to pick a quick reply later)
   };
 
-  const filtered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const handleAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !selectedId || !user) return;
+    e.target.value = "";
+    const path = `${user.id}/${selectedId}/${Date.now()}-${f.name}`;
+    const { error: upErr } = await supabase.storage.from("chat-media").upload(path, f, { upsert: true });
+    if (upErr) { toast.error(upErr.message); return; }
+    const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
+    const isImg = f.type.startsWith("image/");
+    const mediaType = isImg ? "image" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "document";
+    const { data, error } = await supabase.from("messages").insert({
+      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
+      direction: "outbound", channel: "whatsapp", content: f.name,
+      media_url: pub.publicUrl, media_type: mediaType, status: "sent",
+    }).select().single();
+    if (error) { toast.error(error.message); return; }
+    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
+    toast.success("Anexo enviado");
+  };
+
+  const isGroupClient = (c: Client) =>
+    c.metadata?.is_group === true ||
+    (c.phone || "").length > 15 || // group jids tend to be longer
+    /\bgroup\b/i.test(c.name || "");
+
+  const baseFiltered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const counts = {
+    all: baseFiltered.length,
+    unread: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
+    waiting: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
+    individual: baseFiltered.filter(c => !isGroupClient(c)).length,
+    groups: baseFiltered.filter(c => isGroupClient(c)).length,
+  };
+  const filtered = baseFiltered.filter(c => {
+    if (filterTab === "unread" || filterTab === "waiting") return (unreadByClient[c.id] || 0) > 0;
+    if (filterTab === "individual") return !isGroupClient(c);
+    if (filterTab === "groups") return isGroupClient(c);
+    return true;
+  });
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
   const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
 
+  const FilterChip = ({ id, label, count }: { id: FilterTab; label: string; count: number }) => (
+    <button
+      onClick={() => setFilterTab(id)}
+      className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full border transition-colors whitespace-nowrap ${
+        filterTab === id ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary"
+      }`}
+    >
+      {label} <span className="opacity-70">({count})</span>
+    </button>
+  );
+
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-3">
-      {/* Conversations list */}
-      <Card className="w-72 flex flex-col">
-        <div className="p-3 border-b border-border">
+    <div className="flex h-[calc(100dvh-7rem)] gap-3 flex-col md:flex-row">
+      {/* Conversations list — hide on mobile when a chat is selected */}
+      <Card className={`w-full md:w-72 flex-col ${selected && showSidebarMobile ? "hidden" : "flex"} ${selected ? "hidden md:flex" : "flex"}`}>
+        <div className="p-3 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input className="pl-8" placeholder="Buscar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            <FilterChip id="all" label="Todos" count={counts.all} />
+            <FilterChip id="unread" label="N. lidos" count={counts.unread} />
+            <FilterChip id="waiting" label="Aguard." count={counts.waiting} />
+            <FilterChip id="individual" label="Indiv." count={counts.individual} />
+            <FilterChip id="groups" label="Grupos" count={counts.groups} />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -244,18 +327,30 @@ export default function InboxPage() {
               <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
               Nenhuma conversa.<br /><span className="text-xs">Conecte WhatsApp em Automação.</span>
             </div>
-          ) : filtered.map(c => (
-            <button key={c.id} onClick={() => setSelectedId(c.id)}
-              className={`w-full text-left p-3 border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""}`}>
-              <p className="font-medium text-sm truncate">{c.name || c.phone}</p>
-              <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
-            </button>
-          ))}
+          ) : filtered.map(c => {
+            const u = unreadByClient[c.id] || 0;
+            const isGroup = isGroupClient(c);
+            return (
+              <button key={c.id} onClick={() => setSelectedId(c.id)}
+                className={`w-full text-left p-3 border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-sm truncate flex items-center gap-1">
+                    {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
+                    {c.name || c.phone}
+                  </p>
+                  {u > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+              </button>
+            );
+          })}
         </div>
       </Card>
 
       {/* Chat */}
-      <Card className="flex-1 flex flex-col">
+      <Card className={`flex-1 flex-col min-w-0 ${selected ? "flex" : "hidden md:flex"}`}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Selecione uma conversa
@@ -263,20 +358,28 @@ export default function InboxPage() {
         ) : (
           <>
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-              <div className="min-w-0">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="md:hidden p-1.5 rounded-md hover:bg-secondary"
+                aria-label="Voltar"
+              ><ArrowLeft className="h-4 w-4" /></button>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium truncate">{selected.name || selected.phone}</p>
                   <Badge variant={isClient ? "default" : "secondary"} className="text-[10px]">
                     {isClient ? "Cliente" : "Novo"}
                   </Badge>
+                  {isGroupClient(selected) && (
+                    <Badge variant="outline" className="text-[10px] gap-1"><UsersIcon className="h-3 w-3" />Grupo</Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {avgTicket > 0 && (
-                  <Badge variant="outline" className="text-[10px] gap-1">
+                  <Badge variant="outline" className="text-[10px] gap-1 hidden sm:inline-flex">
                     <DollarSign className="h-3 w-3" />
-                    Ticket médio R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                    Ticket R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
                   </Badge>
                 )}
                 <Badge variant={convState?.ai_active ? "default" : "secondary"}>
@@ -290,6 +393,9 @@ export default function InboxPage() {
                 const isNote = (m as any).is_internal_note === true || (m as any).channel === "internal";
                 const transcript = m.metadata?.transcript;
                 const imgDesc = m.metadata?.image_description;
+                const reactionEmoji = m.metadata?.reaction_emoji;
+                const isReaction = m.media_type === "reaction" || !!reactionEmoji;
+                const isSticker = m.media_type === "sticker";
                 if (isNote) {
                   return (
                     <div key={m.id} className="flex justify-center">
@@ -297,15 +403,24 @@ export default function InboxPage() {
                         <div className="flex items-center gap-1 mb-1 text-[10px] uppercase font-bold opacity-70">
                           <StickyNote className="h-3 w-3" /> Nota interna
                         </div>
-                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
                         <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (isReaction) {
+                  return (
+                    <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                      <div className="text-2xl px-2 py-1 rounded-full bg-secondary/60 border border-border">
+                        {reactionEmoji || m.content || "❤️"}
                       </div>
                     </div>
                   );
                 }
                 return (
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                       {m.media_type === "audio" && m.media_url && (
                         <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
                       )}
@@ -315,8 +430,15 @@ export default function InboxPage() {
                       {m.media_type === "video" && m.media_url && (
                         <video controls src={m.media_url} className="rounded mb-1 max-h-64" preload="none" />
                       )}
+                      {isSticker && m.media_url && (
+                        <img src={m.media_url} alt="sticker" className="h-32 w-32 object-contain mb-1" loading="lazy" />
+                      )}
                       {m.media_type === "document" && m.media_url && (
-                        <a href={m.media_url} target="_blank" rel="noreferrer" className="underline text-xs flex items-center gap-1 mb-1">📎 Abrir documento</a>
+                        <a href={m.media_url} target="_blank" rel="noreferrer"
+                           className="flex items-center gap-2 underline text-xs mb-1 p-2 rounded bg-background/30">
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{m.metadata?.document_filename || m.content || "Abrir documento"}</span>
+                        </a>
                       )}
                       {transcript && (
                         <p className="text-[11px] italic opacity-80 mb-1">📝 "{transcript}"</p>
@@ -324,11 +446,17 @@ export default function InboxPage() {
                       {imgDesc && (
                         <p className="text-[11px] italic opacity-80 mb-1">🖼️ {imgDesc}</p>
                       )}
-                      {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1">
-                        {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        {m.agent_id ? " · 🤖" : ""}
-                        {m.metadata?.sent_from_phone && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                      {m.content && !isSticker && <p className="whitespace-pre-wrap break-words">{m.content}</p>}
+                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1 flex-wrap">
+                        <span>{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        {m.agent_id ? <span>· 🤖</span> : null}
+                        {m.metadata?.sent_from_phone && <span className="text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                        {isOut && (
+                          m.status === "read" ? <CheckCheck className="h-3 w-3 text-sky-300" />
+                          : m.status === "delivered" ? <CheckCheck className="h-3 w-3" />
+                          : m.status === "failed" ? <span className="text-destructive-foreground">!</span>
+                          : <Check className="h-3 w-3" />
+                        )}
                       </p>
                     </div>
                   </div>
@@ -368,8 +496,15 @@ export default function InboxPage() {
                   Enter envia · Alt+N alterna · ✨ copiloto
                 </span>
               </div>
-              <div className="p-3 flex gap-2">
-                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
+              <div className="p-3 flex gap-2 items-center">
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleAttach} accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xlsx,.csv" />
+                <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="outline" onClick={() => toast.info("Gravação de áudio em breve")} title="Gravar áudio">
+                  <Mic className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto (✨)">
                   <Sparkles className="h-4 w-4" />
                 </Button>
                 {composeMode === "note" ? (
@@ -379,7 +514,7 @@ export default function InboxPage() {
                       onChange={(e) => setNoteInput(e.target.value)}
                       onKeyDown={onComposerKey}
                       placeholder="Nota interna (visível apenas para sua equipe)..."
-                      className="border-amber-500/40 focus-visible:ring-amber-500"
+                      className="border-amber-500/40 focus-visible:ring-amber-500 flex-1 min-w-0"
                     />
                     <Button onClick={addInternalNote} variant="secondary" className="bg-amber-500 hover:bg-amber-600 text-white">
                       <StickyNote className="h-4 w-4" />
@@ -391,7 +526,8 @@ export default function InboxPage() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={onComposerKey}
-                      placeholder="Digite uma mensagem..."
+                      placeholder={convState?.ai_active ? "Mensagem (IA pode responder)" : "Digite uma mensagem..."}
+                      className="flex-1 min-w-0"
                     />
                     <Button onClick={send}><Send className="h-4 w-4" /></Button>
                   </>
@@ -404,7 +540,7 @@ export default function InboxPage() {
 
       {/* Sidebar */}
       {selected && (
-        <Card className="w-80 p-4 space-y-4 overflow-y-auto">
+        <Card className="w-full lg:w-80 p-4 space-y-4 overflow-y-auto hidden lg:block">
           {/* Lead linkage */}
           <div>
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Lead Vinculado</p>
