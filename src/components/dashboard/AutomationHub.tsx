@@ -127,12 +127,19 @@ export default function AutomationHub() {
     const payload = { ...waCfg, user_id: user.id };
     delete payload.created_at;
     delete payload.updated_at;
-    const { error } = waCfg.id
-      ? await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id)
-      : await supabase.from("whatsapp_configs").insert(payload).select().single().then((r) => { if (r.data) setWaCfg(r.data); return r; });
+    let error: any = null;
+    if (waCfg.id) {
+      const r = await supabase.from("whatsapp_configs").update(payload).eq("id", waCfg.id);
+      error = r.error;
+    } else {
+      const r = await supabase.from("whatsapp_configs").insert(payload).select().single();
+      error = r.error;
+      if (r.data) setWaCfg(r.data);
+    }
     if (error) toast.error(error.message);
     else {
-      toast.success("Configuração salva!");
+      toast.success("Conexão salva!");
+      await reloadWaConfigs();
       if (payload.api_type === "z-api" && payload.is_active) configureWebhook(payload, false);
     }
   };
