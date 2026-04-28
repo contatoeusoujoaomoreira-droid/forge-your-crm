@@ -49,7 +49,8 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
 export default function AutomationHub() {
   const { user } = useAuth();
   const [tab, setTab] = useState("whatsapp");
-  const [waCfg, setWaCfg] = useState<any>({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true });
+  const [waConfigs, setWaConfigs] = useState<any[]>([]);
+  const [waCfg, setWaCfg] = useState<any>({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, label: "Principal" });
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [providerKeys, setProviderKeys] = useState<any[]>([]);
