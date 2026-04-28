@@ -137,6 +137,25 @@ export default function CampaignsList() {
               {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
             </select>
           </div>
+          <div>
+            <Label>Fluxo de conversa (opcional)</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              value={editing.flow_id || ""} onChange={(e) => setEditing({ ...editing, flow_id: e.target.value })}>
+              <option value="">— Não usar fluxo —</option>
+              {flows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>Templates de mensagem</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              value="" onChange={(e) => {
+                const tpl = CAMPAIGN_TEMPLATES.prospect.find((t) => t.name === e.target.value);
+                if (tpl) setEditing({ ...editing, message_template: tpl.message_template });
+              }}>
+              <option value="">— Aplicar template pronto —</option>
+              {CAMPAIGN_TEMPLATES.prospect.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+            </select>
+          </div>
           <div className="col-span-2">
             <Label>Descrição</Label>
             <Input value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
