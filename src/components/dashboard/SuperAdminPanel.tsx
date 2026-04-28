@@ -14,6 +14,7 @@ import {
 import UsageHistoryTab from "./superadmin/UsageHistoryTab";
 import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
+import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
 import UserApiKeysSection from "./UserApiKeysSection";
 
@@ -225,7 +226,8 @@ const SuperAdminPanel = () => {
         <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" /> Usuários</TabsTrigger>
           <TabsTrigger value="requests"><Coins className="h-3 w-3 mr-1" /> Solicitações</TabsTrigger>
-          <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos de crédito</TabsTrigger>
+          <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos por ação</TabsTrigger>
+          <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
           <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
         </TabsList>
 
@@ -463,6 +465,9 @@ const SuperAdminPanel = () => {
         </TabsContent>
         <TabsContent value="costs" className="pt-4">
           <CreditCostsTab />
+        </TabsContent>
+        <TabsContent value="models" className="pt-4">
+          <ModelCostsTab />
         </TabsContent>
         <TabsContent value="history" className="pt-4">
           <UsageHistoryTab users={users.map(u => ({ user_id: u.user_id, email: u.email, full_name: u.full_name }))} />

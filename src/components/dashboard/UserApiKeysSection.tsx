@@ -24,12 +24,17 @@ const PROVIDER_LIST = [
 
 const SCOPES = [
   { id: "all", label: "Tudo (todas as ações)" },
-  { id: "chat", label: "Apenas chat / agente IA" },
+  { id: "chat", label: "Chat / agente IA" },
   { id: "tts", label: "Texto → áudio (TTS)" },
   { id: "stt", label: "Áudio → texto (STT)" },
   { id: "vision", label: "Visão (interpretar imagem)" },
   { id: "image", label: "Geração de imagem" },
   { id: "video", label: "Geração de vídeo" },
+  { id: "page_generate", label: "Gerar landing pages" },
+  { id: "form_generate", label: "Gerar formulários" },
+  { id: "quiz_generate", label: "Gerar quizzes" },
+  { id: "knowledge_ingest", label: "Ingestão de base de conhecimento" },
+  { id: "campaign_writer", label: "Escrita de campanhas / mensagens" },
 ];
 
 function HelpHint({ steps, url }: { steps: string[]; url?: string }) {
@@ -57,11 +62,27 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
   const targetUserId = userIdOverride || user?.id;
   const [items, setItems] = useState<any[]>([]);
   const [provider, setProvider] = useState("openai");
-  const [scope, setScope] = useState("all");
+  
   const [apiKey, setApiKey] = useState("");
   const [label, setLabel] = useState("");
   const [showKeyId, setShowKeyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scopes, setScopes] = useState<string[]>(["all"]);
+  const [customScope, setCustomScope] = useState("");
+
+  const toggleScope = (id: string) => {
+    setScopes((prev) => {
+      if (id === "all") return ["all"];
+      const next = prev.filter((s) => s !== "all");
+      return next.includes(id) ? next.filter((s) => s !== id) : [...next, id];
+    });
+  };
+  const addCustomScope = () => {
+    const v = customScope.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!v) return;
+    setScopes((prev) => [...prev.filter((s) => s !== "all" && s !== v), v]);
+    setCustomScope("");
+  };
 
   const load = async () => {
     if (!targetUserId) return;
@@ -72,14 +93,16 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
 
   const save = async () => {
     if (!targetUserId || !apiKey.trim()) { toast.error("Informe a chave"); return; }
+    const finalScopes = scopes.length === 0 ? ["all"] : scopes;
+    const scopeStr = finalScopes.join(",");
     setSaving(true);
     const { error } = await supabase.from("user_api_keys").insert({
-      user_id: targetUserId, provider, scope, label: label || `${provider}-${scope}`, api_key: apiKey.trim(),
+      user_id: targetUserId, provider, scope: scopeStr, label: label || `${provider}-${scopeStr}`, api_key: apiKey.trim(),
     } as any);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Chave salva!");
-    setApiKey(""); setLabel("");
+    setApiKey(""); setLabel(""); setScopes(["all"]);
     load();
   };
 
@@ -113,7 +136,7 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
       </div>
 
       <Card className="p-4 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] uppercase text-muted-foreground block mb-1 flex items-center gap-1">
               Provedor <HelpHint steps={current.help} url={current.url} />
@@ -124,16 +147,35 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
             </select>
           </div>
           <div>
-            <label className="text-[10px] uppercase text-muted-foreground block mb-1">Usar para</label>
-            <select value={scope} onChange={(e) => setScope(e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm">
-              {SCOPES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
-          </div>
-          <div>
             <label className="text-[10px] uppercase text-muted-foreground block mb-1">Apelido</label>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Conta principal" />
           </div>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase text-muted-foreground block mb-1">Usar para (selecione uma ou mais ações)</label>
+          <div className="flex flex-wrap gap-1.5">
+            {SCOPES.map(s => {
+              const active = scopes.includes(s.id);
+              return (
+                <button key={s.id} type="button" onClick={() => toggleScope(s.id)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition ${active ? "bg-primary text-primary-foreground border-primary" : "border-input hover:border-primary/40"}`}>
+                  {s.label}
+                </button>
+              );
+            })}
+            {scopes.filter(s => !SCOPES.find(x => x.id === s)).map(s => (
+              <button key={s} type="button" onClick={() => toggleScope(s)}
+                className="text-xs px-2.5 py-1 rounded-full border bg-primary text-primary-foreground border-primary">
+                {s} ✕
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-2">
+            <Input value={customScope} onChange={(e) => setCustomScope(e.target.value)}
+              placeholder="Ação personalizada (ex.: copywriting, traducao)" className="h-8 text-xs" />
+            <Button type="button" size="sm" variant="outline" onClick={addCustomScope}>+ Adicionar</Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Selecione "Tudo" para usar essa chave em qualquer ação, ou escolha ações específicas.</p>
         </div>
         <div>
           <label className="text-[10px] uppercase text-muted-foreground block mb-1">Chave API</label>
@@ -154,7 +196,10 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="capitalize">{it.provider}</Badge>
-                <Badge variant="outline" className="text-[10px]">{SCOPES.find(s => s.id === it.scope)?.label || it.scope}</Badge>
+                {(it.scope || "all").split(",").map((sc: string) => {
+                  const s = sc.trim();
+                  return <Badge key={s} variant="outline" className="text-[10px]">{SCOPES.find(x => x.id === s)?.label || s}</Badge>;
+                })}
                 {it.is_active ? <Badge className="text-[10px]">Ativa</Badge> : <Badge variant="outline" className="text-[10px]">Inativa</Badge>}
                 {it.label && <span className="text-xs text-muted-foreground">· {it.label}</span>}
               </div>

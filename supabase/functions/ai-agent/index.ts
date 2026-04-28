@@ -100,6 +100,7 @@ Deno.serve(async (req) => {
     let model = 'google/gemini-2.5-flash';
     let apiKey = LOVABLE_API_KEY;
     let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+    let providerType = 'lovable';
 
     if (body.agent_id) {
       const { data: agent } = await admin.from('ai_agents').select('*').eq('id', body.agent_id).eq('user_id', userId).maybeSingle();
@@ -111,8 +112,26 @@ Deno.serve(async (req) => {
           endpoint = runtime.endpoint;
           apiKey = runtime.apiKey;
           model = runtime.model;
+          providerType = (cfg?.provider as string) || 'lovable';
         } else {
           model = normalizeLegacyModel(agent.model) || model;
+          // Infer provider from model id prefix
+          if (model.startsWith('openai/') || model.startsWith('gpt-')) providerType = 'openai';
+          else if (model.startsWith('google/') || model.startsWith('gemini-')) providerType = 'gemini';
+          else if (model.startsWith('llama-') || model.startsWith('mixtral-')) providerType = 'groq';
+          else if (model.startsWith('claude-')) providerType = 'anthropic';
+        }
+        // If user has own API key for this provider, swap in their endpoint+key
+        const { data: ownKeys } = await admin.from('user_api_keys')
+          .select('*').eq('user_id', userId).eq('provider', providerType).eq('is_active', true);
+        const own = (ownKeys || []).find((k: any) => {
+          const sc = (k.scope || 'all').split(',').map((s: string) => s.trim());
+          return sc.includes('all') || sc.includes('chat');
+        });
+        if (own) {
+          apiKey = own.api_key;
+          if (providerType === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
+          else if (providerType === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
         }
         const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
         if (knowledge?.length) {
@@ -131,7 +150,7 @@ Deno.serve(async (req) => {
         _user_id: userId,
         _action: preAction,
         _quantity: 1,
-        _metadata: { agent_id: body.agent_id || null, stage: 'pre', model },
+        _metadata: { agent_id: body.agent_id || null, stage: 'pre', model, model_provider: providerType, model_id: model },
       });
       if (pre && (pre as any).ok === false) {
         return new Response(JSON.stringify({ error: 'Créditos insuficientes. Solicite recarga ao administrador.', code: 'insufficient_credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -161,7 +180,7 @@ Deno.serve(async (req) => {
       try {
         await admin.rpc('deduct_credits_by_action', {
           _user_id: userId, _action: 'chat_message_long', _quantity: 1,
-          _metadata: { agent_id: body.agent_id || null, model, tokens: tokensUsed, stage: 'topup' },
+          _metadata: { agent_id: body.agent_id || null, model, tokens: tokensUsed, stage: 'topup', model_provider: providerType, model_id: model },
         });
       } catch (e) { console.warn('topup credit deduction failed', e); }
     }
