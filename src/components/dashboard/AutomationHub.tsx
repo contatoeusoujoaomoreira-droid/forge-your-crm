@@ -227,6 +227,35 @@ export default function AutomationHub() {
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp</h3>
+                <p className="text-xs text-muted-foreground">Gerencie múltiplas instâncias. Cada uma pode ter seu agente IA próprio.</p>
+              </div>
+              <Button size="sm" onClick={newConnection}><Plus className="h-4 w-4 mr-1" />Nova conexão</Button>
+            </div>
+            {waConfigs.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-3">Nenhuma conexão criada. Preencha o formulário abaixo e salve.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {waConfigs.map((c) => (
+                  <li key={c.id} className={`py-2 px-2 flex items-center justify-between rounded ${waCfg?.id === c.id ? "bg-primary/5" : ""}`}>
+                    <button className="flex-1 text-left" onClick={() => setWaCfg(c)}>
+                      <p className="text-sm font-medium">{c.label || "(sem nome)"} <span className="text-xs text-muted-foreground">· {c.api_type}</span></p>
+                      <p className="text-[11px] text-muted-foreground">{c.instance_id || c.base_url || "—"}</p>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={c.is_active} onCheckedChange={() => toggleConnectionActive(c)} />
+                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Ativa" : "Inativa"}</Badge>
+                      <Button size="sm" variant="ghost" onClick={() => deleteConnection(c.id)}>Excluir</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <Card className="p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
