@@ -631,21 +631,26 @@ export default function InboxPage() {
             )}
           </div>
 
-          {/* Pipeline transfer */}
+          {/* Pipeline + Stage move (saves automatically) */}
           {lead && (
             <div className="border-t border-border pt-3 space-y-2">
-              <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"><GitBranch className="h-3 w-3" />Transferir para pipeline</p>
+              <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                <GitBranch className="h-3 w-3" />Mover lead no CRM
+              </p>
+              <Label className="text-xs">Pipeline</Label>
               <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
                 value={lead.pipeline_id || ""} onChange={(e) => movePipeline(e.target.value)}>
-                <option value="">Pipeline padrão</option>
+                <option value="">— Sem pipeline —</option>
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <Label className="text-xs">Mover para etapa</Label>
+              <Label className="text-xs">Etapa</Label>
               <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
-                value={lead.stage_id || ""} onChange={(e) => moveStage(e.target.value)}>
-                <option value="">Selecione...</option>
+                value={lead.stage_id || ""} onChange={(e) => moveStage(e.target.value)}
+                disabled={!lead.pipeline_id || currentStages.length === 0}>
+                <option value="">{lead.pipeline_id ? "Selecione..." : "Escolha o pipeline primeiro"}</option>
                 {currentStages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              <p className="text-[10px] text-muted-foreground">As alterações são salvas automaticamente.</p>
             </div>
           )}
 
