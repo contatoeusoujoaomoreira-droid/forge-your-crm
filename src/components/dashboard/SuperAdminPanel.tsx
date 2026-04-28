@@ -436,7 +436,8 @@ const SuperAdminPanel = () => {
                       <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Saldo de créditos do plano</label>
                       <Input
                         type="number"
-                        defaultValue={u.credits_balance ?? 0}
+                        defaultValue={u.tier === "super_admin" ? 999999 : (u.credits_balance ?? 0)}
+                        disabled={u.tier === "super_admin"}
                         onBlur={e => {
                           const v = Number(e.target.value);
                           if (v !== (u.credits_balance ?? 0)) handleUpdateBalance(u, v);
