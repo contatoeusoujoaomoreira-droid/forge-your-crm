@@ -94,10 +94,61 @@ Deno.serve(async (req) => {
           const r = await sendWhatsApp(cfg, c.phone, text);
           if (r.ok) {
             await admin.from('campaign_contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', c.id);
+
+            // Ensure a chat_clients record exists for this contact so the flow/agent can engage on reply.
+            const phoneDigits = (c.phone || '').replace(/\D/g, '');
+            let chatClientId: string | null = null;
+            if (phoneDigits) {
+              const { data: existingClient } = await admin.from('chat_clients')
+                .select('id').eq('user_id', camp.user_id).eq('phone', phoneDigits).maybeSingle();
+              if (existingClient) {
+                chatClientId = existingClient.id;
+                await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', existingClient.id);
+              } else {
+                const { data: createdClient } = await admin.from('chat_clients').insert({
+                  user_id: camp.user_id, phone: phoneDigits, name: c.name || null,
+                  lead_id: c.lead_id || null, source: 'campaign',
+                  metadata: { campaign_id: camp.id },
+                }).select('id').single();
+                chatClientId = createdClient?.id || null;
+              }
+            }
+
+            // Bind the conversation to the campaign's chosen agent (isolation) when set
+            if (chatClientId && camp.agent_id) {
+              await admin.from('conversation_state').upsert({
+                user_id: camp.user_id,
+                client_id: chatClientId,
+                ai_active: true,
+                mode: 'ai',
+                assigned_agent_id: camp.agent_id,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'client_id' });
+            }
+
+            // If the campaign uses a flow, start a flow session so the next inbound message advances it
+            if (chatClientId && camp.flow_id) {
+              const { data: flowDef } = await admin.from('conversation_flows')
+                .select('id, nodes').eq('id', camp.flow_id).maybeSingle();
+              if (flowDef) {
+                const startNode = (flowDef.nodes || []).find((n: any) => n.id === 'start') || (flowDef.nodes || [])[0];
+                const { data: existingSession } = await admin.from('conversation_flow_sessions')
+                  .select('id').eq('client_id', chatClientId).eq('flow_id', flowDef.id).eq('status', 'active').maybeSingle();
+                if (!existingSession && startNode) {
+                  await admin.from('conversation_flow_sessions').insert({
+                    user_id: camp.user_id, client_id: chatClientId, flow_id: flowDef.id,
+                    current_node_id: startNode.id, variables: { campaign_id: camp.id }, status: 'active',
+                  });
+                }
+              }
+            }
+
             await admin.from('messages').insert({
               user_id: camp.user_id, campaign_id: camp.id,
-              client_id: null, lead_id: c.lead_id, direction: 'outbound',
+              client_id: chatClientId, lead_id: c.lead_id, direction: 'outbound',
               channel: 'whatsapp', content: text, status: 'sent',
+              agent_id: camp.agent_id || null,
+              sender_phone: phoneDigits || c.phone,
             });
             await admin.from('prospecting_campaigns').update({ total_sent: (camp.total_sent || 0) + 1 }).eq('id', camp.id);
             totalSent++;
