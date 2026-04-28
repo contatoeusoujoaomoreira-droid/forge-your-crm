@@ -45,7 +45,7 @@ export default function LeadImporter() {
   const [manualText, setManualText] = useState("");
 
   // Load pipelines on mount
-  useState(() => {
+  useEffect(() => {
     if (!user) return;
     (async () => {
       const { data: pipes } = await supabase.from("pipelines").select("*").eq("user_id", user.id);
@@ -53,7 +53,7 @@ export default function LeadImporter() {
       const { data: sts } = await supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position");
       setStages(sts || []);
     })();
-  });
+  }, [user]);
 
   const handleFile = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
