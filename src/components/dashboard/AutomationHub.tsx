@@ -624,7 +624,7 @@ export default function AutomationHub() {
                 <InfoHint title="Como criar um Agente IA" steps={[
                   "Clique em 'Novo Agente' e dê um nome + função (atendimento, SDR, closer, etc).",
                   "Defina personalidade, tom de voz e o prompt do sistema (instruções de comportamento).",
-                  "Escolha o provedor de IA (Lovable, OpenAI, Groq, Gemini) e o modelo.",
+                  "Escolha o provedor de IA (Sistema, OpenAI, Groq, Gemini) e o modelo.",
                   "Em 'Voz & Mídia' habilite transcrição de áudio, leitura de imagens e voz para responder.",
                   "Adicione base de conhecimento (textos/PDFs) para respostas contextuais.",
                   "Ative o agente e vincule a uma conexão WhatsApp para começar a responder automaticamente.",
@@ -692,7 +692,7 @@ export default function AutomationHub() {
           <div className="flex items-center gap-2 text-sm font-medium">
             Provedores de IA
             <InfoHint title="Como cadastrar um Provedor" steps={[
-              "Adicione chaves de IA externas (OpenAI, Groq, Gemini) ou use a Lovable AI (sem chave).",
+              "Adicione chaves de IA externas (OpenAI, Groq, Gemini) ou use o provedor do sistema (sem chave).",
               "Defina um modelo padrão (ex: gpt-4o-mini, llama-3.3-70b, gemini-2.0-flash).",
               "Marque um como padrão — será usado pelos agentes que não tiverem provedor próprio.",
               "Cada agente pode escolher seu provedor + modelo na aba 'Agentes IA'.",
