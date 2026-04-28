@@ -11,11 +11,12 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch, Info, Eye, EyeOff, ChevronDown, ChevronRight, Trash2, Save, FlaskConical } from "lucide-react";
+import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch, Info, Eye, EyeOff, ChevronDown, ChevronRight, Trash2, Save, FlaskConical, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import LeadImporter from "./automation/LeadImporter";
 import ImportedListsViewer from "./automation/ImportedListsViewer";
 import CreditsBadge from "./automation/CreditsBadge";
+import AgentTemplatesModal, { AgentTemplate } from "./automation/AgentTemplatesModal";
 import CampaignsList from "./automation/CampaignsList";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
@@ -104,6 +105,7 @@ export default function AutomationHub() {
   const [testing, setTesting] = useState(false);
   const [agentBuilderOpen, setAgentBuilderOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<any>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [testMsgOpen, setTestMsgOpen] = useState(false);
   const [testMsgPhone, setTestMsgPhone] = useState("");
   const [testMsgContent, setTestMsgContent] = useState("Olá! Esta é uma mensagem de teste do meu CRM. ✅");
@@ -630,9 +632,14 @@ export default function AutomationHub() {
               </h3>
               <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
-            <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
-              <Plus className="h-4 w-4 mr-1" />Novo Agente
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-1" />Templates prontos
+              </Button>
+              <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1" />Novo Agente
+              </Button>
+            </div>
           </div>
           <Card className="p-4">
             {agents.length === 0 ? (
@@ -715,6 +722,29 @@ export default function AutomationHub() {
         onOpenChange={setAgentBuilderOpen}
         agent={editingAgent}
         onSaved={() => { reloadAgents(); setAgentBuilderOpen(false); }}
+      />
+      <AgentTemplatesModal
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        onPick={(tpl: AgentTemplate) => {
+          setEditingAgent({
+            name: tpl.name,
+            display_name: tpl.display_name,
+            type: tpl.type,
+            tone: tpl.tone,
+            system_prompt: tpl.system_prompt,
+            rules: tpl.rules || "",
+            objections: tpl.objections || "",
+            examples: tpl.examples || "",
+            split_long_messages: tpl.split_long_messages !== false,
+            simulate_typing: tpl.simulate_typing !== false,
+            simulate_recording: tpl.simulate_recording !== false,
+            voice_enabled: !!tpl.voice_enabled,
+            reply_to_audio_with_audio: !!tpl.reply_to_audio_with_audio,
+            is_active: true,
+          });
+          setAgentBuilderOpen(true);
+        }}
       />
     </div>
   );

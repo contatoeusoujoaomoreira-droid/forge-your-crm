@@ -111,6 +111,7 @@ export type Database = {
           id: string
           inactivity_timeout_minutes: number | null
           is_active: boolean
+          max_message_chars: number
           max_tokens: number | null
           message_limit: number | null
           model: string | null
@@ -154,6 +155,7 @@ export type Database = {
           id?: string
           inactivity_timeout_minutes?: number | null
           is_active?: boolean
+          max_message_chars?: number
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
@@ -197,6 +199,7 @@ export type Database = {
           id?: string
           inactivity_timeout_minutes?: number | null
           is_active?: boolean
+          max_message_chars?: number
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
@@ -1506,6 +1509,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           credits_balance: number
+          credits_monthly: number
           credits_used: number
           full_name: string | null
           id: string
@@ -1519,6 +1523,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           credits_balance?: number
+          credits_monthly?: number
           credits_used?: number
           full_name?: string | null
           id?: string
@@ -1532,6 +1537,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           credits_balance?: number
+          credits_monthly?: number
           credits_used?: number
           full_name?: string | null
           id?: string
@@ -1561,8 +1567,11 @@ export type Database = {
           message_template: string | null
           name: string
           pipeline_id: string | null
+          source_pipelines: Json
           stage_id: string | null
           status: string
+          target_pipeline_id: string | null
+          target_stage_id: string | null
           total_converted: number | null
           total_replied: number | null
           total_sent: number | null
@@ -1587,8 +1596,11 @@ export type Database = {
           message_template?: string | null
           name: string
           pipeline_id?: string | null
+          source_pipelines?: Json
           stage_id?: string | null
           status?: string
+          target_pipeline_id?: string | null
+          target_stage_id?: string | null
           total_converted?: number | null
           total_replied?: number | null
           total_sent?: number | null
@@ -1613,8 +1625,11 @@ export type Database = {
           message_template?: string | null
           name?: string
           pipeline_id?: string | null
+          source_pipelines?: Json
           stage_id?: string | null
           status?: string
+          target_pipeline_id?: string | null
+          target_stage_id?: string | null
           total_converted?: number | null
           total_replied?: number | null
           total_sent?: number | null
@@ -1801,6 +1816,42 @@ export type Database = {
           timezone?: string
           title?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          is_active: boolean
+          member_email: string
+          member_user_id: string | null
+          owner_user_id: string
+          permissions: Json
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          member_email: string
+          member_user_id?: string | null
+          owner_user_id: string
+          permissions?: Json
+          role?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          member_email?: string
+          member_user_id?: string | null
+          owner_user_id?: string
+          permissions?: Json
+          role?: string
         }
         Relationships: []
       }

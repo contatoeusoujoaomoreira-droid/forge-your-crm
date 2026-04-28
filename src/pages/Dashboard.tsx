@@ -9,9 +9,12 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2,
 } from "lucide-react";
+import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
+import { Badge } from "@/components/ui/badge";
 import LeadImporter from "@/components/dashboard/automation/LeadImporter";
+import ImportedListsViewer from "@/components/dashboard/automation/ImportedListsViewer";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/Analytics";
@@ -29,6 +32,7 @@ const allTabs = [
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
+  { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
@@ -55,6 +59,7 @@ interface Notification {
 
 const Dashboard = () => {
   const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
+  const planInfo = useUserPlan();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("crm");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -102,6 +107,8 @@ const Dashboard = () => {
     if (tab.id === "admin") return isSuperAdmin;
     if (tab.id === "settings") return true;
     if (isSuperAdmin) return true;
+    // Plan-based gating (super admin always passes above)
+    if (!planInfo.hasModule(tab.id)) return false;
     if (!userPermissions) return true;
     return userPermissions[tab.id] !== false;
   });
@@ -183,7 +190,15 @@ const Dashboard = () => {
 
         <div className="border-t border-sidebar-border p-3">
           {!sidebarCollapsed && (
-            <p className="text-xs text-sidebar-foreground truncate mb-2 px-1">{user?.email}</p>
+            <div className="mb-2 px-1 space-y-1">
+              <p className="text-xs font-medium text-sidebar-accent-foreground truncate">{planInfo.fullName || user?.email}</p>
+              <div className="flex items-center gap-1 flex-wrap">
+                <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary">
+                  {PLAN_DEFINITIONS[planInfo.plan].label}
+                </Badge>
+                <span className="text-[10px] text-sidebar-foreground">⚡ {planInfo.creditsBalance}</span>
+              </div>
+            </div>
           )}
           <div className="flex items-center gap-1">
             <ThemeToggle className="text-sidebar-foreground" />
@@ -200,15 +215,24 @@ const Dashboard = () => {
           <h1 className="text-lg font-semibold text-foreground">
             {tabs.find((t) => t.id === activeTab)?.label}
           </h1>
-          <div className="relative">
-            <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/60 border border-border">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-mono">{planInfo.creditsBalance}</span>
+              <span className="text-[10px] text-muted-foreground">/ {planInfo.creditsMonthly}</span>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary ml-1">
+                {PLAN_DEFINITIONS[planInfo.plan].label}
+              </Badge>
+            </div>
+            <div className="relative">
+              <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
+                <Bell className="h-5 w-5 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
 
             <AnimatePresence>
               {showNotifications && (
@@ -245,6 +269,7 @@ const Dashboard = () => {
               )}
             </AnimatePresence>
           </div>
+          </div>
         </header>
 
         <div className="p-6">
@@ -252,6 +277,7 @@ const Dashboard = () => {
             {activeTab === "crm" && <CRMKanban />}
             {activeTab === "clients" && <CRMClients />}
             {activeTab === "import" && <LeadImporter />}
+            {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
             {activeTab === "pages" && <LandingPagesList />}
