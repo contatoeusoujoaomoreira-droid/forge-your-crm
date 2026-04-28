@@ -19,6 +19,22 @@ type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
+const getClientAvatar = (client?: Client | null) => {
+  const meta = client?.metadata || {};
+  return client?.avatar_url || meta.profile_pic_url || meta.profile_picture || meta.photo || meta.avatar_url || meta.picture || null;
+};
+
+const initialsForClient = (client?: Client | null) => (client?.name || client?.phone || "?").trim().slice(0, 1).toUpperCase();
+
+const ClientAvatar = ({ client, className = "h-10 w-10" }: { client?: Client | null; className?: string }) => {
+  const avatar = getClientAvatar(client);
+  return (
+    <div className={`${className} shrink-0 overflow-hidden rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-muted-foreground`}>
+      {avatar ? <img src={avatar} alt={client?.name || "Contato"} className="h-full w-full object-cover" loading="lazy" /> : initialsForClient(client)}
+    </div>
+  );
+};
+
 export default function InboxPage() {
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
@@ -306,15 +322,15 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] gap-3 flex-col md:flex-row">
+    <div className="flex h-[calc(100dvh-8.5rem)] min-w-0 gap-3 flex-col md:h-[calc(100dvh-7rem)] md:flex-row">
       {/* Conversations list — hide on mobile when a chat is selected */}
-      <Card className={`w-full md:w-72 flex-col ${selected && showSidebarMobile ? "hidden" : "flex"} ${selected ? "hidden md:flex" : "flex"}`}>
+      <Card className={`w-full min-w-0 md:w-72 md:shrink-0 flex-col ${selected && showSidebarMobile ? "hidden" : "flex"} ${selected ? "hidden md:flex" : "flex"}`}>
         <div className="p-3 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input className="pl-8" placeholder="Buscar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="flex gap-1.5 overflow-x-auto safe-scrollbar pb-1 -mx-1 px-1">
             <FilterChip id="all" label="Todos" count={counts.all} />
             <FilterChip id="unread" label="N. lidos" count={counts.unread} />
             <FilterChip id="waiting" label="Aguard." count={counts.waiting} />
@@ -334,18 +350,21 @@ export default function InboxPage() {
             const cMeta: any = c.metadata || {};
             return (
               <div key={c.id} className={`group w-full border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""} flex items-stretch`}>
-                <button onClick={() => setSelectedId(c.id)} className="flex-1 text-left p-3 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-sm truncate flex items-center gap-1">
-                      {cMeta.pinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
-                      {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
-                      {c.name || c.phone}
-                    </p>
-                    {u > 0 && (
-                      <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
-                    )}
+                <button onClick={() => setSelectedId(c.id)} className="flex flex-1 items-center gap-2 text-left p-3 min-w-0">
+                  <ClientAvatar client={c} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-sm truncate flex items-center gap-1">
+                        {cMeta.pinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                        {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
+                        {c.name || c.phone}
+                      </p>
+                      {u > 0 && (
+                        <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
                 </button>
                 <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {user && (
@@ -368,7 +387,7 @@ export default function InboxPage() {
       </Card>
 
       {/* Chat */}
-      <Card className={`flex-1 flex-col min-w-0 ${selected ? "flex" : "hidden md:flex"}`}>
+      <Card className={`flex-1 flex-col min-w-0 overflow-hidden ${selected ? "flex" : "hidden md:flex"}`}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Selecione uma conversa
@@ -381,6 +400,7 @@ export default function InboxPage() {
                 className="md:hidden p-1.5 rounded-md hover:bg-secondary"
                 aria-label="Voltar"
               ><ArrowLeft className="h-4 w-4" /></button>
+              <ClientAvatar client={selected} className="h-9 w-9" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium truncate">{selected.name || selected.phone}</p>
