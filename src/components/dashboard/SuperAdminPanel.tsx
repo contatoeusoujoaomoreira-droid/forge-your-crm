@@ -363,17 +363,58 @@ const SuperAdminPanel = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Créditos IA:</label>
-                    <Input
-                      type="number"
-                      defaultValue={u.ai_credits}
-                      onBlur={e => {
-                        const v = Number(e.target.value);
-                        if (v !== u.ai_credits) handleUpdateCredits(u, v);
-                      }}
-                      className="w-24 h-7 text-xs bg-secondary/50 border-border"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Hierarquia</label>
+                      <select
+                        value={u.tier || "basic"}
+                        onChange={(e) => handleUpdateTier(u, e.target.value)}
+                        className="w-full h-8 text-xs rounded-md border border-border bg-secondary/50 px-2"
+                      >
+                        {TIER_OPTIONS.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Plano</label>
+                      <select
+                        value={u.plan || "trial"}
+                        onChange={(e) => handleUpdatePlan(u, e.target.value)}
+                        className="w-full h-8 text-xs rounded-md border border-border bg-secondary/50 px-2"
+                      >
+                        {PLAN_OPTIONS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Créditos IA (cota módulo IA)</label>
+                      <Input
+                        type="number"
+                        defaultValue={u.ai_credits}
+                        onBlur={e => {
+                          const v = Number(e.target.value);
+                          if (v !== u.ai_credits) handleUpdateCredits(u, v);
+                        }}
+                        className="h-8 text-xs bg-secondary/50 border-border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Saldo de créditos do plano</label>
+                      <Input
+                        type="number"
+                        defaultValue={u.credits_balance ?? 0}
+                        onBlur={e => {
+                          const v = Number(e.target.value);
+                          if (v !== (u.credits_balance ?? 0)) handleUpdateBalance(u, v);
+                        }}
+                        className="h-8 text-xs bg-secondary/50 border-border"
+                      />
+                    </div>
                   </div>
 
                   <div className="text-[10px] text-muted-foreground">
