@@ -333,7 +333,16 @@ export default function InboxPage() {
             </div>
             {copilotSugs.length > 0 && (
               <div className="px-3 py-2 border-t border-border bg-secondary/30 space-y-1">
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Copiloto sugere:</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground">✨ Copiloto sugere:</p>
+                  <button
+                    onClick={() => setCopilotSugs([])}
+                    title="Esconder sugestões"
+                    className="text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-background"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 {copilotSugs.map((s, i) => (
                   <button key={i} onClick={() => { setInput(s); setCopilotSugs([]); }} className="block w-full text-left text-xs p-2 rounded bg-background hover:bg-primary/10">{s}</button>
                 ))}
