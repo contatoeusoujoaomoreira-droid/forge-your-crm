@@ -109,7 +109,7 @@ export default function FlowsBuilder() {
     switch (type) {
       case "message": return { content: "Sua mensagem..." };
       case "menu": return { content: "Escolha uma opção:", options: ["Opção 1", "Opção 2"] };
-      case "buttons": return { content: "", buttons: ["Sim", "Não"] };
+      case "buttons": return { content: "Escolha uma opção:", buttons: [{ label: "Sim", target: "" }, { label: "Não", target: "" }] };
       case "collect": return { variable: "nome", question: "Qual seu nome?" };
       case "ai": return { agent_id: "", prompt: "" };
       case "wait": return { seconds: 30 };
