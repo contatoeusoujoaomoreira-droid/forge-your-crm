@@ -115,7 +115,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [knTitle, setKnTitle] = useState("");
   const [knContent, setKnContent] = useState("");
-  const [knType, setKnType] = useState<"text" | "url" | "file">("text");
+  const [knType, setKnType] = useState<"text" | "site" | "link" | "document" | "image">("text");
   const [knUrl, setKnUrl] = useState("");
   const [knCategory, setKnCategory] = useState("");
   const [knDescription, setKnDescription] = useState("");
@@ -270,27 +270,49 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     if (!agent?.id) { toast.error("Salve o agente primeiro"); return; }
     if (!user) return;
     const keywordsArr = knKeywords.split(",").map(s => s.trim()).filter(Boolean);
-    const item: any = {
-      agent_id: agent.id,
-      user_id: user.id,
-      type: knType,
-      title: knTitle || (knType === "url" ? knUrl : "Item"),
-      content: knType === "url" ? knUrl : knContent,
-      source_url: knType === "url" ? knUrl : null,
-      status: knType === "url" ? "processing" : "ready",
-      category: knCategory || null,
-      description: knDescription || null,
-      keywords: keywordsArr,
-      media_urls: knMediaUrls,
-      external_links: knLinks,
-    };
-    const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
-    if (error) { toast.error(error.message); return; }
-    toast.success("Adicionado à base");
-    if (knType === "url" && row) {
-      supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
-        .then(() => loadKnowledge(agent.id));
+
+    // Validation per type
+    if (knType === "text" && !knContent.trim()) { toast.error("Conteúdo de texto obrigatório"); return; }
+    if (knType === "site" && !knUrl.trim()) { toast.error("Informe a URL do site"); return; }
+    if (knType === "link" && knLinks.length === 0) { toast.error("Adicione ao menos um link"); return; }
+    if (knType === "image" && knMediaUrls.length === 0) { toast.error("Anexe ao menos uma imagem"); return; }
+
+    // Image type: create one knowledge item per image so each can have its own description
+    if (knType === "image") {
+      for (const url of knMediaUrls) {
+        await supabase.from("agent_knowledge").insert({
+          agent_id: agent.id, user_id: user.id, type: "image",
+          title: knTitle || "Imagem", content: knDescription || "",
+          source_url: url, status: "ready",
+          category: knCategory || null, description: knDescription || null,
+          keywords: keywordsArr, media_urls: [url], external_links: [],
+        } as any);
+      }
+      toast.success(`${knMediaUrls.length} imagem(ns) adicionada(s)`);
+    } else {
+      const item: any = {
+        agent_id: agent.id,
+        user_id: user.id,
+        type: knType === "site" ? "url" : knType, // keep DB compat: site stored as 'url'
+        title: knTitle || (knType === "site" ? knUrl : knType === "link" ? "Coleção de links" : "Item"),
+        content: knType === "site" ? knUrl : knContent,
+        source_url: knType === "site" ? knUrl : null,
+        status: knType === "site" ? "processing" : "ready",
+        category: knCategory || null,
+        description: knDescription || null,
+        keywords: keywordsArr,
+        media_urls: knMediaUrls,
+        external_links: knLinks,
+      };
+      const { data: row, error } = await supabase.from("agent_knowledge").insert(item as any).select().single();
+      if (error) { toast.error(error.message); return; }
+      toast.success("Adicionado à base");
+      if (knType === "site" && row) {
+        supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
+          .then(() => loadKnowledge(agent.id));
+      }
     }
+
     setKnTitle(""); setKnContent(""); setKnUrl("");
     setKnCategory(""); setKnDescription(""); setKnKeywords("");
     setKnMediaUrls([]); setKnLinks([]);
@@ -752,11 +774,17 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     <Button size="sm" variant={knType === "text" ? "default" : "outline"} onClick={() => setKnType("text")}>
                       <FileText className="h-4 w-4 mr-1" />Texto
                     </Button>
-                    <Button size="sm" variant={knType === "url" ? "default" : "outline"} onClick={() => setKnType("url")}>
-                      <Globe className="h-4 w-4 mr-1" />URL / Site
+                    <Button size="sm" variant={knType === "site" ? "default" : "outline"} onClick={() => setKnType("site")}>
+                      <Globe className="h-4 w-4 mr-1" />Site (crawl)
                     </Button>
-                    <Button size="sm" variant={knType === "file" ? "default" : "outline"} onClick={() => setKnType("file")}>
-                      <ImageIcon className="h-4 w-4 mr-1" />Arquivo (PDF/IMG)
+                    <Button size="sm" variant={knType === "link" ? "default" : "outline"} onClick={() => setKnType("link")}>
+                      <Link2 className="h-4 w-4 mr-1" />Links
+                    </Button>
+                    <Button size="sm" variant={knType === "document" ? "default" : "outline"} onClick={() => setKnType("document")}>
+                      <FileText className="h-4 w-4 mr-1" />Documentos
+                    </Button>
+                    <Button size="sm" variant={knType === "image" ? "default" : "outline"} onClick={() => setKnType("image")}>
+                      <ImageIcon className="h-4 w-4 mr-1" />Imagens
                     </Button>
                   </div>
 
@@ -771,104 +799,128 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   />
                   <Textarea
                     rows={2}
-                    placeholder="Descrição curta — o agente usa isso para apresentar a opção ao cliente"
+                    placeholder="Descrição — o agente usa para apresentar a opção ao cliente (em Imagens/Documentos vira a legenda enviada junto)"
                     value={knDescription}
                     onChange={(e) => setKnDescription(e.target.value)}
                   />
 
-                  {knType === "url" && (
-                    <Input placeholder="https://..." value={knUrl} onChange={(e) => setKnUrl(e.target.value)} />
-                  )}
-                  {knType === "text" && (
-                    <Textarea rows={4} placeholder="Cole aqui o texto, FAQ, política, descrição completa, especificações..." value={knContent} onChange={(e) => setKnContent(e.target.value)} />
-                  )}
-
-                  {/* Imagens (múltiplas) */}
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" /> Imagens deste item (o agente envia ao cliente quando relevante)</Label>
-                    <input type="file" accept="image/*" multiple disabled={knUploading} className="text-sm"
-                      onChange={async (e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (!files.length || !user || !agent?.id) return;
-                        setKnUploading(true);
-                        const uploaded: string[] = [];
-                        for (const f of files) {
-                          const path = `${user.id}/${agent.id}/media/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-                          const { error: upErr } = await supabase.storage.from("agent-knowledge").upload(path, f, { upsert: false });
-                          if (upErr) { toast.error(upErr.message); continue; }
-                          const { data: pub } = supabase.storage.from("agent-knowledge").getPublicUrl(path);
-                          uploaded.push(pub.publicUrl);
-                        }
-                        setKnMediaUrls((prev) => [...prev, ...uploaded]);
-                        setKnUploading(false);
-                        toast.success(`${uploaded.length} imagem(ns) anexada(s)`);
-                      }} />
-                    {knMediaUrls.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {knMediaUrls.map((u, i) => (
-                          <div key={i} className="relative group">
-                            <img src={u} className="h-16 w-16 object-cover rounded border" />
-                            <button type="button" onClick={() => setKnMediaUrls(knMediaUrls.filter((_, idx) => idx !== i))}
-                              className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-5 w-5 text-xs hidden group-hover:flex items-center justify-center">×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Links externos nomeados (Drive, catálogo, etc.) */}
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1"><Link2 className="h-3 w-3" /> Links externos (Drive, catálogo, vídeo)</Label>
-                    <div className="flex gap-2">
-                      <Input placeholder="Nome (ex: Catálogo Drive, Cardápio, Vídeo demo)" value={knNewLinkTitle} onChange={(e) => setKnNewLinkTitle(e.target.value)} />
-                      <Input placeholder="https://drive.google.com/..." value={knNewLinkUrl} onChange={(e) => setKnNewLinkUrl(e.target.value)} />
-                      <Button type="button" size="sm" variant="outline" onClick={() => {
-                        if (!knNewLinkTitle || !knNewLinkUrl) return;
-                        setKnLinks([...knLinks, { title: knNewLinkTitle, url: knNewLinkUrl }]);
-                        setKnNewLinkTitle(""); setKnNewLinkUrl("");
-                      }}><Plus className="h-3 w-3" /></Button>
+                  {/* SITE — para crawl/extração */}
+                  {knType === "site" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">URL do site (será lida e indexada pela IA)</Label>
+                      <Input placeholder="https://seusite.com/pagina" value={knUrl} onChange={(e) => setKnUrl(e.target.value)} />
+                      <p className="text-[11px] text-muted-foreground">A IA fará o crawl da página e armazenará o conteúdo extraído.</p>
                     </div>
-                    {knLinks.length > 0 && (
-                      <ul className="text-xs space-y-1">
-                        {knLinks.map((l, i) => (
-                          <li key={i} className="flex items-center justify-between gap-2 bg-muted/50 rounded px-2 py-1">
-                            <span className="truncate"><strong>{l.title}</strong> — {l.url}</span>
-                            <button type="button" onClick={() => setKnLinks(knLinks.filter((_, idx) => idx !== i))} className="text-destructive">×</button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  )}
 
-                  {knType === "file" && (
-                    <div>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.txt,.docx,.md,.csv,.json,.mp4,.mp3,.wav,.webp" className="text-sm"
+                  {/* TEXTO */}
+                  {knType === "text" && (
+                    <Textarea rows={6} placeholder="Cole aqui o texto, FAQ, política, descrição completa, especificações..." value={knContent} onChange={(e) => setKnContent(e.target.value)} />
+                  )}
+
+                  {/* LINKS — só armazena URLs nomeadas */}
+                  {knType === "link" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs flex items-center gap-1"><Link2 className="h-3 w-3" /> Links externos (Drive, catálogo, vídeo, formulário, WhatsApp…)</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2">
+                        <Input placeholder="Nome (ex: Catálogo Drive)" value={knNewLinkTitle} onChange={(e) => setKnNewLinkTitle(e.target.value)} />
+                        <Input placeholder="https://drive.google.com/..." value={knNewLinkUrl} onChange={(e) => setKnNewLinkUrl(e.target.value)} />
+                        <Button type="button" size="sm" variant="outline" onClick={() => {
+                          if (!knNewLinkTitle || !knNewLinkUrl) return;
+                          setKnLinks([...knLinks, { title: knNewLinkTitle, url: knNewLinkUrl }]);
+                          setKnNewLinkTitle(""); setKnNewLinkUrl("");
+                        }}><Plus className="h-3 w-3 mr-1" />Adicionar</Button>
+                      </div>
+                      {knLinks.length > 0 && (
+                        <ul className="text-xs space-y-1">
+                          {knLinks.map((l, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2 bg-muted/50 rounded px-2 py-1">
+                              <span className="truncate"><strong>{l.title}</strong> — {l.url}</span>
+                              <button type="button" onClick={() => setKnLinks(knLinks.filter((_, idx) => idx !== i))} className="text-destructive">×</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">Apenas referências — a IA envia o link ao cliente quando relevante. Não baixa o conteúdo.</p>
+                    </div>
+                  )}
+
+                  {/* DOCUMENTOS — PDF, DOC, planilhas */}
+                  {knType === "document" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">Arquivo (PDF, Word, Excel, CSV, TXT…) — descrição é obrigatória</Label>
+                      <input type="file"
+                        accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.xls,.xlsx,.ods,.odt,.ppt,.pptx,.rtf"
+                        className="text-sm block"
                         onChange={async (e) => {
                           const f = e.target.files?.[0]; if (!f || !user || !agent?.id) return;
-                          if (!knTitle) setKnTitle(f.name);
+                          const finalTitle = knTitle || f.name;
                           toast.info(`Enviando ${f.name}...`);
-                          const path = `${user.id}/${agent.id}/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                          const path = `${user.id}/${agent.id}/docs/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
                           const { error: upErr } = await supabase.storage.from("agent-knowledge").upload(path, f, { upsert: false });
                           if (upErr) { toast.error(upErr.message); return; }
                           const keywordsArr = knKeywords.split(",").map(s => s.trim()).filter(Boolean);
                           const { data: row, error: insErr } = await supabase.from("agent_knowledge").insert({
                             agent_id: agent.id, user_id: user.id, type: "file",
-                            title: knTitle || f.name, content: "", file_path: path, file_size: f.size,
+                            title: finalTitle, content: "", file_path: path, file_size: f.size,
                             mime_type: f.type, status: "processing",
                             category: knCategory || null, description: knDescription || null,
-                            keywords: keywordsArr, media_urls: knMediaUrls, external_links: knLinks,
+                            keywords: keywordsArr, media_urls: [], external_links: [],
                           } as any).select().single();
                           if (insErr) { toast.error(insErr.message); return; }
-                          await supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } });
-                          toast.success("Arquivo processado!");
+                          supabase.functions.invoke("extract-knowledge", { body: { knowledge_id: (row as any).id } })
+                            .then(() => loadKnowledge(agent.id));
+                          toast.success("Documento enviado e em processamento");
                           setKnTitle(""); setKnCategory(""); setKnDescription(""); setKnKeywords("");
-                          setKnMediaUrls([]); setKnLinks([]);
                           loadKnowledge(agent.id);
+                          (e.target as HTMLInputElement).value = "";
                         }} />
-                      <p className="text-xs text-muted-foreground mt-1">PDFs e imagens são transcritos por IA.</p>
+                      <p className="text-[11px] text-muted-foreground">Cada documento é salvo separadamente, com sua própria descrição e categoria. Suporta PDF, Word, planilhas (.xlsx/.xls/.csv) e mais.</p>
                     </div>
                   )}
-                  {knType !== "file" && <Button onClick={addKnowledge}><Plus className="h-4 w-4 mr-1" />Adicionar à base</Button>}
+
+                  {/* IMAGENS — múltiplas, qualquer tamanho/formato */}
+                  {knType === "image" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs flex items-center gap-1"><ImageIcon className="h-3 w-3" /> Imagens (selecione várias — qualquer formato/tamanho)</Label>
+                      <input type="file" accept="image/*" multiple disabled={knUploading} className="text-sm block"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (!files.length || !user || !agent?.id) return;
+                          setKnUploading(true);
+                          const uploaded: string[] = [];
+                          for (const f of files) {
+                            const path = `${user.id}/${agent.id}/media/${Date.now()}_${f.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                            const { error: upErr } = await supabase.storage.from("agent-knowledge").upload(path, f, { upsert: false });
+                            if (upErr) { toast.error(upErr.message); continue; }
+                            const { data: pub } = supabase.storage.from("agent-knowledge").getPublicUrl(path);
+                            uploaded.push(pub.publicUrl);
+                          }
+                          setKnMediaUrls((prev) => [...prev, ...uploaded]);
+                          setKnUploading(false);
+                          toast.success(`${uploaded.length} imagem(ns) anexada(s) — clique em "Adicionar à base" para salvar`);
+                        }} />
+                      {knMediaUrls.length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                          {knMediaUrls.map((u, i) => (
+                            <div key={i} className="relative group">
+                              <img src={u} className="h-24 w-full object-cover rounded border" alt={`Preview ${i + 1}`} />
+                              <button type="button" onClick={() => setKnMediaUrls(knMediaUrls.filter((_, idx) => idx !== i))}
+                                className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-5 w-5 text-xs flex items-center justify-center">×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">Cada imagem vira um item separado na base com a descrição/categoria/palavras-chave informadas. O agente envia ao cliente quando perguntarem por fotos do assunto.</p>
+                    </div>
+                  )}
+
+                  {knType !== "document" && (
+                    <Button onClick={addKnowledge} disabled={knUploading}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      {knType === "image" ? `Adicionar ${knMediaUrls.length || ""} imagem(ns) à base` : "Adicionar à base"}
+                    </Button>
+                  )}
                 </Card>
 
                 <Card className="p-4">

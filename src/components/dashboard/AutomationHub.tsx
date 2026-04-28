@@ -659,7 +659,18 @@ export default function AutomationHub() {
                       <p className="text-xs text-muted-foreground">{a.type} · {a.model} · tokens: {a.total_tokens_used || 0}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Ativo" : "Inativo"}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={!!a.is_active}
+                          onCheckedChange={async (v) => {
+                            const { error } = await supabase.from("ai_agents").update({ is_active: v }).eq("id", a.id);
+                            if (error) { toast.error(error.message); return; }
+                            setAgents(agents.map(x => x.id === a.id ? { ...x, is_active: v } : x));
+                            toast.success(v ? "Agente ativado" : "Agente desativado");
+                          }}
+                        />
+                        <Badge variant={a.is_active ? "default" : "secondary"} className="text-[10px]">{a.is_active ? "Ativo" : "Inativo"}</Badge>
+                      </div>
                       <Button size="sm" variant="ghost" onClick={() => { setEditingAgent(a); setAgentBuilderOpen(true); }}>
                         <Pencil className="h-4 w-4" />
                       </Button>
