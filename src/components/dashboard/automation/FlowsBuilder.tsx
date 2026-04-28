@@ -359,12 +359,55 @@ export default function FlowsBuilder() {
                   <Textarea rows={3} value={(selected.data?.options || []).join("\n")} onChange={(e) => updateNodeData(selected.id, { options: e.target.value.split("\n").filter(Boolean) })} />
                 </div>
               )}
-              {selected.type === "buttons" && (
-                <div>
-                  <Label className="text-xs">Botões (uma por linha)</Label>
-                  <Textarea rows={3} value={(selected.data?.buttons || []).join("\n")} onChange={(e) => updateNodeData(selected.id, { buttons: e.target.value.split("\n").filter(Boolean) })} />
-                </div>
-              )}
+              {selected.type === "buttons" && (() => {
+                const raw = selected.data?.buttons || [];
+                // Backwards compat: legacy string[] → object[]
+                const list: { label: string; target: string }[] = raw.map((b: any) =>
+                  typeof b === "string" ? { label: b, target: "" } : { label: b.label || "", target: b.target || "" }
+                );
+                const otherNodes = editing.nodes.filter((n: FlowNode) => n.id !== selected.id);
+                const setList = (next: any[]) => {
+                  // Sync visual edges: drop old button-edges from this node, recreate from current targets
+                  const keptEdges = editing.edges.filter((e: FlowEdge) => !(e.from === selected.id && (e as any).meta === "button"));
+                  const newEdges = next.filter(b => b.target).map((b, i) => ({
+                    id: `e_${selected.id}_btn_${i}_${Date.now()}`,
+                    from: selected.id, to: b.target, label: b.label, meta: "button",
+                  } as any));
+                  setEditing({
+                    ...editing,
+                    edges: [...keptEdges, ...newEdges],
+                    nodes: editing.nodes.map((n: FlowNode) => n.id === selected.id ? { ...n, data: { ...n.data, buttons: next } } : n),
+                  });
+                };
+                return (
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-primary bg-primary/10 border border-primary/30 rounded p-2">
+                      Botões interativos aparecem como botões clicáveis no WhatsApp (máx. 3).
+                    </div>
+                    {list.map((b, i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <span className="text-[10px] w-4 text-muted-foreground">{i + 1}</span>
+                        <Input className="flex-1" placeholder={`Botão ${i + 1}`} value={b.label}
+                          onChange={(e) => setList(list.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                        <select className="h-9 px-1 rounded-md border border-input bg-background text-xs w-24"
+                          value={b.target}
+                          onChange={(e) => setList(list.map((x, j) => j === i ? { ...x, target: e.target.value } : x))}>
+                          <option value="">— Próximo —</option>
+                          {otherNodes.map((n: FlowNode) => <option key={n.id} value={n.id}>{n.label}</option>)}
+                        </select>
+                        <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0"
+                          onClick={() => setList(list.filter((_, j) => j !== i))}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    ))}
+                    {list.length < 3 && (
+                      <Button size="sm" variant="outline" className="w-full"
+                        onClick={() => setList([...list, { label: `Botão ${list.length + 1}`, target: "" }])}>
+                        <Plus className="h-3 w-3 mr-1" /> Botão
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
               {selected.type === "collect" && (
                 <>
                   <div><Label className="text-xs">Pergunta</Label><Input value={selected.data?.question || ""} onChange={(e) => updateNodeData(selected.id, { question: e.target.value })} /></div>
