@@ -196,7 +196,10 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="capitalize">{it.provider}</Badge>
-                <Badge variant="outline" className="text-[10px]">{SCOPES.find(s => s.id === it.scope)?.label || it.scope}</Badge>
+                {(it.scope || "all").split(",").map((sc: string) => {
+                  const s = sc.trim();
+                  return <Badge key={s} variant="outline" className="text-[10px]">{SCOPES.find(x => x.id === s)?.label || s}</Badge>;
+                })}
                 {it.is_active ? <Badge className="text-[10px]">Ativa</Badge> : <Badge variant="outline" className="text-[10px]">Inativa</Badge>}
                 {it.label && <span className="text-xs text-muted-foreground">· {it.label}</span>}
               </div>
