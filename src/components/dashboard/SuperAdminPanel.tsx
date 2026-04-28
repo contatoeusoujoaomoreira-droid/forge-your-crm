@@ -154,9 +154,13 @@ const SuperAdminPanel = () => {
   };
 
   const handleUpdatePlan = async (u: ManagedUser, plan: string) => {
+    if (u.tier === "super_admin" && plan !== "enterprise") {
+      toast({ title: "Super Admin é sempre Enterprise", description: "Créditos e acesso ficam ilimitados automaticamente." });
+      return;
+    }
     try {
       await callEdge({ action: "update_user", managed_user_id: u.id, plan });
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, plan } : x));
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, plan: u.tier === "super_admin" ? "enterprise" : plan } : x));
       toast({ title: "Plano atualizado!" });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
@@ -180,6 +184,10 @@ const SuperAdminPanel = () => {
   };
 
   const handleUpdateBalance = async (u: ManagedUser, credits_balance: number) => {
+    if (u.tier === "super_admin") {
+      toast({ title: "Créditos ilimitados", description: "Super Admin não tem limite de saldo." });
+      return;
+    }
     try {
       await callEdge({ action: "update_user", managed_user_id: u.id, credits_balance });
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, credits_balance } : x));
@@ -335,14 +343,14 @@ const SuperAdminPanel = () => {
                     {u.is_active ? "Ativo" : "Inativo"}
                   </span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    u.tier === "super_admin" ? "bg-purple-500/15 text-purple-600 dark:text-purple-300"
+                    u.tier === "super_admin" ? "bg-primary/15 text-primary border border-primary/30"
                     : u.tier === "professional" ? "bg-primary/15 text-primary"
                     : "bg-secondary text-muted-foreground"
                   }`}>
                     {TIER_OPTIONS.find(t => t.value === (u.tier || "basic"))?.label}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium uppercase">
-                    {u.plan || "trial"}
+                    {u.tier === "super_admin" ? "enterprise" : (u.plan || "trial")}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                     {u.ai_credits} créditos IA
@@ -399,8 +407,9 @@ const SuperAdminPanel = () => {
                     <div>
                       <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Plano</label>
                       <select
-                        value={u.plan || "trial"}
+                        value={u.tier === "super_admin" ? "enterprise" : (u.plan || "trial")}
                         onChange={(e) => handleUpdatePlan(u, e.target.value)}
+                        disabled={u.tier === "super_admin"}
                         className="w-full h-8 text-xs rounded-md border border-border bg-secondary/50 px-2"
                       >
                         {PLAN_OPTIONS.map(p => (
@@ -427,7 +436,8 @@ const SuperAdminPanel = () => {
                       <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Saldo de créditos do plano</label>
                       <Input
                         type="number"
-                        defaultValue={u.credits_balance ?? 0}
+                        defaultValue={u.tier === "super_admin" ? 999999 : (u.credits_balance ?? 0)}
+                        disabled={u.tier === "super_admin"}
                         onBlur={e => {
                           const v = Number(e.target.value);
                           if (v !== (u.credits_balance ?? 0)) handleUpdateBalance(u, v);

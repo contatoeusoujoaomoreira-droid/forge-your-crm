@@ -9,7 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload, ListChecks, CheckCircle2,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRequestCredits, setShowRequestCredits] = useState(false);
@@ -119,6 +120,10 @@ const Dashboard = () => {
   const toolsTabs = tabs.filter((t) => t.group === "tools");
   const commsTabs = tabs.filter((t) => t.group === "comms");
   const systemTabs = tabs.filter((t) => t.group === "system");
+  const mobileTabs = ["analytics", "crm", "chat", "automation", "settings"]
+    .map((id) => tabs.find((t) => t.id === id))
+    .filter(Boolean) as typeof tabs;
+  const visibleMobileTabs = mobileTabs.length >= 4 ? mobileTabs : tabs.slice(0, 5);
 
   const notifIcon = (type: string) => {
     switch (type) {
@@ -136,7 +141,7 @@ const Dashboard = () => {
       const Icon = tab.icon;
       const active = activeTab === tab.id;
       return (
-        <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+        <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMobileSidebarOpen(false); }}
           className={`flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm transition-colors ${active ? "bg-sidebar-accent text-lime" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"} ${sidebarCollapsed ? "justify-center px-2" : ""}`}>
           <Icon className="h-4 w-4 shrink-0" />
           {!sidebarCollapsed && <span>{tab.label}</span>}
@@ -145,9 +150,16 @@ const Dashboard = () => {
     });
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden">
+      {mobileSidebarOpen && (
+        <button
+          aria-label="Fechar menu"
+          className="fixed inset-0 z-30 bg-background/70 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
       <motion.aside animate={{ width: sidebarCollapsed ? 64 : 240 }} transition={{ duration: 0.2 }}
-        className="fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-border bg-sidebar">
+        className={`fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-border bg-sidebar transition-transform duration-200 md:translate-x-0 ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-border">
           {!sidebarCollapsed && (
             <a href="/" className="text-lg font-bold tracking-tight">
@@ -212,12 +224,17 @@ const Dashboard = () => {
         </div>
       </motion.aside>
 
-      <main className="flex-1 transition-all duration-200" style={{ marginLeft: sidebarCollapsed ? 64 : 240 }}>
-        <header className="sticky top-0 z-30 h-14 flex items-center justify-between px-6 border-b border-border bg-background/80 backdrop-blur-sm">
-          <h1 className="text-lg font-semibold text-foreground">
+      <main className={`flex-1 min-w-0 transition-all duration-200 ${sidebarCollapsed ? "md:ml-16" : "md:ml-60"}`}>
+        <header className="sticky top-0 z-30 h-14 flex items-center justify-between gap-2 px-3 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)} className="h-9 w-9 shrink-0 md:hidden">
+              <Menu className="h-5 w-5" />
+            </Button>
+          <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
             {tabs.find((t) => t.id === activeTab)?.label}
           </h1>
-          <div className="flex items-center gap-3">
+          </div>
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <button
               onClick={() => setShowRequestCredits(true)}
               title="Solicitar mais créditos"
@@ -244,7 +261,7 @@ const Dashboard = () => {
             <AnimatePresence>
               {showNotifications && (
                 <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                  className="absolute right-0 top-12 w-80 max-h-96 overflow-y-auto rounded-xl border border-border bg-background shadow-2xl z-50">
+                  className="absolute right-0 top-12 w-[calc(100vw-1.5rem)] sm:w-80 max-h-96 overflow-y-auto rounded-xl border border-border bg-background shadow-2xl z-50">
                   <div className="flex items-center justify-between p-3 border-b border-border">
                     <p className="text-sm font-semibold text-foreground">Notificações</p>
                     <div className="flex items-center gap-2">
@@ -279,7 +296,7 @@ const Dashboard = () => {
           </div>
         </header>
 
-        <div className="p-6">
+        <div className="max-w-full overflow-x-hidden p-3 pb-24 sm:p-6 sm:pb-24 md:pb-6">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {activeTab === "crm" && <CRMKanban />}
             {activeTab === "clients" && <CRMClients />}
@@ -299,13 +316,13 @@ const Dashboard = () => {
         </div>
       </main>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border flex">
-        {tabs.filter(t => t.group !== "system").map((tab) => {
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border grid grid-cols-5">
+        {visibleMobileTabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 flex flex-col items-center py-3 text-[10px] ${activeTab === tab.id ? "text-lime" : "text-muted-foreground"}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`min-w-0 flex flex-col items-center py-2.5 text-[10px] ${activeTab === tab.id ? "text-lime" : "text-muted-foreground"}`}>
               <Icon className="h-5 w-5 mb-1" />
-              {tab.label}
+              <span className="w-full px-1 truncate text-center">{tab.label}</span>
             </button>
           );
         })}

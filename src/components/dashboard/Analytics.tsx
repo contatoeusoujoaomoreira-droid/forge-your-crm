@@ -90,7 +90,7 @@ const Analytics = () => {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: "Total Leads", value: stats.totalLeads, icon: Users, color: "text-blue-400" },
           { label: "Valor Pipeline", value: `R$ ${stats.totalValue.toLocaleString("pt-BR")}`, icon: DollarSign, color: "text-primary" },
@@ -98,11 +98,11 @@ const Analytics = () => {
           { label: "Valor Ganho", value: `R$ ${stats.wonValue.toLocaleString("pt-BR")}`, icon: TrendingUp, color: "text-purple-400" },
         ].map((m) => (
           <Card key={m.label} className="surface-card border-border">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">{m.label}</p>
-                  <p className="text-2xl font-bold text-foreground mt-1">{m.value}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground mt-1 break-words">{m.value}</p>
                 </div>
                 <m.icon className={`h-8 w-8 ${m.color} opacity-60`} />
               </div>
@@ -112,7 +112,7 @@ const Analytics = () => {
       </div>
 
       {/* Module Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {[
           { label: "Pages", value: stats.totalPages, sub: `${stats.totalPageViews} views`, icon: Globe, color: "text-blue-400" },
           { label: "Forms", value: stats.totalForms, sub: `${stats.totalFormResponses} respostas`, icon: FileText, color: "text-primary" },

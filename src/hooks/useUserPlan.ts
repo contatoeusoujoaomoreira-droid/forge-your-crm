@@ -66,10 +66,11 @@ export function useUserPlan(): UserPlanInfo {
       if (!mounted) return;
       if (data) {
         const p = ((data as any).plan || "start") as PlanId;
-        setPlan(PLAN_DEFINITIONS[p] ? p : "start");
+        const resolvedPlan = isSuperAdmin ? "enterprise" : (PLAN_DEFINITIONS[p] ? p : "start");
+        setPlan(resolvedPlan);
         setFullName((data as any).full_name || "");
-        setCreditsBalance((data as any).credits_balance ?? 0);
-        setCreditsMonthly((data as any).credits_monthly ?? PLAN_DEFINITIONS[p]?.credits ?? 50);
+        setCreditsBalance(isSuperAdmin ? 999999 : ((data as any).credits_balance ?? 0));
+        setCreditsMonthly(isSuperAdmin ? 999999 : ((data as any).credits_monthly ?? PLAN_DEFINITIONS[p]?.credits ?? 50));
       }
       setLoading(false);
     };
@@ -79,7 +80,7 @@ export function useUserPlan(): UserPlanInfo {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` }, () => load())
       .subscribe();
     return () => { mounted = false; supabase.removeChannel(ch); };
-  }, [user]);
+  }, [user, isSuperAdmin]);
 
   const hasModule = (id: string) => {
     if (isSuperAdmin) return true;
