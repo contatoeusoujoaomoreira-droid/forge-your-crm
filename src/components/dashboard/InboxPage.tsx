@@ -496,8 +496,15 @@ export default function InboxPage() {
                   Enter envia · Alt+N alterna · ✨ copiloto
                 </span>
               </div>
-              <div className="p-3 flex gap-2">
-                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
+              <div className="p-3 flex gap-2 items-center">
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleAttach} accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xlsx,.csv" />
+                <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="outline" onClick={() => toast.info("Gravação de áudio em breve")} title="Gravar áudio">
+                  <Mic className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto (✨)">
                   <Sparkles className="h-4 w-4" />
                 </Button>
                 {composeMode === "note" ? (
@@ -507,7 +514,7 @@ export default function InboxPage() {
                       onChange={(e) => setNoteInput(e.target.value)}
                       onKeyDown={onComposerKey}
                       placeholder="Nota interna (visível apenas para sua equipe)..."
-                      className="border-amber-500/40 focus-visible:ring-amber-500"
+                      className="border-amber-500/40 focus-visible:ring-amber-500 flex-1 min-w-0"
                     />
                     <Button onClick={addInternalNote} variant="secondary" className="bg-amber-500 hover:bg-amber-600 text-white">
                       <StickyNote className="h-4 w-4" />
@@ -519,7 +526,8 @@ export default function InboxPage() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={onComposerKey}
-                      placeholder="Digite uma mensagem..."
+                      placeholder={convState?.ai_active ? "Mensagem (IA pode responder)" : "Digite uma mensagem..."}
+                      className="flex-1 min-w-0"
                     />
                     <Button onClick={send}><Send className="h-4 w-4" /></Button>
                   </>
