@@ -16,14 +16,44 @@ import {
   Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
 
-const OPENAI_VOICES = [
-  { id: "alloy", label: "Alloy (neutra, equilibrada)", gender: "neutra" },
-  { id: "echo", label: "Echo (masculina, suave)", gender: "masculina" },
-  { id: "fable", label: "Fable (masculina, expressiva)", gender: "masculina" },
-  { id: "onyx", label: "Onyx (masculina, grave)", gender: "masculina" },
-  { id: "nova", label: "Nova (feminina, jovem)", gender: "feminina" },
-  { id: "shimmer", label: "Shimmer (feminina, calorosa)", gender: "feminina" },
-];
+const VOICE_PROVIDERS: Record<string, { label: string; voices: { id: string; label: string }[]; help?: string }> = {
+  omni: {
+    label: "Omni Audio (nativo Lovable — recomendado)",
+    help: "Provedor nativo do sistema. Não requer chaves externas — usa créditos da plataforma.",
+    voices: [
+      { id: "alloy", label: "Alloy (neutra, equilibrada)" },
+      { id: "echo", label: "Echo (masculina, suave)" },
+      { id: "fable", label: "Fable (masculina, expressiva)" },
+      { id: "onyx", label: "Onyx (masculina, grave)" },
+      { id: "nova", label: "Nova (feminina, jovem)" },
+      { id: "shimmer", label: "Shimmer (feminina, calorosa)" },
+    ],
+  },
+  openai: {
+    label: "OpenAI TTS",
+    help: "Requer chave OpenAI configurada em 'Provedores de IA'.",
+    voices: [
+      { id: "alloy", label: "Alloy" },
+      { id: "echo", label: "Echo" },
+      { id: "fable", label: "Fable" },
+      { id: "onyx", label: "Onyx" },
+      { id: "nova", label: "Nova" },
+      { id: "shimmer", label: "Shimmer" },
+    ],
+  },
+  elevenlabs: {
+    label: "ElevenLabs (vozes premium em PT-BR)",
+    help: "Requer chave ElevenLabs em 'Provedores'. Vozes top em português brasileiro.",
+    voices: [
+      { id: "JBFqnCBsd6RMkjVDRZzb", label: "George (masculina, séria)" },
+      { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (feminina, jovem)" },
+      { id: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (feminina, suave)" },
+      { id: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (masculina, jovem)" },
+      { id: "Xb7hH8MSUJpSbSDYk0k2", label: "Alice (feminina, expressiva)" },
+      { id: "cgSgspJ2msm6clMCkdW9", label: "Jessica (feminina, calorosa)" },
+    ],
+  },
+};
 
 const AGENT_TYPES = [
   { id: "atendimento", label: "Atendimento", icon: "🎧" },
