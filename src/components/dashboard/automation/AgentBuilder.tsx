@@ -325,7 +325,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   };
 
   const addRoutingRule = () => {
-    setForm({ ...form, routing_rules: [...form.routing_rules, { keyword: "", stage_id: "", description: "" }] });
+    setForm({ ...form, routing_rules: [...form.routing_rules, { keyword: "", pipeline_id: "", stage_id: "", description: "" }] });
   };
   const updateRoutingRule = (i: number, patch: any) => {
     const next = [...form.routing_rules]; next[i] = { ...next[i], ...patch };
