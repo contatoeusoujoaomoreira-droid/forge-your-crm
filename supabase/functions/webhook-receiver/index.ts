@@ -356,6 +356,8 @@ function splitMessage(text: string, max = 320): string[] {
   if (cur.trim()) chunks.push(cur.trim());
   return chunks.slice(0, 4);
 }
+
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
