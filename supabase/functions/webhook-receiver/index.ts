@@ -79,6 +79,7 @@ interface NormalizedMsg {
   external_message_id?: string;
   media_url?: string;
   media_type?: string;
+  avatar_url?: string;
   from_me?: boolean;
   timestamp?: string;
 }
@@ -108,6 +109,7 @@ function normalizeZApi(raw: any): NormalizedMsg {
     external_message_id: raw.messageId || raw.messageID || raw.id || raw.key?.id,
     media_url: raw.image?.imageUrl || raw.video?.videoUrl || raw.audio?.audioUrl || raw.document?.documentUrl || raw.sticker?.stickerUrl,
     media_type: mediaType,
+    avatar_url: raw.photo || raw.profilePicUrl || raw.profilePicture || raw.senderPhoto || raw.avatarUrl || raw.picture || raw.profile?.picture || raw.contact?.profilePicUrl,
     from_me: raw.fromMe === true || raw.fromMe === 'true',
     timestamp: moment ? new Date(moment).toISOString() : undefined,
     is_group: isGroup,
@@ -138,6 +140,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
     external_message_id: key.id,
     from_me: key.fromMe === true,
     media_type: mediaType,
+    avatar_url: data.profilePicUrl || data.profilePicture || data.senderPhoto || data.avatarUrl || data.picture,
     is_group: isGroup,
     reaction_emoji: reactionEmoji,
   } as any;
@@ -494,8 +497,9 @@ Deno.serve(async (req) => {
       user_id: userId,
       phone: msg.phone,
       name: msg.name || msg.phone,
+      avatar_url: (msg as any).avatar_url || null,
       source: 'whatsapp',
-      metadata: { is_group: (msg as any).is_group === true },
+      metadata: { is_group: (msg as any).is_group === true, profile_pic_url: (msg as any).avatar_url || null },
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,phone' }
