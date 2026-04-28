@@ -226,7 +226,8 @@ const SuperAdminPanel = () => {
         <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" /> Usuários</TabsTrigger>
           <TabsTrigger value="requests"><Coins className="h-3 w-3 mr-1" /> Solicitações</TabsTrigger>
-          <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos de crédito</TabsTrigger>
+          <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos por ação</TabsTrigger>
+          <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
           <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
         </TabsList>
 
