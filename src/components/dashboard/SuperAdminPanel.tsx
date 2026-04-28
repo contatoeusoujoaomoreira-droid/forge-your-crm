@@ -24,7 +24,26 @@ interface ManagedUser {
   permissions: Record<string, boolean>;
   created_at: string;
   user_id: string | null;
+  plan?: string | null;
+  tier?: string | null;
+  credits_balance?: number | null;
+  credits_monthly?: number | null;
 }
+
+const PLAN_OPTIONS = [
+  { value: "trial", label: "Trial (teste)" },
+  { value: "start", label: "Start" },
+  { value: "pro", label: "Pro" },
+  { value: "business", label: "Business" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "custom", label: "Custom" },
+];
+
+const TIER_OPTIONS = [
+  { value: "super_admin", label: "Super Admin", desc: "Acesso total ao painel admin" },
+  { value: "professional", label: "Profissional", desc: "Conta com plano pago" },
+  { value: "basic", label: "Básico (teste)", desc: "Acesso de avaliação" },
+];
 
 const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   crm: { label: "CRM", icon: LayoutDashboard },
