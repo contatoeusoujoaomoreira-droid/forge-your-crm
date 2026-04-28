@@ -14,6 +14,8 @@ import {
 import UsageHistoryTab from "./superadmin/UsageHistoryTab";
 import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
+import UserUsageStats from "./superadmin/UserUsageStats";
+import UserApiKeysSection from "./UserApiKeysSection";
 
 interface ManagedUser {
   id: string;
@@ -41,6 +43,7 @@ const PLAN_OPTIONS = [
 
 const TIER_OPTIONS = [
   { value: "super_admin", label: "Super Admin", desc: "Acesso total ao painel admin" },
+  { value: "unlimited", label: "Ilimitado", desc: "Sem cobrança de créditos em nenhuma ação" },
   { value: "professional", label: "Profissional", desc: "Conta com plano pago" },
   { value: "basic", label: "Básico (teste)", desc: "Acesso de avaliação" },
 ];
@@ -429,6 +432,18 @@ const SuperAdminPanel = () => {
 
                   <div className="text-[10px] text-muted-foreground">
                     Criado em {new Date(u.created_at).toLocaleDateString("pt-BR")} • ID: {u.user_id ? u.user_id.slice(0, 8) + "..." : "Aguardando primeiro login"}
+                  </div>
+
+                  <div className="border-t border-border pt-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">📊 Consumo & atividade</p>
+                    <UserUsageStats userId={u.user_id} />
+                  </div>
+
+                  <div className="border-t border-border pt-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">🔑 Chaves de provedor deste usuário</p>
+                    {u.user_id
+                      ? <UserApiKeysSection userIdOverride={u.user_id} />
+                      : <p className="text-xs text-muted-foreground">Aguardando primeiro login.</p>}
                   </div>
                 </div>
               )}

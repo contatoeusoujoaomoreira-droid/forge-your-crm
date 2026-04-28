@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft, Pin } from "lucide-react";
 import { toast } from "sonner";
+import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
@@ -330,20 +331,37 @@ export default function InboxPage() {
           ) : filtered.map(c => {
             const u = unreadByClient[c.id] || 0;
             const isGroup = isGroupClient(c);
+            const cMeta: any = c.metadata || {};
             return (
-              <button key={c.id} onClick={() => setSelectedId(c.id)}
-                className={`w-full text-left p-3 border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-sm truncate flex items-center gap-1">
-                    {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
-                    {c.name || c.phone}
-                  </p>
-                  {u > 0 && (
-                    <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+              <div key={c.id} className={`group w-full border-b border-border hover:bg-secondary/50 ${selectedId === c.id ? "bg-secondary" : ""} flex items-stretch`}>
+                <button onClick={() => setSelectedId(c.id)} className="flex-1 text-left p-3 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-sm truncate flex items-center gap-1">
+                      {cMeta.pinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                      {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
+                      {c.name || c.phone}
+                    </p>
+                    {u > 0 && (
+                      <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+                </button>
+                <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {user && (
+                    <ConversationActionsMenu
+                      clientId={c.id}
+                      userId={user.id}
+                      pinned={!!cMeta.pinned}
+                      onChanged={async () => {
+                        const { data } = await supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false });
+                        setClients(data || []);
+                        if (selectedId === c.id) setSelectedId(null);
+                      }}
+                    />
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
-              </button>
+              </div>
             );
           })}
         </div>
