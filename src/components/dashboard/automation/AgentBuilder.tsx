@@ -682,23 +682,35 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento</p>
                   <p className="text-xs text-muted-foreground">Adicione regras para mover o lead com base em palavras-chave, intenção ou qualificação.</p>
                 </div>
-              ) : form.routing_rules.map((r: any, i: number) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+              ) : form.routing_rules.map((r: any, i: number) => {
+                const ruleStages = stages.filter((s: any) => !r.pipeline_id || s.pipeline_id === r.pipeline_id);
+                return (
+                <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end p-2 rounded-md border border-border/60">
                   <div>
                     <Label className="text-xs">Palavra-chave / intenção</Label>
                     <Input value={r.keyword} onChange={(e) => updateRoutingRule(i, { keyword: e.target.value })} placeholder="Ex: comprar, fechar, agendar" />
                   </div>
                   <div>
-                    <Label className="text-xs">Mover para etapa</Label>
+                    <Label className="text-xs">Pipeline</Label>
                     <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                      value={r.stage_id} onChange={(e) => updateRoutingRule(i, { stage_id: e.target.value })}>
+                      value={r.pipeline_id || ""} onChange={(e) => updateRoutingRule(i, { pipeline_id: e.target.value, stage_id: "" })}>
                       <option value="">Selecione</option>
-                      {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Etapa</Label>
+                    <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                      value={r.stage_id || ""} onChange={(e) => updateRoutingRule(i, { stage_id: e.target.value })}
+                      disabled={!r.pipeline_id}>
+                      <option value="">{r.pipeline_id ? "Selecione" : "Escolha pipeline"}</option>
+                      {ruleStages.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                   <Button size="icon" variant="ghost" onClick={() => removeRoutingRule(i)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
-              ))}
+                );
+              })}
             </Card>
 
             <Card className="p-4 space-y-3">
