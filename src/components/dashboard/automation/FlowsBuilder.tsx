@@ -172,7 +172,10 @@ export default function FlowsBuilder() {
             <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-5 w-5 text-primary" />Fluxos de Conversa</h3>
             <p className="text-xs text-muted-foreground">Construa fluxos visuais com mensagens, condições, IA, coleta de dados e ações no CRM.</p>
           </div>
-          <Button onClick={newFlow}><Plus className="h-4 w-4 mr-1" />Novo Fluxo</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowTemplates(true)}><FileText className="h-4 w-4 mr-1" />Templates</Button>
+            <Button onClick={newFlow}><Plus className="h-4 w-4 mr-1" />Novo Fluxo</Button>
+          </div>
         </div>
         {flows.length === 0 ? (
           <Card className="p-12 text-center">
