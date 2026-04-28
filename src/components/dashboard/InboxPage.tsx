@@ -38,6 +38,10 @@ export default function InboxPage() {
   const [noteInput, setNoteInput] = useState("");
   const [composeMode, setComposeMode] = useState<"reply" | "note">("reply");
   const [avgTicket, setAvgTicket] = useState<number>(0);
+  const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [unreadByClient, setUnreadByClient] = useState<Record<string, number>>({});
+  const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial load
