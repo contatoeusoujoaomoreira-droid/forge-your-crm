@@ -14,25 +14,33 @@ export default function CampaignsList() {
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
   const [showLeads, setShowLeads] = useState<string | null>(null);
   const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
+  const [eligibleCount, setEligibleCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
     if (!user) return;
-    const [c, a] = await Promise.all([
+    const [c, a, p, s] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("pipelines").select("*").eq("user_id", user.id),
+      supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
+    setPipelines(p.data || []);
+    setStages(s.data || []);
   };
   useEffect(() => { load(); }, [user]);
 
   const newCampaign = () => setEditing({
     name: "", description: "", agent_id: "", message_template: "Olá {{name}}, tudo bem?",
     daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
+    source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
   });
 
   const save = async () => {
