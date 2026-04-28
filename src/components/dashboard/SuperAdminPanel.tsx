@@ -5,11 +5,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Plus, Trash2, Users, Shield, Eye, EyeOff, Key,
+  Plus, Trash2, Users, Shield, Key,
   BarChart3, Globe, FileText, FileQuestion, Calendar, ShoppingCart, LayoutDashboard,
-  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload,
+  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings,
 } from "lucide-react";
+import UsageHistoryTab from "./superadmin/UsageHistoryTab";
+import CreditRequestsTab from "./superadmin/CreditRequestsTab";
+import CreditCostsTab from "./superadmin/CreditCostsTab";
 
 interface ManagedUser {
   id: string;
