@@ -277,6 +277,7 @@ const Dashboard = () => {
             {activeTab === "crm" && <CRMKanban />}
             {activeTab === "clients" && <CRMClients />}
             {activeTab === "import" && <LeadImporter />}
+            {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
             {activeTab === "pages" && <LandingPagesList />}
