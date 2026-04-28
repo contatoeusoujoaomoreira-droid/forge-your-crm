@@ -245,7 +245,12 @@ serve(async (req) => {
       }
     }
 
-    // Default: use Lovable AI gateway
+    // Default: use Forge AI gateway — charges credits
+    const charge: any = await chargeCredits(req, "page_generate", 1, { provider: "native" });
+    if (charge && charge.ok === false) {
+      return new Response(JSON.stringify({ error: "Créditos insuficientes", needed: charge.needed, balance: charge.balance }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
