@@ -29,8 +29,8 @@
 
 ## Pendente (próximas iterações)
 
-- 4. FlowsBuilder: 8 templates prontos (modal)
-- 5. CampaignsList: modal 3 abas (Agente/Fluxo/Template)
-- Integrar `deduct_credits_by_action` em todas as edge functions de geração (pages/forms/quiz/audio/image)
+- ✅ 4. FlowsBuilder: 8 templates prontos (FlowTemplatesModal)
+- ✅ 5. CampaignsList: modal Type (Agente/Fluxo/Template/Em branco) + select de Fluxo + dropdown de Template no editor
+- ✅ Dedução de créditos em `generate-landing-page` (page_generate) e `tts-preview` (tts_openai/tts_elevenlabs)
 - Captura de tokens reais (in/out) no webhook para gravar em `credit_transactions.metadata`
-- Inbox: filtros (Grupos, Aguard.), menu 3 pontos por conversa, sidebar direita completa com Ticket Médio
+- Inbox: filtros (Grupos, Aguard.) já feitos; sidebar direita completa com Ticket Médio

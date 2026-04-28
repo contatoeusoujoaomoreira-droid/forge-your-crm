@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Plus, Trash2, GitBranch, MessageSquare, Menu as MenuIcon, MousePointerClick,
-  Database, Sparkles, Clock, Hourglass, GitFork, Filter, Image as ImgIcon, X, Save,
+  Database, Sparkles, Clock, Hourglass, GitFork, Filter, Image as ImgIcon, X, Save, FileText,
 } from "lucide-react";
+import FlowTemplatesModal, { FlowTemplate } from "./FlowTemplatesModal";
 
 const NODE_TYPES = [
   { id: "message", label: "Mensagem", icon: MessageSquare, color: "#3b82f6" },
@@ -46,6 +47,7 @@ export default function FlowsBuilder() {
   const [agents, setAgents] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [draggingFrom, setDraggingFrom] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
@@ -170,7 +172,10 @@ export default function FlowsBuilder() {
             <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-5 w-5 text-primary" />Fluxos de Conversa</h3>
             <p className="text-xs text-muted-foreground">Construa fluxos visuais com mensagens, condições, IA, coleta de dados e ações no CRM.</p>
           </div>
-          <Button onClick={newFlow}><Plus className="h-4 w-4 mr-1" />Novo Fluxo</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowTemplates(true)}><FileText className="h-4 w-4 mr-1" />Templates</Button>
+            <Button onClick={newFlow}><Plus className="h-4 w-4 mr-1" />Novo Fluxo</Button>
+          </div>
         </div>
         {flows.length === 0 ? (
           <Card className="p-12 text-center">
@@ -204,6 +209,11 @@ export default function FlowsBuilder() {
             ))}
           </div>
         )}
+        <FlowTemplatesModal open={showTemplates} onOpenChange={setShowTemplates} onPick={(t: FlowTemplate) => {
+          setShowTemplates(false);
+          setEditing({ name: t.name, description: t.description, is_active: true, nodes: t.nodes, edges: t.edges, agent_id: null, trigger_keywords: t.trigger_keywords });
+          toast.success(`Template "${t.name}" carregado — clique em Salvar para gravar.`);
+        }} />
       </div>
     );
   }

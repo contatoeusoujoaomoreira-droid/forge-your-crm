@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Megaphone, Play, Pause, Trash2, Plus, Users } from "lucide-react";
+import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
   const { user } = useAuth();
@@ -20,32 +21,52 @@ export default function CampaignsList() {
   const [showLeads, setShowLeads] = useState<string | null>(null);
   const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showType, setShowType] = useState(false);
+  const [flows, setFlows] = useState<any[]>([]);
 
   const load = async () => {
     if (!user) return;
-    const [c, a, p, s] = await Promise.all([
+    const [c, a, p, s, f] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
+      supabase.from("conversation_flows").select("id,name").eq("user_id", user.id).eq("is_active", true),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
     setPipelines(p.data || []);
     setStages(s.data || []);
+    setFlows(f.data || []);
   };
   useEffect(() => { load(); }, [user]);
 
-  const newCampaign = () => setEditing({
-    name: "", description: "", agent_id: "", message_template: "Olá {{name}}, tudo bem?",
-    daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
-    source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
-  });
+  const newCampaign = () => setShowType(true);
+
+  const startFromKind = (kind: "agent" | "flow" | "template" | "blank") => {
+    setShowType(false);
+    const base: any = {
+      name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
+      daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
+      source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
+    };
+    if (kind === "template") {
+      const tpl = CAMPAIGN_TEMPLATES.prospect[0];
+      setEditing({ ...base, name: tpl.name, description: tpl.description, message_template: tpl.message_template });
+    } else if (kind === "flow") {
+      setEditing({ ...base, name: "Campanha com fluxo" });
+    } else if (kind === "agent") {
+      setEditing({ ...base, name: "Campanha com agente" });
+    } else {
+      setEditing(base);
+    }
+  };
 
   const save = async () => {
     if (!user || !editing.name) { toast.error("Nome obrigatório"); return; }
     const payload: any = { ...editing, user_id: user.id };
     if (!payload.agent_id) delete payload.agent_id;
+    if (!payload.flow_id) delete payload.flow_id;
     delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
@@ -114,6 +135,25 @@ export default function CampaignsList() {
               value={editing.agent_id || ""} onChange={(e) => setEditing({ ...editing, agent_id: e.target.value })}>
               <option value="">— Sem IA (template estático) —</option>
               {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>Fluxo de conversa (opcional)</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              value={editing.flow_id || ""} onChange={(e) => setEditing({ ...editing, flow_id: e.target.value })}>
+              <option value="">— Não usar fluxo —</option>
+              {flows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>Templates de mensagem</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              value="" onChange={(e) => {
+                const tpl = CAMPAIGN_TEMPLATES.prospect.find((t) => t.name === e.target.value);
+                if (tpl) setEditing({ ...editing, message_template: tpl.message_template });
+              }}>
+              <option value="">— Aplicar template pronto —</option>
+              {CAMPAIGN_TEMPLATES.prospect.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
             </select>
           </div>
           <div className="col-span-2">
@@ -272,6 +312,7 @@ export default function CampaignsList() {
           <LeadPicker leads={leadsAvail} onAdd={(ids) => addLeads(showLeads, ids)} />
         </Card>
       )}
+      <CampaignTypeModal open={showType} onOpenChange={setShowType} onPick={startFromKind} />
     </div>
   );
 }
