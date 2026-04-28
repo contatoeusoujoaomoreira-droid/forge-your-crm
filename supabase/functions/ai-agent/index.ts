@@ -139,10 +139,22 @@ Deno.serve(async (req) => {
     const content = json.choices?.[0]?.message?.content || '';
     const tokensUsed = json.usage?.total_tokens || 0;
     if (body.agent_id && tokensUsed) {
-      await admin.rpc('noop').then(() => null).catch(() => null);
-      // increment counter (best-effort)
       const { data: cur } = await admin.from('ai_agents').select('total_tokens_used').eq('id', body.agent_id).maybeSingle();
       await admin.from('ai_agents').update({ total_tokens_used: (cur?.total_tokens_used || 0) + tokensUsed }).eq('id', body.agent_id);
+    }
+    // Charge credits per AI reply (long if > 200 chars). Super admin / unlimited tier auto-skipped.
+    if (body.mode !== 'copilot') {
+      const action = (content && content.length > 200) ? 'chat_message_long' : 'chat_message_text';
+      try {
+        await admin.rpc('deduct_credits_by_action', {
+          _user_id: userId,
+          _action: action,
+          _quantity: 1,
+          _metadata: { agent_id: body.agent_id || null, model, tokens: tokensUsed },
+        });
+      } catch (e) {
+        console.warn('credit deduction failed', e);
+      }
     }
     return new Response(JSON.stringify({ content, tokens: tokensUsed }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {

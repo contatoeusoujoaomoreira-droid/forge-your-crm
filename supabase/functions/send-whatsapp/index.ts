@@ -154,6 +154,21 @@ Deno.serve(async (req) => {
       metadata: { external_error: externalError },
     }).select().single();
 
+    // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
+    if (externalSent) {
+      const action = body.media_url ? 'image_vision' : 'chat_message_text';
+      try {
+        await admin.rpc('deduct_credits_by_action', {
+          _user_id: userId,
+          _action: action,
+          _quantity: 1,
+          _metadata: { phone, message_id: msg?.id, channel: 'whatsapp' },
+        });
+      } catch (e) {
+        console.warn('credit deduction failed', e);
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true, message: msg, external_sent: externalSent, external_error: externalError, has_config: !!cfg,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
