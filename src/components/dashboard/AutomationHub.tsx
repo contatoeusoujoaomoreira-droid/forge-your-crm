@@ -527,7 +527,17 @@ export default function AutomationHub() {
         <TabsContent value="agents" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Agentes de IA</h3>
+              <h3 className="font-semibold flex items-center gap-2">
+                Agentes de IA
+                <InfoHint title="Como criar um Agente IA" steps={[
+                  "Clique em 'Novo Agente' e dê um nome + função (atendimento, SDR, closer, etc).",
+                  "Defina personalidade, tom de voz e o prompt do sistema (instruções de comportamento).",
+                  "Escolha o provedor de IA (Lovable, OpenAI, Groq, Gemini) e o modelo.",
+                  "Em 'Voz & Mídia' habilite transcrição de áudio, leitura de imagens e voz para responder.",
+                  "Adicione base de conhecimento (textos/PDFs) para respostas contextuais.",
+                  "Ative o agente e vincule a uma conexão WhatsApp para começar a responder automaticamente.",
+                ]} />
+              </h3>
               <p className="text-xs text-muted-foreground">Crie agentes especializados (atendimento, prospecção, SDR, closer) com identidade, comportamento, roteamento de funil e base de conhecimento.</p>
             </div>
             <Button onClick={() => { setEditingAgent(null); setAgentBuilderOpen(true); }}>
