@@ -620,7 +620,7 @@ export default function InboxPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">{lead.name}</p>
                 <p className="text-xs text-muted-foreground">R$ {Number(lead.value || 0).toLocaleString("pt-BR")}</p>
-                <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => window.location.href = `/dashboard?tab=crm`}>
+                <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => navigate(`/dashboard?tab=crm&lead=${lead.id}`)}>
                   <ExternalLink className="h-3 w-3 mr-1" />Ver no Pipeline
                 </Button>
               </div>
