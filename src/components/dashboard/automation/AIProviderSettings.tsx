@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, KeyRound, CheckCircle2 } from "lucide-react";
 
 const PROVIDERS = [
-  { id: "lovable", label: "Lovable AI (incluso — sem chave)", defaultModel: "google/gemini-2.5-flash", needsKey: false },
+  { id: "lovable", label: "Sistema (incluso — sem chave)", defaultModel: "google/gemini-2.5-flash", needsKey: false },
   { id: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
   { id: "groq", label: "Groq", defaultModel: "llama-3.3-70b-versatile", needsKey: true },
   { id: "gemini", label: "Google Gemini (chave própria)", defaultModel: "gemini-2.0-flash-exp", needsKey: true },
@@ -139,7 +139,7 @@ export default function AIProviderSettings() {
       <Card className="p-3 bg-primary/5 border-primary/30">
         <p className="text-sm flex items-center gap-2 text-foreground">
           <CheckCircle2 className="h-4 w-4 text-primary" />
-          Lovable AI já está incluso e pronto. Adicione provedores próprios só se quiser usar OpenAI/Groq/Gemini diretamente.
+          O provedor do sistema já vem incluso. Adicione provedores próprios só se quiser usar OpenAI/Groq/Gemini diretamente.
         </p>
       </Card>
       {items.map((it) => (

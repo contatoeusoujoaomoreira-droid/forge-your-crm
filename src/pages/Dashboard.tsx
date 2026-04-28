@@ -27,13 +27,14 @@ import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 import InboxPage from "@/components/dashboard/InboxPage";
 import AutomationHub from "@/components/dashboard/AutomationHub";
+import RequestCreditsModal from "@/components/dashboard/RequestCreditsModal";
 
 const allTabs = [
+  { id: "analytics", label: "Dashboard", icon: BarChart3, group: "crm" },
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
   { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
-  { id: "analytics", label: "Analytics", icon: BarChart3, group: "crm" },
   { id: "pages", label: "Pages", icon: Globe, group: "tools" },
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
   { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
@@ -61,10 +62,11 @@ const Dashboard = () => {
   const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
   const planInfo = useUserPlan();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("crm");
+  const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showRequestCredits, setShowRequestCredits] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
@@ -216,14 +218,19 @@ const Dashboard = () => {
             {tabs.find((t) => t.id === activeTab)?.label}
           </h1>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/60 border border-border">
+            <button
+              onClick={() => setShowRequestCredits(true)}
+              title="Solicitar mais créditos"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary/60 border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            >
               <Zap className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-mono">{planInfo.creditsBalance}</span>
               <span className="text-[10px] text-muted-foreground">/ {planInfo.creditsMonthly}</span>
               <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary ml-1">
                 {PLAN_DEFINITIONS[planInfo.plan].label}
               </Badge>
-            </div>
+              <span className="text-[10px] text-primary font-semibold ml-1">+</span>
+            </button>
             <div className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-lg hover:bg-secondary transition-colors">
                 <Bell className="h-5 w-5 text-muted-foreground" />
@@ -303,6 +310,7 @@ const Dashboard = () => {
           );
         })}
       </div>
+      <RequestCreditsModal open={showRequestCredits} onOpenChange={setShowRequestCredits} />
     </div>
   );
 };

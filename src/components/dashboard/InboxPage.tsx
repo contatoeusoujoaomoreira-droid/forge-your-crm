@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
@@ -325,7 +325,11 @@ export default function InboxPage() {
                         <p className="text-[11px] italic opacity-80 mb-1">🖼️ {imgDesc}</p>
                       )}
                       {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                      <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}{m.agent_id ? " · 🤖" : ""}</p>
+                      <p className="text-[10px] mt-1 opacity-60 flex items-center gap-1">
+                        {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        {m.agent_id ? " · 🤖" : ""}
+                        {m.metadata?.sent_from_phone && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-background/30">📱 do celular</span>}
+                      </p>
                     </div>
                   </div>
                 );
@@ -333,7 +337,16 @@ export default function InboxPage() {
             </div>
             {copilotSugs.length > 0 && (
               <div className="px-3 py-2 border-t border-border bg-secondary/30 space-y-1">
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground">Copiloto sugere:</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase font-semibold text-muted-foreground">✨ Copiloto sugere:</p>
+                  <button
+                    onClick={() => setCopilotSugs([])}
+                    title="Esconder sugestões"
+                    className="text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-background"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 {copilotSugs.map((s, i) => (
                   <button key={i} onClick={() => { setInput(s); setCopilotSugs([]); }} className="block w-full text-left text-xs p-2 rounded bg-background hover:bg-primary/10">{s}</button>
                 ))}
