@@ -363,7 +363,28 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
   return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
 }
 
-// Show "typing" / "recording" presence on the WhatsApp instance.
+// Send Z-API interactive button list. `buttons` is array of label strings (max 3).
+async function sendWhatsAppButtons(cfg: any, phone: string, content: string, buttons: string[]) {
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+  const token = cfg.api_token || '';
+  const instance = cfg.instance_id || '';
+  const extra = cfg.extra_headers || {};
+  if (cfg.api_type === 'z-api') {
+    const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+    const buttonList = {
+      buttons: buttons.slice(0, 3).map((label, i) => ({ id: String(i + 1), label })),
+    };
+    const resp = await fetch(`${root}/send-button-list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...extra },
+      body: JSON.stringify({ phone, message: content, buttonList }),
+    });
+    if (resp.ok) return { ok: true, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    // Fallback to text + numbered list when buttons unsupported on instance
+  }
+  const numbered = `${content}\n\n${buttons.slice(0, 3).map((b, i) => `${i + 1}. ${b}`).join('\n')}\n\n_Responda com o número da opção._`;
+  return await sendWhatsApp(cfg, phone, numbered);
+}
 async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'recording') {
   try {
     const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
