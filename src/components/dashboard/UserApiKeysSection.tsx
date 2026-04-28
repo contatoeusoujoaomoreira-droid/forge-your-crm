@@ -24,12 +24,17 @@ const PROVIDER_LIST = [
 
 const SCOPES = [
   { id: "all", label: "Tudo (todas as ações)" },
-  { id: "chat", label: "Apenas chat / agente IA" },
+  { id: "chat", label: "Chat / agente IA" },
   { id: "tts", label: "Texto → áudio (TTS)" },
   { id: "stt", label: "Áudio → texto (STT)" },
   { id: "vision", label: "Visão (interpretar imagem)" },
   { id: "image", label: "Geração de imagem" },
   { id: "video", label: "Geração de vídeo" },
+  { id: "page_generate", label: "Gerar landing pages" },
+  { id: "form_generate", label: "Gerar formulários" },
+  { id: "quiz_generate", label: "Gerar quizzes" },
+  { id: "knowledge_ingest", label: "Ingestão de base de conhecimento" },
+  { id: "campaign_writer", label: "Escrita de campanhas / mensagens" },
 ];
 
 function HelpHint({ steps, url }: { steps: string[]; url?: string }) {
