@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import TeamMembersSection from "./settings/TeamMembersSection";
+import UserApiKeysSection from "./UserApiKeysSection";
+import RequestCreditsModal from "./RequestCreditsModal";
 import {
   Globe, Key, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   Info, AlertCircle, CheckCircle2, RefreshCw, ExternalLink, Shield,
@@ -286,6 +288,7 @@ const SettingsPage = () => {
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [changingPwd, setChangingPwd] = useState(false);
+  const [showReqCredits, setShowReqCredits] = useState(false);
 
   const handleChangePassword = async () => {
     if (!newPwd || newPwd.length < 6) { toast({ title: "Senha deve ter no mínimo 6 caracteres", variant: "destructive" }); return; }
@@ -539,6 +542,16 @@ const SettingsPage = () => {
             ))}
           </div>
         )}
+      </section>
+
+      {/* API Keys (persistente, por usuário, com escopo por função) */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Key className="h-5 w-5 text-primary" /> Provedores & Chaves API</h2>
+          <p className="text-sm text-muted-foreground mt-1">Use chaves próprias (OpenAI, Groq, Gemini, ElevenLabs…) para cada função (chat, voz, transcrição, visão, imagem). Sem chave, usamos o provedor padrão e descontamos créditos.</p>
+        </div>
+        <UserApiKeysSection onRequestCredits={() => setShowReqCredits(true)} />
+        <RequestCreditsModal open={showReqCredits} onOpenChange={setShowReqCredits} />
       </section>
 
       <TeamMembersSection />
