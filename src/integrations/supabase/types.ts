@@ -2183,6 +2183,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      sync_super_admin_entitlements: { Args: never; Returns: undefined }
       user_usage_stats: { Args: { _user_id: string }; Returns: Json }
     }
     Enums: {
