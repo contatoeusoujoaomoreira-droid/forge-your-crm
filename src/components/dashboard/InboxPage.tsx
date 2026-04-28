@@ -178,31 +178,46 @@ export default function InboxPage() {
 
   const createLeadFromClient = async () => {
     const cli = clients.find(c => c.id === selectedId);
-    if (!cli || !user) return;
-    const firstStage = stages[0];
+     if (!cli || !user) return;
+    // Default to first pipeline + its first stage so the lead actually appears in a board
+    const defaultPipeline = pipelines[0];
+    const firstStage = defaultPipeline
+      ? stages.find(s => s.pipeline_id === defaultPipeline.id)
+      : stages[0];
     const { data: newLead, error } = await supabase.from("leads").insert({
-      user_id: user.id, name: cli.name || cli.phone || "Sem nome", phone: cli.phone,
-      stage_id: firstStage?.id, source: "whatsapp_chat", status: "new",
+      user_id: user.id,
+      name: cli.name || cli.phone || "Sem nome",
+      phone: cli.phone,
+      pipeline_id: defaultPipeline?.id || null,
+      stage_id: firstStage?.id,
+      source: "whatsapp_chat",
+      status: "new",
     } as any).select().single();
     if (error) { toast.error(error.message); return; }
     await supabase.from("chat_clients").update({ lead_id: (newLead as any).id }).eq("id", cli.id);
     setLead(newLead);
     setClients(clients.map(c => c.id === cli.id ? { ...c, lead_id: (newLead as any).id } : c));
-    toast.success("Lead criado e vinculado ao CRM");
+    toast.success(`Lead criado em ${defaultPipeline?.name || "CRM"}`);
   };
 
   const movePipeline = async (pipelineId: string) => {
     if (!lead) return;
-    const firstStage = stages.find(s => s.pipeline_id === pipelineId);
-    await supabase.from("leads").update({ pipeline_id: pipelineId, stage_id: firstStage?.id || null } as any).eq("id", lead.id);
-    setLead({ ...lead, pipeline_id: pipelineId, stage_id: firstStage?.id });
-    toast.success("Pipeline atualizado");
+    const firstStage = pipelineId ? stages.find(s => s.pipeline_id === pipelineId) : null;
+    const { error } = await supabase.from("leads")
+      .update({ pipeline_id: pipelineId || null, stage_id: firstStage?.id || null } as any)
+      .eq("id", lead.id);
+    if (error) { toast.error("Erro ao salvar: " + error.message); return; }
+    setLead({ ...lead, pipeline_id: pipelineId || null, stage_id: firstStage?.id || null });
+    const pName = pipelines.find(p => p.id === pipelineId)?.name || "padrão";
+    toast.success(`Movido para pipeline "${pName}"`);
   };
   const moveStage = async (stageId: string) => {
     if (!lead) return;
-    await supabase.from("leads").update({ stage_id: stageId } as any).eq("id", lead.id);
+    const { error } = await supabase.from("leads").update({ stage_id: stageId } as any).eq("id", lead.id);
+    if (error) { toast.error("Erro ao salvar: " + error.message); return; }
     setLead({ ...lead, stage_id: stageId });
-    toast.success("Etapa atualizada");
+    const sName = stages.find(s => s.id === stageId)?.name || "etapa";
+    toast.success(`Movido para "${sName}"`);
   };
 
   const addTag = async () => {
