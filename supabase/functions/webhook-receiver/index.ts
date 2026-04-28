@@ -422,14 +422,21 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Determine an OpenAI key to use for media (whisper/vision/tts)
+  // Determine an OpenAI key to use for media (whisper/vision/tts) — also fetch ElevenLabs key
   let openaiKey = '';
+  let elevenKey = '';
   if (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) openaiKey = providerCfg.api_key_encrypted;
   if (!openaiKey) {
     const { data: anyOpenAi } = await admin.from('ai_provider_configs')
       .select('api_key_encrypted').eq('user_id', userId).eq('provider', 'openai')
       .not('api_key_encrypted', 'is', null).limit(1).maybeSingle();
     if (anyOpenAi?.api_key_encrypted) openaiKey = anyOpenAi.api_key_encrypted;
+  }
+  {
+    const { data: anyEleven } = await admin.from('ai_provider_configs')
+      .select('api_key_encrypted').eq('user_id', userId).eq('provider', 'elevenlabs')
+      .not('api_key_encrypted', 'is', null).limit(1).maybeSingle();
+    if (anyEleven?.api_key_encrypted) elevenKey = anyEleven.api_key_encrypted;
   }
 
   // If audio + transcription enabled, transcribe and append to content
