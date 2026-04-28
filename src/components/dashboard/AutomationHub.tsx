@@ -73,15 +73,17 @@ export default function AutomationHub() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [cfg, keys, ags, providers, pls, sts] = await Promise.all([
-        supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).maybeSingle(),
+      const [cfgs, keys, ags, providers, pls, sts] = await Promise.all([
+        supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       ]);
-      if (cfg.data) setWaCfg(cfg.data);
+      const list = cfgs.data || [];
+      setWaConfigs(list);
+      if (list[0]) setWaCfg(list[0]);
       setApiKeys(keys.data || []);
       setAgents(ags.data || []);
       setProviderKeys(providers.data || []);
@@ -89,6 +91,36 @@ export default function AutomationHub() {
       setStages(sts.data || []);
     })();
   }, [user]);
+
+  const reloadWaConfigs = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("whatsapp_configs").select("*").eq("user_id", user.id).order("created_at", { ascending: true });
+    setWaConfigs(data || []);
+    if (data && waCfg?.id) {
+      const found = data.find((c: any) => c.id === waCfg.id);
+      if (found) setWaCfg(found);
+    }
+  };
+
+  const newConnection = () => {
+    setWaCfg({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}` });
+  };
+
+  const deleteConnection = async (id: string) => {
+    if (!confirm("Excluir esta conexão WhatsApp?")) return;
+    const { error } = await supabase.from("whatsapp_configs").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Conexão excluída");
+    const remaining = waConfigs.filter(c => c.id !== id);
+    setWaConfigs(remaining);
+    if (waCfg?.id === id) setWaCfg(remaining[0] || { api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, label: "Principal" });
+  };
+
+  const toggleConnectionActive = async (cfg: any) => {
+    const { error } = await supabase.from("whatsapp_configs").update({ is_active: !cfg.is_active }).eq("id", cfg.id);
+    if (error) { toast.error(error.message); return; }
+    reloadWaConfigs();
+  };
 
   const saveWa = async () => {
     if (!user) return;
