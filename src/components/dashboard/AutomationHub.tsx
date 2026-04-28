@@ -553,7 +553,6 @@ export default function AutomationHub() {
         <TabsContent value="aikeys"><AIProviderSettings /></TabsContent>
         <TabsContent value="import"><LeadImporter /></TabsContent>
         <TabsContent value="campaigns"><CampaignsList /></TabsContent>
-        <TabsContent value="chatauto"><ChatAutomationsTab /></TabsContent>
       </Tabs>
 
       <AgentBuilder
