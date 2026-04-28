@@ -73,7 +73,8 @@ const statusOptions = [
 
 const isWonStage = (stageName: string) => WON_STAGE_PATTERNS.some(p => stageName.toLowerCase().includes(p));
 
-const CRMKanban = () => {
+interface CRMKanbanProps { focusLeadId?: string }
+const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [stages, setStages] = useState<Stage[]>([]);
