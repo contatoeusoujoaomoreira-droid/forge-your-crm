@@ -23,17 +23,19 @@ interface TeamMember {
 const PLAN_LIMITS: Record<string, number> = { start: 0, pro: 5, enterprise: 20 };
 
 export default function TeamMembersSection() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { plan } = useUserPlan();
   const planLabel = PLAN_DEFINITIONS[plan]?.label || "Start";
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [seatOverride, setSeatOverride] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [perms, setPerms] = useState({ chat: true, leads: true, campaigns: false });
   const [loading, setLoading] = useState(false);
 
-  const limit = PLAN_LIMITS[plan] ?? 0;
+  const planLimit = PLAN_LIMITS[plan] ?? 0;
+  const limit = isSuperAdmin ? 9999 : Math.max(planLimit, seatOverride ?? 0);
   const canAdd = members.length < limit;
 
   const load = async () => {
