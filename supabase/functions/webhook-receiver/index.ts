@@ -126,20 +126,40 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
-// Transcribe audio via OpenAI Whisper. Returns text or '' on failure.
-async function transcribeAudio(audioUrl: string, openaiKey: string): Promise<string> {
+// Transcribe audio. Tries the agent's selected provider first (Groq Whisper, OpenAI Whisper),
+// then falls back to OpenAI key. Returns text or '' on failure.
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
     const audioResp = await fetch(audioUrl);
     if (!audioResp.ok) return '';
     const buf = await audioResp.arrayBuffer();
     const blob = new Blob([buf], { type: 'audio/ogg' });
+
+    // Groq Whisper (fast + cheap) when user selected Groq
+    if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
+      const fd = new FormData();
+      fd.append('file', blob, 'audio.ogg');
+      fd.append('model', 'whisper-large-v3-turbo');
+      fd.append('language', 'pt');
+      const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${providerCfg.api_key_encrypted}` },
+        body: fd,
+      });
+      if (r.ok) { const j = await r.json(); return j.text || ''; }
+      console.error('groq whisper failed', await r.text());
+    }
+
+    // OpenAI Whisper fallback
+    const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
+    if (!key) return '';
     const fd = new FormData();
     fd.append('file', blob, 'audio.ogg');
     fd.append('model', 'whisper-1');
     fd.append('language', 'pt');
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}` },
+      headers: { Authorization: `Bearer ${key}` },
       body: fd,
     });
     if (!r.ok) { console.error('whisper failed', await r.text()); return ''; }
@@ -151,12 +171,29 @@ async function transcribeAudio(audioUrl: string, openaiKey: string): Promise<str
   }
 }
 
-// Describe image via GPT-4o vision. Returns short description.
-async function describeImage(imageUrl: string, openaiKey: string): Promise<string> {
+// Describe image via the agent's selected vision provider.
+async function describeImage(imageUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
+    // Gemini vision when user selected Google
+    if (providerCfg?.provider === 'google' && providerCfg?.api_key_encrypted) {
+      const imgResp = await fetch(imageUrl);
+      const ct = imgResp.headers.get('content-type') || 'image/jpeg';
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(await imgResp.arrayBuffer())));
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${providerCfg.api_key_encrypted}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [
+          { text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases).' },
+          { inline_data: { mime_type: ct, data: b64 } },
+        ]}]}),
+      });
+      if (r.ok) { const j = await r.json(); return j.candidates?.[0]?.content?.parts?.[0]?.text || ''; }
+    }
+
+    const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
+    if (!key) return '';
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [{
