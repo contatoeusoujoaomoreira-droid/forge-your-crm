@@ -627,8 +627,15 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 <Switch checked={form.simulate_recording !== false}
                   onCheckedChange={(v) => setForm({ ...form, simulate_recording: v })} />
               </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">✂️ Dividir respostas longas em mensagens menores</Label>
+              <div className="flex items-center justify-between p-2 rounded-md bg-secondary/40 border border-border/60">
+                <div>
+                  <Label className="text-sm">✂️ Dividir respostas longas em várias mensagens</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {form.split_long_messages !== false
+                      ? "Ativado: o agente quebra textos longos em mensagens menores (mais natural, parece humano)."
+                      : "Desativado: o agente envia toda a resposta em uma única mensagem (mesmo que longa)."}
+                  </p>
+                </div>
                 <Switch checked={form.split_long_messages !== false}
                   onCheckedChange={(v) => setForm({ ...form, split_long_messages: v })} />
               </div>
