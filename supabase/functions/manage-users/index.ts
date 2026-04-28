@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "list_users") {
-      await supabaseAdmin.rpc("sync_super_admin_entitlements").catch(() => null);
+      try { await supabaseAdmin.rpc("sync_super_admin_entitlements"); } catch (_) { /* keep listing even if sync is unavailable during deploy */ }
       const { data } = await supabaseAdmin.from("managed_users").select("*").order("created_at", { ascending: false });
       return new Response(JSON.stringify({ users: data || [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
