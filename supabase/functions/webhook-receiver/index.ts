@@ -146,6 +146,22 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   } as any;
 }
 
+function extractAvatarUrl(input: any): string | undefined {
+  if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
+  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
+  for (const key of directKeys) {
+    const value = input?.[key];
+    if (typeof value === 'string' && value.startsWith('http')) return value;
+  }
+  for (const value of Object.values(input)) {
+    if (value && typeof value === 'object') {
+      const nested = extractAvatarUrl(value);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
 // Status callback (delivered / read) — used to update ✓✓ ticks on existing messages.
 function detectStatusCallback(raw: any): { external_message_id?: string; status: string } | null {
   // Z-API: { type: 'MessageStatusCallback', status: 'READ'|'RECEIVED'|'PLAYED', messageId }
@@ -552,25 +568,35 @@ Deno.serve(async (req) => {
     if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  let avatarUrl: string | undefined = (msg as any).avatar_url || undefined;
+  let avatarUrl: string | undefined = (msg as any).avatar_url || extractAvatarUrl(raw) || undefined;
 
   // Try fetching profile picture from Z-API if we don't have one in the payload
   const fetchZapiProfilePic = async (): Promise<string | undefined> => {
     try {
-      const { data: prov } = await admin.from('whatsapp_configs')
-        .select('api_type, base_url, api_token, instance_id, extra_headers')
-        .eq('user_id', userId).eq('is_active', true).maybeSingle();
+      const prov = matchedConfig || (await admin.from('whatsapp_configs')
+        .select('api_type, base_url, api_token, instance_id, extra_headers, is_active, updated_at')
+        .eq('user_id', userId).eq('api_type', 'z-api')
+        .order('is_active', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .limit(1)).data?.[0];
       if (!prov) return undefined;
-      const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document)$/, '');
+      const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture).*$/, '');
       if ((prov.api_type || '').toLowerCase() === 'z-api') {
-        const url = baseUrl.includes('/instances/')
-          ? `${baseUrl}/profile-picture?phone=${msg.phone}`
-          : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}/profile-picture?phone=${msg.phone}`;
+        const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}`;
         const headers: Record<string,string> = { 'Content-Type': 'application/json', ...((prov as any).extra_headers || {}) };
-        const r = await fetch(url, { headers });
-        if (!r.ok) return undefined;
-        const j = await r.json().catch(() => null);
-        return j?.link || j?.profilePicture || j?.url || undefined;
+        const attempts = [
+          () => fetch(`${root}/profile-picture?phone=${msg.phone}`, { headers }),
+          () => fetch(`${root}/profile-picture/${msg.phone}`, { headers }),
+          () => fetch(`${root}/profile-picture`, { method: 'POST', headers, body: JSON.stringify({ phone: msg.phone }) }),
+        ];
+        for (const attempt of attempts) {
+          const r = await attempt().catch(() => null);
+          if (!r?.ok) continue;
+          const text = await r.text();
+          const j = (() => { try { return JSON.parse(text); } catch { return text; } })();
+          const found = extractAvatarUrl(j);
+          if (found) return found;
+        }
       }
     } catch (_) { /* noop */ }
     return undefined;
