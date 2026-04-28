@@ -128,6 +128,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [testMessages, setTestMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [testInput, setTestInput] = useState("");
   const [testing, setTesting] = useState(false);
+  const [elevenKeyInput, setElevenKeyInput] = useState("");
+  const [elevenSaving, setElevenSaving] = useState(false);
+  const [elevenConnected, setElevenConnected] = useState(false);
 
   const [form, setForm] = useState<any>({
     type: "atendimento",
