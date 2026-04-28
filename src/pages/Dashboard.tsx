@@ -120,6 +120,10 @@ const Dashboard = () => {
   const toolsTabs = tabs.filter((t) => t.group === "tools");
   const commsTabs = tabs.filter((t) => t.group === "comms");
   const systemTabs = tabs.filter((t) => t.group === "system");
+  const mobileTabs = ["analytics", "crm", "chat", "automation", "settings"]
+    .map((id) => tabs.find((t) => t.id === id))
+    .filter(Boolean) as typeof tabs;
+  const visibleMobileTabs = mobileTabs.length >= 4 ? mobileTabs : tabs.slice(0, 5);
 
   const notifIcon = (type: string) => {
     switch (type) {
@@ -312,13 +316,13 @@ const Dashboard = () => {
         </div>
       </main>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border flex overflow-x-auto overscroll-x-contain">
-        {tabs.filter(t => t.group !== "system").map((tab) => {
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border grid grid-cols-5">
+        {visibleMobileTabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`min-w-[72px] shrink-0 flex flex-col items-center py-2.5 text-[10px] ${activeTab === tab.id ? "text-lime" : "text-muted-foreground"}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`min-w-0 flex flex-col items-center py-2.5 text-[10px] ${activeTab === tab.id ? "text-lime" : "text-muted-foreground"}`}>
               <Icon className="h-5 w-5 mb-1" />
-              <span className="max-w-[68px] truncate">{tab.label}</span>
+              <span className="w-full px-1 truncate text-center">{tab.label}</span>
             </button>
           );
         })}
