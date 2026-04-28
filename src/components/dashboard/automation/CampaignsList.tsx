@@ -21,6 +21,8 @@ export default function CampaignsList() {
   const [showLeads, setShowLeads] = useState<string | null>(null);
   const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showType, setShowType] = useState(false);
+  const [flows, setFlows] = useState<any[]>([]);
 
   const load = async () => {
     if (!user) return;
