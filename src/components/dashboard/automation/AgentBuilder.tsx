@@ -417,6 +417,72 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             </Card>
           </TabsContent>
 
+          {/* VOZ & MIDIA */}
+          <TabsContent value="voz" className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="flex items-center gap-2"><Mic className="h-4 w-4" /> Resposta por voz (TTS)</Label>
+                  <p className="text-xs text-muted-foreground">Quando o lead enviar áudio, o agente responde em áudio com a voz escolhida.</p>
+                </div>
+                <Switch checked={form.voice_enabled} onCheckedChange={(v) => setForm({ ...form, voice_enabled: v })} />
+              </div>
+              {form.voice_enabled && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Provedor de voz</Label>
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                        value={form.voice_provider || "openai"} onChange={(e) => setForm({ ...form, voice_provider: e.target.value })}>
+                        <option value="openai">OpenAI TTS (recomendado)</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground mt-1">Requer chave OpenAI configurada em "Provedores".</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Voz</Label>
+                      <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                        value={form.voice_id || "alloy"} onChange={(e) => setForm({ ...form, voice_id: e.target.value })}>
+                        {OPENAI_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    try {
+                      const { data, error } = await supabase.functions.invoke("tts-preview", {
+                        body: { voice: form.voice_id || "alloy", text: `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?` },
+                      });
+                      if (error) throw error;
+                      if (data?.audio) { const a = new Audio(data.audio); a.play(); }
+                      else toast.error("Não foi possível gerar a prévia. Verifique a chave OpenAI.");
+                    } catch (e: any) { toast.error(e.message || "Erro ao gerar prévia"); }
+                  }}>
+                    <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
+                  </Button>
+                  <div className="flex items-center justify-between border-t pt-3">
+                    <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                    <Switch checked={form.reply_to_audio_with_audio !== false}
+                      onCheckedChange={(v) => setForm({ ...form, reply_to_audio_with_audio: v })} />
+                  </div>
+                </>
+              )}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold">Compreensão multimídia</h4>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">📜 Transcrever áudios recebidos (Whisper)</Label>
+                <Switch checked={form.transcribe_audio !== false}
+                  onCheckedChange={(v) => setForm({ ...form, transcribe_audio: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">🖼️ Interpretar imagens recebidas (Visão)</Label>
+                <Switch checked={form.understand_images !== false}
+                  onCheckedChange={(v) => setForm({ ...form, understand_images: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Ambos requerem chave OpenAI configurada em "Provedores". O agente responderá com base no conteúdo transcrito/descrito.</p>
+            </Card>
+          </TabsContent>
+
           {/* ROTEAMENTO */}
           <TabsContent value="roteamento" className="space-y-4">
             <Card className="p-4 space-y-3 border-primary/30">
