@@ -152,14 +152,33 @@ export default function LeadImporter() {
 
   return (
     <div className="space-y-4">
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <FileSpreadsheet className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Importar leads (CSV / XLSX)</h3>
-        </div>
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-          className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer" />
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <FileSpreadsheet className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold">Importar arquivo (CSV / XLSX)</h3>
+          </div>
+          <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files && handleFile(e.target.files[0])}
+            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer" />
+          <p className="text-xs text-muted-foreground mt-2">Formatos suportados: .csv, .xlsx, .xls. Cabeçalhos serão mapeados automaticamente.</p>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <ListPlus className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold">Digitar números manualmente</h3>
+          </div>
+          <Textarea
+            rows={5}
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder={"Um por linha. Ex:\nJoão Silva - 5511999999999\n5521988887777"}
+          />
+          <Button className="mt-2 w-full" variant="secondary" onClick={loadManualNumbers}>
+            <ListPlus className="h-4 w-4 mr-1" />Carregar lista
+          </Button>
+        </Card>
+      </div>
 
       {rows.length > 0 && (
         <>
