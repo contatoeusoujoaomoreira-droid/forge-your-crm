@@ -109,9 +109,9 @@ Deno.serve(async (req: Request) => {
           await supabaseAdmin.from("user_roles").insert({ user_id: mu.user_id, role: newRole });
         }
         const profileUpdates: any = {};
-        if (plan !== undefined) profileUpdates.plan = plan;
-        if (credits_balance !== undefined) profileUpdates.credits_balance = credits_balance;
-        if (credits_monthly !== undefined) profileUpdates.credits_monthly = credits_monthly;
+        if (updates.plan !== undefined) profileUpdates.plan = updates.plan;
+        if (updates.credits_balance !== undefined) profileUpdates.credits_balance = updates.credits_balance;
+        if (updates.credits_monthly !== undefined) profileUpdates.credits_monthly = updates.credits_monthly;
         if (Object.keys(profileUpdates).length) {
           await supabaseAdmin.from("profiles").update(profileUpdates).eq("user_id", mu.user_id);
         }
