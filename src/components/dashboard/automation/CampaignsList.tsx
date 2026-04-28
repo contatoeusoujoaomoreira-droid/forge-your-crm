@@ -312,6 +312,7 @@ export default function CampaignsList() {
           <LeadPicker leads={leadsAvail} onAdd={(ids) => addLeads(showLeads, ids)} />
         </Card>
       )}
+      <CampaignTypeModal open={showType} onOpenChange={setShowType} onPick={startFromKind} />
     </div>
   );
 }
