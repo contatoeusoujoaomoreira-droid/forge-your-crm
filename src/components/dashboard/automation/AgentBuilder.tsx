@@ -128,6 +128,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [testMessages, setTestMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [testInput, setTestInput] = useState("");
   const [testing, setTesting] = useState(false);
+  const [elevenKeyInput, setElevenKeyInput] = useState("");
+  const [elevenSaving, setElevenSaving] = useState(false);
+  const [elevenConnected, setElevenConnected] = useState(false);
 
   const [form, setForm] = useState<any>({
     type: "atendimento",
@@ -194,6 +197,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       setPipelines(pl.data || []);
       setStages(st.data || []);
       setModelCosts(mc.data || []);
+      setElevenConnected((pr.data || []).some((p: any) => p.provider === 'elevenlabs' && p.api_key_encrypted));
     })();
   }, [user, open]);
 
@@ -324,8 +328,27 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     if (agent?.id) loadKnowledge(agent.id);
   };
 
+  const saveElevenLabsKey = async () => {
+    if (!user || !elevenKeyInput.trim()) { toast.error("Informe sua API Key do ElevenLabs"); return; }
+    setElevenSaving(true);
+    try {
+      const { error } = await supabase.from("ai_provider_configs").insert({
+        user_id: user.id,
+        provider: "elevenlabs",
+        label: "ElevenLabs",
+        api_key_encrypted: elevenKeyInput.trim(),
+        is_active: true,
+      });
+      if (error) throw error;
+      toast.success("ElevenLabs conectado!");
+      setElevenKeyInput("");
+      setElevenConnected(true);
+    } catch (e: any) { toast.error(e.message || "Erro ao salvar chave"); }
+    finally { setElevenSaving(false); }
+  };
+
   const addRoutingRule = () => {
-    setForm({ ...form, routing_rules: [...form.routing_rules, { keyword: "", stage_id: "", description: "" }] });
+    setForm({ ...form, routing_rules: [...form.routing_rules, { keyword: "", pipeline_id: "", stage_id: "", description: "" }] });
   };
   const updateRoutingRule = (i: number, patch: any) => {
     const next = [...form.routing_rules]; next[i] = { ...next[i], ...patch };
@@ -569,6 +592,30 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                       </select>
                     </div>
                   </div>
+
+                  {provKey === 'elevenlabs' && (
+                    elevenConnected ? (
+                      <div className="flex items-center gap-2 text-xs text-primary border border-primary/30 bg-primary/5 rounded-md p-2">
+                        ✓ ElevenLabs conectado. Usando sua chave para gerar voz premium.
+                      </div>
+                    ) : (
+                      <div className="border border-dashed border-primary/40 rounded-md p-3 space-y-2">
+                        <div className="text-xs font-medium">Conectar ElevenLabs</div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Cole sua API Key do ElevenLabs (obtenha em{" "}
+                          <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" className="underline">elevenlabs.io → Settings → API Keys</a>).
+                        </p>
+                        <div className="flex gap-2">
+                          <Input type="password" placeholder="sk_..." value={elevenKeyInput}
+                            onChange={(e) => setElevenKeyInput(e.target.value)} />
+                          <Button size="sm" onClick={saveElevenLabsKey} disabled={elevenSaving}>
+                            {elevenSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Conectar"}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  )}
+
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
                       const text = `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?`;
@@ -581,8 +628,26 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                       } else if (data?.engine === "browser" && "speechSynthesis" in window) {
                         const u = new SpeechSynthesisUtterance(data.text || text);
                         u.lang = "pt-BR";
-                        window.speechSynthesis.speak(u);
-                        toast.success("Reproduzindo via voz nativa do navegador (Omni Audio)");
+                        // Pick browser voice matching gender hint of the selected voice id
+                        const femaleIds = ["nova", "shimmer", "alloy"];
+                        const wantFemale = femaleIds.includes(form.voice_id);
+                        const pickVoice = () => {
+                          const voices = window.speechSynthesis.getVoices().filter(v => /pt(-|_)?BR|portuguese/i.test(v.lang) || /portugu/i.test(v.name));
+                          const list = voices.length ? voices : window.speechSynthesis.getVoices();
+                          const femaleHints = /female|fem|maria|luciana|joana|helena|sofia|google português do brasil|microsoft maria|google.*female/i;
+                          const maleHints = /male|masc|ricardo|daniel|google.*male|microsoft daniel/i;
+                          const matched = list.find(v => wantFemale ? femaleHints.test(v.name) : maleHints.test(v.name));
+                          return matched || list[0];
+                        };
+                        const apply = () => {
+                          const v = pickVoice();
+                          if (v) u.voice = v;
+                          window.speechSynthesis.speak(u);
+                        };
+                        if (window.speechSynthesis.getVoices().length === 0) {
+                          window.speechSynthesis.onvoiceschanged = () => apply();
+                        } else apply();
+                        toast.success(`Reproduzindo voz ${wantFemale ? 'feminina' : 'masculina'} (nativa do navegador)`);
                       } else {
                         toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
                       }
@@ -591,7 +656,12 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
                   </Button>
                   <div className="flex items-center justify-between border-t pt-3">
-                    <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                    <div>
+                      <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Desativado: o agente transcreve o áudio do lead e responde por <b>texto</b>.
+                      </p>
+                    </div>
                     <Switch checked={form.reply_to_audio_with_audio !== false}
                       onCheckedChange={(v) => setForm({ ...form, reply_to_audio_with_audio: v })} />
                   </div>
@@ -627,15 +697,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 <Switch checked={form.simulate_recording !== false}
                   onCheckedChange={(v) => setForm({ ...form, simulate_recording: v })} />
               </div>
-              <div className="flex items-center justify-between p-2 rounded-md bg-secondary/40 border border-border/60">
-                <div>
-                  <Label className="text-sm">✂️ Dividir respostas longas em várias mensagens</Label>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {form.split_long_messages !== false
-                      ? "Ativado: o agente quebra textos longos em mensagens menores (mais natural, parece humano)."
-                      : "Desativado: o agente envia toda a resposta em uma única mensagem (mesmo que longa)."}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">✂️ Dividir respostas longas em várias mensagens</Label>
                 <Switch checked={form.split_long_messages !== false}
                   onCheckedChange={(v) => setForm({ ...form, split_long_messages: v })} />
               </div>
@@ -682,23 +745,35 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento</p>
                   <p className="text-xs text-muted-foreground">Adicione regras para mover o lead com base em palavras-chave, intenção ou qualificação.</p>
                 </div>
-              ) : form.routing_rules.map((r: any, i: number) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+              ) : form.routing_rules.map((r: any, i: number) => {
+                const ruleStages = stages.filter((s: any) => !r.pipeline_id || s.pipeline_id === r.pipeline_id);
+                return (
+                <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end p-2 rounded-md border border-border/60">
                   <div>
                     <Label className="text-xs">Palavra-chave / intenção</Label>
                     <Input value={r.keyword} onChange={(e) => updateRoutingRule(i, { keyword: e.target.value })} placeholder="Ex: comprar, fechar, agendar" />
                   </div>
                   <div>
-                    <Label className="text-xs">Mover para etapa</Label>
+                    <Label className="text-xs">Pipeline</Label>
                     <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                      value={r.stage_id} onChange={(e) => updateRoutingRule(i, { stage_id: e.target.value })}>
+                      value={r.pipeline_id || ""} onChange={(e) => updateRoutingRule(i, { pipeline_id: e.target.value, stage_id: "" })}>
                       <option value="">Selecione</option>
-                      {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Etapa</Label>
+                    <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                      value={r.stage_id || ""} onChange={(e) => updateRoutingRule(i, { stage_id: e.target.value })}
+                      disabled={!r.pipeline_id}>
+                      <option value="">{r.pipeline_id ? "Selecione" : "Escolha pipeline"}</option>
+                      {ruleStages.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
                   <Button size="icon" variant="ghost" onClick={() => removeRoutingRule(i)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
-              ))}
+                );
+              })}
             </Card>
 
             <Card className="p-4 space-y-3">

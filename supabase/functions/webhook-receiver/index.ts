@@ -740,7 +740,14 @@ Deno.serve(async (req) => {
   let transcript = '';
   let imageDescription = '';
   let inboundContent = msg.content;
-  if (msg.media_type === 'audio' && msg.media_url && (agent?.transcribe_audio !== false)) {
+  // Force transcription when audio arrives. If "reply_to_audio_with_audio" is OFF,
+  // the agent must still understand the audio (transcribe → respond as text).
+  const mustTranscribe = msg.media_type === 'audio' && msg.media_url && (
+    agent?.transcribe_audio !== false ||
+    (agent?.voice_enabled && agent?.reply_to_audio_with_audio === false) ||
+    !agent?.voice_enabled
+  );
+  if (mustTranscribe) {
     transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
     if (transcript) {
       inboundContent = transcript;
@@ -948,7 +955,9 @@ Deno.serve(async (req) => {
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
-        const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && openaiKey;
+        const voiceProv = agent.voice_provider || 'omni';
+        const hasVoiceKey = voiceProv === 'elevenlabs' ? !!elevenKey : !!(openaiKey || LOVABLE_API_KEY);
+        const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && hasVoiceKey;
 
         // Anexar links nomeados ao final do texto se existirem nos itens selecionados
         const linksToAppend = selected.flatMap((s: any) => Array.isArray(s.external_links) ? s.external_links : []).slice(0, 4);
@@ -959,7 +968,7 @@ Deno.serve(async (req) => {
         if (waCfg?.is_active) {
           if (shouldReplyWithVoice) {
             if (agent.simulate_recording !== false) await sendPresence(waCfg, msg.phone, 'recording');
-            const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey);
+            const audioDataUrl = await generateTtsBase64(reply, agent.voice_id || 'alloy', openaiKey, voiceProv, elevenKey);
             if (audioDataUrl) {
               try { delivery = await sendWhatsAppAudio(waCfg, msg.phone, audioDataUrl) || delivery; voiceUsed = delivery.ok; }
               catch (e) { console.error('audio send fail', e); }
