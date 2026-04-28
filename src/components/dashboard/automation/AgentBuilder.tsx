@@ -155,17 +155,37 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     understand_images: true,
   });
 
+  const [modelCosts, setModelCosts] = useState<any[]>([]);
+  const [ownKeys, setOwnKeys] = useState<any[]>([]);
   useEffect(() => {
     if (!user || !open) return;
     (async () => {
-      const [pl, st, pr] = await Promise.all([
+      const [pl, st, pr, mc, uk] = await Promise.all([
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
+        supabase.from("model_credit_costs").select("*").eq("is_active", true),
+        supabase.from("user_api_keys").select("provider,scope,label,is_active").eq("user_id", user.id).eq("is_active", true),
       ]);
+      // Synthesize provider entries from own keys (so user can pick "use my OpenAI key")
+      const synthetic = (uk.data || [])
+        .filter((k: any) => {
+          const sc = (k.scope || "all").split(",").map((s: string) => s.trim());
+          return sc.includes("all") || sc.includes("chat");
+        })
+        .map((k: any) => ({
+          id: `own:${k.provider}`,
+          provider: k.provider,
+          label: `Minha chave (${k.provider})`,
+          is_default: false,
+          is_own_key: true,
+        }));
+      const all = [...(pr.data || []), ...synthetic];
+      setProviders(all);
+      setOwnKeys(uk.data || []);
       setPipelines(pl.data || []);
       setStages(st.data || []);
-      setProviders(pr.data || []);
+      setModelCosts(mc.data || []);
     })();
   }, [user, open]);
 
