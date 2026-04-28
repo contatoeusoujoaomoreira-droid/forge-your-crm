@@ -292,7 +292,7 @@ export default function AutomationHub() {
     else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
   };
 
-
+  const reloadAgents = async () => {
     if (!user) return;
     const { data } = await supabase.from("ai_agents").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
     setAgents(data || []);
