@@ -592,6 +592,30 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                       </select>
                     </div>
                   </div>
+
+                  {provKey === 'elevenlabs' && (
+                    elevenConnected ? (
+                      <div className="flex items-center gap-2 text-xs text-primary border border-primary/30 bg-primary/5 rounded-md p-2">
+                        ✓ ElevenLabs conectado. Usando sua chave para gerar voz premium.
+                      </div>
+                    ) : (
+                      <div className="border border-dashed border-primary/40 rounded-md p-3 space-y-2">
+                        <div className="text-xs font-medium">Conectar ElevenLabs</div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Cole sua API Key do ElevenLabs (obtenha em{" "}
+                          <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" className="underline">elevenlabs.io → Settings → API Keys</a>).
+                        </p>
+                        <div className="flex gap-2">
+                          <Input type="password" placeholder="sk_..." value={elevenKeyInput}
+                            onChange={(e) => setElevenKeyInput(e.target.value)} />
+                          <Button size="sm" onClick={saveElevenLabsKey} disabled={elevenSaving}>
+                            {elevenSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Conectar"}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  )}
+
                   <Button size="sm" variant="outline" onClick={async () => {
                     try {
                       const text = `Olá! Eu sou ${form.display_name || form.name || "seu agente"}. Como posso ajudar?`;
@@ -604,8 +628,26 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                       } else if (data?.engine === "browser" && "speechSynthesis" in window) {
                         const u = new SpeechSynthesisUtterance(data.text || text);
                         u.lang = "pt-BR";
-                        window.speechSynthesis.speak(u);
-                        toast.success("Reproduzindo via voz nativa do navegador (Omni Audio)");
+                        // Pick browser voice matching gender hint of the selected voice id
+                        const femaleIds = ["nova", "shimmer", "alloy"];
+                        const wantFemale = femaleIds.includes(form.voice_id);
+                        const pickVoice = () => {
+                          const voices = window.speechSynthesis.getVoices().filter(v => /pt(-|_)?BR|portuguese/i.test(v.lang) || /portugu/i.test(v.name));
+                          const list = voices.length ? voices : window.speechSynthesis.getVoices();
+                          const femaleHints = /female|fem|maria|luciana|joana|helena|sofia|google português do brasil|microsoft maria|google.*female/i;
+                          const maleHints = /male|masc|ricardo|daniel|google.*male|microsoft daniel/i;
+                          const matched = list.find(v => wantFemale ? femaleHints.test(v.name) : maleHints.test(v.name));
+                          return matched || list[0];
+                        };
+                        const apply = () => {
+                          const v = pickVoice();
+                          if (v) u.voice = v;
+                          window.speechSynthesis.speak(u);
+                        };
+                        if (window.speechSynthesis.getVoices().length === 0) {
+                          window.speechSynthesis.onvoiceschanged = () => apply();
+                        } else apply();
+                        toast.success(`Reproduzindo voz ${wantFemale ? 'feminina' : 'masculina'} (nativa do navegador)`);
                       } else {
                         toast.error("Não foi possível gerar a prévia. Verifique o provedor e as chaves.");
                       }
@@ -614,7 +656,12 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                     <Play className="h-4 w-4 mr-1" /> Ouvir prévia da voz
                   </Button>
                   <div className="flex items-center justify-between border-t pt-3">
-                    <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                    <div>
+                      <Label className="text-sm">Responder áudio recebido com áudio</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Desativado: o agente transcreve o áudio do lead e responde por <b>texto</b>.
+                      </p>
+                    </div>
                     <Switch checked={form.reply_to_audio_with_audio !== false}
                       onCheckedChange={(v) => setForm({ ...form, reply_to_audio_with_audio: v })} />
                   </div>
