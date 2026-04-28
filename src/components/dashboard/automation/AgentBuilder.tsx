@@ -739,6 +739,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                 </div>
                 <Button size="sm" variant="outline" onClick={addRoutingRule}><Plus className="h-4 w-4 mr-1" />Adicionar regra</Button>
               </div>
+              <div className="text-xs p-2 rounded-md bg-muted/40 border border-dashed leading-relaxed">
+                <strong>Como o sistema escolhe o agente:</strong> 1) agente já vinculado à conversa → 2) regra de roteamento por palavra-chave (abaixo) → 3) pipeline/etapa atual do lead → 4) agente padrão da conexão WhatsApp. Permite ter vários agentes ativos no mesmo número, cada um especializado.
+              </div>
               {form.routing_rules.length === 0 ? (
                 <div className="text-center py-6 border border-dashed rounded-lg">
                   <GitBranch className="h-8 w-8 mx-auto text-muted-foreground mb-2" />

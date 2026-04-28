@@ -16,6 +16,7 @@ import FormPublic from "./pages/FormPublic";
 import SchedulePublic from "./pages/SchedulePublic";
 import CheckoutPublic from "./pages/CheckoutPublic";
 import NotFound from "./pages/NotFound";
+import UserThemeSync from "./components/UserThemeSync";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <UserThemeSync />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
