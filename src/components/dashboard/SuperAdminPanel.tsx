@@ -166,8 +166,13 @@ const SuperAdminPanel = () => {
     if (!confirm(`Alterar hierarquia para "${tier}"? Isso afeta o acesso ao painel.`)) return;
     try {
       await callEdge({ action: "update_user", managed_user_id: u.id, tier });
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, tier } : x));
-      toast({ title: "Hierarquia atualizada!" });
+      // Mirror server-side tier→plan mapping locally so UI stays in sync immediately
+      const derivedPlan =
+        tier === "super_admin" ? "enterprise" :
+        tier === "professional" ? "pro" :
+        tier === "basic" ? "start" : u.plan || null;
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, tier, plan: derivedPlan, ...(tier === "super_admin" ? { credits_balance: 999999, credits_monthly: 999999 } : {}) } : x));
+      toast({ title: "Hierarquia atualizada!", description: tier === "super_admin" ? "Plano definido como Enterprise (ilimitado)." : undefined });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
