@@ -176,10 +176,36 @@ Deno.serve(async (req) => {
           if (providerType === 'openai') endpoint = 'https://api.openai.com/v1/chat/completions';
           else if (providerType === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
         }
-        const { data: knowledge } = await admin.from('agent_knowledge').select('content').eq('agent_id', body.agent_id).limit(10);
+        // === BASE DE CONHECIMENTO CONTEXTUAL ===
+        // Pega todos os itens, faz scoring pela última mensagem do usuário,
+        // e injeta os top-N como contexto. Recursos selecionados são retornados
+        // ao chamador para envio automático (imagens/links nomeados).
+        const { data: knowledge } = await admin.from('agent_knowledge')
+          .select('id, title, category, description, keywords, content, media_urls, external_links, source_url')
+          .eq('agent_id', body.agent_id);
+        const lastUser = [...body.messages].reverse().find(m => m.role === 'user')?.content || '';
+        let selected: any[] = [];
         if (knowledge?.length) {
-          systemPrompt += `\n\nBASE DE CONHECIMENTO:\n${knowledge.map(k => k.content).join('\n\n').slice(0, 4000)}`;
+          selected = findRelevantKnowledge(knowledge, lastUser, 5);
+          // Fallback: se nada combinou, usa os 3 mais recentes (compatibilidade)
+          const baseItems = selected.length ? selected : knowledge.slice(0, 3);
+          const ctx = baseItems.map((k: any) => {
+            const links = Array.isArray(k.external_links) ? k.external_links.map((l: any) => `  - ${l.title}: ${l.url}`).join('\n') : '';
+            const imgs = Array.isArray(k.media_urls) && k.media_urls.length ? `  (${k.media_urls.length} imagem(ns) anexada(s) — disponível para envio)` : '';
+            return [
+              `# ${k.title}${k.category ? ` [${k.category}]` : ''}`,
+              k.description ? `Descrição: ${k.description}` : '',
+              Array.isArray(k.keywords) && k.keywords.length ? `Palavras-chave: ${k.keywords.join(', ')}` : '',
+              k.content ? k.content.slice(0, 1500) : '',
+              links ? `Links:\n${links}` : '',
+              imgs,
+            ].filter(Boolean).join('\n');
+          }).join('\n\n---\n\n').slice(0, 6000);
+
+          systemPrompt += `\n\nBASE DE CONHECIMENTO RELEVANTE PARA ESTA CONVERSA:\n${ctx}\n\nQuando o cliente pedir imagens, fotos ou catálogo, mencione que vai enviar e o sistema anexará automaticamente. Se houver mais de uma opção, organize em lista. Use as descrições e links acima de forma natural.`;
         }
+        // Guarda para retorno
+        (globalThis as any).__selectedKnowledge = selected;
       }
     }
 
