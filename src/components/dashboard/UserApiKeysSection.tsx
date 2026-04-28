@@ -67,6 +67,22 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
   const [label, setLabel] = useState("");
   const [showKeyId, setShowKeyId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scopes, setScopes] = useState<string[]>(["all"]);
+  const [customScope, setCustomScope] = useState("");
+
+  const toggleScope = (id: string) => {
+    setScopes((prev) => {
+      if (id === "all") return ["all"];
+      const next = prev.filter((s) => s !== "all");
+      return next.includes(id) ? next.filter((s) => s !== id) : [...next, id];
+    });
+  };
+  const addCustomScope = () => {
+    const v = customScope.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!v) return;
+    setScopes((prev) => [...prev.filter((s) => s !== "all" && s !== v), v]);
+    setCustomScope("");
+  };
 
   const load = async () => {
     if (!targetUserId) return;
