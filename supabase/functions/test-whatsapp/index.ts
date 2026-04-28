@@ -89,6 +89,37 @@ Deno.serve(async (req) => {
     if (body.mode === 'send_test' && body.phone && body.message) {
       const phone = normalizePhone(body.phone);
       const result = await sendTestMessage(cfg, phone, body.message);
+
+      // Mirror to Chat module: create/find chat client + insert outbound message
+      try {
+        const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        const userId = userData.user.id;
+        let { data: client } = await admin.from('chat_clients').select('*').eq('user_id', userId).eq('phone', phone).maybeSingle();
+        if (!client) {
+          const { data: created } = await admin.from('chat_clients').insert({
+            user_id: userId, phone, name: phone, source: 'whatsapp',
+          }).select().single();
+          client = created;
+        } else {
+          await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
+        }
+        if (client) {
+          await admin.from('messages').insert({
+            user_id: userId,
+            client_id: client.id,
+            lead_id: client.lead_id,
+            direction: 'outbound',
+            channel: 'whatsapp',
+            content: body.message,
+            status: result.ok ? 'sent' : 'failed',
+            sender_phone: phone,
+            metadata: { test: true, external_status: result.status, external_body: result.body },
+          });
+        }
+      } catch (e) {
+        console.error('mirror test message failed', e);
+      }
+
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
