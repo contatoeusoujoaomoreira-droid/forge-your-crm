@@ -9,9 +9,12 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2,
 } from "lucide-react";
+import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
+import { Badge } from "@/components/ui/badge";
 import LeadImporter from "@/components/dashboard/automation/LeadImporter";
+import ImportedListsViewer from "@/components/dashboard/automation/ImportedListsViewer";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/Analytics";
