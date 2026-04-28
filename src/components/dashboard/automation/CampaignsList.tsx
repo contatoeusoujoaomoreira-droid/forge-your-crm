@@ -66,6 +66,7 @@ export default function CampaignsList() {
     if (!user || !editing.name) { toast.error("Nome obrigatório"); return; }
     const payload: any = { ...editing, user_id: user.id };
     if (!payload.agent_id) delete payload.agent_id;
+    if (!payload.flow_id) delete payload.flow_id;
     delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
