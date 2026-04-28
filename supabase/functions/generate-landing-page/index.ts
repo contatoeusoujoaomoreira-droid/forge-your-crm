@@ -1,9 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+async function chargeCredits(req: Request, action: string, quantity = 1, metadata: any = {}) {
+  try {
+    const auth = req.headers.get("Authorization");
+    if (!auth?.startsWith("Bearer ")) return { ok: true, skipped: true };
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
+    const { data: u } = await userClient.auth.getUser();
+    if (!u?.user) return { ok: true, skipped: true };
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data } = await admin.rpc("deduct_credits_by_action", {
+      _user_id: u.user.id, _action: action, _quantity: quantity, _metadata: metadata,
+    });
+    return data as any;
+  } catch (e) {
+    console.error("chargeCredits error:", e);
+    return { ok: true, skipped: true };
+  }
+}
 
 const PROVIDER_ENDPOINTS: Record<string, { url: string; formatBody: (messages: any[], model?: string) => any; formatHeaders: (key: string) => Record<string, string> }> = {
   openai: {
