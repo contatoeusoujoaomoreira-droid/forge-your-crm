@@ -47,6 +47,7 @@ export default function FlowsBuilder() {
   const [agents, setAgents] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [draggingFrom, setDraggingFrom] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
