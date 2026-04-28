@@ -61,7 +61,7 @@ const Dashboard = () => {
   const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
   const planInfo = useUserPlan();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("crm");
+  const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
