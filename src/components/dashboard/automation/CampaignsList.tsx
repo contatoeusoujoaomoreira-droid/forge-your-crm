@@ -19,7 +19,6 @@ export default function CampaignsList() {
   const [editing, setEditing] = useState<any>(null);
   const [showLeads, setShowLeads] = useState<string | null>(null);
   const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
-  const [eligibleCount, setEligibleCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
