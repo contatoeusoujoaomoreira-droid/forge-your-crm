@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Upload, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Upload, FileSpreadsheet, CheckCircle2, ListPlus } from "lucide-react";
 
 const FIELDS = [
   { key: "name", label: "Nome" },
