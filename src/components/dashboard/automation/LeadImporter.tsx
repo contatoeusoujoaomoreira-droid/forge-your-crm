@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,7 +45,7 @@ export default function LeadImporter() {
   const [manualText, setManualText] = useState("");
 
   // Load pipelines on mount
-  useState(() => {
+  useEffect(() => {
     if (!user) return;
     (async () => {
       const { data: pipes } = await supabase.from("pipelines").select("*").eq("user_id", user.id);
@@ -53,7 +53,7 @@ export default function LeadImporter() {
       const { data: sts } = await supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position");
       setStages(sts || []);
     })();
-  });
+  }, [user]);
 
   const handleFile = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
@@ -198,6 +198,37 @@ export default function LeadImporter() {
             </div>
             <Badge variant="secondary">{rows.length} linhas detectadas</Badge>
           </Card>
+
+          <Card className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Pré-visualização da lista ({rows.length})</h3>
+              <Button size="sm" variant="ghost" onClick={() => { setRows([]); setHeaders([]); setMapping({}); }}>Limpar</Button>
+            </div>
+            <div className="max-h-64 overflow-auto rounded border border-border">
+              <table className="w-full text-xs">
+                <thead className="bg-secondary/40 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2">#</th>
+                    <th className="text-left p-2">Nome</th>
+                    <th className="text-left p-2">Telefone</th>
+                    <th className="text-left p-2">E-mail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 200).map((r, i) => (
+                    <tr key={i} className="border-t border-border/50">
+                      <td className="p-2 text-muted-foreground">{i + 1}</td>
+                      <td className="p-2">{mapping.name ? r[mapping.name] : "—"}</td>
+                      <td className="p-2 font-mono">{mapping.phone ? normalizePhone(String(r[mapping.phone] || "")) : "—"}</td>
+                      <td className="p-2">{mapping.email ? r[mapping.email] : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {rows.length > 200 && <p className="text-[10px] text-muted-foreground">Mostrando primeiras 200 de {rows.length} linhas.</p>}
+          </Card>
+
 
           <Card className="p-6 space-y-3">
             <h3 className="font-semibold">Destino CRM</h3>
