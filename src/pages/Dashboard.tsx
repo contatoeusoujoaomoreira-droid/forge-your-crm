@@ -276,7 +276,7 @@ const Dashboard = () => {
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {activeTab === "crm" && <CRMKanban />}
             {activeTab === "clients" && <CRMClients />}
-            {activeTab === "import" && <LeadImporter />}
+            {activeTab === "import" && <LeadImporter onShowImported={() => setActiveTab("imported")} />}
             {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}

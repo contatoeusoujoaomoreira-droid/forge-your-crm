@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, FileSpreadsheet, CheckCircle2, ListPlus } from "lucide-react";
+import { toast } from "sonner";
+import { Upload, FileSpreadsheet, CheckCircle2, ListPlus, Snowflake, UserCheck, Layers, Users } from "lucide-react";
 
 const FIELDS = [
   { key: "name", label: "Nome" },
@@ -21,6 +21,14 @@ const FIELDS = [
   { key: "tags", label: "Tags (separadas por ;)" },
 ];
 
+type ListType = "leads" | "clients" | "mixed";
+
+const LIST_TYPES: { id: ListType; label: string; icon: any; description: string }[] = [
+  { id: "leads", label: "Leads / Contatos Novos", icon: Snowflake, description: "Lista fria, prospecção. Contatos que ainda não são clientes." },
+  { id: "clients", label: "Clientes Efetivados", icon: UserCheck, description: "Clientes que já compraram. Migração de carteira." },
+  { id: "mixed", label: "Misto", icon: Layers, description: "O arquivo contém leads e clientes. Mapeie a coluna indicadora." },
+];
+
 const normalizePhone = (raw: string) => {
   const digits = (raw || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -29,8 +37,15 @@ const normalizePhone = (raw: string) => {
   return digits;
 };
 
-export default function LeadImporter() {
+interface Props {
+  onShowImported?: () => void;
+}
+
+export default function LeadImporter({ onShowImported }: Props) {
   const { user } = useAuth();
+  const [mode, setMode] = useState<"file" | "paste">("file");
+  const [listType, setListType] = useState<ListType>("leads");
+  const [campaignTag, setCampaignTag] = useState("");
   const [rows, setRows] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -38,26 +53,31 @@ export default function LeadImporter() {
   const [stages, setStages] = useState<any[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
   const [stageId, setStageId] = useState<string>("");
-  const [tagInicial, setTagInicial] = useState("");
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [manualText, setManualText] = useState("");
+  const [importedCount, setImportedCount] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load pipelines on mount
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: pipes } = await supabase.from("pipelines").select("*").eq("user_id", user.id);
+      const [{ data: pipes }, { data: sts }, { data: ic }] = await Promise.all([
+        supabase.from("pipelines").select("*").eq("user_id", user.id),
+        supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
+        supabase.from("imported_contacts").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+      ]);
       setPipelines(pipes || []);
-      const { data: sts } = await supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position");
       setStages(sts || []);
+      setImportedCount((ic as any)?.count || 0);
     })();
   }, [user]);
 
   const handleFile = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext === "csv") {
+    if (ext === "csv" || ext === "txt") {
       Papa.parse(file, {
         header: true, skipEmptyLines: true,
         complete: (res) => {
@@ -77,7 +97,7 @@ export default function LeadImporter() {
       setHeaders(hdrs);
       autoMap(hdrs);
     } else {
-      toast.error("Use arquivos CSV ou XLSX");
+      toast.error("Use arquivos CSV, TXT ou Excel (.xlsx, .xls)");
     }
   };
 
@@ -98,75 +118,61 @@ export default function LeadImporter() {
   const importNow = async () => {
     if (!user) return;
     setImporting(true);
-    setImported(0);
-    setSkipped(0);
+    setImported(0); setSkipped(0);
     let ok = 0, skip = 0;
 
-    // Create the imported list record (groups all contacts of this batch)
-    const listName = tagInicial || `Importação ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    const listName = campaignTag || `Importação ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
     const { data: list } = await supabase.from("imported_lists").insert({
-      user_id: user.id, name: listName, list_type: "leads", tag: tagInicial || null,
+      user_id: user.id, name: listName, list_type: listType, tag: campaignTag || null,
     }).select().single();
 
     for (const row of rows) {
       const phone = normalizePhone(String(row[mapping.phone] || ""));
-      if (!phone) { skip++; continue; }
-      const name = String(row[mapping.name] || phone);
-      const email = mapping.email ? String(row[mapping.email] || "") : null;
-      const company = mapping.company ? String(row[mapping.company] || "") : null;
-      const source = mapping.source ? String(row[mapping.source] || "import") : "import";
-      const tagsRaw = mapping.tags ? String(row[mapping.tags] || "") : "";
-      const tags = [
-        ...(tagsRaw ? tagsRaw.split(/[;,]/).map((s) => s.trim()).filter(Boolean) : []),
-        ...(tagInicial ? [tagInicial] : []),
-      ];
+      const name = mapping.name ? String(row[mapping.name] || "") : "";
+      const email = mapping.email ? String(row[mapping.email] || "") : "";
+      if (!phone && !email && !name) { skip++; continue; }
 
-      // Dedup: by phone for this user
-      const { data: existing } = await supabase
-        .from("leads").select("id").eq("user_id", user.id).eq("phone", phone).maybeSingle();
+      const { data: existing } = phone ? await supabase
+        .from("imported_contacts").select("id").eq("user_id", user.id).eq("phone", phone).maybeSingle()
+        : { data: null };
 
-      let leadId: string | null = existing?.id || null;
-      let status: "pending" | "converted" | "duplicated" = "pending";
-
-      if (existing) {
-        skip++;
-        status = "duplicated";
-      } else {
-        const { data: ins, error } = await supabase.from("leads").insert({
-          user_id: user.id, name, email, phone, company, source,
-          tags, status: "new",
-          pipeline_id: pipelineId || null, stage_id: stageId || null,
-        }).select("id").single();
-        if (error) { skip++; status = "duplicated"; }
-        else { ok++; leadId = ins.id; status = "converted"; }
-      }
+      if (existing) { skip++; continue; }
 
       if (list) {
-        await supabase.from("imported_contacts").insert({
-          user_id: user.id, list_id: list.id, phone, email, name,
-          status, lead_id: leadId,
-          metadata: { company, source, tags },
+        const { error } = await supabase.from("imported_contacts").insert({
+          user_id: user.id, list_id: list.id, phone: phone || null, email: email || null,
+          name: name || phone || email || "Sem nome", status: "pending",
+          metadata: {
+            company: mapping.company ? row[mapping.company] : null,
+            source: mapping.source ? row[mapping.source] : "import",
+            tags: [
+              ...(mapping.tags ? String(row[mapping.tags] || "").split(/[;,]/).map(s => s.trim()).filter(Boolean) : []),
+              ...(campaignTag ? [campaignTag] : []),
+            ],
+            list_type: listType,
+            target_pipeline_id: pipelineId || null,
+            target_stage_id: stageId || null,
+          },
         });
+        if (error) skip++; else ok++;
       }
     }
 
     if (list) {
-      await supabase.from("imported_lists").update({
-        total_contacts: rows.length, total_converted: ok,
-      }).eq("id", list.id);
+      await supabase.from("imported_lists").update({ total_contacts: ok }).eq("id", list.id);
     }
 
-    setImported(ok);
-    setSkipped(skip);
+    setImported(ok); setSkipped(skip);
     setImporting(false);
-    toast.success(`${ok} importados • ${skip} ignorados • Lista "${listName}" criada`);
+    setImportedCount(c => c + ok);
+    toast.success(`${ok} contatos importados • ${skip} ignorados • Lista "${listName}" criada. Converta-os em "Importados".`);
+    setRows([]); setHeaders([]); setMapping({}); setManualText("");
   };
 
   const loadManualNumbers = () => {
     const lines = manualText.split(/[\n,;]/).map(s => s.trim()).filter(Boolean);
     if (lines.length === 0) { toast.error("Cole ao menos um número"); return; }
     const data = lines.map(line => {
-      // Allow "Nome - 5511999999999" or just number
       const m = line.match(/^(.+?)\s*[-–|]\s*(.+)$/);
       const name = m ? m[1].trim() : "";
       const phone = m ? m[2].trim() : line;
@@ -175,92 +181,147 @@ export default function LeadImporter() {
     setRows(data);
     setHeaders(["Nome", "Telefone"]);
     setMapping({ name: "Nome", phone: "Telefone" });
-    toast.success(`${data.length} números carregados — confira o destino e clique Importar`);
+    toast.success(`${data.length} contatos carregados — clique Importar`);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold">Importar arquivo (CSV / XLSX)</h3>
-          </div>
-          <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer" />
-          <p className="text-xs text-muted-foreground mt-2">Formatos suportados: .csv, .xlsx, .xls. Cabeçalhos serão mapeados automaticamente.</p>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <ListPlus className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold">Digitar números manualmente</h3>
-          </div>
-          <Textarea
-            rows={5}
-            value={manualText}
-            onChange={(e) => setManualText(e.target.value)}
-            placeholder={"Um por linha. Ex:\nJoão Silva - 5511999999999\n5521988887777"}
-          />
-          <Button className="mt-2 w-full" variant="secondary" onClick={loadManualNumbers}>
-            <ListPlus className="h-4 w-4 mr-1" />Carregar lista
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Upload className="h-5 w-5 text-primary" /> Importar Contatos
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Importe via arquivo ou cole sua lista. Os contatos ficam em "Importados" para conversão.
+          </p>
+        </div>
+        {onShowImported && (
+          <Button variant="outline" size="sm" onClick={onShowImported}>
+            <Users className="h-4 w-4 mr-1" />
+            Ver {importedCount} contatos importados
           </Button>
-        </Card>
+        )}
       </div>
 
+      {/* Tag de campanha */}
+      <Card className="p-4">
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Tag de campanha (opcional)</Label>
+        <Input
+          className="mt-1"
+          placeholder="ex: black-friday-2025, leads-instagram-jan"
+          value={campaignTag}
+          onChange={(e) => setCampaignTag(e.target.value)}
+        />
+      </Card>
+
+      {/* Tipo de lista */}
+      <div>
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Tipo de lista</Label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {LIST_TYPES.map(t => {
+            const Icon = t.icon;
+            const active = listType === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setListType(t.id)}
+                className={`text-left p-4 rounded-lg border-2 transition ${active ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"}`}
+              >
+                <Icon className={`h-5 w-5 mb-2 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                <p className="font-semibold text-sm">{t.label}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2 border-b border-border">
+        <button
+          onClick={() => setMode("file")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${mode === "file" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <FileSpreadsheet className="h-4 w-4 inline mr-1" /> Importar Arquivo
+        </button>
+        <button
+          onClick={() => setMode("paste")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${mode === "paste" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <ListPlus className="h-4 w-4 inline mr-1" /> Colar Contatos
+        </button>
+      </div>
+
+      {/* Upload area */}
+      {mode === "file" ? (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault(); setDragOver(false);
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition ${dragOver ? "border-primary bg-primary/10" : "border-border hover:border-primary/40 bg-card"}`}
+        >
+          <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-60" />
+          <p className="text-base font-semibold">Arraste seu arquivo aqui</p>
+          <p className="text-sm text-muted-foreground mt-1">ou clique para selecionar</p>
+          <Button variant="secondary" size="sm" className="mt-4" type="button">Selecionar arquivo</Button>
+          <p className="text-xs text-muted-foreground mt-3">CSV, TXT, Excel (.xlsx, .xls) — aceita listas com apenas telefone, email ou nome</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => e.target.files && handleFile(e.target.files[0])}
+          />
+        </div>
+      ) : (
+        <Card className="p-4 space-y-3">
+          <Label className="text-xs">Cole sua lista (um contato por linha)</Label>
+          <Textarea
+            rows={6}
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder={"João Silva - 5511999999999\n5521988887777\nMaria - maria@email.com"}
+          />
+          <Button onClick={loadManualNumbers} variant="secondary">
+            <ListPlus className="h-4 w-4 mr-1" /> Carregar lista
+          </Button>
+        </Card>
+      )}
+
+      {/* Mapping & preview */}
       {rows.length > 0 && (
         <>
-          <Card className="p-6 space-y-3">
-            <h3 className="font-semibold flex items-center gap-2"><Upload className="h-4 w-4" />Mapeamento de Colunas</h3>
-            <div className="grid grid-cols-2 gap-3">
+          <Card className="p-4 space-y-3">
+            <h3 className="font-semibold flex items-center gap-2 text-sm">
+              <Upload className="h-4 w-4" /> Mapeamento de Colunas
+              <Badge variant="secondary" className="ml-auto">{rows.length} linhas</Badge>
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {FIELDS.map((f) => (
                 <div key={f.key}>
                   <Label className="text-xs">{f.label}</Label>
-                  <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
-                    value={mapping[f.key] || ""} onChange={(e) => setMapping({ ...mapping, [f.key]: e.target.value })}>
+                  <select
+                    className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                    value={mapping[f.key] || ""}
+                    onChange={(e) => setMapping({ ...mapping, [f.key]: e.target.value })}
+                  >
                     <option value="">— Não mapear —</option>
                     {headers.map((h) => <option key={h} value={h}>{h}</option>)}
                   </select>
                 </div>
               ))}
             </div>
-            <Badge variant="secondary">{rows.length} linhas detectadas</Badge>
           </Card>
 
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Pré-visualização da lista ({rows.length})</h3>
-              <Button size="sm" variant="ghost" onClick={() => { setRows([]); setHeaders([]); setMapping({}); }}>Limpar</Button>
-            </div>
-            <div className="max-h-64 overflow-auto rounded border border-border">
-              <table className="w-full text-xs">
-                <thead className="bg-secondary/40 sticky top-0">
-                  <tr>
-                    <th className="text-left p-2">#</th>
-                    <th className="text-left p-2">Nome</th>
-                    <th className="text-left p-2">Telefone</th>
-                    <th className="text-left p-2">E-mail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 200).map((r, i) => (
-                    <tr key={i} className="border-t border-border/50">
-                      <td className="p-2 text-muted-foreground">{i + 1}</td>
-                      <td className="p-2">{mapping.name ? r[mapping.name] : "—"}</td>
-                      <td className="p-2 font-mono">{mapping.phone ? normalizePhone(String(r[mapping.phone] || "")) : "—"}</td>
-                      <td className="p-2">{mapping.email ? r[mapping.email] : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {rows.length > 200 && <p className="text-[10px] text-muted-foreground">Mostrando primeiras 200 de {rows.length} linhas.</p>}
-          </Card>
-
-
-          <Card className="p-6 space-y-3">
-            <h3 className="font-semibold">Destino CRM</h3>
-            <div className="grid grid-cols-3 gap-3">
+          <Card className="p-4 space-y-3">
+            <h3 className="font-semibold text-sm">Destino sugerido (aplicado na conversão)</h3>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Pipeline</Label>
                 <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
@@ -274,16 +335,12 @@ export default function LeadImporter() {
                 <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
                   value={stageId} onChange={(e) => setStageId(e.target.value)}>
                   <option value="">Primeira</option>
-                  {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {stages.filter(s => !pipelineId || s.pipeline_id === pipelineId).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
-              <div>
-                <Label className="text-xs">Tag inicial</Label>
-                <Input value={tagInicial} onChange={(e) => setTagInicial(e.target.value)} placeholder="ex: importacao-jan" />
-              </div>
             </div>
-            <Button onClick={importNow} disabled={importing || !mapping.phone}>
-              {importing ? "Importando..." : `Importar ${rows.length} leads`}
+            <Button onClick={importNow} disabled={importing || (!mapping.phone && !mapping.email && !mapping.name)} className="w-full">
+              {importing ? "Importando..." : `Importar ${rows.length} contatos`}
             </Button>
             {imported > 0 && (
               <p className="text-sm flex items-center gap-2 text-primary">

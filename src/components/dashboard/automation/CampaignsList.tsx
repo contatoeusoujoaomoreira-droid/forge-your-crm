@@ -14,6 +14,8 @@ export default function CampaignsList() {
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
   const [showLeads, setShowLeads] = useState<string | null>(null);
   const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
@@ -21,18 +23,23 @@ export default function CampaignsList() {
 
   const load = async () => {
     if (!user) return;
-    const [c, a] = await Promise.all([
+    const [c, a, p, s] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("pipelines").select("*").eq("user_id", user.id),
+      supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
+    setPipelines(p.data || []);
+    setStages(s.data || []);
   };
   useEffect(() => { load(); }, [user]);
 
   const newCampaign = () => setEditing({
     name: "", description: "", agent_id: "", message_template: "Olá {{name}}, tudo bem?",
     daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
+    source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
   });
 
   const save = async () => {
@@ -130,7 +137,84 @@ export default function CampaignsList() {
             <Input type="number" value={editing.delay_max_seconds} onChange={(e) => setEditing({ ...editing, delay_max_seconds: +e.target.value })} />
           </div>
         </div>
-        <div className="flex gap-2">
+
+        {/* Source pipelines */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pipelines/Etapas de origem (leads que entram na campanha)</Label>
+          <div className="space-y-2 max-h-60 overflow-y-auto rounded-md border border-border p-2 bg-secondary/20">
+            {pipelines.length === 0 && <p className="text-xs text-muted-foreground p-2">Crie pipelines no CRM primeiro.</p>}
+            {pipelines.map(p => {
+              const pStages = stages.filter((s: any) => s.pipeline_id === p.id);
+              const sourceArr: any[] = Array.isArray(editing.source_pipelines) ? editing.source_pipelines : [];
+              const entry = sourceArr.find((x: any) => x.pipeline_id === p.id);
+              const checked = !!entry;
+              const stageIds: string[] = entry?.stage_ids || [];
+              return (
+                <div key={p.id} className="space-y-1">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input type="checkbox" checked={checked} onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...sourceArr.filter((x: any) => x.pipeline_id !== p.id), { pipeline_id: p.id, stage_ids: pStages.map((s: any) => s.id) }]
+                        : sourceArr.filter((x: any) => x.pipeline_id !== p.id);
+                      setEditing({ ...editing, source_pipelines: next });
+                    }} />
+                    {p.name}
+                  </label>
+                  {checked && pStages.length > 0 && (
+                    <div className="ml-6 flex flex-wrap gap-1">
+                      {pStages.map((s: any) => {
+                        const on = stageIds.includes(s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              const newStages = on ? stageIds.filter(x => x !== s.id) : [...stageIds, s.id];
+                              const next = sourceArr.map((x: any) => x.pipeline_id === p.id ? { ...x, stage_ids: newStages } : x);
+                              setEditing({ ...editing, source_pipelines: next });
+                            }}
+                            className={`text-[11px] px-2 py-0.5 rounded-full border ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}
+                          >
+                            {s.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {(editing.source_pipelines || []).reduce((acc: number, x: any) => acc + (x.stage_ids?.length || 0), 0)} etapa(s) selecionada(s)
+          </p>
+        </div>
+
+        {/* Target pipeline/stage */}
+        <div className="border-t border-border pt-3 grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Pipeline destino (após resposta)</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              value={editing.target_pipeline_id || ""}
+              onChange={(e) => setEditing({ ...editing, target_pipeline_id: e.target.value, target_stage_id: "" })}>
+              <option value="">— Manter atual —</option>
+              {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs">Etapa destino</Label>
+            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              value={editing.target_stage_id || ""}
+              onChange={(e) => setEditing({ ...editing, target_stage_id: e.target.value })}>
+              <option value="">— Primeira da pipeline —</option>
+              {stages.filter((s: any) => !editing.target_pipeline_id || s.pipeline_id === editing.target_pipeline_id).map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-border">
           <Button onClick={save}>Salvar</Button>
           <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
         </div>

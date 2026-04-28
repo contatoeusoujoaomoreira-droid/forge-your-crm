@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; tags?: string[] | null; }
@@ -32,19 +32,28 @@ export default function InboxPage() {
   const [tagInput, setTagInput] = useState("");
   const [copilotSugs, setCopilotSugs] = useState<string[]>([]);
   const [loadingCopilot, setLoadingCopilot] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [noteInput, setNoteInput] = useState("");
+  const [composeMode, setComposeMode] = useState<"reply" | "note">("reply");
+  const [avgTicket, setAvgTicket] = useState<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial load
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }] = await Promise.all([
+      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }, { data: tm }, { data: orders }] = await Promise.all([
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
+        supabase.from("team_members").select("*").eq("owner_user_id", user.id).eq("is_active", true),
+        supabase.from("orders").select("total").eq("status", "paid").limit(500),
       ]);
       setClients(cs || []); setAgents(ag || []); setPipelines(pls || []); setStages(sts || []);
+      setTeamMembers(tm || []);
+      const totals = (orders || []).map((o: any) => Number(o.total || 0)).filter((n: number) => n > 0);
+      setAvgTicket(totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0);
     })();
   }, [user]);
 
@@ -179,9 +188,45 @@ export default function InboxPage() {
     }
   };
 
+  const addInternalNote = async () => {
+    if (!noteInput.trim() || !selectedId || !user) return;
+    const text = noteInput.trim();
+    setNoteInput("");
+    const { data, error } = await supabase.from("messages").insert({
+      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
+      content: text, direction: "outbound", channel: "internal",
+      is_internal_note: true, status: "sent",
+    }).select().single();
+    if (error) { toast.error(error.message); return; }
+    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
+    if (lead?.id) {
+      await supabase.from("activities").insert({
+        user_id: user.id, lead_id: lead.id, type: "note", description: `Nota interna: ${text}`,
+      });
+    }
+    toast.success("Nota interna adicionada");
+  };
+
+  const transferTo = async (memberUserId: string) => {
+    if (!convState) return;
+    await supabase.from("conversation_state").update({
+      assigned_user_id: memberUserId || null,
+      ai_active: false, mode: "human",
+    }).eq("id", convState.id);
+    setConvState({ ...convState, assigned_user_id: memberUserId || null, ai_active: false, mode: "human" } as any);
+    const member = teamMembers.find(m => m.member_user_id === memberUserId);
+    toast.success(`Conversa transferida${member ? ` para ${member.full_name || member.member_email}` : ""}. IA pausada.`);
+  };
+
+  const onComposerKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); composeMode === "note" ? addInternalNote() : send(); }
+    if (e.altKey && e.key.toLowerCase() === "n") { e.preventDefault(); setComposeMode(m => m === "note" ? "reply" : "note"); }
+  };
+
   const filtered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
+  const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
 
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-3">
@@ -217,20 +262,47 @@ export default function InboxPage() {
           </div>
         ) : (
           <>
-            <div className="p-3 border-b border-border flex items-center justify-between">
-              <div>
-                <p className="font-medium">{selected.name || selected.phone}</p>
-                <p className="text-xs text-muted-foreground">{selected.phone}</p>
+            <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">{selected.name || selected.phone}</p>
+                  <Badge variant={isClient ? "default" : "secondary"} className="text-[10px]">
+                    {isClient ? "Cliente" : "Novo"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
               </div>
-              <Badge variant={convState?.ai_active ? "default" : "secondary"}>
-                {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA Ativa</> : <><User className="h-3 w-3 mr-1" />Humano</>}
-              </Badge>
+              <div className="flex items-center gap-2 shrink-0">
+                {avgTicket > 0 && (
+                  <Badge variant="outline" className="text-[10px] gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    Ticket médio R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                  </Badge>
+                )}
+                <Badge variant={convState?.ai_active ? "default" : "secondary"}>
+                  {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA</> : <><User className="h-3 w-3 mr-1" />Humano</>}
+                </Badge>
+              </div>
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
               {messages.map(m => {
                 const isOut = m.direction === "outbound";
+                const isNote = (m as any).is_internal_note === true || (m as any).channel === "internal";
                 const transcript = m.metadata?.transcript;
                 const imgDesc = m.metadata?.image_description;
+                if (isNote) {
+                  return (
+                    <div key={m.id} className="flex justify-center">
+                      <div className="max-w-[85%] rounded-lg px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+                        <div className="flex items-center gap-1 mb-1 text-[10px] uppercase font-bold opacity-70">
+                          <StickyNote className="h-3 w-3" /> Nota interna
+                        </div>
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className="text-[10px] mt-1 opacity-60">{new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
@@ -267,12 +339,51 @@ export default function InboxPage() {
                 ))}
               </div>
             )}
-            <div className="p-3 border-t border-border flex gap-2">
-              <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
-                <Sparkles className="h-4 w-4" />
-              </Button>
-              <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Digite uma mensagem..." />
-              <Button onClick={send}><Send className="h-4 w-4" /></Button>
+            <div className="border-t border-border">
+              <div className="px-3 pt-2 flex items-center gap-1">
+                <button
+                  onClick={() => setComposeMode("reply")}
+                  className={`text-[11px] px-2 py-1 rounded ${composeMode === "reply" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+                >Responder</button>
+                <button
+                  onClick={() => setComposeMode("note")}
+                  className={`text-[11px] px-2 py-1 rounded flex items-center gap-1 ${composeMode === "note" ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-secondary"}`}
+                >
+                  <StickyNote className="h-3 w-3" /> Nota interna
+                </button>
+                <span className="text-[10px] text-muted-foreground ml-auto hidden md:block">
+                  Enter envia · Alt+N alterna · ✨ copiloto
+                </span>
+              </div>
+              <div className="p-3 flex gap-2">
+                <Button size="icon" variant="outline" onClick={askCopilot} disabled={loadingCopilot} title="Modo Copiloto">
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+                {composeMode === "note" ? (
+                  <>
+                    <Input
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      onKeyDown={onComposerKey}
+                      placeholder="Nota interna (visível apenas para sua equipe)..."
+                      className="border-amber-500/40 focus-visible:ring-amber-500"
+                    />
+                    <Button onClick={addInternalNote} variant="secondary" className="bg-amber-500 hover:bg-amber-600 text-white">
+                      <StickyNote className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={onComposerKey}
+                      placeholder="Digite uma mensagem..."
+                    />
+                    <Button onClick={send}><Send className="h-4 w-4" /></Button>
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -333,6 +444,32 @@ export default function InboxPage() {
               <option value="">Padrão (primeiro ativo)</option>
               {agents.map(a => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
             </select>
+          </div>
+
+          {/* Transfer conversation */}
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+              <UsersIcon className="h-3 w-3" /> Transferir Conversa
+            </p>
+            {teamMembers.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Sem atendentes ativos. Convide em <strong>Configurações → Equipe</strong>.
+              </p>
+            ) : (
+              <select
+                className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                value={convState?.assigned_user_id || ""}
+                onChange={(e) => transferTo(e.target.value)}
+              >
+                <option value="">— Sem atendente atribuído —</option>
+                {teamMembers.filter(m => !!m.member_user_id).map((m: any) => (
+                  <option key={m.id} value={m.member_user_id}>
+                    {m.full_name || m.member_email}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-[10px] text-muted-foreground">Transferir pausa a IA e atribui a conversa ao atendente.</p>
           </div>
 
           {/* Tags */}
