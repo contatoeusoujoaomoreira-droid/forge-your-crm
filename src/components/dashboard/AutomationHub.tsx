@@ -340,7 +340,7 @@ export default function AutomationHub() {
 
         <TabsContent value="whatsapp" className="space-y-4">
           <Card className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h3 className="font-semibold flex items-center gap-2">
                   <MessageCircle className="h-4 w-4 text-primary" />Conexões WhatsApp
@@ -354,170 +354,175 @@ export default function AutomationHub() {
                     "Cada Instance ID só pode estar ATIVO em uma conta por vez.",
                   ]} />
                 </h3>
-                <p className="text-xs text-muted-foreground">Gerencie múltiplas instâncias. Cada uma pode ter seu agente IA próprio.</p>
+                <p className="text-xs text-muted-foreground">Cada conexão é independente, com seu próprio agente, pipeline e tokens.</p>
               </div>
-              <Button size="sm" onClick={newConnection}><Plus className="h-4 w-4 mr-1" />Nova conexão</Button>
-            </div>
-            {waConfigs.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">Nenhuma conexão criada. Preencha o formulário abaixo e salve.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {waConfigs.map((c) => (
-                  <li key={c.id} className={`py-2 px-2 flex items-center justify-between rounded ${waCfg?.id === c.id ? "bg-primary/5" : ""}`}>
-                    <button className="flex-1 text-left" onClick={() => setWaCfg(c)}>
-                      <p className="text-sm font-medium">{c.label || "(sem nome)"} <span className="text-xs text-muted-foreground">· {c.api_type}</span></p>
-                      <p className="text-[11px] text-muted-foreground">{c.instance_id || c.base_url || "—"}</p>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <Switch checked={c.is_active} onCheckedChange={() => toggleConnectionActive(c)} />
-                      <Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Ativa" : "Inativa"}</Badge>
-                      <Button size="sm" variant="ghost" onClick={() => deleteConnection(c.id)}>Excluir</Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card className="p-6 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-semibold">Provedor WhatsApp</h3>
-                <p className="text-xs text-muted-foreground">Conecte qualquer API de WhatsApp (Z-API, BotConversa, Evolution, UltraMsg ou Custom).</p>
-              </div>
-              {PROVIDER_HINTS[waCfg.api_type]?.helpUrl && (
-                <a href={PROVIDER_HINTS[waCfg.api_type].helpUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline shrink-0">Abrir painel do provedor →</a>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Nome desta conexão</Label>
-                <Input value={waCfg.label || ""} onChange={(e) => setWaCfg({ ...waCfg, label: e.target.value })} placeholder="Ex: Comercial · 11 9999-9999" />
-              </div>
-              <div>
-                <Label>Tipo de API</Label>
-                <select className="w-full h-10 px-3 rounded-md border border-input bg-background" value={waCfg.api_type} onChange={(e) => setWaCfg({ ...waCfg, api_type: e.target.value })}>
-                  {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                </select>
-                {PROVIDER_HINTS[waCfg.api_type]?.helpText && (
-                  <p className="text-xs text-muted-foreground mt-1">{PROVIDER_HINTS[waCfg.api_type].helpText}</p>
-                )}
-              </div>
-              <div>
-                <Label>{PROVIDER_HINTS[waCfg.api_type]?.instanceLabel || "Instance ID"}</Label>
-                <Input value={waCfg.instance_id || ""} onChange={(e) => setWaCfg({ ...waCfg, instance_id: e.target.value })} placeholder="3ABC..." />
-              </div>
-              <div className="col-span-2">
-                <Label>URL Base da API</Label>
-                <Input value={waCfg.base_url || ""} onChange={(e) => setWaCfg({ ...waCfg, base_url: e.target.value })} placeholder={PROVIDER_HINTS[waCfg.api_type]?.base} />
-                {waCfg.api_type === "z-api" && (
-                  <p className="text-xs text-muted-foreground mt-1">Cole a URL completa da "API da instância mobile" (já contém Instance ID e Token).</p>
-                )}
-              </div>
-              <div className="col-span-2">
-                <Label>{PROVIDER_HINTS[waCfg.api_type]?.tokenLabel || "Token / API Key"}</Label>
-                <Input type="password" value={waCfg.api_token || ""} onChange={(e) => setWaCfg({ ...waCfg, api_token: e.target.value })} />
-              </div>
-
-              {waCfg.api_type === "z-api" && (
-                <div className="col-span-2">
-                  <Label>Client-Token (Segurança Z-API — obrigatório)</Label>
-                  <Input
-                    type="password"
-                    value={(typeof waCfg.extra_headers === "object" ? waCfg.extra_headers?.["Client-Token"] : "") || ""}
-                    onChange={(e) => {
-                      const cur = typeof waCfg.extra_headers === "object" ? { ...waCfg.extra_headers } : {};
-                      cur["Client-Token"] = e.target.value;
-                      setWaCfg({ ...waCfg, extra_headers: cur });
-                    }}
-                    placeholder="Fa1234567890abcdef..."
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Painel Z-API → sua instância → aba "Segurança" → copie o Client-Token.</p>
-                </div>
-              )}
-
-              <div>
-                <Label>Pipeline padrão para novos leads</Label>
-                <select
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                  value={waCfg.default_pipeline_id || ""}
-                  onChange={(e) => setWaCfg({ ...waCfg, default_pipeline_id: e.target.value || null, default_stage_id: null })}
-                >
-                  <option value="">Pipeline padrão</option>
-                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Etapa inicial</Label>
-                <select
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
-                  value={waCfg.default_stage_id || ""}
-                  onChange={(e) => setWaCfg({ ...waCfg, default_stage_id: e.target.value || null })}
-                >
-                  <option value="">Primeira etapa</option>
-                  {stages.filter(s => !waCfg.default_pipeline_id || s.pipeline_id === waCfg.default_pipeline_id).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-span-2 flex items-center gap-2">
-                <Switch checked={waCfg.auto_create_lead} onCheckedChange={(v) => setWaCfg({ ...waCfg, auto_create_lead: v })} />
-                <Label>Criar lead automaticamente ao receber primeira mensagem</Label>
-              </div>
-
-              <div className="col-span-2 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex flex-col">
-                    <span className="font-semibold">🤖 Resposta automática por IA</span>
-                    <span className="text-[11px] text-muted-foreground font-normal">
-                      Quando ativo, o agente abaixo responde automaticamente toda mensagem recebida no WhatsApp.
-                    </span>
-                  </Label>
-                  <Switch
-                    checked={waCfg.ai_auto_reply !== false}
-                    onCheckedChange={(v) => setWaCfg({ ...waCfg, ai_auto_reply: v })}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Agente IA padrão para responder</Label>
-                  <select
-                    className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
-                    value={waCfg.default_agent_id || ""}
-                    onChange={(e) => setWaCfg({ ...waCfg, default_agent_id: e.target.value || null })}
-                  >
-                    <option value="">Primeiro agente ativo</option>
-                    {agents.filter(a => a.is_active).map(a => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
-                    ))}
-                  </select>
-                  {agents.filter(a => a.is_active).length === 0 && (
-                    <p className="text-[11px] text-amber-600 mt-1">
-                      ⚠ Nenhum agente IA ativo. Crie e ative um agente na aba "Agentes IA".
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="col-span-2">
-                <Label>Headers extras (JSON, opcional)</Label>
-                <Textarea rows={2} value={typeof waCfg.extra_headers === "object" ? JSON.stringify(waCfg.extra_headers) : (waCfg.extra_headers || "")} onChange={(e) => { try { setWaCfg({ ...waCfg, extra_headers: JSON.parse(e.target.value || "{}") }); } catch { setWaCfg({ ...waCfg, extra_headers: e.target.value }); } }} placeholder='{"Client-Token":"..."}' />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch checked={waCfg.is_active} onCheckedChange={(v) => setWaCfg({ ...waCfg, is_active: v })} />
-                <Label>Ativo</Label>
-              </div>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={saveWa}>Salvar</Button>
-              <Button variant="outline" onClick={testWa} disabled={testing}>{testing ? "Testando..." : "Testar Conexão"}</Button>
-              <Button variant="outline" onClick={() => configureWebhook()} disabled={configuringWebhook || waCfg.api_type !== "z-api"}>
-                {configuringWebhook ? "Configurando..." : "Sincronizar recebimento Z-API"}
+              <Button size="sm" onClick={() => {
+                if (draftConn) return;
+                const fresh = { id: null, api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}`, extra_headers: {} };
+                setDraftConn(fresh);
+                setExpandedConn("__draft__");
+              }}>
+                <Plus className="h-4 w-4 mr-1" />Nova conexão
               </Button>
-              <Button variant="outline" onClick={() => setTestMsgOpen(true)}><Send className="h-4 w-4 mr-1" />Enviar mensagem teste</Button>
             </div>
+
+            {(waConfigs.length === 0 && !draftConn) ? (
+              <p className="text-xs text-muted-foreground text-center py-6">Nenhuma conexão criada. Clique em "Nova conexão" para começar.</p>
+            ) : (
+              <div className="space-y-2">
+                {[...(draftConn ? [draftConn] : []), ...waConfigs].map((c: any) => {
+                  const key = c.id || "__draft__";
+                  const isOpen = expandedConn === key;
+                  const isDraft = !c.id;
+                  const hint = PROVIDER_HINTS[c.api_type] || PROVIDER_HINTS["z-api"];
+                  return (
+                    <Collapsible key={key} open={isOpen} onOpenChange={(o) => setExpandedConn(o ? key : null)}>
+                      <div className="border border-border rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between p-3 bg-secondary/30">
+                          <CollapsibleTrigger asChild>
+                            <button className="flex items-center gap-2 flex-1 text-left">
+                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {c.label || "(sem nome)"} {isDraft && <span className="text-[10px] text-amber-600 ml-1">• não salva</span>}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground truncate">{c.api_type} · {c.instance_id ? `ID: ${c.instance_id.slice(0, 6)}...` : (c.base_url || "—")}</p>
+                              </div>
+                            </button>
+                          </CollapsibleTrigger>
+                          <div className="flex items-center gap-2">
+                            {!isDraft && (
+                              <>
+                                <Switch checked={c.is_active} onCheckedChange={() => toggleConnectionActive(c)} />
+                                <Badge variant={c.is_active ? "default" : "secondary"} className="text-[10px]">{c.is_active ? "Ativa" : "Inativa"}</Badge>
+                                <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); deleteConnection(c.id); }} title="Excluir">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
+                            {isDraft && (
+                              <Button size="sm" variant="ghost" onClick={() => { setDraftConn(null); setExpandedConn(null); }}>Cancelar</Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <CollapsibleContent>
+                          <div className="p-4 space-y-3 bg-background border-t border-border">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="col-span-2">
+                                <Label className="text-xs">Nome desta conexão</Label>
+                                <Input value={c.label || ""} onChange={(e) => updateLocalConn(c.id, { label: e.target.value })} placeholder="Ex: Comercial · 11 9999-9999" />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Tipo de API</Label>
+                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => updateLocalConn(c.id, { api_type: e.target.value })}>
+                                  {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-xs">{hint?.instanceLabel || "Instance ID"}</Label>
+                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder="3ABC..." className="font-mono text-xs" />
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs">URL Base da API</Label>
+                                <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={hint?.base} className="font-mono text-xs" />
+                                {c.api_type === "z-api" && (
+                                  <p className="text-[11px] text-muted-foreground mt-1">💡 Cole a URL completa da "API da instância mobile" — o sistema extrai Instance ID e Token automaticamente.</p>
+                                )}
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs flex items-center gap-1">{hint?.tokenLabel || "Token / API Key"} <Eye className="h-3 w-3 text-muted-foreground" /></Label>
+                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder="Token..." />
+                              </div>
+                              {c.api_type === "z-api" && (
+                                <div className="col-span-2">
+                                  <Label className="text-xs">Client-Token (Segurança Z-API)</Label>
+                                  <SecretInput
+                                    value={(typeof c.extra_headers === "object" ? c.extra_headers?.["Client-Token"] : "") || ""}
+                                    onChange={(v) => {
+                                      const cur = typeof c.extra_headers === "object" ? { ...c.extra_headers } : {};
+                                      cur["Client-Token"] = v;
+                                      updateLocalConn(c.id, { extra_headers: cur });
+                                    }}
+                                    placeholder="Fa1234567890abcdef..."
+                                  />
+                                  <p className="text-[11px] text-muted-foreground mt-1">Painel Z-API → sua instância → aba "Segurança" → copie o Client-Token.</p>
+                                </div>
+                              )}
+
+                              <div>
+                                <Label className="text-xs">Pipeline padrão</Label>
+                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.default_pipeline_id || ""} onChange={(e) => updateLocalConn(c.id, { default_pipeline_id: e.target.value || null, default_stage_id: null })}>
+                                  <option value="">— Padrão —</option>
+                                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-xs">Etapa inicial</Label>
+                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.default_stage_id || ""} onChange={(e) => updateLocalConn(c.id, { default_stage_id: e.target.value || null })}>
+                                  <option value="">Primeira etapa</option>
+                                  {stages.filter(s => !c.default_pipeline_id || s.pipeline_id === c.default_pipeline_id).map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="col-span-2 flex items-center gap-2">
+                                <Switch checked={c.auto_create_lead} onCheckedChange={(v) => updateLocalConn(c.id, { auto_create_lead: v })} />
+                                <Label className="text-xs">Criar lead automaticamente ao receber primeira mensagem</Label>
+                              </div>
+
+                              <div className="col-span-2 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="flex flex-col">
+                                    <span className="font-semibold text-sm">🤖 Resposta automática por IA</span>
+                                    <span className="text-[11px] text-muted-foreground font-normal">Agente abaixo responde toda mensagem recebida.</span>
+                                  </Label>
+                                  <Switch checked={c.ai_auto_reply !== false} onCheckedChange={(v) => updateLocalConn(c.id, { ai_auto_reply: v })} />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Agente IA desta conexão</Label>
+                                  <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm" value={c.default_agent_id || ""} onChange={(e) => updateLocalConn(c.id, { default_agent_id: e.target.value || null })}>
+                                    <option value="">Primeiro agente ativo</option>
+                                    {agents.filter(a => a.is_active).map(a => (
+                                      <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+                                    ))}
+                                  </select>
+                                  {agents.filter(a => a.is_active).length === 0 && (
+                                    <p className="text-[11px] text-amber-600 mt-1">⚠ Nenhum agente IA ativo. Crie um na aba "Agentes IA".</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 flex-wrap pt-2 border-t border-border">
+                              <Button size="sm" onClick={() => saveConn(c)} disabled={savingId === (c.id || "__draft__")}>
+                                <Save className="h-4 w-4 mr-1" />{savingId === (c.id || "__draft__") ? "Salvando..." : "Salvar"}
+                              </Button>
+                              {!isDraft && (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => testConn(c)} disabled={testing}>
+                                    <FlaskConical className="h-4 w-4 mr-1" />{testing ? "Testando..." : "Testar"}
+                                  </Button>
+                                  {c.api_type === "z-api" && (
+                                    <Button size="sm" variant="outline" onClick={() => configureWebhook(c)} disabled={configuringWebhook}>
+                                      {configuringWebhook ? "..." : "Sincronizar webhook"}
+                                    </Button>
+                                  )}
+                                  <Button size="sm" variant="outline" onClick={() => { setWaCfg(c); setTestMsgOpen(true); }}>
+                                    <Send className="h-4 w-4 mr-1" />Mensagem teste
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  );
+                })}
+              </div>
+            )}
           </Card>
 
           {testMsgOpen && (
@@ -526,7 +531,7 @@ export default function AutomationHub() {
                 <h3 className="font-semibold flex items-center gap-2"><Send className="h-4 w-4 text-primary" />Disparar mensagem de teste</h3>
                 <Button size="sm" variant="ghost" onClick={() => setTestMsgOpen(false)}>Fechar</Button>
               </div>
-              <p className="text-xs text-muted-foreground">Envia uma mensagem real através do provedor configurado. Use seu próprio número para validar.</p>
+              <p className="text-xs text-muted-foreground">Envia mensagem real através de <strong>{waCfg?.label || "conexão selecionada"}</strong>. Use seu próprio número.</p>
               <div className="grid grid-cols-1 gap-2">
                 <div>
                   <Label>Número (com DDI+DDD, só dígitos)</Label>
@@ -536,7 +541,7 @@ export default function AutomationHub() {
                   <Label>Mensagem</Label>
                   <Textarea rows={2} value={testMsgContent} onChange={(e) => setTestMsgContent(e.target.value)} />
                 </div>
-                <Button onClick={sendTestMessage} disabled={testMsgSending}>
+                <Button onClick={() => sendTestFor(waCfg)} disabled={testMsgSending}>
                   {testMsgSending ? "Enviando..." : "Disparar agora"}
                 </Button>
               </div>
@@ -545,12 +550,11 @@ export default function AutomationHub() {
 
           <Card className="p-6 space-y-3 border-primary/30">
             <h3 className="font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" />Webhook de Recebimento</h3>
-            <p className="text-sm text-muted-foreground">No Z-API, o webhook "Ao receber" precisa apontar para a URL abaixo. Use o botão “Sincronizar recebimento Z-API” para configurar automaticamente.</p>
+            <p className="text-sm text-muted-foreground">No Z-API, o webhook "Ao receber" precisa apontar para a URL abaixo. Use o botão "Sincronizar webhook" em cada conexão para configurar automaticamente.</p>
             <div className="flex gap-2">
               <Input readOnly value={webhookUrl} className="font-mono text-xs" />
               <Button size="icon" variant="outline" onClick={() => copyToClipboard(webhookUrl)}><Copy className="h-4 w-4" /></Button>
             </div>
-            <p className="text-xs text-muted-foreground">Quando o WhatsApp receber uma mensagem, ela será salva no Chat em tempo real e o agente ativo responderá se a IA estiver ligada.</p>
           </Card>
         </TabsContent>
 
