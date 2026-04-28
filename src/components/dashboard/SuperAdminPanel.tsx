@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Trash2, Users, Shield, Eye, EyeOff, Key,
   BarChart3, Globe, FileText, FileQuestion, Calendar, ShoppingCart, LayoutDashboard,
-  RefreshCw, UserPlus, ChevronDown, ChevronRight,
+  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload,
 } from "lucide-react";
 
 interface ManagedUser {
@@ -24,12 +24,16 @@ interface ManagedUser {
 
 const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   crm: { label: "CRM", icon: LayoutDashboard },
+  clients: { label: "Clientes", icon: Users },
+  import: { label: "Importar", icon: Upload },
   analytics: { label: "Analytics", icon: BarChart3 },
   pages: { label: "Pages", icon: Globe },
   forms: { label: "Forms", icon: FileText },
   quiz: { label: "Quiz", icon: FileQuestion },
   schedules: { label: "Agenda", icon: Calendar },
   checkout: { label: "Checkout", icon: ShoppingCart },
+  automation: { label: "Automação", icon: Zap },
+  chat: { label: "Chat", icon: MessageCircle },
 };
 
 const SuperAdminPanel = () => {
