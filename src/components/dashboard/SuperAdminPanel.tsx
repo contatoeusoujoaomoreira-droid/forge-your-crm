@@ -153,23 +153,33 @@ const SuperAdminPanel = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" /> Super Admin
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie usuários, permissões e créditos de IA.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Atualizar
-          </Button>
-          <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
-            <UserPlus className="h-4 w-4 mr-1" /> Novo Usuário
-          </Button>
+          <p className="text-sm text-muted-foreground mt-1">Usuários, créditos, custos e histórico de uso.</p>
         </div>
       </div>
+
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="w-full justify-start flex-wrap h-auto">
+          <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" /> Usuários</TabsTrigger>
+          <TabsTrigger value="requests"><Coins className="h-3 w-3 mr-1" /> Solicitações</TabsTrigger>
+          <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos de crédito</TabsTrigger>
+          <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4 pt-4">
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Atualizar
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Novo Usuário
+            </Button>
+          </div>
 
       {showCreate && (
         <div className="surface-card rounded-xl p-6 space-y-4">
