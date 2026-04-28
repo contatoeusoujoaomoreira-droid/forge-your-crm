@@ -236,7 +236,11 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     delete payload.created_at;
     delete payload.updated_at;
     delete payload.total_tokens_used;
-    if (!payload.ai_provider_config_id) payload.ai_provider_config_id = null;
+    delete payload.is_own_key;
+    // synthetic "own:<provider>" provider id isn't a real FK — store provider type as model prefix instead
+    if (!payload.ai_provider_config_id || String(payload.ai_provider_config_id).startsWith("own:")) {
+      payload.ai_provider_config_id = null;
+    }
     if (!payload.pipeline_id) payload.pipeline_id = null;
     if (!payload.stage_id) payload.stage_id = null;
 
