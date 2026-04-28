@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
       await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role: "user" });
       await supabaseAdmin.from("managed_users").insert({
         email, full_name, user_id: newUser.user.id,
-        permissions: permissions || { pages: true, forms: true, quiz: true, crm: true, checkout: true, schedules: true, analytics: true },
+        permissions: permissions || { crm: true, clients: true, import: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true },
         ai_credits: ai_credits || 100,
         created_by: userId,
       });
