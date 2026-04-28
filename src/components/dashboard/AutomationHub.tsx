@@ -723,6 +723,29 @@ export default function AutomationHub() {
         agent={editingAgent}
         onSaved={() => { reloadAgents(); setAgentBuilderOpen(false); }}
       />
+      <AgentTemplatesModal
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        onPick={(tpl: AgentTemplate) => {
+          setEditingAgent({
+            name: tpl.name,
+            display_name: tpl.display_name,
+            type: tpl.type,
+            tone: tpl.tone,
+            system_prompt: tpl.system_prompt,
+            rules: tpl.rules || "",
+            objections: tpl.objections || "",
+            examples: tpl.examples || "",
+            split_long_messages: tpl.split_long_messages !== false,
+            simulate_typing: tpl.simulate_typing !== false,
+            simulate_recording: tpl.simulate_recording !== false,
+            voice_enabled: !!tpl.voice_enabled,
+            reply_to_audio_with_audio: !!tpl.reply_to_audio_with_audio,
+            is_active: true,
+          });
+          setAgentBuilderOpen(true);
+        }}
+      />
     </div>
   );
 }
