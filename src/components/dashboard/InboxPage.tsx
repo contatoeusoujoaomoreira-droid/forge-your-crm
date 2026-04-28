@@ -178,31 +178,46 @@ export default function InboxPage() {
 
   const createLeadFromClient = async () => {
     const cli = clients.find(c => c.id === selectedId);
-    if (!cli || !user) return;
-    const firstStage = stages[0];
+     if (!cli || !user) return;
+    // Default to first pipeline + its first stage so the lead actually appears in a board
+    const defaultPipeline = pipelines[0];
+    const firstStage = defaultPipeline
+      ? stages.find(s => s.pipeline_id === defaultPipeline.id)
+      : stages[0];
     const { data: newLead, error } = await supabase.from("leads").insert({
-      user_id: user.id, name: cli.name || cli.phone || "Sem nome", phone: cli.phone,
-      stage_id: firstStage?.id, source: "whatsapp_chat", status: "new",
+      user_id: user.id,
+      name: cli.name || cli.phone || "Sem nome",
+      phone: cli.phone,
+      pipeline_id: defaultPipeline?.id || null,
+      stage_id: firstStage?.id,
+      source: "whatsapp_chat",
+      status: "new",
     } as any).select().single();
     if (error) { toast.error(error.message); return; }
     await supabase.from("chat_clients").update({ lead_id: (newLead as any).id }).eq("id", cli.id);
     setLead(newLead);
     setClients(clients.map(c => c.id === cli.id ? { ...c, lead_id: (newLead as any).id } : c));
-    toast.success("Lead criado e vinculado ao CRM");
+    toast.success(`Lead criado em ${defaultPipeline?.name || "CRM"}`);
   };
 
   const movePipeline = async (pipelineId: string) => {
     if (!lead) return;
-    const firstStage = stages.find(s => s.pipeline_id === pipelineId);
-    await supabase.from("leads").update({ pipeline_id: pipelineId, stage_id: firstStage?.id || null } as any).eq("id", lead.id);
-    setLead({ ...lead, pipeline_id: pipelineId, stage_id: firstStage?.id });
-    toast.success("Pipeline atualizado");
+    const firstStage = pipelineId ? stages.find(s => s.pipeline_id === pipelineId) : null;
+    const { error } = await supabase.from("leads")
+      .update({ pipeline_id: pipelineId || null, stage_id: firstStage?.id || null } as any)
+      .eq("id", lead.id);
+    if (error) { toast.error("Erro ao salvar: " + error.message); return; }
+    setLead({ ...lead, pipeline_id: pipelineId || null, stage_id: firstStage?.id || null });
+    const pName = pipelines.find(p => p.id === pipelineId)?.name || "padrão";
+    toast.success(`Movido para pipeline "${pName}"`);
   };
   const moveStage = async (stageId: string) => {
     if (!lead) return;
-    await supabase.from("leads").update({ stage_id: stageId } as any).eq("id", lead.id);
+    const { error } = await supabase.from("leads").update({ stage_id: stageId } as any).eq("id", lead.id);
+    if (error) { toast.error("Erro ao salvar: " + error.message); return; }
     setLead({ ...lead, stage_id: stageId });
-    toast.success("Etapa atualizada");
+    const sName = stages.find(s => s.id === stageId)?.name || "etapa";
+    toast.success(`Movido para "${sName}"`);
   };
 
   const addTag = async () => {
@@ -616,21 +631,26 @@ export default function InboxPage() {
             )}
           </div>
 
-          {/* Pipeline transfer */}
+          {/* Pipeline + Stage move (saves automatically) */}
           {lead && (
             <div className="border-t border-border pt-3 space-y-2">
-              <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1"><GitBranch className="h-3 w-3" />Transferir para pipeline</p>
+              <p className="text-[10px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
+                <GitBranch className="h-3 w-3" />Mover lead no CRM
+              </p>
+              <Label className="text-xs">Pipeline</Label>
               <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
                 value={lead.pipeline_id || ""} onChange={(e) => movePipeline(e.target.value)}>
-                <option value="">Pipeline padrão</option>
+                <option value="">— Sem pipeline —</option>
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <Label className="text-xs">Mover para etapa</Label>
+              <Label className="text-xs">Etapa</Label>
               <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
-                value={lead.stage_id || ""} onChange={(e) => moveStage(e.target.value)}>
-                <option value="">Selecione...</option>
+                value={lead.stage_id || ""} onChange={(e) => moveStage(e.target.value)}
+                disabled={!lead.pipeline_id || currentStages.length === 0}>
+                <option value="">{lead.pipeline_id ? "Selecione..." : "Escolha o pipeline primeiro"}</option>
                 {currentStages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              <p className="text-[10px] text-muted-foreground">As alterações são salvas automaticamente.</p>
             </div>
           )}
 
