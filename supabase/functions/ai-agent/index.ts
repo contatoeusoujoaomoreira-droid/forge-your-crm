@@ -124,6 +124,20 @@ Deno.serve(async (req) => {
     if (body.mode === 'summary') systemPrompt = 'Você resume conversas em 2-3 frases curtas, objetivas e em português.';
     if (body.mode === 'copilot') systemPrompt = 'Você é um copiloto de vendas. Dado o histórico de conversa, sugira 3 respostas curtas e diretas (uma por linha, prefixe com "•"). NÃO escreva mais nada além disso.';
 
+    // Pre-charge credits and BLOCK if insufficient (super_admin / unlimited auto-skipped by RPC)
+    if (body.mode !== 'copilot') {
+      const preAction = body.mode === 'summary' ? 'chat_message_text' : 'chat_message_text';
+      const { data: pre } = await admin.rpc('deduct_credits_by_action', {
+        _user_id: userId,
+        _action: preAction,
+        _quantity: 1,
+        _metadata: { agent_id: body.agent_id || null, stage: 'pre', model },
+      });
+      if (pre && (pre as any).ok === false) {
+        return new Response(JSON.stringify({ error: 'Créditos insuficientes. Solicite recarga ao administrador.', code: 'insufficient_credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
