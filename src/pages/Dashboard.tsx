@@ -59,6 +59,7 @@ interface Notification {
 
 const Dashboard = () => {
   const { user, signOut, isSuperAdmin, userPermissions } = useAuth();
+  const planInfo = useUserPlan();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("crm");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
