@@ -964,7 +964,9 @@ Deno.serve(async (req) => {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
         const voiceProv = agent.voice_provider || 'omni';
-        const hasVoiceKey = voiceProv === 'elevenlabs' ? !!elevenKey : !!(openaiKey || LOVABLE_API_KEY);
+        // Omni / OpenAI TTS requires a real OpenAI key (Lovable Gateway has no TTS).
+        // ElevenLabs requires its own key.
+        const hasVoiceKey = voiceProv === 'elevenlabs' ? (!!elevenKey || !!openaiKey) : (!!openaiKey || !!elevenKey);
         const shouldReplyWithVoice = msg.media_type === 'audio' && agent.voice_enabled && agent.reply_to_audio_with_audio && hasVoiceKey;
 
         // Anexar links nomeados ao final do texto se existirem nos itens selecionados
