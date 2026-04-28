@@ -62,7 +62,7 @@ export default function UserApiKeysSection({ userIdOverride, onRequestCredits }:
   const targetUserId = userIdOverride || user?.id;
   const [items, setItems] = useState<any[]>([]);
   const [provider, setProvider] = useState("openai");
-  const [scope, setScope] = useState("all");
+  
   const [apiKey, setApiKey] = useState("");
   const [label, setLabel] = useState("");
   const [showKeyId, setShowKeyId] = useState<string | null>(null);
