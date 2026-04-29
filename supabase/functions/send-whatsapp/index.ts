@@ -75,6 +75,28 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text };
     }
+    case 'umclique': {
+      // umClique / Um Clique Digital — POST {base}/public-send-message com X-API-Key
+      const url = `${baseUrl}/public-send-message`;
+      const payload: any = {
+        channel_id: instance,
+        to: phone,
+        type: hasMedia ? (body.media_type?.startsWith('video') ? 'video' : body.media_type?.startsWith('audio') ? 'audio' : body.media_type?.startsWith('application') ? 'document' : 'image') : 'text',
+      };
+      if (hasMedia) {
+        payload.url = body.media_url;
+        if (body.content) payload.caption = body.content;
+      } else {
+        payload.content = body.content;
+      }
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify(payload),
+      });
+      const text = await resp.text();
+      return { ok: resp.ok, status: resp.status, body: text };
+    }
     case 'custom': {
       const resp = await fetch(baseUrl, {
         method: 'POST',
