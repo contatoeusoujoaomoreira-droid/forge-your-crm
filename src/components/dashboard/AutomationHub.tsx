@@ -578,6 +578,11 @@ export default function AutomationHub() {
                                       {configuringWebhook ? "..." : "Sincronizar webhook"}
                                     </Button>
                                   )}
+                                  {c.api_type === "umclique" && (
+                                    <Button size="sm" variant="outline" onClick={() => testWebhookConn(c)} disabled={testing}>
+                                      <FlaskConical className="h-4 w-4 mr-1" />Testar webhook
+                                    </Button>
+                                  )}
                                   <Button size="sm" variant="outline" onClick={() => { setWaCfg(c); setTestMsgOpen(true); }}>
                                     <Send className="h-4 w-4 mr-1" />Mensagem teste
                                   </Button>
