@@ -285,6 +285,32 @@ export default function AutomationHub() {
     } finally { setSavingId(null); }
   };
 
+  // Per-provider validation (returns first issue, if any)
+  const validateConn = (cfg: any): { ok: boolean; message: string } => {
+    if (!cfg?.api_type) return { ok: false, message: "Selecione o tipo de API." };
+    if (!cfg.base_url || !/^https?:\/\//i.test(cfg.base_url)) {
+      return { ok: false, message: "URL Base inválida (precisa começar com https://)." };
+    }
+    if (!cfg.api_token || cfg.api_token.length < 6) {
+      return { ok: false, message: "API Key/Token vazio ou muito curto." };
+    }
+    if (cfg.api_type === "umclique") {
+      if (!cfg.api_token.startsWith("umk_")) {
+        return { ok: false, message: "API Key da umClique deve começar com 'umk_'. Gere em: Configurações → API & Webhooks → Nova API Key." };
+      }
+      if (!/cslsnijdeayzfpmwjtmw\.supabase\.co\/functions\/v1$/.test(cfg.base_url.replace(/\/$/, ""))) {
+        return { ok: false, message: "URL Base da umClique deve ser exatamente: https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1" };
+      }
+      if (!cfg.instance_id || cfg.instance_id.length < 5) {
+        return { ok: false, message: "Channel ID obrigatório. Vá em umClique → Canais → 3 pontos → Detalhes do Canal → copie 'Instance ID' (W-API) ou 'Phone Number ID' (Meta)." };
+      }
+    }
+    if (cfg.api_type === "z-api" && !cfg.instance_id) {
+      return { ok: false, message: "Instance ID Z-API obrigatório." };
+    }
+    return { ok: true, message: "ok" };
+  };
+
   const testConn = async (cfg: any) => {
     // Per-provider validation
     const v = validateConn(cfg);
