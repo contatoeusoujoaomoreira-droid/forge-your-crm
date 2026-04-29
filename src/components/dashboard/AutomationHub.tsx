@@ -488,15 +488,36 @@ export default function AutomationHub() {
                                   {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
                               </div>
+                              {c.api_type === "umclique" && (
+                                <div className="col-span-2 p-3 rounded-md border border-primary/40 bg-primary/5 text-[11px] space-y-1">
+                                  <p className="font-semibold text-primary">📘 Como conectar a umClique passo a passo</p>
+                                  <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                                    <li>Acesse <a href="https://connect.umcliquedigital.com" target="_blank" rel="noreferrer" className="underline text-primary">connect.umcliquedigital.com</a> → faça login.</li>
+                                    <li><strong>Configurações → API & Webhooks → Nova API Key</strong>. Copie a chave (começa com <code>umk_</code>) — só é exibida uma vez!</li>
+                                    <li><strong>Canais → ⋯ (3 pontos) → Detalhes do Canal</strong>. Copie o <strong>Instance ID</strong> (W-API/QR Code) ou <strong>Phone Number ID</strong> (Meta) e cole no campo "Channel ID" acima.</li>
+                                    <li>Cole a URL Base exatamente como abaixo no campo "URL Base":<br/><code className="text-[10px]">https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</code></li>
+                                    <li>Salve, clique em <strong>Testar</strong> para validar API Key + Channel ID.</li>
+                                    <li>Volte ao painel umClique → <strong>API & Webhooks → Novo Webhook Split</strong>, escolha o canal e cole nossa URL de webhook (mostrada abaixo do card). Status deve ficar como <strong>ativo</strong>.</li>
+                                    <li>Clique em <strong>Testar webhook</strong> para confirmar que a URL responde.</li>
+                                  </ol>
+                                  <p className="text-amber-600">⚠ Se aparecer <em>"Integration not found or inactive"</em>: o Channel ID está incorreto OU o canal foi desativado na umClique. Reveja o passo 3.</p>
+                                </div>
+                              )}
                               <div>
                                 <Label className="text-xs">{hint?.instanceLabel || "Instance ID"}</Label>
-                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder="3ABC..." className="font-mono text-xs" />
+                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder={c.api_type === "umclique" ? "uazapi_xxxxx_xxxxx ou Phone Number ID" : "3ABC..."} className="font-mono text-xs" />
+                                {c.api_type === "umclique" && c.instance_id && c.instance_id.length < 5 && (
+                                  <p className="text-[11px] text-destructive mt-1">Channel ID muito curto.</p>
+                                )}
                               </div>
                               <div className="col-span-2">
                                 <Label className="text-xs">URL Base da API</Label>
                                 <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={hint?.base} className="font-mono text-xs" />
                                 {c.api_type === "z-api" && (
                                   <p className="text-[11px] text-muted-foreground mt-1">💡 Cole a URL completa da "API da instância mobile" — o sistema extrai Instance ID e Token automaticamente.</p>
+                                )}
+                                {c.api_type === "umclique" && c.base_url && !/cslsnijdeayzfpmwjtmw\.supabase\.co\/functions\/v1\/?$/.test(c.base_url) && (
+                                  <p className="text-[11px] text-destructive mt-1">⚠ URL Base deve ser exatamente https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</p>
                                 )}
                               </div>
                               <div className="col-span-2">
