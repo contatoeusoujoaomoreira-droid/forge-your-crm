@@ -170,10 +170,56 @@ Deno.serve(async (req) => {
       case 'ultramsg':
         testUrl = `${baseUrl}/${instance}/instance/status?token=${token}`;
         break;
-      case 'umclique':
-        testUrl = `${baseUrl}/public-send-message`;
+      case 'umclique': {
+        // Validate API Key + channel via lightweight endpoint.
+        // We attempt validate-whatsapp-number (cheap, returns 401 if API key invalid,
+        // 200/400 if key valid). This avoids creating a real send.
+        testUrl = `${baseUrl}/validate-whatsapp-number`;
         headers['X-API-Key'] = token;
-        break;
+        if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
+        // Use POST with a stub number — see logic below
+        const r = await fetch(testUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ number: '5511999999999', locale: 'br' }),
+        });
+        const t = await r.text();
+        // 401 = invalid api key. 403 = feature not available (still means key works!).
+        // 200/400 = key OK. Anything 5xx is upstream issue.
+        const apiKeyOk = r.status !== 401 && r.status !== 404;
+        let hint = '';
+        if (r.status === 401) hint = '❌ API Key inválida. Verifique em umClique → Configurações → API & Webhooks.';
+        else if (r.status === 403) hint = '✅ API Key OK. Seu plano não inclui validação de números (não é problema para envio).';
+        else if (r.status === 404) hint = '❌ Endpoint não encontrado. Confira a Base URL: deve ser https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1';
+        else if (r.ok) hint = '✅ API Key e Base URL OK!';
+        else hint = `⚠ Status ${r.status}: ${t.slice(0, 200)}`;
+        // Now also test that the channel_id exists by trying a no-op send (will return Integration not found if channel wrong)
+        let channelOk = true; let channelMsg = '';
+        if (instance && apiKeyOk) {
+          const r2 = await fetch(`${baseUrl}/public-send-message`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ channel_id: instance, to: '0', type: 'text', content: '__test__' }),
+          });
+          const t2 = await r2.text();
+          if (/Integration not found or inactive/i.test(t2)) {
+            channelOk = false;
+            channelMsg = `❌ Channel ID "${instance}" não foi encontrado na sua conta umClique. Vá em Canais → 3 pontos → Detalhes do Canal → copie o "Instance ID" (W-API) ou "Phone Number ID" (Meta).`;
+          } else {
+            channelMsg = `✅ Channel ID reconhecido pela umClique.`;
+          }
+        } else if (!instance) {
+          channelOk = false;
+          channelMsg = '⚠ Channel ID vazio — preencha com o Instance ID (W-API) ou Phone Number ID (Meta).';
+        }
+        return new Response(JSON.stringify({
+          ok: apiKeyOk && channelOk,
+          status: r.status,
+          body: `${hint}\n${channelMsg}`,
+          api_key_ok: apiKeyOk,
+          channel_ok: channelOk,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       default:
         testUrl = baseUrl;
     }
