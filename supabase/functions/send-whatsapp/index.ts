@@ -15,6 +15,30 @@ interface SendBody {
   content: string;
   media_url?: string;
   media_type?: string;
+  filename?: string;
+  // Template fields (Meta - umClique)
+  template_name?: string;
+  template_language?: string;
+  template_variables?: any[];
+  template_header?: any;
+  template_buttons?: any[];
+}
+
+// Map various media_type strings (mime, short label, undefined) to umClique schema
+function mapUmcliqueMediaType(mediaType?: string, mediaUrl?: string): 'image' | 'video' | 'audio' | 'document' {
+  const m = (mediaType || '').toLowerCase().trim();
+  if (m.startsWith('image') || m === 'img' || m === 'photo' || m === 'picture') return 'image';
+  if (m.startsWith('video') || m === 'mp4') return 'video';
+  if (m.startsWith('audio') || m === 'voice' || m === 'ptt' || m === 'ogg' || m === 'mp3') return 'audio';
+  if (m.startsWith('application') || m === 'document' || m === 'doc' || m === 'pdf' || m === 'file') return 'document';
+  // Fallback: infer from URL extension
+  const url = (mediaUrl || '').toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|bmp)(\?|$)/.test(url)) return 'image';
+  if (/\.(mp4|mov|webm|avi|mkv)(\?|$)/.test(url)) return 'video';
+  if (/\.(mp3|ogg|wav|m4a|aac|opus)(\?|$)/.test(url)) return 'audio';
+  if (/\.(pdf|docx?|xlsx?|pptx?|txt|csv|zip)(\?|$)/.test(url)) return 'document';
+  // Last resort: image is the most permissive default in umClique
+  return 'image';
 }
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
