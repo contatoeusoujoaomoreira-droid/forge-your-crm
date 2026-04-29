@@ -170,6 +170,10 @@ Deno.serve(async (req) => {
       case 'ultramsg':
         testUrl = `${baseUrl}/${instance}/instance/status?token=${token}`;
         break;
+      case 'umclique':
+        testUrl = `${baseUrl}/public-send-message`;
+        headers['X-API-Key'] = token;
+        break;
       default:
         testUrl = baseUrl;
     }
