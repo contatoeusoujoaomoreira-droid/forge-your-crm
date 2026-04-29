@@ -286,16 +286,37 @@ export default function AutomationHub() {
   };
 
   const testConn = async (cfg: any) => {
+    // Per-provider validation
+    const v = validateConn(cfg);
+    if (!v.ok) { toast.error(v.message); return; }
     setTesting(true);
     const { data, error } = await supabase.functions.invoke("test-whatsapp", { body: cfg });
     setTesting(false);
-    if (error) toast.error(error.message);
-    else if (data?.ok) toast.success("Conexão OK!");
-    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) {
+      toast.success(data?.body || "Conexão OK!");
+    } else {
+      // Rich error display — show full response body
+      const msg = data?.body || data?.error || "erro";
+      toast.error(`Falhou: ${msg}`, { duration: 12000 });
+    }
+  };
+
+  const testWebhookConn = async (cfg: any) => {
+    setTesting(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "test_webhook", config: cfg, webhook_url: webhookUrl },
+    });
+    setTesting(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) toast.success(data?.body || "Webhook OK!", { duration: 12000 });
+    else toast.error(`Webhook: ${data?.body || data?.error || "erro"}`, { duration: 12000 });
   };
 
   const sendTestFor = async (cfg: any) => {
     if (!testMsgPhone || !testMsgContent) { toast.error("Preencha telefone e mensagem"); return; }
+    const v = validateConn(cfg);
+    if (!v.ok) { toast.error(v.message); return; }
     setTestMsgSending(true);
     const { data, error } = await supabase.functions.invoke("test-whatsapp", {
       body: { mode: "send_test", config: cfg, phone: testMsgPhone, message: testMsgContent },
@@ -303,7 +324,7 @@ export default function AutomationHub() {
     setTestMsgSending(false);
     if (error) { toast.error(error.message); return; }
     if (data?.ok) { toast.success("Mensagem enviada!"); setTestMsgOpen(false); }
-    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`, { duration: 12000 });
   };
 
   const reloadAgents = async () => {
