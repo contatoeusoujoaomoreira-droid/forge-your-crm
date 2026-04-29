@@ -63,6 +63,7 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "umclique", label: "umClique · Um Clique Digital" },
   { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
   { id: "ultramsg", label: "UltraMsg" },
@@ -86,6 +87,13 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
   },
   evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
   ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
+  umclique: {
+    base: "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1",
+    tokenLabel: "API Key (umk_...)",
+    instanceLabel: "Channel ID (Phone Number ID Meta ou Instance ID W-API)",
+    helpUrl: "https://umclique.com.br",
+    helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (começa com 'umk_'). O Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
+  },
   custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
 };
 
