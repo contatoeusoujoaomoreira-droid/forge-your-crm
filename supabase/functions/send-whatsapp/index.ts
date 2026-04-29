@@ -184,10 +184,16 @@ Deno.serve(async (req) => {
 
     let externalSent = false;
     let externalError: string | null = null;
+    let externalStatus: number | null = null;
+    let externalBody: string | null = null;
+    let sentPayload: any = null;
     if (cfg) {
       try {
-        const result = await dispatch(cfg.api_type, cfg, phone, body);
+        const result: any = await dispatch(cfg.api_type, cfg, phone, body);
         externalSent = result.ok;
+        externalStatus = result.status ?? null;
+        externalBody = (result.body || '').toString().slice(0, 1000);
+        sentPayload = result.sent_payload ?? null;
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -196,7 +202,7 @@ Deno.serve(async (req) => {
       externalError = 'WhatsApp não configurado';
     }
 
-    // Always persist message
+    // Always persist message (with rich error context for diagnostics)
     const { data: msg } = await admin.from('messages').insert({
       user_id: userId,
       client_id: clientRow?.id || body.client_id || null,
@@ -207,7 +213,13 @@ Deno.serve(async (req) => {
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
       sender_phone: phone,
-      metadata: { external_error: externalError },
+      metadata: {
+        external_error: externalError,
+        external_status: externalStatus,
+        external_body: externalBody,
+        provider: cfg?.api_type || null,
+        sent_payload: sentPayload,
+      },
     }).select().single();
 
     // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
@@ -226,7 +238,15 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      success: true, message: msg, external_sent: externalSent, external_error: externalError, has_config: !!cfg,
+      success: externalSent,
+      message: msg,
+      external_sent: externalSent,
+      external_error: externalError,
+      external_status: externalStatus,
+      external_body: externalBody,
+      sent_payload: sentPayload,
+      has_config: !!cfg,
+      provider: cfg?.api_type || null,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('send-whatsapp error', e);
