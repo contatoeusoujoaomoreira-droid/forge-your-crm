@@ -484,7 +484,15 @@ export default function AutomationHub() {
                               </div>
                               <div>
                                 <Label className="text-xs">Tipo de API</Label>
-                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => updateLocalConn(c.id, { api_type: e.target.value })}>
+                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => {
+                                  const newType = e.target.value;
+                                  const newHint = PROVIDER_HINTS[newType];
+                                  const patch: any = { api_type: newType };
+                                  // Auto-fill base_url with provider default if empty or generic
+                                  if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
+                                  else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
+                                  updateLocalConn(c.id, patch);
+                                }}>
                                   {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
                               </div>
