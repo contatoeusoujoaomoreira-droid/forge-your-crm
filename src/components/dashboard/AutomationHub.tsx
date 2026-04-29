@@ -260,7 +260,7 @@ export default function AutomationHub() {
   const saveConn = async (cfg: any) => {
     if (!user) return;
     // Hard validation per provider before saving
-    const v = validateConnSync(cfg);
+    const v = validateConn(cfg);
     if (!v.ok) { toast.error(v.message); return; }
     setSavingId(cfg.id || "__draft__");
     try {
