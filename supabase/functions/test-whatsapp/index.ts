@@ -148,7 +148,39 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ----- Default: connection check -----
+    // ----- Mode: webhook test (verifies webhook-receiver is reachable AND inserts a sentinel event) -----
+    if (body.mode === 'test_webhook') {
+      const targetUrl = body.webhook_url || `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-receiver`;
+      try {
+        const probe = await fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Webhook-Test': '1' },
+          body: JSON.stringify({
+            __test__: true,
+            provider: cfg.api_type || 'umclique',
+            user_id: userData.user.id,
+            timestamp: new Date().toISOString(),
+            note: 'Webhook test from dashboard',
+          }),
+        });
+        const ptxt = await probe.text();
+        return new Response(JSON.stringify({
+          ok: probe.ok,
+          status: probe.status,
+          body: probe.ok
+            ? `✅ Webhook URL respondeu (${probe.status}). Configure no painel umClique → Configurações → API & Webhooks → Novo Webhook Split apontando para:\n${targetUrl}\n\nResposta: ${ptxt.slice(0, 200)}`
+            : `❌ Webhook não respondeu corretamente (${probe.status}): ${ptxt.slice(0, 300)}`,
+          webhook_url: targetUrl,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({
+          ok: false, status: 0,
+          body: `❌ Falha ao alcançar o webhook: ${String(e).slice(0, 300)}`,
+          webhook_url: targetUrl,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     let testUrl = '';
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     switch (cfg.api_type) {
