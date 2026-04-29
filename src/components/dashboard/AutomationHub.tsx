@@ -63,6 +63,7 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "umclique", label: "umClique · Um Clique Digital" },
   { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
   { id: "ultramsg", label: "UltraMsg" },
