@@ -522,7 +522,10 @@ export default function AutomationHub() {
                               </div>
                               <div className="col-span-2">
                                 <Label className="text-xs flex items-center gap-1">{hint?.tokenLabel || "Token / API Key"} <Eye className="h-3 w-3 text-muted-foreground" /></Label>
-                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder="Token..." />
+                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder={c.api_type === "umclique" ? "umk_xxxxxxxxxxxxxxxx" : "Token..."} />
+                                {c.api_type === "umclique" && c.api_token && !c.api_token.startsWith("umk_") && (
+                                  <p className="text-[11px] text-destructive mt-1">⚠ A API Key da umClique deve começar com "umk_".</p>
+                                )}
                               </div>
                               {c.api_type === "z-api" && (
                                 <div className="col-span-2">
