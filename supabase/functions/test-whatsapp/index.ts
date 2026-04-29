@@ -42,6 +42,15 @@ async function sendTestMessage(cfg: any, phone: string, content: string) {
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'API-KEY': token, ...extra }, body: JSON.stringify({ type: 'text', value: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
+    case 'umclique': {
+      const url = `${baseUrl}/public-send-message`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, type: 'text', content }),
+      });
+      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
+    }
     case 'custom': {
       const r = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
