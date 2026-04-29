@@ -102,15 +102,25 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
     case 'umclique': {
       // umClique / Um Clique Digital — POST {base}/public-send-message com X-API-Key
       const url = `${baseUrl}/public-send-message`;
+      const isTemplate = !!body.template_name;
       const payload: any = {
         channel_id: instance,
         to: phone,
-        type: hasMedia ? (body.media_type?.startsWith('video') ? 'video' : body.media_type?.startsWith('audio') ? 'audio' : body.media_type?.startsWith('application') ? 'document' : 'image') : 'text',
       };
-      if (hasMedia) {
+      if (isTemplate) {
+        payload.type = 'template';
+        payload.template_name = body.template_name;
+        payload.template_language = body.template_language || 'pt_BR';
+        if (body.template_variables) payload.template_variables = body.template_variables;
+        if (body.template_header) payload.template_header = body.template_header;
+        if (body.template_buttons) payload.template_buttons = body.template_buttons;
+      } else if (hasMedia) {
+        payload.type = mapUmcliqueMediaType(body.media_type, body.media_url);
         payload.url = body.media_url;
         if (body.content) payload.caption = body.content;
+        if (payload.type === 'document' && body.filename) payload.filename = body.filename;
       } else {
+        payload.type = 'text';
         payload.content = body.content;
       }
       const resp = await fetch(url, {
@@ -119,7 +129,7 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         body: JSON.stringify(payload),
       });
       const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
+      return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
     case 'custom': {
       const resp = await fetch(baseUrl, {
