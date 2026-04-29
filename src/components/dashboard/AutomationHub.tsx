@@ -259,6 +259,9 @@ export default function AutomationHub() {
 
   const saveConn = async (cfg: any) => {
     if (!user) return;
+    // Hard validation per provider before saving
+    const v = validateConn(cfg);
+    if (!v.ok) { toast.error(v.message); return; }
     setSavingId(cfg.id || "__draft__");
     try {
       if (cfg.instance_id) {
@@ -285,17 +288,64 @@ export default function AutomationHub() {
     } finally { setSavingId(null); }
   };
 
+  // Per-provider validation (returns first issue, if any)
+  const validateConn = (cfg: any): { ok: boolean; message: string } => {
+    if (!cfg?.api_type) return { ok: false, message: "Selecione o tipo de API." };
+    if (!cfg.base_url || !/^https?:\/\//i.test(cfg.base_url)) {
+      return { ok: false, message: "URL Base inválida (precisa começar com https://)." };
+    }
+    if (!cfg.api_token || cfg.api_token.length < 6) {
+      return { ok: false, message: "API Key/Token vazio ou muito curto." };
+    }
+    if (cfg.api_type === "umclique") {
+      if (!cfg.api_token.startsWith("umk_")) {
+        return { ok: false, message: "API Key da umClique deve começar com 'umk_'. Gere em: Configurações → API & Webhooks → Nova API Key." };
+      }
+      if (!/cslsnijdeayzfpmwjtmw\.supabase\.co\/functions\/v1$/.test(cfg.base_url.replace(/\/$/, ""))) {
+        return { ok: false, message: "URL Base da umClique deve ser exatamente: https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1" };
+      }
+      if (!cfg.instance_id || cfg.instance_id.length < 5) {
+        return { ok: false, message: "Channel ID obrigatório. Vá em umClique → Canais → 3 pontos → Detalhes do Canal → copie 'Instance ID' (W-API) ou 'Phone Number ID' (Meta)." };
+      }
+    }
+    if (cfg.api_type === "z-api" && !cfg.instance_id) {
+      return { ok: false, message: "Instance ID Z-API obrigatório." };
+    }
+    return { ok: true, message: "ok" };
+  };
+
   const testConn = async (cfg: any) => {
+    // Per-provider validation
+    const v = validateConn(cfg);
+    if (!v.ok) { toast.error(v.message); return; }
     setTesting(true);
     const { data, error } = await supabase.functions.invoke("test-whatsapp", { body: cfg });
     setTesting(false);
-    if (error) toast.error(error.message);
-    else if (data?.ok) toast.success("Conexão OK!");
-    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) {
+      toast.success(data?.body || "Conexão OK!");
+    } else {
+      // Rich error display — show full response body
+      const msg = data?.body || data?.error || "erro";
+      toast.error(`Falhou: ${msg}`, { duration: 12000 });
+    }
+  };
+
+  const testWebhookConn = async (cfg: any) => {
+    setTesting(true);
+    const { data, error } = await supabase.functions.invoke("test-whatsapp", {
+      body: { mode: "test_webhook", config: cfg, webhook_url: webhookUrl },
+    });
+    setTesting(false);
+    if (error) { toast.error(error.message); return; }
+    if (data?.ok) toast.success(data?.body || "Webhook OK!", { duration: 12000 });
+    else toast.error(`Webhook: ${data?.body || data?.error || "erro"}`, { duration: 12000 });
   };
 
   const sendTestFor = async (cfg: any) => {
     if (!testMsgPhone || !testMsgContent) { toast.error("Preencha telefone e mensagem"); return; }
+    const v = validateConn(cfg);
+    if (!v.ok) { toast.error(v.message); return; }
     setTestMsgSending(true);
     const { data, error } = await supabase.functions.invoke("test-whatsapp", {
       body: { mode: "send_test", config: cfg, phone: testMsgPhone, message: testMsgContent },
@@ -303,7 +353,7 @@ export default function AutomationHub() {
     setTestMsgSending(false);
     if (error) { toast.error(error.message); return; }
     if (data?.ok) { toast.success("Mensagem enviada!"); setTestMsgOpen(false); }
-    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`);
+    else toast.error(`Falhou: ${data?.body || data?.error || "erro"}`, { duration: 12000 });
   };
 
   const reloadAgents = async () => {
@@ -434,13 +484,39 @@ export default function AutomationHub() {
                               </div>
                               <div>
                                 <Label className="text-xs">Tipo de API</Label>
-                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => updateLocalConn(c.id, { api_type: e.target.value })}>
+                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => {
+                                  const newType = e.target.value;
+                                  const newHint = PROVIDER_HINTS[newType];
+                                  const patch: any = { api_type: newType };
+                                  // Auto-fill base_url with provider default if empty or generic
+                                  if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
+                                  else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
+                                  updateLocalConn(c.id, patch);
+                                }}>
                                   {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
                               </div>
+                              {c.api_type === "umclique" && (
+                                <div className="col-span-2 p-3 rounded-md border border-primary/40 bg-primary/5 text-[11px] space-y-1">
+                                  <p className="font-semibold text-primary">📘 Como conectar a umClique passo a passo</p>
+                                  <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                                    <li>Acesse <a href="https://connect.umcliquedigital.com" target="_blank" rel="noreferrer" className="underline text-primary">connect.umcliquedigital.com</a> → faça login.</li>
+                                    <li><strong>Configurações → API & Webhooks → Nova API Key</strong>. Copie a chave (começa com <code>umk_</code>) — só é exibida uma vez!</li>
+                                    <li><strong>Canais → ⋯ (3 pontos) → Detalhes do Canal</strong>. Copie o <strong>Instance ID</strong> (W-API/QR Code) ou <strong>Phone Number ID</strong> (Meta) e cole no campo "Channel ID" acima.</li>
+                                    <li>Cole a URL Base exatamente como abaixo no campo "URL Base":<br/><code className="text-[10px]">https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</code></li>
+                                    <li>Salve, clique em <strong>Testar</strong> para validar API Key + Channel ID.</li>
+                                    <li>Volte ao painel umClique → <strong>API & Webhooks → Novo Webhook Split</strong>, escolha o canal e cole nossa URL de webhook (mostrada abaixo do card). Status deve ficar como <strong>ativo</strong>.</li>
+                                    <li>Clique em <strong>Testar webhook</strong> para confirmar que a URL responde.</li>
+                                  </ol>
+                                  <p className="text-amber-600">⚠ Se aparecer <em>"Integration not found or inactive"</em>: o Channel ID está incorreto OU o canal foi desativado na umClique. Reveja o passo 3.</p>
+                                </div>
+                              )}
                               <div>
                                 <Label className="text-xs">{hint?.instanceLabel || "Instance ID"}</Label>
-                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder="3ABC..." className="font-mono text-xs" />
+                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder={c.api_type === "umclique" ? "uazapi_xxxxx_xxxxx ou Phone Number ID" : "3ABC..."} className="font-mono text-xs" />
+                                {c.api_type === "umclique" && c.instance_id && c.instance_id.length < 5 && (
+                                  <p className="text-[11px] text-destructive mt-1">Channel ID muito curto.</p>
+                                )}
                               </div>
                               <div className="col-span-2">
                                 <Label className="text-xs">URL Base da API</Label>
@@ -448,10 +524,16 @@ export default function AutomationHub() {
                                 {c.api_type === "z-api" && (
                                   <p className="text-[11px] text-muted-foreground mt-1">💡 Cole a URL completa da "API da instância mobile" — o sistema extrai Instance ID e Token automaticamente.</p>
                                 )}
+                                {c.api_type === "umclique" && c.base_url && !/cslsnijdeayzfpmwjtmw\.supabase\.co\/functions\/v1\/?$/.test(c.base_url) && (
+                                  <p className="text-[11px] text-destructive mt-1">⚠ URL Base deve ser exatamente https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</p>
+                                )}
                               </div>
                               <div className="col-span-2">
                                 <Label className="text-xs flex items-center gap-1">{hint?.tokenLabel || "Token / API Key"} <Eye className="h-3 w-3 text-muted-foreground" /></Label>
-                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder="Token..." />
+                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder={c.api_type === "umclique" ? "umk_xxxxxxxxxxxxxxxx" : "Token..."} />
+                                {c.api_type === "umclique" && c.api_token && !c.api_token.startsWith("umk_") && (
+                                  <p className="text-[11px] text-destructive mt-1">⚠ A API Key da umClique deve começar com "umk_".</p>
+                                )}
                               </div>
                               {c.api_type === "z-api" && (
                                 <div className="col-span-2">
@@ -526,6 +608,11 @@ export default function AutomationHub() {
                                   {c.api_type === "z-api" && (
                                     <Button size="sm" variant="outline" onClick={() => configureWebhook(c)} disabled={configuringWebhook}>
                                       {configuringWebhook ? "..." : "Sincronizar webhook"}
+                                    </Button>
+                                  )}
+                                  {c.api_type === "umclique" && (
+                                    <Button size="sm" variant="outline" onClick={() => testWebhookConn(c)} disabled={testing}>
+                                      <FlaskConical className="h-4 w-4 mr-1" />Testar webhook
                                     </Button>
                                   )}
                                   <Button size="sm" variant="outline" onClick={() => { setWaCfg(c); setTestMsgOpen(true); }}>

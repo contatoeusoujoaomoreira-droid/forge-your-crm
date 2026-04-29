@@ -15,6 +15,30 @@ interface SendBody {
   content: string;
   media_url?: string;
   media_type?: string;
+  filename?: string;
+  // Template fields (Meta - umClique)
+  template_name?: string;
+  template_language?: string;
+  template_variables?: any[];
+  template_header?: any;
+  template_buttons?: any[];
+}
+
+// Map various media_type strings (mime, short label, undefined) to umClique schema
+function mapUmcliqueMediaType(mediaType?: string, mediaUrl?: string): 'image' | 'video' | 'audio' | 'document' {
+  const m = (mediaType || '').toLowerCase().trim();
+  if (m.startsWith('image') || m === 'img' || m === 'photo' || m === 'picture') return 'image';
+  if (m.startsWith('video') || m === 'mp4') return 'video';
+  if (m.startsWith('audio') || m === 'voice' || m === 'ptt' || m === 'ogg' || m === 'mp3') return 'audio';
+  if (m.startsWith('application') || m === 'document' || m === 'doc' || m === 'pdf' || m === 'file') return 'document';
+  // Fallback: infer from URL extension
+  const url = (mediaUrl || '').toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|bmp)(\?|$)/.test(url)) return 'image';
+  if (/\.(mp4|mov|webm|avi|mkv)(\?|$)/.test(url)) return 'video';
+  if (/\.(mp3|ogg|wav|m4a|aac|opus)(\?|$)/.test(url)) return 'audio';
+  if (/\.(pdf|docx?|xlsx?|pptx?|txt|csv|zip)(\?|$)/.test(url)) return 'document';
+  // Last resort: image is the most permissive default in umClique
+  return 'image';
 }
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
@@ -78,15 +102,25 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
     case 'umclique': {
       // umClique / Um Clique Digital — POST {base}/public-send-message com X-API-Key
       const url = `${baseUrl}/public-send-message`;
+      const isTemplate = !!body.template_name;
       const payload: any = {
         channel_id: instance,
         to: phone,
-        type: hasMedia ? (body.media_type?.startsWith('video') ? 'video' : body.media_type?.startsWith('audio') ? 'audio' : body.media_type?.startsWith('application') ? 'document' : 'image') : 'text',
       };
-      if (hasMedia) {
+      if (isTemplate) {
+        payload.type = 'template';
+        payload.template_name = body.template_name;
+        payload.template_language = body.template_language || 'pt_BR';
+        if (body.template_variables) payload.template_variables = body.template_variables;
+        if (body.template_header) payload.template_header = body.template_header;
+        if (body.template_buttons) payload.template_buttons = body.template_buttons;
+      } else if (hasMedia) {
+        payload.type = mapUmcliqueMediaType(body.media_type, body.media_url);
         payload.url = body.media_url;
         if (body.content) payload.caption = body.content;
+        if (payload.type === 'document' && body.filename) payload.filename = body.filename;
       } else {
+        payload.type = 'text';
         payload.content = body.content;
       }
       const resp = await fetch(url, {
@@ -95,7 +129,7 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         body: JSON.stringify(payload),
       });
       const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
+      return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
     case 'custom': {
       const resp = await fetch(baseUrl, {
@@ -150,10 +184,16 @@ Deno.serve(async (req) => {
 
     let externalSent = false;
     let externalError: string | null = null;
+    let externalStatus: number | null = null;
+    let externalBody: string | null = null;
+    let sentPayload: any = null;
     if (cfg) {
       try {
-        const result = await dispatch(cfg.api_type, cfg, phone, body);
+        const result: any = await dispatch(cfg.api_type, cfg, phone, body);
         externalSent = result.ok;
+        externalStatus = result.status ?? null;
+        externalBody = (result.body || '').toString().slice(0, 1000);
+        sentPayload = result.sent_payload ?? null;
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -162,7 +202,7 @@ Deno.serve(async (req) => {
       externalError = 'WhatsApp não configurado';
     }
 
-    // Always persist message
+    // Always persist message (with rich error context for diagnostics)
     const { data: msg } = await admin.from('messages').insert({
       user_id: userId,
       client_id: clientRow?.id || body.client_id || null,
@@ -173,7 +213,13 @@ Deno.serve(async (req) => {
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
       sender_phone: phone,
-      metadata: { external_error: externalError },
+      metadata: {
+        external_error: externalError,
+        external_status: externalStatus,
+        external_body: externalBody,
+        provider: cfg?.api_type || null,
+        sent_payload: sentPayload,
+      },
     }).select().single();
 
     // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
@@ -192,7 +238,15 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      success: true, message: msg, external_sent: externalSent, external_error: externalError, has_config: !!cfg,
+      success: externalSent,
+      message: msg,
+      external_sent: externalSent,
+      external_error: externalError,
+      external_status: externalStatus,
+      external_body: externalBody,
+      sent_payload: sentPayload,
+      has_config: !!cfg,
+      provider: cfg?.api_type || null,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('send-whatsapp error', e);
