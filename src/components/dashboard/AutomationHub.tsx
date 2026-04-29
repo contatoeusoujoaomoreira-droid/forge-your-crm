@@ -87,6 +87,13 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
   },
   evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
   ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
+  umclique: {
+    base: "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1",
+    tokenLabel: "API Key (umk_...)",
+    instanceLabel: "Channel ID (Phone Number ID Meta ou Instance ID W-API)",
+    helpUrl: "https://umclique.com.br",
+    helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (começa com 'umk_'). O Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
+  },
   custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
 };
 
