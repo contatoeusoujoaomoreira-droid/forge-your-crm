@@ -146,6 +146,55 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   } as any;
 }
 
+function mediaTypeFromMime(mime?: string, fallback?: string): string | undefined {
+  const m = (mime || '').toLowerCase();
+  const f = (fallback || '').toLowerCase();
+  if (m.includes('image') || f.includes('image') || f.includes('sticker')) return f.includes('sticker') ? 'sticker' : 'image';
+  if (m.includes('video') || f.includes('video')) return 'video';
+  if (m.includes('audio') || f.includes('audio') || f.includes('ptt')) return 'audio';
+  if (m || f.includes('document') || f.includes('file')) return 'document';
+  return undefined;
+}
+
+function normalizeUmclique(raw: any): NormalizedMsg | null {
+  const event = raw.event || {};
+  const chat = raw.chat || raw.data?.chat || {};
+  const message = raw.message || raw.data?.message || event.message || {};
+  const isDownloaded = String(raw.type || '').toLowerCase().includes('filedownloaded');
+  const fromMe = isDownloaded ? event.IsFromMe === true : (message.fromMe === true || message.from_me === true || message.isFromMe === true);
+  const chatId = isDownloaded
+    ? (event.Chat || event.chatid || event.Sender || '')
+    : (message.chatid || message.chatId || chat.wa_chatid || chat.id || chat.phone || message.to || message.from || '');
+  const phone = normalizePhone(chat.phone || chatId || message.sender || event.Sender || '');
+  const name = chat.wa_contactName || chat.name || chat.wa_name || raw.name || message.pushName || message.senderName;
+  const contentObj = message.content || {};
+  const mime = isDownloaded ? event.MimeType : (contentObj.mimetype || contentObj.mimeType || message.mime_type);
+  const msgType = message.type || raw.type || event.Type || chat.wa_lastMessageType;
+  const mediaType = isDownloaded ? mediaTypeFromMime(mime, event.Type) : mediaTypeFromMime(mime, msgType);
+  const fileUrl = isDownloaded ? event.FileURL : (contentObj.FileURL || contentObj.fileUrl || contentObj.url || contentObj.URL || message.media_url || message.mediaUrl);
+  const text = message.text || message.body || message.caption || contentObj.caption || contentObj.text || raw.text || raw.body || '';
+  const ts = isDownloaded ? event.Timestamp : (message.timestamp || chat.wa_lastMsgTimestamp || raw.timestamp);
+  const timestamp = typeof ts === 'number'
+    ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString()
+    : (typeof ts === 'string' && ts ? ts : undefined);
+  const ids = isDownloaded ? event.MessageIDs : undefined;
+  const externalId = message.id || message.messageId || raw.message_id || raw.id || (Array.isArray(ids) ? ids[0] : undefined);
+  if (!phone && !externalId) return null;
+  return {
+    phone,
+    name,
+    content: text || (mediaType ? `[${mediaType}]` : ''),
+    external_message_id: externalId,
+    media_url: fileUrl,
+    media_type: mediaType,
+    avatar_url: chat.imagePreview || chat.image || chat.avatar || chat.profilePicUrl || raw.avatar_url,
+    from_me: fromMe,
+    timestamp,
+    is_group: chat.wa_isGroup === true || event.IsGroup === true || String(chatId).includes('@g.us'),
+    document_filename: contentObj.fileName || contentObj.filename || event.FileName,
+  } as any;
+}
+
 function extractAvatarUrl(input: any): string | undefined {
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
   const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
@@ -173,10 +222,17 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
     else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
     return { external_message_id: raw.messageId || raw.id, status: mapped };
   }
+  if (t.includes('readreceipt') || raw.EventType === 'messages_update') {
+    const ids = raw.event?.MessageIDs || raw.MessageIDs;
+    const statusText = String(raw.state || raw.event?.Type || raw.status || '').toLowerCase();
+    const status = statusText.includes('read') ? 'read' : statusText.includes('deliver') ? 'delivered' : 'sent';
+    return { external_message_id: Array.isArray(ids) ? ids[0] : ids, status };
+  }
   return null;
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
+  if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
   if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
   if (raw.data?.key) return normalizeEvolution(raw);
   if (raw.phone && raw.message) {
