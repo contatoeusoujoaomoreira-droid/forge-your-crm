@@ -812,6 +812,7 @@ Deno.serve(async (req) => {
       const { data: lead } = await admin.from('leads').insert({
         user_id: userId, name: client.name || msg.phone, phone: msg.phone,
         stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
+        notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
       }).select().single();
       if (lead) {
         await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
@@ -832,11 +833,12 @@ Deno.serve(async (req) => {
     convStateInit = createdState;
   }
 
-  agentId = convStateInit?.assigned_agent_id || waCfg?.default_agent_id || null;
-  if (!agentId) {
-    const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
-    agentId = defaultAgent?.id;
+  let leadForRouting: any = null;
+  if (client?.lead_id) {
+    const { data: leadRow } = await admin.from('leads').select('id,pipeline_id,stage_id,status').eq('id', client.lead_id).maybeSingle();
+    leadForRouting = leadRow;
   }
+  agentId = await resolveAgent(admin, userId, client, leadForRouting, waCfg, convStateInit, msg.content || '');
   if (agentId) {
     const { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).maybeSingle();
     agent = ag;
