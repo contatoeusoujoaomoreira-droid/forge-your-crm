@@ -417,6 +417,14 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
+    case 'umclique': {
+      const resp = await fetch(`${baseUrl}/public-send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, type: 'text', content }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    }
     default: {
       const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
@@ -438,8 +446,15 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  // Other providers: fall back to text — caller already has text reply
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
+  if (cfg.api_type === 'umclique') {
+    const resp = await fetch(`${baseUrl}/public-send-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+      body: JSON.stringify({ channel_id: instance, to: phone, type: 'audio', url: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -461,6 +476,13 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
         body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'umclique') {
+      const resp = await fetch(`${baseUrl}/public-send-message`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, type: 'image', url: imageUrl, caption: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
