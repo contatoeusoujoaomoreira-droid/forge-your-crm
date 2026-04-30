@@ -568,6 +568,14 @@ Deno.serve(async (req) => {
   let userId = '';
   let matchedConfig: any = null;
 
+  if (raw.__test__ === true) {
+    const testUserId = String(raw.user_id || '').trim();
+    if (testUserId) {
+      await admin.from('webhook_logs').insert({ user_id: testUserId, direction: 'inbound', event: 'dashboard_webhook_test', source: 'whatsapp', payload: raw });
+      return new Response(JSON.stringify({ ok: true, test: true, provider: raw.provider || 'whatsapp' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
+
   if (apiKey) {
     const keyHash = await sha256(apiKey);
     const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
@@ -577,12 +585,12 @@ Deno.serve(async (req) => {
     await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
     userId = keyRow.user_id;
   } else {
-    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
+    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || raw.channel_id || raw.channelId || raw.phone_number_id || raw.owner || raw.chat?.owner || raw.message?.owner || '').trim();
     if (instanceFromPayload) {
       // Use limit(1) instead of maybeSingle so duplicate instance_ids never break routing
       const { data: cfgRows } = await admin.from('whatsapp_configs')
         .select('*')
-        .eq('instance_id', instanceFromPayload)
+        .or(`instance_id.eq.${instanceFromPayload},extra_headers->>owner.eq.${instanceFromPayload}`)
         .eq('is_active', true)
         .order('updated_at', { ascending: false })
         .limit(1);
@@ -591,7 +599,7 @@ Deno.serve(async (req) => {
       // Fallback: try inactive configs as a last resort to still log who owns it
       if (!userId) {
         const { data: anyRows } = await admin.from('whatsapp_configs')
-          .select('*').eq('instance_id', instanceFromPayload)
+          .select('*').or(`instance_id.eq.${instanceFromPayload},extra_headers->>owner.eq.${instanceFromPayload}`)
           .order('updated_at', { ascending: false }).limit(1);
         const any = anyRows?.[0];
         if (any) { userId = any.user_id; matchedConfig = any; }
