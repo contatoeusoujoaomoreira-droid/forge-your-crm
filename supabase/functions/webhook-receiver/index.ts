@@ -645,7 +645,7 @@ Deno.serve(async (req) => {
       // Use limit(1) instead of maybeSingle so duplicate instance_ids never break routing
       const { data: cfgRows } = await admin.from('whatsapp_configs')
         .select('*')
-        .or(`instance_id.eq.${instanceFromPayload},extra_headers->>owner.eq.${instanceFromPayload}`)
+        .eq('instance_id', instanceFromPayload)
         .eq('is_active', true)
         .order('updated_at', { ascending: false })
         .limit(1);
@@ -654,7 +654,7 @@ Deno.serve(async (req) => {
       // Fallback: try inactive configs as a last resort to still log who owns it
       if (!userId) {
         const { data: anyRows } = await admin.from('whatsapp_configs')
-          .select('*').or(`instance_id.eq.${instanceFromPayload},extra_headers->>owner.eq.${instanceFromPayload}`)
+          .select('*').eq('instance_id', instanceFromPayload)
           .order('updated_at', { ascending: false }).limit(1);
         const any = anyRows?.[0];
         if (any) { userId = any.user_id; matchedConfig = any; }
