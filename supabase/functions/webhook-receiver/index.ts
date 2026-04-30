@@ -659,7 +659,13 @@ Deno.serve(async (req) => {
 
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
-    if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (dup) {
+      const patch: any = {};
+      if (msg.media_url) patch.media_url = msg.media_url;
+      if (msg.media_type) patch.media_type = msg.media_type;
+      if (Object.keys(patch).length) await admin.from('messages').update(patch).eq('id', dup.id);
+      return new Response(JSON.stringify({ ok: true, duplicate: true, enriched: Object.keys(patch).length > 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
   }
 
   let avatarUrl: string | undefined = (msg as any).avatar_url || extractAvatarUrl(raw) || undefined;
