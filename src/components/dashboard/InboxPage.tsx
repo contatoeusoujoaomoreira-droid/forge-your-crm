@@ -294,14 +294,12 @@ export default function InboxPage() {
     const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
     const isImg = f.type.startsWith("image/");
     const mediaType = isImg ? "image" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "document";
-    const { data, error } = await supabase.from("messages").insert({
-      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
-      direction: "outbound", channel: "whatsapp", content: f.name,
-      media_url: pub.publicUrl, media_type: mediaType, status: "sent",
-    }).select().single();
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: { client_id: selectedId, content: f.name, media_url: pub.publicUrl, media_type: mediaType, filename: f.name },
+    });
     if (error) { toast.error(error.message); return; }
-    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
-    toast.success("Anexo enviado");
+    if (!data?.external_sent) toast.warning(`Anexo salvo, mas WhatsApp falhou: ${data?.external_error || "ver detalhes na mensagem"}`);
+    else toast.success("Anexo enviado");
   };
 
   const isGroupClient = (c: Client) =>
@@ -326,6 +324,8 @@ export default function InboxPage() {
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
   const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
+  const lastFailure = [...messages].reverse().find(m => m.status === "failed" && (m.metadata?.external_error || m.metadata?.external_body || m.metadata?.external_status));
+  const selectedMeta: any = selected?.metadata || {};
 
   const FilterChip = ({ id, label, count }: { id: FilterTab; label: string; count: number }) => (
     <button
