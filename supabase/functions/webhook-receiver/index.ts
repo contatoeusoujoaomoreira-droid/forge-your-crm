@@ -149,12 +149,18 @@ function normalizeEvolution(raw: any): NormalizedMsg {
 function mediaTypeFromMime(mime?: string, fallback?: string): string | undefined {
   const m = (mime || '').toLowerCase();
   const f = (fallback || '').toLowerCase();
+  if (f.includes('reaction')) return 'reaction';
   if (m.includes('image') || f.includes('image') || f.includes('sticker')) return f.includes('sticker') ? 'sticker' : 'image';
   if (m.includes('video') || f.includes('video')) return 'video';
   if (m.includes('audio') || f.includes('audio') || f.includes('ptt')) return 'audio';
   if (m || f.includes('document') || f.includes('file')) return 'document';
   return undefined;
 }
+
+const compactExternalId = (id?: string) => {
+  const v = String(id || '').trim();
+  return v.includes(':') ? v.split(':').pop() : v;
+};
 
 function normalizeUmclique(raw: any): NormalizedMsg | null {
   const event = raw.event || {};
@@ -178,7 +184,7 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
     ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString()
     : (typeof ts === 'string' && ts ? ts : undefined);
   const ids = isDownloaded ? event.MessageIDs : undefined;
-  const externalId = message.id || message.messageId || raw.message_id || raw.id || (Array.isArray(ids) ? ids[0] : undefined);
+  const externalId = compactExternalId(message.id || message.messageId || raw.message_id || raw.id || (Array.isArray(ids) ? ids[0] : undefined));
   if (!phone && !externalId) return null;
   return {
     phone,
@@ -222,11 +228,11 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
     else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
     return { external_message_id: raw.messageId || raw.id, status: mapped };
   }
-  if (t.includes('readreceipt') || raw.EventType === 'messages_update') {
+  if (t.includes('readreceipt') || (raw.EventType === 'messages_update' && raw.event?.MessageIDs && !String(raw.type || '').toLowerCase().includes('filedownloaded'))) {
     const ids = raw.event?.MessageIDs || raw.MessageIDs;
     const statusText = String(raw.state || raw.event?.Type || raw.status || '').toLowerCase();
     const status = statusText.includes('read') ? 'read' : statusText.includes('deliver') ? 'delivered' : 'sent';
-    return { external_message_id: Array.isArray(ids) ? ids[0] : ids, status };
+    return { external_message_id: compactExternalId(Array.isArray(ids) ? ids[0] : ids), status };
   }
   return null;
 }
