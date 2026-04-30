@@ -569,6 +569,33 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
   } catch (_) { /* ignore */ }
 }
 
+async function resolveAgent(admin: any, userId: string, client: any, lead: any, waCfg: any, convState: any, inboundText: string) {
+  if (convState?.assigned_agent_id) return convState.assigned_agent_id;
+  const { data: agents } = await admin.from('ai_agents').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
+  const active = agents || [];
+  const text = (inboundText || '').toLowerCase();
+  for (const ag of active) {
+    const rules = Array.isArray(ag.routing_rules) ? ag.routing_rules : [];
+    const matched = rules.some((r: any) => {
+      const kw = String(r.keyword || '').toLowerCase().trim();
+      const kwOk = kw && text.includes(kw);
+      const pipelineOk = !r.pipeline_id || r.pipeline_id === lead?.pipeline_id;
+      const stageOk = !r.stage_id || r.stage_id === lead?.stage_id;
+      return kwOk && pipelineOk && stageOk;
+    });
+    if (matched) {
+      await admin.from('conversation_state').update({ assigned_agent_id: ag.id, updated_at: new Date().toISOString() }).eq('client_id', client.id);
+      return ag.id;
+    }
+  }
+  const byStage = active.find((ag: any) =>
+    (!!ag.stage_id && ag.stage_id === lead?.stage_id) ||
+    (!!ag.pipeline_id && ag.pipeline_id === lead?.pipeline_id)
+  );
+  if (byStage) return byStage.id;
+  return waCfg?.default_agent_id || active[0]?.id || null;
+}
+
 // Split a long reply into 1-3 natural chunks.
 function splitMessage(text: string, max = 320): string[] {
   if (!text) return [];
