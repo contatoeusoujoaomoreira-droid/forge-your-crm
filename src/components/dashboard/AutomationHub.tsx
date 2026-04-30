@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { forwardRef, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -23,12 +23,12 @@ import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
-function InfoHint({ title, steps }: { title: string; steps: string[] }) {
+const InfoHint = forwardRef<HTMLSpanElement, { title: string; steps: string[] }>(({ title, steps }, ref) => {
   return (
     <TooltipProvider delayDuration={100}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" aria-label={`Ajuda: ${title}`} className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition">
+          <button ref={ref as any} type="button" aria-label={`Ajuda: ${title}`} className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition">
             <Info className="h-3 w-3" />
           </button>
         </TooltipTrigger>
@@ -41,7 +41,8 @@ function InfoHint({ title, steps }: { title: string; steps: string[] }) {
       </Tooltip>
     </TooltipProvider>
   );
-}
+});
+InfoHint.displayName = "InfoHint";
 
 // Sensitive input with show/hide toggle + copy button
 function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value: string; onChange: (v: string) => void; placeholder?: string; allowCopy?: boolean }) {
