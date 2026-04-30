@@ -615,6 +615,27 @@ export default function InboxPage() {
       {/* Sidebar */}
       {selected && (
         <Card className="w-full lg:w-80 p-4 space-y-4 overflow-y-auto hidden lg:block">
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground">Inteligência da conversa</p>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-md border border-border p-2 bg-secondary/30">
+                <p className="text-muted-foreground">Origem</p>
+                <p className="font-medium truncate">{selectedMeta.provider || selected?.source || "whatsapp"}</p>
+              </div>
+              <div className="rounded-md border border-border p-2 bg-secondary/30">
+                <p className="text-muted-foreground">Instância</p>
+                <p className="font-mono truncate">{selectedMeta.entry_instance || "—"}</p>
+              </div>
+            </div>
+            {lastFailure && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] space-y-1">
+                <p className="font-semibold text-destructive">Última falha WhatsApp</p>
+                <p>Status: {lastFailure.metadata?.external_status || "—"}</p>
+                <p className="break-words text-muted-foreground">{lastFailure.metadata?.external_error || lastFailure.metadata?.external_body}</p>
+              </div>
+            )}
+          </div>
+
           {/* Lead linkage */}
           <div>
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Lead Vinculado</p>
