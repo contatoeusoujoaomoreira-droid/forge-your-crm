@@ -12,7 +12,7 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
 
@@ -294,14 +294,12 @@ export default function InboxPage() {
     const { data: pub } = supabase.storage.from("chat-media").getPublicUrl(path);
     const isImg = f.type.startsWith("image/");
     const mediaType = isImg ? "image" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "document";
-    const { data, error } = await supabase.from("messages").insert({
-      user_id: user.id, client_id: selectedId, lead_id: lead?.id || null,
-      direction: "outbound", channel: "whatsapp", content: f.name,
-      media_url: pub.publicUrl, media_type: mediaType, status: "sent",
-    }).select().single();
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: { client_id: selectedId, content: f.name, media_url: pub.publicUrl, media_type: mediaType, filename: f.name },
+    });
     if (error) { toast.error(error.message); return; }
-    if (data) setMessages(prev => [...prev, data as any].sort(byCreatedAt));
-    toast.success("Anexo enviado");
+    if (!data?.external_sent) toast.warning(`Anexo salvo, mas WhatsApp falhou: ${data?.external_error || "ver detalhes na mensagem"}`);
+    else toast.success("Anexo enviado");
   };
 
   const isGroupClient = (c: Client) =>
@@ -326,6 +324,8 @@ export default function InboxPage() {
   const selected = clients.find(c => c.id === selectedId);
   const currentStages = stages.filter(s => !lead?.pipeline_id || s.pipeline_id === lead.pipeline_id);
   const isClient = (lead?.tags || []).some((t: string) => t.toLowerCase() === "cliente") || lead?.status === "won";
+  const lastFailure = [...messages].reverse().find(m => m.status === "failed" && (m.metadata?.external_error || m.metadata?.external_body || m.metadata?.external_status));
+  const selectedMeta: any = selected?.metadata || {};
 
   const FilterChip = ({ id, label, count }: { id: FilterTab; label: string; count: number }) => (
     <button
@@ -615,6 +615,27 @@ export default function InboxPage() {
       {/* Sidebar */}
       {selected && (
         <Card className="w-full lg:w-80 p-4 space-y-4 overflow-y-auto hidden lg:block">
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase font-semibold text-muted-foreground">Inteligência da conversa</p>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-md border border-border p-2 bg-secondary/30">
+                <p className="text-muted-foreground">Origem</p>
+                <p className="font-medium truncate">{selectedMeta.provider || selected?.source || "whatsapp"}</p>
+              </div>
+              <div className="rounded-md border border-border p-2 bg-secondary/30">
+                <p className="text-muted-foreground">Instância</p>
+                <p className="font-mono truncate">{selectedMeta.entry_instance || "—"}</p>
+              </div>
+            </div>
+            {lastFailure && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] space-y-1">
+                <p className="font-semibold text-destructive">Última falha WhatsApp</p>
+                <p>Status: {lastFailure.metadata?.external_status || "—"}</p>
+                <p className="break-words text-muted-foreground">{lastFailure.metadata?.external_error || lastFailure.metadata?.external_body}</p>
+              </div>
+            )}
+          </div>
+
           {/* Lead linkage */}
           <div>
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Lead Vinculado</p>

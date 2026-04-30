@@ -146,6 +146,61 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   } as any;
 }
 
+function mediaTypeFromMime(mime?: string, fallback?: string): string | undefined {
+  const m = (mime || '').toLowerCase();
+  const f = (fallback || '').toLowerCase();
+  if (f.includes('reaction')) return 'reaction';
+  if (m.includes('image') || f.includes('image') || f.includes('sticker')) return f.includes('sticker') ? 'sticker' : 'image';
+  if (m.includes('video') || f.includes('video')) return 'video';
+  if (m.includes('audio') || f.includes('audio') || f.includes('ptt')) return 'audio';
+  if (m || f.includes('document') || f.includes('file')) return 'document';
+  return undefined;
+}
+
+const compactExternalId = (id?: string) => {
+  const v = String(id || '').trim();
+  return v.includes(':') ? v.split(':').pop() : v;
+};
+
+function normalizeUmclique(raw: any): NormalizedMsg | null {
+  const event = raw.event || {};
+  const chat = raw.chat || raw.data?.chat || {};
+  const message = raw.message || raw.data?.message || event.message || {};
+  const isDownloaded = String(raw.type || '').toLowerCase().includes('filedownloaded');
+  const fromMe = isDownloaded ? event.IsFromMe === true : (message.fromMe === true || message.from_me === true || message.isFromMe === true);
+  const chatId = isDownloaded
+    ? (event.Chat || event.chatid || event.Sender || '')
+    : (message.chatid || message.chatId || chat.wa_chatid || chat.id || chat.phone || message.to || message.from || '');
+  const phone = normalizePhone(chat.phone || chatId || message.sender || event.Sender || '');
+  const name = chat.wa_contactName || chat.name || chat.wa_name || raw.name || message.pushName || message.senderName;
+  const contentObj = message.content || {};
+  const mime = isDownloaded ? event.MimeType : (contentObj.mimetype || contentObj.mimeType || message.mime_type);
+  const msgType = message.type || raw.type || event.Type || chat.wa_lastMessageType;
+  const mediaType = isDownloaded ? mediaTypeFromMime(mime, event.Type) : mediaTypeFromMime(mime, msgType);
+  const fileUrl = isDownloaded ? event.FileURL : (contentObj.FileURL || contentObj.fileUrl || contentObj.url || contentObj.URL || message.media_url || message.mediaUrl);
+  const text = message.text || message.body || message.caption || contentObj.caption || contentObj.text || raw.text || raw.body || '';
+  const ts = isDownloaded ? event.Timestamp : (message.timestamp || chat.wa_lastMsgTimestamp || raw.timestamp);
+  const timestamp = typeof ts === 'number'
+    ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString()
+    : (typeof ts === 'string' && ts ? ts : undefined);
+  const ids = isDownloaded ? event.MessageIDs : undefined;
+  const externalId = compactExternalId(message.id || message.messageId || raw.message_id || raw.id || (Array.isArray(ids) ? ids[0] : undefined));
+  if (!phone && !externalId) return null;
+  return {
+    phone,
+    name,
+    content: text || (mediaType ? `[${mediaType}]` : ''),
+    external_message_id: externalId,
+    media_url: fileUrl,
+    media_type: mediaType,
+    avatar_url: chat.imagePreview || chat.image || chat.avatar || chat.profilePicUrl || raw.avatar_url,
+    from_me: fromMe,
+    timestamp,
+    is_group: chat.wa_isGroup === true || event.IsGroup === true || String(chatId).includes('@g.us'),
+    document_filename: contentObj.fileName || contentObj.filename || event.FileName,
+  } as any;
+}
+
 function extractAvatarUrl(input: any): string | undefined {
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
   const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
@@ -173,10 +228,17 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
     else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
     return { external_message_id: raw.messageId || raw.id, status: mapped };
   }
+  if (t.includes('readreceipt') || (raw.EventType === 'messages_update' && raw.event?.MessageIDs && !String(raw.type || '').toLowerCase().includes('filedownloaded'))) {
+    const ids = raw.event?.MessageIDs || raw.MessageIDs;
+    const statusText = String(raw.state || raw.event?.Type || raw.status || '').toLowerCase();
+    const status = statusText.includes('read') ? 'read' : statusText.includes('deliver') ? 'delivered' : 'sent';
+    return { external_message_id: compactExternalId(Array.isArray(ids) ? ids[0] : ids), status };
+  }
   return null;
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
+  if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
   if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
   if (raw.data?.key) return normalizeEvolution(raw);
   if (raw.phone && raw.message) {
@@ -361,6 +423,14 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
+    case 'umclique': {
+      const resp = await fetch(`${baseUrl}/public-send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, type: 'text', content }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    }
     default: {
       const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
@@ -382,8 +452,15 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  // Other providers: fall back to text — caller already has text reply
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API' };
+  if (cfg.api_type === 'umclique') {
+    const resp = await fetch(`${baseUrl}/public-send-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+      body: JSON.stringify({ channel_id: instance, to: phone, type: 'audio', url: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -405,6 +482,13 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
         body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'umclique') {
+      const resp = await fetch(`${baseUrl}/public-send-message`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, type: 'image', url: imageUrl, caption: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
@@ -485,6 +569,33 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
   } catch (_) { /* ignore */ }
 }
 
+async function resolveAgent(admin: any, userId: string, client: any, lead: any, waCfg: any, convState: any, inboundText: string) {
+  if (convState?.assigned_agent_id) return convState.assigned_agent_id;
+  const { data: agents } = await admin.from('ai_agents').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
+  const active = agents || [];
+  const text = (inboundText || '').toLowerCase();
+  for (const ag of active) {
+    const rules = Array.isArray(ag.routing_rules) ? ag.routing_rules : [];
+    const matched = rules.some((r: any) => {
+      const kw = String(r.keyword || '').toLowerCase().trim();
+      const kwOk = kw && text.includes(kw);
+      const pipelineOk = !r.pipeline_id || r.pipeline_id === lead?.pipeline_id;
+      const stageOk = !r.stage_id || r.stage_id === lead?.stage_id;
+      return kwOk && pipelineOk && stageOk;
+    });
+    if (matched) {
+      await admin.from('conversation_state').update({ assigned_agent_id: ag.id, updated_at: new Date().toISOString() }).eq('client_id', client.id);
+      return ag.id;
+    }
+  }
+  const byStage = active.find((ag: any) =>
+    (!!ag.stage_id && ag.stage_id === lead?.stage_id) ||
+    (!!ag.pipeline_id && ag.pipeline_id === lead?.pipeline_id)
+  );
+  if (byStage) return byStage.id;
+  return waCfg?.default_agent_id || active[0]?.id || null;
+}
+
 // Split a long reply into 1-3 natural chunks.
 function splitMessage(text: string, max = 320): string[] {
   if (!text) return [];
@@ -512,6 +623,14 @@ Deno.serve(async (req) => {
   let userId = '';
   let matchedConfig: any = null;
 
+  if (raw.__test__ === true) {
+    const testUserId = String(raw.user_id || '').trim();
+    if (testUserId) {
+      await admin.from('webhook_logs').insert({ user_id: testUserId, direction: 'inbound', event: 'dashboard_webhook_test', source: 'whatsapp', payload: raw });
+      return new Response(JSON.stringify({ ok: true, test: true, provider: raw.provider || 'whatsapp' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
+
   if (apiKey) {
     const keyHash = await sha256(apiKey);
     const { data: keyRow } = await admin.from('api_keys').select('*').eq('key_hash', keyHash).eq('is_active', true).maybeSingle();
@@ -521,7 +640,7 @@ Deno.serve(async (req) => {
     await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
     userId = keyRow.user_id;
   } else {
-    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || '').trim();
+    const instanceFromPayload = String(raw.instanceId || raw.instance_id || raw.instance || raw.instanceName || raw.channel_id || raw.channelId || raw.phone_number_id || raw.owner || raw.chat?.owner || raw.message?.owner || '').trim();
     if (instanceFromPayload) {
       // Use limit(1) instead of maybeSingle so duplicate instance_ids never break routing
       const { data: cfgRows } = await admin.from('whatsapp_configs')
@@ -567,7 +686,13 @@ Deno.serve(async (req) => {
 
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
-    if (dup) return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (dup) {
+      const patch: any = {};
+      if (msg.media_url) patch.media_url = msg.media_url;
+      if (msg.media_type) patch.media_type = msg.media_type;
+      if (Object.keys(patch).length) await admin.from('messages').update(patch).eq('id', dup.id);
+      return new Response(JSON.stringify({ ok: true, duplicate: true, enriched: Object.keys(patch).length > 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
   }
 
   let avatarUrl: string | undefined = (msg as any).avatar_url || extractAvatarUrl(raw) || undefined;
@@ -617,7 +742,7 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
@@ -687,6 +812,7 @@ Deno.serve(async (req) => {
       const { data: lead } = await admin.from('leads').insert({
         user_id: userId, name: client.name || msg.phone, phone: msg.phone,
         stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
+        notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
       }).select().single();
       if (lead) {
         await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
@@ -707,10 +833,15 @@ Deno.serve(async (req) => {
     convStateInit = createdState;
   }
 
-  agentId = convStateInit?.assigned_agent_id || waCfg?.default_agent_id || null;
-  if (!agentId) {
-    const { data: defaultAgent } = await admin.from('ai_agents').select('id').eq('user_id', userId).eq('is_active', true).limit(1).maybeSingle();
-    agentId = defaultAgent?.id;
+  let leadForRouting: any = null;
+  if (client?.lead_id) {
+    const { data: leadRow } = await admin.from('leads').select('id,pipeline_id,stage_id,status').eq('id', client.lead_id).maybeSingle();
+    leadForRouting = leadRow;
+  }
+  agentId = await resolveAgent(admin, userId, client, leadForRouting, waCfg, convStateInit, msg.content || '');
+  if (agentId && convStateInit?.assigned_agent_id !== agentId) {
+    await admin.from('conversation_state').update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() }).eq('client_id', client.id);
+    convStateInit = { ...convStateInit, assigned_agent_id: agentId };
   }
   if (agentId) {
     const { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).maybeSingle();
@@ -785,7 +916,7 @@ Deno.serve(async (req) => {
     sender_name: msg.name,
     created_at: msg.timestamp || new Date().toISOString(),
     metadata: {
-      provider: 'z-api',
+      provider: waCfg?.api_type || matchedConfig?.api_type || 'whatsapp',
       raw_type: raw.type || raw.event || null,
       transcript: transcript || undefined,
       image_description: imageDescription || undefined,

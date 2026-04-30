@@ -158,6 +158,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             __test__: true,
             provider: cfg.api_type || 'umclique',
+            instanceName: cfg.instance_id || '',
+            channel_id: cfg.instance_id || '',
             user_id: userData.user.id,
             timestamp: new Date().toISOString(),
             note: 'Webhook test from dashboard',
