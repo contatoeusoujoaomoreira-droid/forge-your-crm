@@ -742,7 +742,7 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
@@ -839,6 +839,10 @@ Deno.serve(async (req) => {
     leadForRouting = leadRow;
   }
   agentId = await resolveAgent(admin, userId, client, leadForRouting, waCfg, convStateInit, msg.content || '');
+  if (agentId && convStateInit?.assigned_agent_id !== agentId) {
+    await admin.from('conversation_state').update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() }).eq('client_id', client.id);
+    convStateInit = { ...convStateInit, assigned_agent_id: agentId };
+  }
   if (agentId) {
     const { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).maybeSingle();
     agent = ag;
@@ -912,7 +916,7 @@ Deno.serve(async (req) => {
     sender_name: msg.name,
     created_at: msg.timestamp || new Date().toISOString(),
     metadata: {
-      provider: 'z-api',
+      provider: waCfg?.api_type || matchedConfig?.api_type || 'whatsapp',
       raw_type: raw.type || raw.event || null,
       transcript: transcript || undefined,
       image_description: imageDescription || undefined,
