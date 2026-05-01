@@ -15,6 +15,7 @@ import {
   MessageCircle, Zap, User, Brain, GitBranch, BookOpen, FlaskConical,
   Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
+import AgentRoutingAdvanced from "./AgentRoutingAdvanced";
 
 const VOICE_PROVIDERS: Record<string, { label: string; voices: { id: string; label: string }[]; help?: string }> = {
   omni: {
