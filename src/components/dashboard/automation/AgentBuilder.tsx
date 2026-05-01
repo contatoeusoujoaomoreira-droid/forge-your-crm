@@ -174,12 +174,14 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   useEffect(() => {
     if (!user || !open) return;
     (async () => {
-      const [pl, st, pr, mc, uk] = await Promise.all([
+      const [pl, st, pr, mc, uk, sch, ag] = await Promise.all([
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
         supabase.from("model_credit_costs").select("*").eq("is_active", true),
         supabase.from("user_api_keys").select("provider,scope,label,is_active").eq("user_id", user.id).eq("is_active", true),
+        supabase.from("schedules").select("id, title").order("created_at", { ascending: false }),
+        supabase.from("ai_agents").select("id, name, is_active").eq("user_id", user.id).eq("is_active", true),
       ]);
       // Synthesize provider entries from own keys (so user can pick "use my OpenAI key")
       const synthetic = (uk.data || [])
@@ -200,6 +202,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       setPipelines(pl.data || []);
       setStages(st.data || []);
       setModelCosts(mc.data || []);
+      setSchedules(sch.data || []);
+      setAllAgents(ag.data || []);
       setElevenConnected((pr.data || []).some((p: any) => p.provider === 'elevenlabs' && p.api_key_encrypted));
     })();
   }, [user, open]);
