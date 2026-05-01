@@ -1077,11 +1077,18 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   {testMessages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                        {m.role === "assistant" && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                              🤖 {form.display_name || form.name || "Agente"}
+                            </Badge>
+                          </div>
+                        )}
                         {m.content}
                       </div>
                     </div>
                   ))}
-                  {testing && <div className="flex justify-start"><div className="bg-card border rounded-lg px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> digitando...</div></div>}
+                  {testing && <div className="flex justify-start"><div className="bg-card border rounded-lg px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> <Badge variant="outline" className="text-[9px]">🤖 {form.display_name || form.name || "Agente"}</Badge> digitando...</div></div>}
                 </Card>
                 <div className="flex gap-2">
                   <Input placeholder="Digite uma mensagem..." value={testInput}
