@@ -114,6 +114,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [stages, setStages] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [knowledge, setKnowledge] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [allAgents, setAllAgents] = useState<any[]>([]);
   const [knTitle, setKnTitle] = useState("");
   const [knContent, setKnContent] = useState("");
   const [knType, setKnType] = useState<"text" | "site" | "link" | "document" | "image">("text");
