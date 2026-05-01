@@ -94,6 +94,9 @@ const SchedulesList = () => {
       blocked_dates: (editing as any).blocked_dates || [],
       timezone: (editing as any).timezone || "America/Sao_Paulo",
       allow_cancellation: (editing as any).allow_cancellation || false,
+      reminder_enabled: (editing as any).reminder_enabled || false,
+      reminder_minutes_before: (editing as any).reminder_minutes_before || 120,
+      reminder_message: (editing as any).reminder_message || null,
     };
     if (editing.id) { await supabase.from("schedules").update(payload).eq("id", editing.id); }
     else { await supabase.from("schedules").insert(payload); }
