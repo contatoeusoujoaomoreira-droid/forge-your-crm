@@ -377,6 +377,33 @@ const SchedulesList = () => {
             <textarea value={((editing as any).blocked_dates || []).join("\n")} onChange={e => setEditing({ ...editing, blocked_dates: e.target.value.split("\n").map((d: string) => d.trim()).filter(Boolean) } as any)} className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3} placeholder="2025-12-25&#10;2025-01-01" />
           </div>
         </div>
+
+        {/* Lembrete Anti-Falta */}
+        <div className="surface-card rounded-lg p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔔 Lembrete Anti-Falta (Para o Lead)</p>
+          <label className="flex items-center gap-2 text-xs">
+            <Switch checked={(editing as any).reminder_enabled || false} onCheckedChange={v => setEditing({ ...editing, reminder_enabled: v } as any)} />
+            Enviar lembrete automático via WhatsApp
+          </label>
+          {(editing as any).reminder_enabled && (
+            <>
+              <div>
+                <Label className="text-[10px]">Tempo de antecedência (minutos)</Label>
+                <Input type="number" value={(editing as any).reminder_minutes_before || 120}
+                  onChange={e => setEditing({ ...editing, reminder_minutes_before: parseInt(e.target.value) || 120 } as any)}
+                  className="mt-1 bg-secondary/50 border-border h-8 text-xs" />
+                <p className="text-[10px] text-muted-foreground mt-1">Ex: 120 = 2 horas antes do agendamento</p>
+              </div>
+              <div>
+                <Label className="text-[10px]">Mensagem de lembrete (variáveis: {"{nome}"}, {"{data}"}, {"{hora}"}, {"{servico}"})</Label>
+                <textarea value={(editing as any).reminder_message || "Olá {nome}! 👋 Lembrando que você tem um agendamento hoje às {hora}. Nos vemos em breve!"}
+                  onChange={e => setEditing({ ...editing, reminder_message: e.target.value } as any)}
+                  className="w-full text-xs bg-secondary/50 border border-border rounded px-2 py-1 text-foreground mt-1" rows={3}
+                  placeholder="Olá {nome}! 👋 Lembrando que você tem um agendamento hoje às {hora}. Nos vemos em breve!" />
+              </div>
+            </>
+          )}
+        </div>
         {(pipelines.length > 0 || stages.length > 0) && (
           <div className="surface-card rounded-lg p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">🔗 Integração CRM</p>
