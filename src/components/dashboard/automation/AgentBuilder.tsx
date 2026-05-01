@@ -15,6 +15,7 @@ import {
   MessageCircle, Zap, User, Brain, GitBranch, BookOpen, FlaskConical,
   Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
+import AgentRoutingAdvanced from "./AgentRoutingAdvanced";
 
 const VOICE_PROVIDERS: Record<string, { label: string; voices: { id: string; label: string }[]; help?: string }> = {
   omni: {
@@ -113,6 +114,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [stages, setStages] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [knowledge, setKnowledge] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [allAgents, setAllAgents] = useState<any[]>([]);
   const [knTitle, setKnTitle] = useState("");
   const [knContent, setKnContent] = useState("");
   const [knType, setKnType] = useState<"text" | "site" | "link" | "document" | "image">("text");
@@ -151,6 +154,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     routing_rules: [],
     handoff_enabled: false,
     handoff_keywords: "",
+    handoff_mode: "pause",
+    handoff_pause_minutes: 30,
     stop_words: "",
     inactivity_timeout_minutes: null,
     message_limit: null,
@@ -164,6 +169,16 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     reply_to_audio_with_audio: true,
     transcribe_audio: true,
     understand_images: true,
+    notification_phone: "",
+    followup_enabled: false,
+    followup_max_attempts: 3,
+    followup_interval_minutes: 120,
+    followup_rescue_message: "",
+    linked_schedule_id: null,
+    schedule_can_query: false,
+    schedule_can_book: false,
+    schedule_keywords: "",
+    intent_routing_rules: [],
   });
 
   const [modelCosts, setModelCosts] = useState<any[]>([]);
@@ -171,12 +186,14 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   useEffect(() => {
     if (!user || !open) return;
     (async () => {
-      const [pl, st, pr, mc, uk] = await Promise.all([
+      const [pl, st, pr, mc, uk, sch, ag] = await Promise.all([
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
         supabase.from("ai_provider_configs").select("*").eq("user_id", user.id),
         supabase.from("model_credit_costs").select("*").eq("is_active", true),
         supabase.from("user_api_keys").select("provider,scope,label,is_active").eq("user_id", user.id).eq("is_active", true),
+        supabase.from("schedules").select("id, title").order("created_at", { ascending: false }),
+        supabase.from("ai_agents").select("id, name, is_active").eq("user_id", user.id).eq("is_active", true),
       ]);
       // Synthesize provider entries from own keys (so user can pick "use my OpenAI key")
       const synthetic = (uk.data || [])
@@ -197,6 +214,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
       setPipelines(pl.data || []);
       setStages(st.data || []);
       setModelCosts(mc.data || []);
+      setSchedules(sch.data || []);
+      setAllAgents(ag.data || []);
       setElevenConnected((pr.data || []).some((p: any) => p.provider === 'elevenlabs' && p.api_key_encrypted));
     })();
   }, [user, open]);
@@ -216,12 +235,17 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         ai_provider_config_id: "", model: "google/gemini-2.5-flash",
         system_prompt: "", rules: "", examples: "", objections: "",
         pipeline_id: "", stage_id: "", routing_rules: [],
-        handoff_enabled: false, handoff_keywords: "", stop_words: "",
+        handoff_enabled: false, handoff_keywords: "", handoff_mode: "pause", handoff_pause_minutes: 30,
+        stop_words: "",
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
         auto_close_enabled: false, auto_close_message: "", is_active: true,
         voice_enabled: false, voice_provider: "omni", voice_id: "alloy",
         reply_to_audio_with_audio: true, transcribe_audio: true, understand_images: true,
+        notification_phone: "", followup_enabled: false, followup_max_attempts: 3,
+        followup_interval_minutes: 120, followup_rescue_message: "",
+        linked_schedule_id: null, schedule_can_query: false, schedule_can_book: false,
+        schedule_keywords: "", intent_routing_rules: [],
       });
       setKnowledge([]);
     }
@@ -734,19 +758,18 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" />Roteamento por conversa</h4>
+                  <h4 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" />Roteamento por conversa (mover etapa)</h4>
                   <p className="text-xs text-muted-foreground">Mova o lead para diferentes etapas conforme a conversa evolui.</p>
                 </div>
                 <Button size="sm" variant="outline" onClick={addRoutingRule}><Plus className="h-4 w-4 mr-1" />Adicionar regra</Button>
               </div>
               <div className="text-xs p-2 rounded-md bg-muted/40 border border-dashed leading-relaxed">
-                <strong>Como o sistema escolhe o agente:</strong> 1) agente já vinculado à conversa → 2) regra de roteamento por palavra-chave (abaixo) → 3) pipeline/etapa atual do lead → 4) agente padrão da conexão WhatsApp. Permite ter vários agentes ativos no mesmo número, cada um especializado.
+                <strong>Como o sistema escolhe o agente:</strong> 1) agente já vinculado à conversa → 2) regra de transição por intenção → 3) regra de roteamento por palavra-chave → 4) pipeline/etapa atual do lead → 5) agente padrão da conexão WhatsApp.
               </div>
               {form.routing_rules.length === 0 ? (
-                <div className="text-center py-6 border border-dashed rounded-lg">
-                  <GitBranch className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento</p>
-                  <p className="text-xs text-muted-foreground">Adicione regras para mover o lead com base em palavras-chave, intenção ou qualificação.</p>
+                <div className="text-center py-4 border border-dashed rounded-lg">
+                  <GitBranch className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                  <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento de etapa</p>
                 </div>
               ) : form.routing_rules.map((r: any, i: number) => {
                 const ruleStages = stages.filter((s: any) => !r.pipeline_id || s.pipeline_id === r.pipeline_id);
@@ -779,16 +802,15 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               })}
             </Card>
 
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">🤝 Transferência para humano</Label>
-                <Switch checked={form.handoff_enabled} onCheckedChange={(v) => setForm({ ...form, handoff_enabled: v })} />
-              </div>
-              {form.handoff_enabled && (
-                <Input placeholder="Palavras-chave (separe por vírgula): atendente, humano, gerente"
-                  value={form.handoff_keywords || ""} onChange={(e) => setForm({ ...form, handoff_keywords: e.target.value })} />
-              )}
-            </Card>
+            {/* Advanced routing: intent routing, handoff, follow-up, schedule */}
+            <AgentRoutingAdvanced
+              form={form}
+              setForm={setForm}
+              agents={allAgents}
+              schedules={schedules}
+              pipelines={pipelines}
+              stages={stages}
+            />
 
             <Card className="p-4 space-y-3">
               <Label className="flex items-center gap-2">⛔ Palavras de parada</Label>
@@ -1055,11 +1077,18 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
                   {testMessages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                        {m.role === "assistant" && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                              🤖 {form.display_name || form.name || "Agente"}
+                            </Badge>
+                          </div>
+                        )}
                         {m.content}
                       </div>
                     </div>
                   ))}
-                  {testing && <div className="flex justify-start"><div className="bg-card border rounded-lg px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> digitando...</div></div>}
+                  {testing && <div className="flex justify-start"><div className="bg-card border rounded-lg px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> <Badge variant="outline" className="text-[9px]">🤖 {form.display_name || form.name || "Agente"}</Badge> digitando...</div></div>}
                 </Card>
                 <div className="flex gap-2">
                   <Input placeholder="Digite uma mensagem..." value={testInput}

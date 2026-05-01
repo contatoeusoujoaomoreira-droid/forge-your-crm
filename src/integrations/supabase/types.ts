@@ -124,17 +124,26 @@ export type Database = {
           created_at: string
           display_name: string | null
           examples: string | null
+          followup_enabled: boolean
+          followup_interval_minutes: number
+          followup_max_attempts: number
+          followup_rescue_message: string | null
           handoff_enabled: boolean
           handoff_keywords: string | null
+          handoff_mode: string
+          handoff_pause_minutes: number
           id: string
           inactivity_timeout_minutes: number | null
+          intent_routing_rules: Json
           is_active: boolean
+          linked_schedule_id: string | null
           max_message_chars: number
           max_tokens: number | null
           message_limit: number | null
           model: string | null
           multimedia_provider_config_id: string | null
           name: string
+          notification_phone: string | null
           objections: string | null
           personality: string | null
           pipeline_id: string | null
@@ -142,6 +151,9 @@ export type Database = {
           response_delay_seconds: number | null
           routing_rules: Json
           rules: string | null
+          schedule_can_book: boolean
+          schedule_can_query: boolean
+          schedule_keywords: string | null
           simulate_recording: boolean
           simulate_typing: boolean
           split_long_messages: boolean
@@ -168,17 +180,26 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           examples?: string | null
+          followup_enabled?: boolean
+          followup_interval_minutes?: number
+          followup_max_attempts?: number
+          followup_rescue_message?: string | null
           handoff_enabled?: boolean
           handoff_keywords?: string | null
+          handoff_mode?: string
+          handoff_pause_minutes?: number
           id?: string
           inactivity_timeout_minutes?: number | null
+          intent_routing_rules?: Json
           is_active?: boolean
+          linked_schedule_id?: string | null
           max_message_chars?: number
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
           multimedia_provider_config_id?: string | null
           name: string
+          notification_phone?: string | null
           objections?: string | null
           personality?: string | null
           pipeline_id?: string | null
@@ -186,6 +207,9 @@ export type Database = {
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
+          schedule_can_book?: boolean
+          schedule_can_query?: boolean
+          schedule_keywords?: string | null
           simulate_recording?: boolean
           simulate_typing?: boolean
           split_long_messages?: boolean
@@ -212,17 +236,26 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           examples?: string | null
+          followup_enabled?: boolean
+          followup_interval_minutes?: number
+          followup_max_attempts?: number
+          followup_rescue_message?: string | null
           handoff_enabled?: boolean
           handoff_keywords?: string | null
+          handoff_mode?: string
+          handoff_pause_minutes?: number
           id?: string
           inactivity_timeout_minutes?: number | null
+          intent_routing_rules?: Json
           is_active?: boolean
+          linked_schedule_id?: string | null
           max_message_chars?: number
           max_tokens?: number | null
           message_limit?: number | null
           model?: string | null
           multimedia_provider_config_id?: string | null
           name?: string
+          notification_phone?: string | null
           objections?: string | null
           personality?: string | null
           pipeline_id?: string | null
@@ -230,6 +263,9 @@ export type Database = {
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
+          schedule_can_book?: boolean
+          schedule_can_query?: boolean
+          schedule_keywords?: string | null
           simulate_recording?: boolean
           simulate_typing?: boolean
           split_long_messages?: boolean
@@ -1911,6 +1947,9 @@ export type Database = {
           is_active: boolean
           is_published: boolean
           pipeline_id: string | null
+          reminder_enabled: boolean
+          reminder_message: string | null
+          reminder_minutes_before: number
           slug: string
           stage_id: string | null
           style: Json
@@ -1931,6 +1970,9 @@ export type Database = {
           is_active?: boolean
           is_published?: boolean
           pipeline_id?: string | null
+          reminder_enabled?: boolean
+          reminder_message?: string | null
+          reminder_minutes_before?: number
           slug: string
           stage_id?: string | null
           style?: Json
@@ -1951,11 +1993,50 @@ export type Database = {
           is_active?: boolean
           is_published?: boolean
           pipeline_id?: string | null
+          reminder_enabled?: boolean
+          reminder_message?: string | null
+          reminder_minutes_before?: number
           slug?: string
           stage_id?: string | null
           style?: Json
           timezone?: string
           title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stage_triggers: {
+        Row: {
+          action_config: Json
+          action_type: string
+          created_at: string
+          id: string
+          is_active: boolean
+          stage_id: string
+          trigger_event: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          stage_id: string
+          trigger_event?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          stage_id?: string
+          trigger_event?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

@@ -21,6 +21,7 @@ import CampaignsList from "./automation/CampaignsList";
 import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
+import CRMIntelligence from "./automation/CRMIntelligence";
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
 const InfoHint = forwardRef<HTMLSpanElement, { title: string; steps: string[] }>(({ title, steps }, ref) => {
@@ -406,6 +407,7 @@ export default function AutomationHub() {
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
           <TabsTrigger value="imported"><CheckCircle2 className="h-4 w-4 mr-1" />Importados</TabsTrigger>
+          <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -822,7 +824,8 @@ export default function AutomationHub() {
           <AIProviderSettings />
         </TabsContent>
         <TabsContent value="import"><LeadImporter onShowImported={() => setTab("imported")} /></TabsContent>
-        <TabsContent value="imported"><ImportedListsViewer /></TabsContent>
+       <TabsContent value="imported"><ImportedListsViewer /></TabsContent>
+       <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção
