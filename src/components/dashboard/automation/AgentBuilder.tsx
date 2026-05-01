@@ -154,6 +154,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     routing_rules: [],
     handoff_enabled: false,
     handoff_keywords: "",
+    handoff_mode: "pause",
+    handoff_pause_minutes: 30,
     stop_words: "",
     inactivity_timeout_minutes: null,
     message_limit: null,
@@ -167,6 +169,16 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     reply_to_audio_with_audio: true,
     transcribe_audio: true,
     understand_images: true,
+    notification_phone: "",
+    followup_enabled: false,
+    followup_max_attempts: 3,
+    followup_interval_minutes: 120,
+    followup_rescue_message: "",
+    linked_schedule_id: null,
+    schedule_can_query: false,
+    schedule_can_book: false,
+    schedule_keywords: "",
+    intent_routing_rules: [],
   });
 
   const [modelCosts, setModelCosts] = useState<any[]>([]);
