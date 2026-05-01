@@ -758,19 +758,18 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" />Roteamento por conversa</h4>
+                  <h4 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" />Roteamento por conversa (mover etapa)</h4>
                   <p className="text-xs text-muted-foreground">Mova o lead para diferentes etapas conforme a conversa evolui.</p>
                 </div>
                 <Button size="sm" variant="outline" onClick={addRoutingRule}><Plus className="h-4 w-4 mr-1" />Adicionar regra</Button>
               </div>
               <div className="text-xs p-2 rounded-md bg-muted/40 border border-dashed leading-relaxed">
-                <strong>Como o sistema escolhe o agente:</strong> 1) agente já vinculado à conversa → 2) regra de roteamento por palavra-chave (abaixo) → 3) pipeline/etapa atual do lead → 4) agente padrão da conexão WhatsApp. Permite ter vários agentes ativos no mesmo número, cada um especializado.
+                <strong>Como o sistema escolhe o agente:</strong> 1) agente já vinculado à conversa → 2) regra de transição por intenção → 3) regra de roteamento por palavra-chave → 4) pipeline/etapa atual do lead → 5) agente padrão da conexão WhatsApp.
               </div>
               {form.routing_rules.length === 0 ? (
-                <div className="text-center py-6 border border-dashed rounded-lg">
-                  <GitBranch className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento</p>
-                  <p className="text-xs text-muted-foreground">Adicione regras para mover o lead com base em palavras-chave, intenção ou qualificação.</p>
+                <div className="text-center py-4 border border-dashed rounded-lg">
+                  <GitBranch className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                  <p className="text-sm text-muted-foreground">Nenhuma regra de roteamento de etapa</p>
                 </div>
               ) : form.routing_rules.map((r: any, i: number) => {
                 const ruleStages = stages.filter((s: any) => !r.pipeline_id || s.pipeline_id === r.pipeline_id);
@@ -803,16 +802,15 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               })}
             </Card>
 
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">🤝 Transferência para humano</Label>
-                <Switch checked={form.handoff_enabled} onCheckedChange={(v) => setForm({ ...form, handoff_enabled: v })} />
-              </div>
-              {form.handoff_enabled && (
-                <Input placeholder="Palavras-chave (separe por vírgula): atendente, humano, gerente"
-                  value={form.handoff_keywords || ""} onChange={(e) => setForm({ ...form, handoff_keywords: e.target.value })} />
-              )}
-            </Card>
+            {/* Advanced routing: intent routing, handoff, follow-up, schedule */}
+            <AgentRoutingAdvanced
+              form={form}
+              setForm={setForm}
+              agents={allAgents}
+              schedules={schedules}
+              pipelines={pipelines}
+              stages={stages}
+            />
 
             <Card className="p-4 space-y-3">
               <Label className="flex items-center gap-2">⛔ Palavras de parada</Label>
