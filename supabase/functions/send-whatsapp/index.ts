@@ -222,6 +222,18 @@ Deno.serve(async (req) => {
       },
     }).select().single();
 
+    // Human reply: disable AI for this conversation and schedule the auto-resume timer
+    if (clientRow?.id) {
+      await admin.from('conversation_state').upsert({
+        user_id: userId, client_id: clientRow.id,
+        ai_active: false, mode: 'manual',
+        last_human_reply_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'client_id' });
+      await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }).catch(() => {});
+      await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
+    }
+
     // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
     if (externalSent) {
       const action = body.media_url ? 'image_vision' : 'chat_message_text';
