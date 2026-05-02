@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.tts-preview]
 verify_jwt = false
+
+[functions.cron-worker]
+verify_jwt = false
