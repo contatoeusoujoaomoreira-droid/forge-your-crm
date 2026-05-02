@@ -122,12 +122,14 @@ export type Database = {
           auto_close_message: string | null
           business_hours: Json
           created_at: string
+          debounce_seconds: number
           display_name: string | null
           examples: string | null
           followup_enabled: boolean
           followup_interval_minutes: number
           followup_max_attempts: number
           followup_rescue_message: string | null
+          group_messages: boolean
           handoff_enabled: boolean
           handoff_keywords: string | null
           handoff_mode: string
@@ -178,12 +180,14 @@ export type Database = {
           auto_close_message?: string | null
           business_hours?: Json
           created_at?: string
+          debounce_seconds?: number
           display_name?: string | null
           examples?: string | null
           followup_enabled?: boolean
           followup_interval_minutes?: number
           followup_max_attempts?: number
           followup_rescue_message?: string | null
+          group_messages?: boolean
           handoff_enabled?: boolean
           handoff_keywords?: string | null
           handoff_mode?: string
@@ -234,12 +238,14 @@ export type Database = {
           auto_close_message?: string | null
           business_hours?: Json
           created_at?: string
+          debounce_seconds?: number
           display_name?: string | null
           examples?: string | null
           followup_enabled?: boolean
           followup_interval_minutes?: number
           followup_max_attempts?: number
           followup_rescue_message?: string | null
+          group_messages?: boolean
           handoff_enabled?: boolean
           handoff_keywords?: string | null
           handoff_mode?: string
@@ -367,6 +373,8 @@ export type Database = {
           id: string
           lead_id: string | null
           notes: string | null
+          reminder_pin: string | null
+          reminder_sent_at: string | null
           schedule_id: string
           status: string
           time: string
@@ -382,6 +390,8 @@ export type Database = {
           id?: string
           lead_id?: string | null
           notes?: string | null
+          reminder_pin?: string | null
+          reminder_sent_at?: string | null
           schedule_id: string
           status?: string
           time: string
@@ -397,6 +407,8 @@ export type Database = {
           id?: string
           lead_id?: string | null
           notes?: string | null
+          reminder_pin?: string | null
+          reminder_sent_at?: string | null
           schedule_id?: string
           status?: string
           time?: string
@@ -576,6 +588,8 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          last_inbound_at: string | null
+          last_outbound_at: string | null
           lead_id: string | null
           metadata: Json | null
           name: string | null
@@ -590,6 +604,8 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           lead_id?: string | null
           metadata?: Json | null
           name?: string | null
@@ -604,6 +620,8 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
           lead_id?: string | null
           metadata?: Json | null
           name?: string | null
@@ -744,6 +762,7 @@ export type Database = {
           assigned_agent_id: string | null
           assigned_user_id: string | null
           client_id: string
+          handoff_resume_at: string | null
           id: string
           last_human_reply_at: string | null
           marked_unread: boolean
@@ -757,6 +776,7 @@ export type Database = {
           assigned_agent_id?: string | null
           assigned_user_id?: string | null
           client_id: string
+          handoff_resume_at?: string | null
           id?: string
           last_human_reply_at?: string | null
           marked_unread?: boolean
@@ -770,6 +790,7 @@ export type Database = {
           assigned_agent_id?: string | null
           assigned_user_id?: string | null
           client_id?: string
+          handoff_resume_at?: string | null
           id?: string
           last_human_reply_at?: string | null
           marked_unread?: boolean
@@ -965,6 +986,45 @@ export type Database = {
           updated_at?: string
           user_id?: string
           verified_at?: string | null
+        }
+        Relationships: []
+      }
+      followup_tracking: {
+        Row: {
+          agent_id: string
+          attempts_sent: number
+          client_id: string
+          created_at: string
+          id: string
+          last_attempt_at: string | null
+          next_attempt_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          attempts_sent?: number
+          client_id: string
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          next_attempt_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          attempts_sent?: number
+          client_id?: string
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          next_attempt_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1380,6 +1440,48 @@ export type Database = {
           plan?: string
           tier?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      message_debounce_queue: {
+        Row: {
+          agent_id: string | null
+          attempts: number
+          buffered_messages: Json
+          client_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          process_after: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          attempts?: number
+          buffered_messages?: Json
+          client_id: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          process_after: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          attempts?: number
+          buffered_messages?: Json
+          client_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          process_after?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2284,6 +2386,11 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      resume_expired_handoffs: { Args: never; Returns: number }
+      schedule_handoff_resume: {
+        Args: { _client_id: string }
+        Returns: undefined
       }
       sync_super_admin_entitlements: { Args: never; Returns: undefined }
       user_usage_stats: { Args: { _user_id: string }; Returns: Json }
