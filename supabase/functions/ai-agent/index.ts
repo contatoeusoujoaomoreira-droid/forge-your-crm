@@ -236,11 +236,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...body.messages] }),
-    });
+    let resp: Response;
+    let content = '';
+    let tokensUsed = 0;
+    if (providerType === 'anthropic') {
+      resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, max_tokens: 1024, system: systemPrompt,
+          messages: body.messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+        }),
+      });
+    } else {
+      const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+      if (providerType === 'openrouter') {
+        headers['HTTP-Referer'] = 'https://omnibuildercrm.online';
+        headers['X-Title'] = 'Omni Builder CRM';
+      }
+      resp = await fetch(endpoint, {
+        method: 'POST', headers,
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...body.messages] }),
+      });
+    }
     if (resp.status === 429) return new Response(JSON.stringify({ error: 'Rate limit. Tente em alguns segundos.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     if (resp.status === 402) return new Response(JSON.stringify({ error: 'Créditos esgotados. Adicione créditos ao workspace.' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     if (!resp.ok) {
@@ -248,8 +266,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: `AI ${resp.status}: ${err}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     const json = await resp.json();
-    const content = json.choices?.[0]?.message?.content || '';
-    const tokensUsed = json.usage?.total_tokens || 0;
+    if (providerType === 'anthropic') {
+      content = json.content?.[0]?.text || '';
+      tokensUsed = (json.usage?.input_tokens || 0) + (json.usage?.output_tokens || 0);
+    } else {
+      content = json.choices?.[0]?.message?.content || '';
+      tokensUsed = json.usage?.total_tokens || 0;
+    }
     if (body.agent_id && tokensUsed) {
       const { data: cur } = await admin.from('ai_agents').select('total_tokens_used').eq('id', body.agent_id).maybeSingle();
       await admin.from('ai_agents').update({ total_tokens_used: (cur?.total_tokens_used || 0) + tokensUsed }).eq('id', body.agent_id);
