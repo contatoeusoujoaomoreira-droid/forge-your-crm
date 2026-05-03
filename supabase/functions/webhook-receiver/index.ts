@@ -1163,6 +1163,7 @@ Deno.serve(async (req) => {
   }
 
   // AI auto-reply (skipped if flow handled the message)
+  if (!flowHandled && waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
     try {
       const { data: history } = await admin.from('messages').select('direction, content')
         .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);
