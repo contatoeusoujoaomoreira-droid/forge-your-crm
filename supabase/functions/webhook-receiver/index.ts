@@ -45,8 +45,10 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
   let apiKey = LOVABLE_API_KEY;
   if (provider === 'openai' && cfg?.api_key_encrypted) { endpoint = 'https://api.openai.com/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
-  if (provider === 'groq' && cfg?.api_key_encrypted) { endpoint = 'https://api.groq.com/openai/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
-  if (provider === 'gemini' && cfg?.api_key_encrypted) { endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'groq' && cfg?.api_key_encrypted) { endpoint = 'https://api.groq.com/openai/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'gemini' && cfg?.api_key_encrypted) { endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'anthropic' && cfg?.api_key_encrypted) { endpoint = 'https://api.anthropic.com/v1/messages'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'openrouter' && cfg?.api_key_encrypted) { endpoint = 'https://openrouter.ai/api/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
   let agentModel = normalizeLegacyModel(agent?.model);
   if (provider === 'openai' && agentModel.startsWith('openai/')) agentModel = agentModel.replace('openai/', '');
   if (provider === 'gemini' && agentModel.startsWith('google/')) agentModel = agentModel.replace('google/', '');
@@ -54,7 +56,9 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   if (provider === 'openai' && cfgModel.startsWith('openai/')) cfgModel = cfgModel.replace('openai/', '');
   if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
   const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
-  const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  let model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  if (provider === 'anthropic' && !model.startsWith('claude-')) model = 'claude-3-5-haiku-20241022';
+  if (provider === 'openrouter' && !model.includes('/')) model = 'openai/gpt-4o-mini';
   return { endpoint, apiKey, model, provider };
 }
 
