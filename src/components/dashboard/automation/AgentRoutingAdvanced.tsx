@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GitBranch, Bell, Calendar, Clock, Shield, Zap, UserCheck, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import TeamRadarSettings from "./TeamRadarSettings";
 
 interface IntentRoutingRule {
   intent: string;
@@ -173,32 +174,8 @@ export default function AgentRoutingAdvanced({ form, setForm, agents, schedules,
         )}
       </Card>
 
-      {/* ── Radar da Equipe (Notification Phone) ── */}
-      <Card className="p-4 space-y-3 border-emerald-500/30">
-        <h4 className="font-semibold flex items-center gap-2 text-emerald-400">
-          <Bell className="h-4 w-4" /> Radar da Equipe (Notificações Operacionais)
-        </h4>
-        <p className="text-xs text-muted-foreground">
-          Número interno que receberá alertas via WhatsApp quando eventos importantes acontecerem.
-        </p>
-        <div>
-          <Label className="text-xs">WhatsApp para Notificações</Label>
-          <Input
-            value={form.notification_phone || ""}
-            onChange={(e) => setForm({ ...form, notification_phone: e.target.value })}
-            placeholder="5511999999999 (com DDI)"
-          />
-        </div>
-        <div className="text-xs text-muted-foreground space-y-1 border-t pt-2">
-          <p className="font-semibold">Alertas enviados automaticamente:</p>
-          <ul className="list-disc list-inside space-y-0.5">
-            <li>📅 Agendamento confirmado ou cancelado</li>
-            <li>📊 Lead movido para etapa específica (ex: Fechado/Ganho)</li>
-            <li>⏰ 30 min antes de um compromisso</li>
-            <li>🤝 Handoff — humano assumiu a conversa</li>
-          </ul>
-        </div>
-      </Card>
+      {/* ── Radar da Equipe (multi-telefone, eventos selecionáveis) ── */}
+      <TeamRadarSettings />
 
       {/* ── Follow-Up Anti-Vácuo ── */}
       <Card className="p-4 space-y-3 border-purple-500/30">

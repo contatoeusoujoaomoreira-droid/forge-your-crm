@@ -91,6 +91,47 @@ function pinCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Default events when no config exists yet
+const DEFAULT_EVENTS: Record<string, boolean> = {
+  appointment_created: true,
+  appointment_cancelled: true,
+  appointment_reminder: true,
+  lead_stage_change: true,
+  lead_won: true,
+  handoff_human: true,
+  order_created: true,
+  form_submitted: true,
+  followup_sent: false,
+  ai_error: true,
+};
+
+async function notifyTeam(admin: any, userId: string, event: string, message: string) {
+  const { data: cfg } = await admin.from('team_alerts_config').select('*').eq('user_id', userId).maybeSingle();
+  let phones: string[] = [];
+  let events = DEFAULT_EVENTS;
+  let enabled = true;
+  if (cfg) {
+    enabled = cfg.is_enabled !== false;
+    phones = Array.isArray(cfg.phones) ? cfg.phones : [];
+    events = { ...DEFAULT_EVENTS, ...(cfg.events || {}) };
+  } else {
+    // legacy fallback: agents.notification_phone
+    const { data: ag } = await admin.from('ai_agents').select('notification_phone').eq('user_id', userId).not('notification_phone', 'is', null).limit(1).maybeSingle();
+    if (ag?.notification_phone) phones = [ag.notification_phone];
+  }
+  if (!enabled || !phones.length || events[event] === false) return 0;
+  const { data: wcfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', userId).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (!wcfg) return 0;
+  let n = 0;
+  for (const raw of phones) {
+    const phone = String(raw || '').replace(/\D/g, '');
+    if (!phone) continue;
+    const r = await sendWhatsAppText(wcfg, phone, message);
+    if (r.ok) n++;
+  }
+  return n;
+}
+
 // === HANDLERS ===
 
 async function processHandoffResume(admin: any) {
@@ -154,11 +195,8 @@ async function processReminders(admin: any) {
     const r = await sendWhatsAppText(cfg, a.guest_phone.replace(/\D/g, ''), msg);
     await admin.from('appointments').update({ reminder_sent_at: new Date().toISOString(), reminder_pin: pin }).eq('id', a.id);
     if (r.ok) sent++;
-    // Notify owner too
-    const { data: agent } = await admin.from('ai_agents').select('notification_phone').eq('user_id', sched.user_id).not('notification_phone', 'is', null).limit(1).maybeSingle();
-    if (agent?.notification_phone) {
-      await sendWhatsAppText(cfg, agent.notification_phone.replace(/\D/g, ''), `📅 Lembrete: ${a.guest_name} tem ${sched.title} às ${a.time}.`);
-    }
+    // Notify owner via team alerts
+    await notifyTeam(admin, sched.user_id, 'appointment_reminder', `📅 Lembrete: ${a.guest_name} tem ${sched.title} hoje às ${a.time}.`);
   }
   return sent;
 }
@@ -261,11 +299,9 @@ async function processStageChange(admin: any, payload: any) {
     } catch (e) { console.error('stage trigger fail', t.id, e); }
   }
 
-  // Also notify the owner via global agent.notification_phone if any
-  const { data: anyAgent } = await admin.from('ai_agents').select('notification_phone').eq('user_id', user_id).not('notification_phone', 'is', null).limit(1).maybeSingle();
-  if (anyAgent?.notification_phone && cfg) {
-    await sendWhatsAppText(cfg, anyAgent.notification_phone.replace(/\D/g, ''), `🔔 Lead "${lead.name}" mudou de etapa no CRM.`);
-  }
+  // Also notify the owner via team alerts
+  const { data: stage } = await admin.from('pipeline_stages').select('name').eq('id', new_stage_id).maybeSingle();
+  await notifyTeam(admin, user_id, 'lead_stage_change', `🔔 Lead "${lead.name}" entrou em "${stage?.name || 'nova etapa'}"${lead.value ? ` (R$ ${lead.value})` : ''}.`);
   return count;
 }
 
@@ -281,7 +317,34 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, stage_triggers: n }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // Cron tick: run all maintenance tasks
+  // Generic team-alert events
+  if (body.event && body.user_id) {
+    const p = body.payload || {};
+    let msg = '';
+    switch (body.event) {
+      case 'appointment_created':
+        msg = `📅 Novo agendamento: ${p.guest_name || 'cliente'} em ${p.date} ${p.time}.`; break;
+      case 'appointment_cancelled':
+        msg = `❌ Agendamento cancelado: ${p.guest_name || 'cliente'} (${p.date} ${p.time}).`; break;
+      case 'order_created':
+        msg = `💰 Novo pedido: ${p.customer || 'cliente'} — R$ ${Number(p.total || 0).toFixed(2)} (${p.status}).`; break;
+      case 'form_submitted':
+        msg = `📝 Nova resposta no formulário "${p.form_title || ''}".`; break;
+      case 'lead_won':
+        msg = `🏆 Lead ganho: ${p.name}${p.value ? ` (R$ ${p.value})` : ''}.`; break;
+      case 'handoff_human':
+        msg = `🤝 Humano assumiu a conversa com ${p.name || 'lead'}.`; break;
+      case 'ai_error':
+        msg = `⚠️ Erro na IA: ${p.message || 'falha desconhecida'}.`; break;
+      case 'team_alert_test':
+        msg = `✅ Teste do Radar da Equipe — está funcionando!`; break;
+      default:
+        msg = `🔔 Evento ${body.event}`;
+    }
+    const sent = await notifyTeam(admin, body.user_id, body.event, msg);
+    return new Response(JSON.stringify({ ok: true, event: body.event, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   const [resumed, debounced, reminders, followups] = await Promise.all([
     processHandoffResume(admin).catch(e => { console.error('handoff', e); return 0; }),
     processDebounceQueue(admin).catch(e => { console.error('debounce', e); return 0; }),
