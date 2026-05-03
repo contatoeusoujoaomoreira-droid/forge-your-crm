@@ -195,11 +195,8 @@ async function processReminders(admin: any) {
     const r = await sendWhatsAppText(cfg, a.guest_phone.replace(/\D/g, ''), msg);
     await admin.from('appointments').update({ reminder_sent_at: new Date().toISOString(), reminder_pin: pin }).eq('id', a.id);
     if (r.ok) sent++;
-    // Notify owner too
-    const { data: agent } = await admin.from('ai_agents').select('notification_phone').eq('user_id', sched.user_id).not('notification_phone', 'is', null).limit(1).maybeSingle();
-    if (agent?.notification_phone) {
-      await sendWhatsAppText(cfg, agent.notification_phone.replace(/\D/g, ''), `📅 Lembrete: ${a.guest_name} tem ${sched.title} às ${a.time}.`);
-    }
+    // Notify owner via team alerts
+    await notifyTeam(admin, sched.user_id, 'appointment_reminder', `📅 Lembrete: ${a.guest_name} tem ${sched.title} hoje às ${a.time}.`);
   }
   return sent;
 }
