@@ -91,6 +91,47 @@ function pinCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Default events when no config exists yet
+const DEFAULT_EVENTS: Record<string, boolean> = {
+  appointment_created: true,
+  appointment_cancelled: true,
+  appointment_reminder: true,
+  lead_stage_change: true,
+  lead_won: true,
+  handoff_human: true,
+  order_created: true,
+  form_submitted: true,
+  followup_sent: false,
+  ai_error: true,
+};
+
+async function notifyTeam(admin: any, userId: string, event: string, message: string) {
+  const { data: cfg } = await admin.from('team_alerts_config').select('*').eq('user_id', userId).maybeSingle();
+  let phones: string[] = [];
+  let events = DEFAULT_EVENTS;
+  let enabled = true;
+  if (cfg) {
+    enabled = cfg.is_enabled !== false;
+    phones = Array.isArray(cfg.phones) ? cfg.phones : [];
+    events = { ...DEFAULT_EVENTS, ...(cfg.events || {}) };
+  } else {
+    // legacy fallback: agents.notification_phone
+    const { data: ag } = await admin.from('ai_agents').select('notification_phone').eq('user_id', userId).not('notification_phone', 'is', null).limit(1).maybeSingle();
+    if (ag?.notification_phone) phones = [ag.notification_phone];
+  }
+  if (!enabled || !phones.length || events[event] === false) return 0;
+  const { data: wcfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', userId).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (!wcfg) return 0;
+  let n = 0;
+  for (const raw of phones) {
+    const phone = String(raw || '').replace(/\D/g, '');
+    if (!phone) continue;
+    const r = await sendWhatsAppText(wcfg, phone, message);
+    if (r.ok) n++;
+  }
+  return n;
+}
+
 // === HANDLERS ===
 
 async function processHandoffResume(admin: any) {
