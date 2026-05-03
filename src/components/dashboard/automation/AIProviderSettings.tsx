@@ -13,7 +13,9 @@ const PROVIDERS = [
   { id: "lovable", label: "Sistema (incluso — sem chave)", defaultModel: "google/gemini-2.5-flash", needsKey: false },
   { id: "openai", label: "OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
   { id: "groq", label: "Groq", defaultModel: "llama-3.3-70b-versatile", needsKey: true },
-  { id: "gemini", label: "Google Gemini (chave própria)", defaultModel: "gemini-2.0-flash-exp", needsKey: true },
+  { id: "gemini", label: "Google Gemini (chave própria)", defaultModel: "gemini-2.0-flash", needsKey: true },
+  { id: "anthropic", label: "Anthropic (Claude)", defaultModel: "claude-3-5-haiku-20241022", needsKey: true },
+  { id: "openrouter", label: "OpenRouter", defaultModel: "openai/gpt-4o-mini", needsKey: true },
 ];
 
 const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
@@ -36,6 +38,17 @@ const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
   gemini: [
     { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+  ],
+  anthropic: [
+    { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (rápido)" },
+    { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+    { id: "claude-3-opus-20240229", label: "Claude 3 Opus" },
+  ],
+  openrouter: [
+    { id: "openai/gpt-4o-mini", label: "GPT-4o Mini (via OpenRouter)" },
+    { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet (via OR)" },
+    { id: "google/gemini-2.0-flash-exp:free", label: "Gemini 2.0 Flash (free)" },
+    { id: "meta-llama/llama-3.3-70b-instruct", label: "LLaMA 3.3 70B (via OR)" },
   ],
 };
 

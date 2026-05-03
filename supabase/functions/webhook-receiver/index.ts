@@ -45,8 +45,10 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   let endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
   let apiKey = LOVABLE_API_KEY;
   if (provider === 'openai' && cfg?.api_key_encrypted) { endpoint = 'https://api.openai.com/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
-  if (provider === 'groq' && cfg?.api_key_encrypted) { endpoint = 'https://api.groq.com/openai/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
-  if (provider === 'gemini' && cfg?.api_key_encrypted) { endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'groq' && cfg?.api_key_encrypted) { endpoint = 'https://api.groq.com/openai/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'gemini' && cfg?.api_key_encrypted) { endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'anthropic' && cfg?.api_key_encrypted) { endpoint = 'https://api.anthropic.com/v1/messages'; apiKey = cfg.api_key_encrypted; }
+  else if (provider === 'openrouter' && cfg?.api_key_encrypted) { endpoint = 'https://openrouter.ai/api/v1/chat/completions'; apiKey = cfg.api_key_encrypted; }
   let agentModel = normalizeLegacyModel(agent?.model);
   if (provider === 'openai' && agentModel.startsWith('openai/')) agentModel = agentModel.replace('openai/', '');
   if (provider === 'gemini' && agentModel.startsWith('google/')) agentModel = agentModel.replace('google/', '');
@@ -54,7 +56,9 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   if (provider === 'openai' && cfgModel.startsWith('openai/')) cfgModel = cfgModel.replace('openai/', '');
   if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
   const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
-  const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  let model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  if (provider === 'anthropic' && !model.startsWith('claude-')) model = 'claude-3-5-haiku-20241022';
+  if (provider === 'openrouter' && !model.includes('/')) model = 'openai/gpt-4o-mini';
   return { endpoint, apiKey, model, provider };
 }
 
@@ -388,14 +392,29 @@ async function generateTtsBase64(text: string, voice: string, openaiKey: string,
   return await tryEleven(elevenKey ? '21m00Tcm4TlvDq8ikWAM' : '');
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }) {
+  const provider = runtime.provider || 'lovable';
+  if (provider === 'anthropic') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': runtime.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: runtime.model, max_tokens: 800, system: systemPrompt,
+        messages: history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      }),
+    });
+    if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return j.content?.[0]?.text || '';
+  }
+  const headers: Record<string, string> = { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://omnibuildercrm.online';
+    headers['X-Title'] = 'Omni Builder CRM';
+  }
   const resp = await fetch(runtime.endpoint, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: runtime.model,
-      messages: [{ role: 'system', content: systemPrompt }, ...history],
-    }),
+    method: 'POST', headers,
+    body: JSON.stringify({ model: runtime.model, messages: [{ role: 'system', content: systemPrompt }, ...history] }),
   });
   if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
   const json = await resp.json();
@@ -622,6 +641,68 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
   let userId = '';
   let matchedConfig: any = null;
+
+  // === DEBOUNCE FLUSH (called by cron-worker after grouping window) ===
+  if (raw.__debounced__ === true && raw.user_id && raw.client_id) {
+    try {
+      const dUserId = String(raw.user_id);
+      const dClientId = String(raw.client_id);
+      const dAgentId = raw.agent_id ? String(raw.agent_id) : null;
+      const buffered: any[] = Array.isArray(raw.messages) ? raw.messages : [];
+      const merged = buffered.map((m) => m?.content || '').filter(Boolean).join('\n');
+      if (!merged) return new Response(JSON.stringify({ ok: true, debounced: true, empty: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+      const { data: client } = await admin.from('chat_clients').select('*').eq('id', dClientId).maybeSingle();
+      if (!client) return new Response(JSON.stringify({ ok: false, error: 'client_not_found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: cs } = await admin.from('conversation_state').select('*').eq('client_id', dClientId).maybeSingle();
+      if (!cs?.ai_active || cs?.mode !== 'ai') return new Response(JSON.stringify({ ok: true, debounced: true, paused: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const agentIdToUse = dAgentId || cs.assigned_agent_id;
+      if (!agentIdToUse) return new Response(JSON.stringify({ ok: true, debounced: true, no_agent: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentIdToUse).maybeSingle();
+      if (!agent) return new Response(JSON.stringify({ ok: true, debounced: true, no_agent: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: providerCfg } = agent.ai_provider_config_id
+        ? await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle()
+        : { data: null };
+      const { data: waCfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', dUserId).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+
+      const { data: history } = await admin.from('messages').select('direction, content')
+        .eq('client_id', dClientId).order('created_at', { ascending: false }).limit(20);
+      const ordered = (history || []).reverse().filter((m: any) => m.content);
+      const aiHistory = ordered.map((m: any) => ({ role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.content }));
+      // Append the merged debounced batch as the latest user turn
+      aiHistory.push({ role: 'user', content: merged });
+
+      const { data: knowledge } = await admin.from('agent_knowledge')
+        .select('id, title, category, description, keywords, content, media_urls, external_links').eq('agent_id', agent.id);
+      const selected = knowledge?.length ? findKb(knowledge, merged, 5) : [];
+      const baseItems = selected.length ? selected : (knowledge || []).slice(0, 3);
+      const ctx = baseItems.map((k: any) => [
+        `# ${k.title}${k.category ? ` [${k.category}]` : ''}`,
+        k.description ? `Descrição: ${k.description}` : '',
+        Array.isArray(k.keywords) && k.keywords.length ? `Palavras-chave: ${k.keywords.join(', ')}` : '',
+        k.content ? String(k.content).slice(0, 1500) : '',
+      ].filter(Boolean).join('\n')).join('\n\n---\n\n').slice(0, 8000);
+
+      const sys = buildSystemPrompt(agent, ctx);
+      const runtime = resolveAiRuntime(agent, providerCfg);
+      const reply = await callAi(sys, aiHistory, runtime);
+      let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
+      if (reply && waCfg?.is_active && client.phone) {
+        try { delivery = await sendWhatsApp(waCfg, client.phone, reply); } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
+      }
+      await admin.from('messages').insert({
+        user_id: dUserId, client_id: dClientId, lead_id: client.lead_id,
+        direction: 'outbound', channel: 'whatsapp', content: reply || '',
+        status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id, sender_phone: client.phone,
+        metadata: { debounced: true, batch_size: buffered.length, external_status: delivery.status, external_body: delivery.body },
+      });
+      await admin.rpc('deduct_credits', { _user_id: dUserId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, debounced: true } });
+      return new Response(JSON.stringify({ ok: true, debounced: true, sent: delivery.ok }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      console.error('debounced flush error', e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
 
   if (raw.__test__ === true) {
     const testUserId = String(raw.user_id || '').trim();
@@ -1053,6 +1134,32 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error('flow runner error', e);
+  }
+
+  // === DEBOUNCE ENQUEUE: agrupa rajadas curtas em vez de responder a cada msg ===
+  if (!flowHandled && agent?.group_messages && (agent.debounce_seconds || 0) > 0 && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+    try {
+      const debounceMs = Math.max(2, Number(agent.debounce_seconds || 8)) * 1000;
+      const processAfter = new Date(Date.now() + debounceMs).toISOString();
+      const newEntry = { content: inboundContent, ts: new Date().toISOString(), external_id: msg.external_message_id || null };
+      const { data: existingQ } = await admin.from('message_debounce_queue')
+        .select('*').eq('client_id', client.id).eq('status', 'pending').maybeSingle();
+      if (existingQ) {
+        const merged = [...(Array.isArray(existingQ.buffered_messages) ? existingQ.buffered_messages : []), newEntry];
+        await admin.from('message_debounce_queue').update({
+          buffered_messages: merged, process_after: processAfter, agent_id: agent.id, updated_at: new Date().toISOString(),
+        }).eq('id', existingQ.id);
+      } else {
+        await admin.from('message_debounce_queue').insert({
+          user_id: userId, client_id: client.id, agent_id: agent.id,
+          buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id, debounced: true, process_after: processAfter }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      console.error('debounce enqueue failed, falling back to direct AI', e);
+      // fall through to immediate reply
+    }
   }
 
   // AI auto-reply (skipped if flow handled the message)
