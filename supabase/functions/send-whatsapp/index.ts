@@ -232,6 +232,12 @@ Deno.serve(async (req) => {
       }, { onConflict: 'client_id' });
       await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }).catch(() => {});
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
+      try {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'handoff_human', user_id: userId, payload: { name: clientRow.name || phone } }),
+        });
+      } catch {}
     }
 
     // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
