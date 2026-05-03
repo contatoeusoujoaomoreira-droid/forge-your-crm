@@ -317,7 +317,34 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, stage_triggers: n }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // Cron tick: run all maintenance tasks
+  // Generic team-alert events
+  if (body.event && body.user_id) {
+    const p = body.payload || {};
+    let msg = '';
+    switch (body.event) {
+      case 'appointment_created':
+        msg = `📅 Novo agendamento: ${p.guest_name || 'cliente'} em ${p.date} ${p.time}.`; break;
+      case 'appointment_cancelled':
+        msg = `❌ Agendamento cancelado: ${p.guest_name || 'cliente'} (${p.date} ${p.time}).`; break;
+      case 'order_created':
+        msg = `💰 Novo pedido: ${p.customer || 'cliente'} — R$ ${Number(p.total || 0).toFixed(2)} (${p.status}).`; break;
+      case 'form_submitted':
+        msg = `📝 Nova resposta no formulário "${p.form_title || ''}".`; break;
+      case 'lead_won':
+        msg = `🏆 Lead ganho: ${p.name}${p.value ? ` (R$ ${p.value})` : ''}.`; break;
+      case 'handoff_human':
+        msg = `🤝 Humano assumiu a conversa com ${p.name || 'lead'}.`; break;
+      case 'ai_error':
+        msg = `⚠️ Erro na IA: ${p.message || 'falha desconhecida'}.`; break;
+      case 'team_alert_test':
+        msg = `✅ Teste do Radar da Equipe — está funcionando!`; break;
+      default:
+        msg = `🔔 Evento ${body.event}`;
+    }
+    const sent = await notifyTeam(admin, body.user_id, body.event, msg);
+    return new Response(JSON.stringify({ ok: true, event: body.event, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   const [resumed, debounced, reminders, followups] = await Promise.all([
     processHandoffResume(admin).catch(e => { console.error('handoff', e); return 0; }),
     processDebounceQueue(admin).catch(e => { console.error('debounce', e); return 0; }),
