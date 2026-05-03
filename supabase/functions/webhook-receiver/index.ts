@@ -392,14 +392,29 @@ async function generateTtsBase64(text: string, voice: string, openaiKey: string,
   return await tryEleven(elevenKey ? '21m00Tcm4TlvDq8ikWAM' : '');
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string }) {
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }) {
+  const provider = runtime.provider || 'lovable';
+  if (provider === 'anthropic') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': runtime.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: runtime.model, max_tokens: 800, system: systemPrompt,
+        messages: history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      }),
+    });
+    if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return j.content?.[0]?.text || '';
+  }
+  const headers: Record<string, string> = { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://omnibuildercrm.online';
+    headers['X-Title'] = 'Omni Builder CRM';
+  }
   const resp = await fetch(runtime.endpoint, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: runtime.model,
-      messages: [{ role: 'system', content: systemPrompt }, ...history],
-    }),
+    method: 'POST', headers,
+    body: JSON.stringify({ model: runtime.model, messages: [{ role: 'system', content: systemPrompt }, ...history] }),
   });
   if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
   const json = await resp.json();
