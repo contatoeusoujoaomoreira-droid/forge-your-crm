@@ -21,6 +21,8 @@ const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   openai: 'gpt-4o-mini',
   groq: 'llama-3.3-70b-versatile',
   gemini: 'gemini-2.0-flash',
+  anthropic: 'claude-3-5-haiku-20241022',
+  openrouter: 'openai/gpt-4o-mini',
 };
 
 const normalizeLegacyModel = (model?: string | null) => {
