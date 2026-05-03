@@ -1136,8 +1136,33 @@ Deno.serve(async (req) => {
     console.error('flow runner error', e);
   }
 
+  // === DEBOUNCE ENQUEUE: agrupa rajadas curtas em vez de responder a cada msg ===
+  if (!flowHandled && agent?.group_messages && (agent.debounce_seconds || 0) > 0 && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+    try {
+      const debounceMs = Math.max(2, Number(agent.debounce_seconds || 8)) * 1000;
+      const processAfter = new Date(Date.now() + debounceMs).toISOString();
+      const newEntry = { content: inboundContent, ts: new Date().toISOString(), external_id: msg.external_message_id || null };
+      const { data: existingQ } = await admin.from('message_debounce_queue')
+        .select('*').eq('client_id', client.id).eq('status', 'pending').maybeSingle();
+      if (existingQ) {
+        const merged = [...(Array.isArray(existingQ.buffered_messages) ? existingQ.buffered_messages : []), newEntry];
+        await admin.from('message_debounce_queue').update({
+          buffered_messages: merged, process_after: processAfter, agent_id: agent.id, updated_at: new Date().toISOString(),
+        }).eq('id', existingQ.id);
+      } else {
+        await admin.from('message_debounce_queue').insert({
+          user_id: userId, client_id: client.id, agent_id: agent.id,
+          buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id, debounced: true, process_after: processAfter }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      console.error('debounce enqueue failed, falling back to direct AI', e);
+      // fall through to immediate reply
+    }
+  }
+
   // AI auto-reply (skipped if flow handled the message)
-  if (!flowHandled && waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
     try {
       const { data: history } = await admin.from('messages').select('direction, content')
         .eq('client_id', client.id).order('created_at', { ascending: false }).limit(20);
