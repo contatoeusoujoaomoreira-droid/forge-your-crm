@@ -642,6 +642,68 @@ Deno.serve(async (req) => {
   let userId = '';
   let matchedConfig: any = null;
 
+  // === DEBOUNCE FLUSH (called by cron-worker after grouping window) ===
+  if (raw.__debounced__ === true && raw.user_id && raw.client_id) {
+    try {
+      const dUserId = String(raw.user_id);
+      const dClientId = String(raw.client_id);
+      const dAgentId = raw.agent_id ? String(raw.agent_id) : null;
+      const buffered: any[] = Array.isArray(raw.messages) ? raw.messages : [];
+      const merged = buffered.map((m) => m?.content || '').filter(Boolean).join('\n');
+      if (!merged) return new Response(JSON.stringify({ ok: true, debounced: true, empty: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+      const { data: client } = await admin.from('chat_clients').select('*').eq('id', dClientId).maybeSingle();
+      if (!client) return new Response(JSON.stringify({ ok: false, error: 'client_not_found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: cs } = await admin.from('conversation_state').select('*').eq('client_id', dClientId).maybeSingle();
+      if (!cs?.ai_active || cs?.mode !== 'ai') return new Response(JSON.stringify({ ok: true, debounced: true, paused: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const agentIdToUse = dAgentId || cs.assigned_agent_id;
+      if (!agentIdToUse) return new Response(JSON.stringify({ ok: true, debounced: true, no_agent: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: agent } = await admin.from('ai_agents').select('*').eq('id', agentIdToUse).maybeSingle();
+      if (!agent) return new Response(JSON.stringify({ ok: true, debounced: true, no_agent: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: providerCfg } = agent.ai_provider_config_id
+        ? await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle()
+        : { data: null };
+      const { data: waCfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', dUserId).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+
+      const { data: history } = await admin.from('messages').select('direction, content')
+        .eq('client_id', dClientId).order('created_at', { ascending: false }).limit(20);
+      const ordered = (history || []).reverse().filter((m: any) => m.content);
+      const aiHistory = ordered.map((m: any) => ({ role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.content }));
+      // Append the merged debounced batch as the latest user turn
+      aiHistory.push({ role: 'user', content: merged });
+
+      const { data: knowledge } = await admin.from('agent_knowledge')
+        .select('id, title, category, description, keywords, content, media_urls, external_links').eq('agent_id', agent.id);
+      const selected = knowledge?.length ? findKb(knowledge, merged, 5) : [];
+      const baseItems = selected.length ? selected : (knowledge || []).slice(0, 3);
+      const ctx = baseItems.map((k: any) => [
+        `# ${k.title}${k.category ? ` [${k.category}]` : ''}`,
+        k.description ? `Descrição: ${k.description}` : '',
+        Array.isArray(k.keywords) && k.keywords.length ? `Palavras-chave: ${k.keywords.join(', ')}` : '',
+        k.content ? String(k.content).slice(0, 1500) : '',
+      ].filter(Boolean).join('\n')).join('\n\n---\n\n').slice(0, 8000);
+
+      const sys = buildSystemPrompt(agent, ctx);
+      const runtime = resolveAiRuntime(agent, providerCfg);
+      const reply = await callAi(sys, aiHistory, runtime);
+      let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
+      if (reply && waCfg?.is_active && client.phone) {
+        try { delivery = await sendWhatsApp(waCfg, client.phone, reply); } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
+      }
+      await admin.from('messages').insert({
+        user_id: dUserId, client_id: dClientId, lead_id: client.lead_id,
+        direction: 'outbound', channel: 'whatsapp', content: reply || '',
+        status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id, sender_phone: client.phone,
+        metadata: { debounced: true, batch_size: buffered.length, external_status: delivery.status, external_body: delivery.body },
+      });
+      await admin.rpc('deduct_credits', { _user_id: dUserId, _amount: 1, _kind: 'ai_response', _metadata: { agent_id: agent.id, debounced: true } });
+      return new Response(JSON.stringify({ ok: true, debounced: true, sent: delivery.ok }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      console.error('debounced flush error', e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
+
   if (raw.__test__ === true) {
     const testUserId = String(raw.user_id || '').trim();
     if (testUserId) {
