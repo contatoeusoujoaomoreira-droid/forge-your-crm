@@ -299,11 +299,9 @@ async function processStageChange(admin: any, payload: any) {
     } catch (e) { console.error('stage trigger fail', t.id, e); }
   }
 
-  // Also notify the owner via global agent.notification_phone if any
-  const { data: anyAgent } = await admin.from('ai_agents').select('notification_phone').eq('user_id', user_id).not('notification_phone', 'is', null).limit(1).maybeSingle();
-  if (anyAgent?.notification_phone && cfg) {
-    await sendWhatsAppText(cfg, anyAgent.notification_phone.replace(/\D/g, ''), `🔔 Lead "${lead.name}" mudou de etapa no CRM.`);
-  }
+  // Also notify the owner via team alerts
+  const { data: stage } = await admin.from('pipeline_stages').select('name').eq('id', new_stage_id).maybeSingle();
+  await notifyTeam(admin, user_id, 'lead_stage_change', `🔔 Lead "${lead.name}" entrou em "${stage?.name || 'nova etapa'}"${lead.value ? ` (R$ ${lead.value})` : ''}.`);
   return count;
 }
 
