@@ -54,6 +54,12 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   } else if (provider === 'gemini' && cfg?.api_key_encrypted) {
     endpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
     apiKey = cfg.api_key_encrypted;
+  } else if (provider === 'anthropic' && cfg?.api_key_encrypted) {
+    endpoint = 'https://api.anthropic.com/v1/messages';
+    apiKey = cfg.api_key_encrypted;
+  } else if (provider === 'openrouter' && cfg?.api_key_encrypted) {
+    endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    apiKey = cfg.api_key_encrypted;
   }
 
   let agentModel = normalizeLegacyModel(agent?.model);
@@ -65,8 +71,10 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   if (provider === 'gemini' && cfgModel.startsWith('google/')) cfgModel = cfgModel.replace('google/', '');
 
   const fallback = PROVIDER_DEFAULT_MODEL[provider] || PROVIDER_DEFAULT_MODEL.lovable;
-  const model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
-  return { endpoint, apiKey, model };
+  let model = modelMatchesProvider(provider, agentModel) ? agentModel : (modelMatchesProvider(provider, cfgModel) ? cfgModel : fallback);
+  if (provider === 'anthropic' && !model.startsWith('claude-')) model = 'claude-3-5-haiku-20241022';
+  if (provider === 'openrouter' && !model.includes('/')) model = 'openai/gpt-4o-mini';
+  return { endpoint, apiKey, model, provider };
 }
 
 function buildSystemPrompt(agent: any) {
