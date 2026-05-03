@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GitBranch, Bell, Calendar, Clock, Shield, Zap, UserCheck, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import TeamRadarSettings from "./TeamRadarSettings";
 
 interface IntentRoutingRule {
   intent: string;
