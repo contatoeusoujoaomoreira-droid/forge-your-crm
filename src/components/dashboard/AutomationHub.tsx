@@ -521,6 +521,16 @@ export default function AutomationHub() {
                                   <p className="text-[11px] text-destructive mt-1">Channel ID muito curto.</p>
                                 )}
                               </div>
+                              <div>
+                                <Label className="text-xs">IDs alternativos do webhook</Label>
+                                <Input
+                                  value={(c.webhook_instance_ids || []).join(", ")}
+                                  onChange={(e) => updateLocalConn(c.id, { webhook_instance_ids: e.target.value.split(",").map((v: string) => v.trim()).filter(Boolean) })}
+                                  placeholder="DEADPL-WYZZG, outro-id"
+                                  className="font-mono text-xs"
+                                />
+                                <p className="text-[11px] text-muted-foreground mt-1">IDs que o provider envia em webhooks (umClique usa channel_id diferente do ID de envio). Auto-aprende após 1ª mensagem.</p>
+                              </div>
                               <div className="col-span-2">
                                 <Label className="text-xs">URL Base da API</Label>
                                 <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={hint?.base} className="font-mono text-xs" />
