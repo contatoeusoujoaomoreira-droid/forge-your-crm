@@ -2320,6 +2320,7 @@ export type Database = {
           label: string | null
           updated_at: string
           user_id: string
+          webhook_instance_ids: string[]
         }
         Insert: {
           ai_auto_reply?: boolean
@@ -2338,6 +2339,7 @@ export type Database = {
           label?: string | null
           updated_at?: string
           user_id?: string
+          webhook_instance_ids?: string[]
         }
         Update: {
           ai_auto_reply?: boolean
@@ -2356,6 +2358,7 @@ export type Database = {
           label?: string | null
           updated_at?: string
           user_id?: string
+          webhook_instance_ids?: string[]
         }
         Relationships: []
       }
