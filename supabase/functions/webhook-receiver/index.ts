@@ -431,7 +431,7 @@ async function generateTtsBase64(text: string, voice: string, openaiKey: string,
   return await tryEleven(elevenKey ? '21m00Tcm4TlvDq8ikWAM' : '');
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }) {
+async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }, tools?: any[]) {
   const provider = runtime.provider || 'lovable';
   if (provider === 'anthropic') {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -444,21 +444,201 @@ async function callAi(systemPrompt: string, history: { role: string; content: st
     });
     if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
     const j = await r.json();
-    return j.content?.[0]?.text || '';
+    return { text: j.content?.[0]?.text || '', tool_calls: [] as any[] };
   }
   const headers: Record<string, string> = { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' };
   if (provider === 'openrouter') {
     headers['HTTP-Referer'] = 'https://omnibuildercrm.online';
     headers['X-Title'] = 'Omni Builder CRM';
   }
-  const resp = await fetch(runtime.endpoint, {
-    method: 'POST', headers,
-    body: JSON.stringify({ model: runtime.model, messages: [{ role: 'system', content: systemPrompt }, ...history] }),
-  });
+  const body: any = { model: runtime.model, messages: [{ role: 'system', content: systemPrompt }, ...history] };
+  if (tools && tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  const resp = await fetch(runtime.endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
   const json = await resp.json();
-  return json.choices?.[0]?.message?.content || '';
+  const choice = json.choices?.[0]?.message || {};
+  return { text: choice.content || '', tool_calls: choice.tool_calls || [] };
 }
+
+// ============= Fase 3: Scheduling tools for AI function calling =============
+const SCHEDULING_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_available_slots',
+      description: 'Lista horários disponíveis em uma agenda em uma data ou intervalo. Use quando o cliente pedir horários, disponibilidade ou quiser marcar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          schedule_slug_or_id: { type: 'string', description: 'Slug ou ID da agenda. Se não souber, deixe vazio para usar a primeira agenda ativa.' },
+          date: { type: 'string', description: 'Data desejada YYYY-MM-DD. Opcional — se vazio, retorna próximos 7 dias.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_appointment',
+      description: 'Confirma e agenda um horário para o cliente. Use APÓS o cliente escolher um slot específico.',
+      parameters: {
+        type: 'object',
+        properties: {
+          schedule_slug_or_id: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          time: { type: 'string', description: 'HH:MM (24h)' },
+          guest_name: { type: 'string' },
+          guest_phone: { type: 'string' },
+          guest_email: { type: 'string' },
+          notes: { type: 'string' },
+        },
+        required: ['date', 'time'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_appointment',
+      description: 'Cancela um agendamento existente do cliente atual.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string' },
+          reason: { type: 'string' },
+        },
+      },
+    },
+  },
+];
+
+async function resolveSchedule(admin: any, userId: string, slugOrId?: string) {
+  if (slugOrId) {
+    const { data: byId } = await admin.from('schedules').select('*').eq('user_id', userId).eq('id', slugOrId).maybeSingle();
+    if (byId) return byId;
+    const { data: bySlug } = await admin.from('schedules').select('*').eq('user_id', userId).eq('slug', slugOrId).maybeSingle();
+    if (bySlug) return bySlug;
+  }
+  const { data } = await admin.from('schedules').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
+
+function generateDaySlots(schedule: any, dateStr: string, taken: Set<string>): string[] {
+  const dow = new Date(dateStr + 'T12:00:00').getDay();
+  const dowKeys = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const avail = schedule.availability || schedule.weekly_availability || {};
+  const dayCfg = avail[dowKeys[dow]] || avail[String(dow)];
+  if (!dayCfg || dayCfg.enabled === false) return [];
+  const start = dayCfg.start || dayCfg.from || '09:00';
+  const end = dayCfg.end || dayCfg.to || '18:00';
+  const dur = Number(schedule.duration_minutes || schedule.slot_duration || 30);
+  const slots: string[] = [];
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let mins = sh * 60 + sm;
+  const endMins = eh * 60 + em;
+  while (mins + dur <= endMins) {
+    const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+    const mm = String(mins % 60).padStart(2, '0');
+    const t = `${hh}:${mm}`;
+    if (!taken.has(t)) slots.push(t);
+    mins += dur;
+  }
+  return slots;
+}
+
+async function execSchedulingTool(admin: any, userId: string, clientId: string, client: any, name: string, args: any): Promise<string> {
+  try {
+    if (name === 'list_available_slots') {
+      const sch = await resolveSchedule(admin, userId, args.schedule_slug_or_id);
+      if (!sch) return JSON.stringify({ error: 'Nenhuma agenda configurada' });
+      const dates: string[] = [];
+      if (args.date) dates.push(args.date);
+      else {
+        const today = new Date();
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(today.getTime() + i * 86400000);
+          dates.push(d.toISOString().slice(0, 10));
+        }
+      }
+      const out: any[] = [];
+      for (const d of dates) {
+        const { data: appts } = await admin.from('appointments').select('time, status').eq('schedule_id', sch.id).eq('date', d).neq('status', 'cancelled');
+        const taken = new Set<string>((appts || []).map((a: any) => String(a.time).slice(0, 5)));
+        const slots = generateDaySlots(sch, d, taken);
+        if (slots.length) out.push({ date: d, slots: slots.slice(0, 12) });
+      }
+      return JSON.stringify({ schedule: sch.title || sch.name, available: out });
+    }
+    if (name === 'create_appointment') {
+      const sch = await resolveSchedule(admin, userId, args.schedule_slug_or_id);
+      if (!sch) return JSON.stringify({ error: 'Nenhuma agenda configurada' });
+      const { data: existing } = await admin.from('appointments').select('id').eq('schedule_id', sch.id).eq('date', args.date).eq('time', args.time).neq('status', 'cancelled').maybeSingle();
+      if (existing) return JSON.stringify({ error: 'Horário já ocupado' });
+      const { data: appt, error } = await admin.from('appointments').insert({
+        schedule_id: sch.id,
+        date: args.date,
+        time: args.time,
+        guest_name: args.guest_name || client.name || 'Cliente',
+        guest_phone: args.guest_phone || client.phone,
+        guest_email: args.guest_email || client.email,
+        notes: args.notes || null,
+        status: 'confirmed',
+      }).select().maybeSingle();
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ ok: true, appointment_id: appt?.id, date: args.date, time: args.time, schedule: sch.title || sch.name });
+    }
+    if (name === 'cancel_appointment') {
+      let id = args.appointment_id;
+      if (!id) {
+        const { data: last } = await admin.from('appointments').select('id, schedule_id, schedules!inner(user_id)').eq('guest_phone', client.phone).neq('status', 'cancelled').order('date', { ascending: false }).limit(1).maybeSingle();
+        id = last?.id;
+      }
+      if (!id) return JSON.stringify({ error: 'Nenhum agendamento encontrado' });
+      const { error } = await admin.from('appointments').update({ status: 'cancelled', cancel_reason: args.reason || null }).eq('id', id);
+      if (error) return JSON.stringify({ error: error.message });
+      return JSON.stringify({ ok: true, cancelled: id });
+    }
+    return JSON.stringify({ error: 'Tool desconhecida' });
+  } catch (e) {
+    return JSON.stringify({ error: String(e).slice(0, 300) });
+  }
+}
+
+async function callAiWithTools(
+  admin: any, userId: string, clientId: string, client: any, agent: any,
+  systemPrompt: string, history: { role: string; content: string }[],
+  runtime: { endpoint: string; apiKey: string; model: string; provider?: string }
+): Promise<string> {
+  const enableTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book) && (runtime.provider !== 'anthropic');
+  if (!enableTools) {
+    const r = await callAi(systemPrompt, history, runtime);
+    return r.text;
+  }
+  const conv: any[] = [{ role: 'system', content: systemPrompt }, ...history];
+  for (let iter = 0; iter < 3; iter++) {
+    const headers: Record<string, string> = { Authorization: `Bearer ${runtime.apiKey}`, 'Content-Type': 'application/json' };
+    if (runtime.provider === 'openrouter') { headers['HTTP-Referer'] = 'https://omnibuildercrm.online'; headers['X-Title'] = 'Omni Builder CRM'; }
+    const resp = await fetch(runtime.endpoint, {
+      method: 'POST', headers,
+      body: JSON.stringify({ model: runtime.model, messages: conv, tools: SCHEDULING_TOOLS, tool_choice: 'auto' }),
+    });
+    if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
+    const json = await resp.json();
+    const msg = json.choices?.[0]?.message || {};
+    const calls = msg.tool_calls || [];
+    if (!calls.length) return msg.content || '';
+    conv.push({ role: 'assistant', content: msg.content || '', tool_calls: calls });
+    for (const tc of calls) {
+      let parsedArgs: any = {};
+      try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
+      const result = await execSchedulingTool(admin, userId, clientId, client, tc.function?.name || '', parsedArgs);
+      conv.push({ role: 'tool', tool_call_id: tc.id, content: result });
+    }
+  }
+  return 'Não consegui completar o agendamento. Pode tentar novamente?';
+}
+
 
 const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '').replace(/\/send-audio$/, '');
 
@@ -739,7 +919,7 @@ Deno.serve(async (req) => {
 
       const sys = buildSystemPrompt(agent, ctx);
       const runtime = resolveAiRuntime(agent, providerCfg);
-      const reply = await callAi(sys, aiHistory, runtime);
+      const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
       if (reply && waCfg?.is_active && client.phone) {
         try { delivery = await sendWhatsApp(waCfg, client.phone, reply); } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
@@ -1289,7 +1469,7 @@ Deno.serve(async (req) => {
       const intent = detectIntent(lastUserText, agent);
       const sys = buildSystemPrompt(agent, ctx);
       const runtime = resolveAiRuntime(agent, providerCfg);
-      const reply = await callAi(sys, aiHistory, runtime);
+      const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;

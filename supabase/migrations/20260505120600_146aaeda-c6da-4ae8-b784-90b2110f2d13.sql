@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS enable_scheduling_tools boolean NOT NULL DEFAULT false;
