@@ -124,6 +124,7 @@ export type Database = {
           created_at: string
           debounce_seconds: number
           display_name: string | null
+          enable_scheduling_tools: boolean
           examples: string | null
           followup_enabled: boolean
           followup_interval_minutes: number
@@ -185,6 +186,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           display_name?: string | null
+          enable_scheduling_tools?: boolean
           examples?: string | null
           followup_enabled?: boolean
           followup_interval_minutes?: number
@@ -246,6 +248,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           display_name?: string | null
+          enable_scheduling_tools?: boolean
           examples?: string | null
           followup_enabled?: boolean
           followup_interval_minutes?: number
