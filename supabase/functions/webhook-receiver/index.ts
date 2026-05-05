@@ -610,7 +610,7 @@ async function callAiWithTools(
   systemPrompt: string, history: { role: string; content: string }[],
   runtime: { endpoint: string; apiKey: string; model: string; provider?: string }
 ): Promise<string> {
-  const enableTools = !!agent.enable_scheduling_tools && (runtime.provider !== 'anthropic');
+  const enableTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book) && (runtime.provider !== 'anthropic');
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
     return r.text;
