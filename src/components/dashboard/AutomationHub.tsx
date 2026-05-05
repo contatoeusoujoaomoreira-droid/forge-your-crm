@@ -807,6 +807,7 @@ export default function AutomationHub() {
               </ul>
             )}
           </Card>
+          <FollowupSequenceEditor />
         </TabsContent>
 
         <TabsContent value="flows" className="space-y-3">
