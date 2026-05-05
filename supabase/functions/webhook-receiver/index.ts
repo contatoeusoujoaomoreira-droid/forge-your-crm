@@ -251,45 +251,84 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
   return null;
 }
 
-// Transcribe audio. Tries the agent's selected provider first (Groq Whisper, OpenAI Whisper),
-// then falls back to OpenAI key. Returns text or '' on failure.
-async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
+// Transcribe audio. Cascade: Groq Whisper → OpenAI Whisper → ElevenLabs Scribe → Lovable AI Gemini multimodal.
+// Lovable AI is universal fallback (no user key needed).
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = ''): Promise<string> {
   try {
     const audioResp = await fetch(audioUrl);
     if (!audioResp.ok) return '';
     const buf = await audioResp.arrayBuffer();
-    const blob = new Blob([buf], { type: 'audio/ogg' });
+    const ct = audioResp.headers.get('content-type') || 'audio/ogg';
+    const blob = new Blob([buf], { type: ct });
 
-    // Groq Whisper (fast + cheap) when user selected Groq
+    // 1) Groq Whisper (fast + cheap) when user selected Groq
     if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
       const fd = new FormData();
       fd.append('file', blob, 'audio.ogg');
       fd.append('model', 'whisper-large-v3-turbo');
       fd.append('language', 'pt');
       const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${providerCfg.api_key_encrypted}` },
-        body: fd,
+        method: 'POST', headers: { Authorization: `Bearer ${providerCfg.api_key_encrypted}` }, body: fd,
       });
-      if (r.ok) { const j = await r.json(); return j.text || ''; }
-      console.error('groq whisper failed', await r.text());
+      if (r.ok) { const j = await r.json(); if (j.text) return j.text; }
+      else console.error('groq whisper failed', (await r.text()).slice(0, 300));
     }
 
-    // OpenAI Whisper fallback
-    const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
-    if (!key) return '';
-    const fd = new FormData();
-    fd.append('file', blob, 'audio.ogg');
-    fd.append('model', 'whisper-1');
-    fd.append('language', 'pt');
-    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}` },
-      body: fd,
-    });
-    if (!r.ok) { console.error('whisper failed', await r.text()); return ''; }
-    const j = await r.json();
-    return j.text || '';
+    // 2) OpenAI Whisper
+    const oaKey = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
+    if (oaKey) {
+      const fd = new FormData();
+      fd.append('file', blob, 'audio.ogg');
+      fd.append('model', 'whisper-1');
+      fd.append('language', 'pt');
+      const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST', headers: { Authorization: `Bearer ${oaKey}` }, body: fd,
+      });
+      if (r.ok) { const j = await r.json(); if (j.text) return j.text; }
+      else console.error('openai whisper failed', (await r.text()).slice(0, 300));
+    }
+
+    // 3) ElevenLabs Scribe
+    if (elevenKey) {
+      const fd = new FormData();
+      fd.append('file', blob, 'audio.ogg');
+      fd.append('model_id', 'scribe_v1');
+      fd.append('language_code', 'por');
+      const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+        method: 'POST', headers: { 'xi-api-key': elevenKey }, body: fd,
+      });
+      if (r.ok) { const j = await r.json(); if (j.text) return j.text; }
+      else console.error('elevenlabs scribe failed', (await r.text()).slice(0, 300));
+    }
+
+    // 4) Lovable AI Gemini multimodal (universal fallback, no user key needed)
+    const lk = lovableKey || Deno.env.get('LOVABLE_API_KEY') || '';
+    if (lk) {
+      // Convert to base64 in chunks to avoid stack overflow
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunkSz = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
+      const b64 = btoa(binary);
+      const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Transcreva o áudio abaixo em português, sem pontuação extra. Responda APENAS com o texto transcrito, nada mais.' },
+              { type: 'input_audio', input_audio: { data: b64, format: 'ogg' } },
+            ],
+          }],
+        }),
+      });
+      if (r.ok) { const j = await r.json(); const t = j.choices?.[0]?.message?.content || ''; if (t) return t.trim(); }
+      else console.error('lovable gemini stt failed', (await r.text()).slice(0, 300));
+    }
+
+    return '';
   } catch (e) {
     console.error('transcribeAudio error', e);
     return '';
@@ -580,10 +619,25 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
     const extra = cfg.extra_headers || {};
     if (cfg.api_type === 'z-api') {
       const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
-      // Z-API: send-chat-state with state composing|recording
       await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
     } else if (cfg.api_type === 'evolution') {
       await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    } else if (cfg.api_type === 'umclique' || cfg.api_type === 'um-clique') {
+      // Um Clique: presence endpoint (composing | recording)
+      const url = `${baseUrl}/v1/messages/presence`;
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra },
+        body: JSON.stringify({ channel_id: instance, to: phone, presence: kind === 'composing' ? 'typing' : 'recording', duration_ms: 2500 }),
+      }).catch(() => {});
+    } else if (cfg.api_type === 'ultramsg') {
+      // UltraMsg: chat/presence
+      const url = `${baseUrl}/${instance}/chat/presence?token=${encodeURIComponent(token)}`;
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...extra },
+        body: JSON.stringify({ chatId: phone, presence: kind === 'composing' ? 'typing' : 'recording' }),
+      }).catch(() => {});
     }
   } catch (_) { /* ignore */ }
 }
@@ -987,13 +1041,10 @@ Deno.serve(async (req) => {
     !agent?.voice_enabled
   );
   if (mustTranscribe) {
-    if (!openaiKey && providerCfg?.provider !== 'groq') {
-      console.warn('Transcription requested but no OpenAI/Groq key configured for user', userId);
-    }
-    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey);
     if (transcript) {
       inboundContent = transcript;
-      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'openai' } });
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
     } else {
       console.warn('Audio transcription returned empty for', msg.media_url);
       inboundContent = msg.content || '[áudio recebido — transcrição indisponível]';
