@@ -333,8 +333,6 @@ async function processFollowUps(admin: any) {
   }
   return sent;
 }
-  return sent;
-}
 
 async function processStageChange(admin: any, payload: any) {
   const { lead_id, user_id, new_stage_id } = payload;
