@@ -201,63 +201,138 @@ async function processReminders(admin: any) {
   return sent;
 }
 
+// Resolve sequence of follow-up steps for an agent (per-agent override > global template > legacy single-message).
+async function resolveFollowupSteps(admin: any, agent: any): Promise<Array<{ day: number; hours: number; message: string }>> {
+  // 1) Per-agent steps explicitly defined
+  if (Array.isArray(agent.followup_steps) && agent.followup_steps.length) {
+    return agent.followup_steps;
+  }
+  // 2) Global workspace template (lazy-init D0→D10 if missing)
+  if (agent.followup_use_global !== false) {
+    const { data: tpl } = await admin.from('followup_global_templates').select('steps, enabled').eq('user_id', agent.user_id).maybeSingle();
+    if (tpl && tpl.enabled !== false && Array.isArray(tpl.steps) && tpl.steps.length) {
+      return tpl.steps;
+    }
+    // Lazy-create the default template
+    const { data: created } = await admin.rpc('ensure_followup_template', { _user_id: agent.user_id });
+    if (Array.isArray(created) && created.length) return created;
+  }
+  // 3) Legacy fallback: single rescue message
+  if (agent.followup_rescue_message) {
+    const interval = agent.followup_interval_minutes || 120;
+    const max = agent.followup_max_attempts || 3;
+    const steps: any[] = [];
+    for (let i = 0; i < max; i++) {
+      steps.push({ day: 0, hours: ((i + 1) * interval) / 60, message: agent.followup_rescue_message });
+    }
+    return steps;
+  }
+  return [];
+}
+
 async function processFollowUps(admin: any) {
-  // Find clients with last_inbound_at older than agent.followup_interval_minutes,
-  // followup_enabled=true, and attempts < max_attempts
   const { data: candidates } = await admin.from('conversation_state')
     .select('id, user_id, client_id, assigned_agent_id, ai_active, mode, updated_at')
-    .eq('ai_active', true).eq('mode', 'ai').not('assigned_agent_id', 'is', null).limit(100);
+    .eq('ai_active', true).eq('mode', 'ai').not('assigned_agent_id', 'is', null).limit(200);
   if (!candidates?.length) return 0;
   let sent = 0;
   for (const cs of candidates) {
     const { data: agent } = await admin.from('ai_agents').select('*').eq('id', cs.assigned_agent_id).maybeSingle();
     if (!agent?.followup_enabled) continue;
+
+    const steps = await resolveFollowupSteps(admin, agent);
+    if (!steps.length) continue;
+
     const { data: client } = await admin.from('chat_clients').select('id, name, phone, last_inbound_at, last_outbound_at').eq('id', cs.client_id).maybeSingle();
     if (!client?.phone) continue;
-    const lastInbound = client.last_inbound_at ? new Date(client.last_inbound_at) : new Date(cs.updated_at);
-    const lastOutbound = client.last_outbound_at ? new Date(client.last_outbound_at) : new Date(0);
-    // Only follow up if lead actually went silent (no outbound newer than inbound is fine)
-    const elapsedMin = (Date.now() - Math.max(lastInbound.getTime(), lastOutbound.getTime())) / 60000;
-    if (elapsedMin < (agent.followup_interval_minutes || 120)) continue;
 
-    // Get/create followup tracking
+    const lastInbound = client.last_inbound_at ? new Date(client.last_inbound_at).getTime() : new Date(cs.updated_at).getTime();
+    const lastOutbound = client.last_outbound_at ? new Date(client.last_outbound_at).getTime() : 0;
+    const baseTime = Math.max(lastInbound, lastOutbound);
+    const elapsedHours = (Date.now() - baseTime) / 3600000;
+
+    // Tracking
     let { data: tr } = await admin.from('followup_tracking').select('*').eq('client_id', client.id).eq('agent_id', agent.id).maybeSingle();
     if (!tr) {
-      const { data: created } = await admin.from('followup_tracking').insert({ user_id: cs.user_id, client_id: client.id, agent_id: agent.id, status: 'scheduled' }).select().maybeSingle();
+      const { data: created } = await admin.from('followup_tracking').insert({
+        user_id: cs.user_id, client_id: client.id, agent_id: agent.id, status: 'scheduled', current_step: 0,
+      }).select().maybeSingle();
       tr = created;
     }
     if (!tr) continue;
-    if (tr.status === 'stopped' || tr.attempts_sent >= (agent.followup_max_attempts || 3)) continue;
-    if (tr.last_attempt_at && (Date.now() - new Date(tr.last_attempt_at).getTime()) / 60000 < (agent.followup_interval_minutes || 120)) continue;
+    if (tr.status === 'stopped' || tr.status === 'completed') continue;
 
-    // Build rescue message
+    // Stop on reply: if lead replied AFTER last attempt, halt the cycle
+    if (agent.followup_stop_on_reply !== false && tr.last_attempt_at && lastInbound > new Date(tr.last_attempt_at).getTime()) {
+      await admin.from('followup_tracking').update({ status: 'stopped', updated_at: new Date().toISOString() }).eq('id', tr.id);
+      // Reward score: lead voltou a interagir
+      await admin.rpc('apply_lead_score', { _client_id: client.id, _delta: 10, _reason: 'replied_after_followup' });
+      continue;
+    }
+
+    const stepIdx = tr.current_step || 0;
+    if (stepIdx >= steps.length) {
+      await admin.from('followup_tracking').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', tr.id);
+      continue;
+    }
+    const step = steps[stepIdx];
+    const requiredHours = Number(step.hours) || (Number(step.day) || 0) * 24 || 2;
+    if (elapsedHours < requiredHours) continue;
+
+    // Throttle: do not send more than 1 step per hour even if config is wrong
+    if (tr.last_attempt_at && (Date.now() - new Date(tr.last_attempt_at).getTime()) / 3600000 < 1) continue;
+
     const { data: cfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', cs.user_id).eq('is_active', true).limit(1).maybeSingle();
     if (!cfg) continue;
-    const { data: providerCfg } = agent.ai_provider_config_id
-      ? await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle()
-      : { data: null };
-    const { data: history } = await admin.from('messages').select('direction, content').eq('client_id', client.id).order('created_at', { ascending: false }).limit(10);
-    const ordered = (history || []).reverse().filter((m: any) => m.content);
-    const aiHist = ordered.map((m: any) => ({ role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.content }));
-    let text = agent.followup_rescue_message || '';
+
+    let text = String(step.message || '').trim();
     if (!text) {
+      // Fallback: AI-generated rescue
+      const { data: providerCfg } = agent.ai_provider_config_id
+        ? await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle()
+        : { data: null };
+      const { data: history } = await admin.from('messages').select('direction, content').eq('client_id', client.id).order('created_at', { ascending: false }).limit(10);
+      const aiHist = (history || []).reverse().filter((m: any) => m.content).map((m: any) => ({
+        role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.content,
+      }));
       try {
         const rt = resolveRuntime(providerCfg, agent.model);
-        const sys = `Você é ${agent.display_name || agent.name}. O cliente parou de responder há ${Math.round(elapsedMin)} minutos. Escreva 1 mensagem curta (até 200 chars), em português brasileiro, retomando a conversa de forma natural e útil. Não diga "estou aqui" — proponha um próximo passo concreto baseado no histórico. Tentativa #${(tr.attempts_sent || 0) + 1}.`;
+        const sys = `Você é ${agent.display_name || agent.name}. Cliente parou há ${Math.round(elapsedHours)}h. Escreva mensagem curta (até 220 chars) propondo próximo passo concreto. Tentativa #${stepIdx + 1}.`;
         text = await callAi(sys, aiHist, rt);
       } catch (e) { console.error('followup ai fail', e); continue; }
     } else {
-      text = fillTemplate(text, { nome: client.name || 'cliente' });
+      text = fillTemplate(text, { nome: client.name || 'cliente', name: client.name || 'cliente' });
     }
     if (!text) continue;
+
     const r = await sendWhatsAppText(cfg, client.phone, text);
-    await admin.from('messages').insert({ user_id: cs.user_id, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: text, status: r.ok ? 'sent' : 'failed', agent_id: agent.id, sender_phone: client.phone, metadata: { followup: true, attempt: (tr.attempts_sent || 0) + 1, external_status: r.status, external_body: r.body } });
-    await admin.from('followup_tracking').update({ attempts_sent: (tr.attempts_sent || 0) + 1, last_attempt_at: new Date().toISOString(), next_attempt_at: new Date(Date.now() + (agent.followup_interval_minutes || 120) * 60000).toISOString(), status: ((tr.attempts_sent || 0) + 1) >= (agent.followup_max_attempts || 3) ? 'completed' : 'scheduled', updated_at: new Date().toISOString() }).eq('id', tr.id);
+    await admin.from('messages').insert({
+      user_id: cs.user_id, client_id: client.id, direction: 'outbound', channel: 'whatsapp',
+      content: text, status: r.ok ? 'sent' : 'failed', agent_id: agent.id, sender_phone: client.phone,
+      metadata: { followup: true, step: stepIdx + 1, of: steps.length, external_status: r.status, external_body: r.body },
+    });
+
+    const nextStep = stepIdx + 1;
+    const isLast = nextStep >= steps.length;
+    await admin.from('followup_tracking').update({
+      attempts_sent: (tr.attempts_sent || 0) + 1,
+      current_step: nextStep,
+      last_attempt_at: new Date().toISOString(),
+      last_message: text,
+      next_attempt_at: isLast ? null : new Date(Date.now() + ((Number(steps[nextStep]?.hours) || 24) * 3600000)).toISOString(),
+      status: isLast ? 'completed' : 'scheduled',
+      updated_at: new Date().toISOString(),
+    }).eq('id', tr.id);
+
     if (r.ok) {
       sent++;
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', client.id);
+      // Penalty: lead ignorou o último contato e precisamos reativar
+      await admin.rpc('apply_lead_score', { _client_id: client.id, _delta: -3, _reason: 'followup_sent' });
     }
   }
+  return sent;
+}
   return sent;
 }
 
