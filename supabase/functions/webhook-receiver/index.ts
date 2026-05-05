@@ -1088,7 +1088,23 @@ Deno.serve(async (req) => {
     await admin.from('webhook_logs').insert({ user_id: userId, direction: 'inbound', source: 'whatsapp', payload: raw, error: insertMsgErr.message, status_code: 500 });
     return new Response(JSON.stringify({ error: 'Could not save inbound message' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
-  await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
+  await admin.from('chat_clients').update({ last_inbound_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', client.id);
+
+  // === LEAD SCORING (behavior-based) ===
+  try {
+    let scoreDelta = 5; // baseline: respondeu
+    const txt = (inboundContent || '').toLowerCase();
+    if (msg.media_type === 'audio') scoreDelta += 5;
+    if (msg.media_type === 'image') scoreDelta += 3;
+    if ((inboundContent || '').length > 80) scoreDelta += 2;
+    // Qualifying keywords (high intent)
+    const hotKws = ['quero comprar','fechar','contrato','pix','cartão','quanto custa','agendar','marcar','proposta','cnpj','pagar','assinar','adquirir'];
+    if (hotKws.some(k => txt.includes(k))) scoreDelta += 20;
+    // Negative signals
+    const coldKws = ['não tenho interesse','não quero','para de mandar','sair da lista','remover'];
+    if (coldKws.some(k => txt.includes(k))) scoreDelta = -15;
+    await admin.rpc('apply_lead_score', { _client_id: client.id, _delta: scoreDelta, _reason: 'inbound_message' });
+  } catch (e) { console.warn('lead score apply failed', e); }
 
   await admin.from('notifications').insert({
     user_id: userId,
