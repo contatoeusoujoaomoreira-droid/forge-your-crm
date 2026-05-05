@@ -919,7 +919,7 @@ Deno.serve(async (req) => {
 
       const sys = buildSystemPrompt(agent, ctx);
       const runtime = resolveAiRuntime(agent, providerCfg);
-      const reply = await callAi(sys, aiHistory, runtime);
+      const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
       if (reply && waCfg?.is_active && client.phone) {
         try { delivery = await sendWhatsApp(waCfg, client.phone, reply); } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
