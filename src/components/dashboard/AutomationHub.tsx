@@ -22,6 +22,7 @@ import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
+import { FollowupSequenceEditor } from "./automation/FollowupSequenceEditor";
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
 const InfoHint = forwardRef<HTMLSpanElement, { title: string; steps: string[] }>(({ title, steps }, ref) => {
@@ -807,6 +808,7 @@ export default function AutomationHub() {
               </ul>
             )}
           </Card>
+          <FollowupSequenceEditor />
         </TabsContent>
 
         <TabsContent value="flows" className="space-y-3">

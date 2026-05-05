@@ -129,6 +129,9 @@ export type Database = {
           followup_interval_minutes: number
           followup_max_attempts: number
           followup_rescue_message: string | null
+          followup_steps: Json | null
+          followup_stop_on_reply: boolean
+          followup_use_global: boolean
           group_messages: boolean
           handoff_enabled: boolean
           handoff_keywords: string | null
@@ -187,6 +190,9 @@ export type Database = {
           followup_interval_minutes?: number
           followup_max_attempts?: number
           followup_rescue_message?: string | null
+          followup_steps?: Json | null
+          followup_stop_on_reply?: boolean
+          followup_use_global?: boolean
           group_messages?: boolean
           handoff_enabled?: boolean
           handoff_keywords?: string | null
@@ -245,6 +251,9 @@ export type Database = {
           followup_interval_minutes?: number
           followup_max_attempts?: number
           followup_rescue_message?: string | null
+          followup_steps?: Json | null
+          followup_stop_on_reply?: boolean
+          followup_use_global?: boolean
           group_messages?: boolean
           handoff_enabled?: boolean
           handoff_keywords?: string | null
@@ -590,10 +599,13 @@ export type Database = {
           id: string
           last_inbound_at: string | null
           last_outbound_at: string | null
+          last_score_at: string | null
           lead_id: string | null
+          lead_score: number
           metadata: Json | null
           name: string | null
           phone: string | null
+          score_label: string | null
           source: string | null
           tags: string[] | null
           updated_at: string
@@ -606,10 +618,13 @@ export type Database = {
           id?: string
           last_inbound_at?: string | null
           last_outbound_at?: string | null
+          last_score_at?: string | null
           lead_id?: string | null
+          lead_score?: number
           metadata?: Json | null
           name?: string | null
           phone?: string | null
+          score_label?: string | null
           source?: string | null
           tags?: string[] | null
           updated_at?: string
@@ -622,10 +637,13 @@ export type Database = {
           id?: string
           last_inbound_at?: string | null
           last_outbound_at?: string | null
+          last_score_at?: string | null
           lead_id?: string | null
+          lead_score?: number
           metadata?: Json | null
           name?: string | null
           phone?: string | null
+          score_label?: string | null
           source?: string | null
           tags?: string[] | null
           updated_at?: string
@@ -989,14 +1007,43 @@ export type Database = {
         }
         Relationships: []
       }
+      followup_global_templates: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          steps: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          steps?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          steps?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       followup_tracking: {
         Row: {
           agent_id: string
           attempts_sent: number
           client_id: string
           created_at: string
+          current_step: number
           id: string
           last_attempt_at: string | null
+          last_message: string | null
           next_attempt_at: string | null
           status: string
           updated_at: string
@@ -1007,8 +1054,10 @@ export type Database = {
           attempts_sent?: number
           client_id: string
           created_at?: string
+          current_step?: number
           id?: string
           last_attempt_at?: string | null
+          last_message?: string | null
           next_attempt_at?: string | null
           status?: string
           updated_at?: string
@@ -1019,8 +1068,10 @@ export type Database = {
           attempts_sent?: number
           client_id?: string
           created_at?: string
+          current_step?: number
           id?: string
           last_attempt_at?: string | null
+          last_message?: string | null
           next_attempt_at?: string | null
           status?: string
           updated_at?: string
@@ -2391,6 +2442,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_lead_score: {
+        Args: { _client_id: string; _delta: number; _reason?: string }
+        Returns: Json
+      }
       approve_credit_request: { Args: { _request_id: string }; Returns: Json }
       deduct_credits: {
         Args: {
@@ -2410,6 +2465,7 @@ export type Database = {
         }
         Returns: Json
       }
+      ensure_followup_template: { Args: { _user_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
