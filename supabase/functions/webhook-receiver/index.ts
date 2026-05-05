@@ -1041,13 +1041,10 @@ Deno.serve(async (req) => {
     !agent?.voice_enabled
   );
   if (mustTranscribe) {
-    if (!openaiKey && providerCfg?.provider !== 'groq') {
-      console.warn('Transcription requested but no OpenAI/Groq key configured for user', userId);
-    }
-    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey);
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey);
     if (transcript) {
       inboundContent = transcript;
-      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'openai' } });
+      await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
     } else {
       console.warn('Audio transcription returned empty for', msg.media_url);
       inboundContent = msg.content || '[áudio recebido — transcrição indisponível]';
