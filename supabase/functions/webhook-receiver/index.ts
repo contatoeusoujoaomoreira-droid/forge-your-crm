@@ -1469,7 +1469,7 @@ Deno.serve(async (req) => {
       const intent = detectIntent(lastUserText, agent);
       const sys = buildSystemPrompt(agent, ctx);
       const runtime = resolveAiRuntime(agent, providerCfg);
-      const reply = await callAi(sys, aiHistory, runtime);
+      const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
         let voiceUsed = false;
