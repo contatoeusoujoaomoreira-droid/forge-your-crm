@@ -17,7 +17,7 @@ import LeadImporter from "@/components/dashboard/automation/LeadImporter";
 import ImportedListsViewer from "@/components/dashboard/automation/ImportedListsViewer";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
-import Analytics from "@/components/dashboard/Analytics";
+import Analytics from "@/components/dashboard/DashboardAnalytics";
 import LandingPagesList from "@/components/dashboard/LandingPagesList";
 import QuizList from "@/components/dashboard/QuizList";
 import FormsList from "@/components/dashboard/FormsList";
