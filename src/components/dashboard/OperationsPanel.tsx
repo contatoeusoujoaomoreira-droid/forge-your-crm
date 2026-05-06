@@ -86,11 +86,12 @@ const OperationsPanel = () => {
         const orders = ordersRes.data || [];
         const totalRevenue = orders.filter((o: any) => o.status === "paid" || o.status === "approved").reduce((s: number, o: any) => s + (o.total || 0), 0);
         const camps: CampaignRow[] = (campaignsRes.data || []).map((c: any) => {
-          const sent = c.sent_count || 0;
-          const replies = c.success_count || 0;
-          const orderShare = sent > 0 ? (sent / Math.max(1, (campaignsRes.data || []).reduce((s: number, x: any) => s + (x.sent_count || 0), 0))) : 0;
+          const sent = c.total_sent || 0;
+          const replies = c.total_replied || 0;
+          const totalSentAll = (campaignsRes.data || []).reduce((s: number, x: any) => s + (x.total_sent || 0), 0);
+          const orderShare = totalSentAll > 0 ? sent / totalSentAll : 0;
           const revenue = totalRevenue * orderShare;
-          const cost = sent * 0.05; // proxy R$0,05 por msg
+          const cost = sent * 0.05;
           const roi = cost > 0 ? +(((revenue - cost) / cost) * 100).toFixed(0) : 0;
           return { id: c.id, name: c.name, sent, replies, orders: Math.round(orders.length * orderShare), revenue: +revenue.toFixed(2), roi };
         }).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
