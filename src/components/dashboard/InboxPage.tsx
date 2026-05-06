@@ -308,17 +308,20 @@ export default function InboxPage() {
     /\bgroup\b/i.test(c.name || "");
 
   const baseFiltered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const isHot = (c: Client) => c.score_label === "hot" || (c.lead_score || 0) >= 70;
   const counts = {
     all: baseFiltered.length,
     unread: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
     waiting: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
     individual: baseFiltered.filter(c => !isGroupClient(c)).length,
     groups: baseFiltered.filter(c => isGroupClient(c)).length,
+    hot: baseFiltered.filter(isHot).length,
   };
   const filtered = baseFiltered.filter(c => {
     if (filterTab === "unread" || filterTab === "waiting") return (unreadByClient[c.id] || 0) > 0;
     if (filterTab === "individual") return !isGroupClient(c);
     if (filterTab === "groups") return isGroupClient(c);
+    if (filterTab === "hot") return isHot(c);
     return true;
   });
   const selected = clients.find(c => c.id === selectedId);
