@@ -12,11 +12,11 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
 
-type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups";
+type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups" | "hot";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
@@ -308,17 +308,20 @@ export default function InboxPage() {
     /\bgroup\b/i.test(c.name || "");
 
   const baseFiltered = clients.filter(c => !search || (c.name || "").toLowerCase().includes(search.toLowerCase()) || (c.phone || "").includes(search));
+  const isHot = (c: Client) => c.score_label === "hot" || (c.lead_score || 0) >= 70;
   const counts = {
     all: baseFiltered.length,
     unread: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
     waiting: baseFiltered.filter(c => (unreadByClient[c.id] || 0) > 0).length,
     individual: baseFiltered.filter(c => !isGroupClient(c)).length,
     groups: baseFiltered.filter(c => isGroupClient(c)).length,
+    hot: baseFiltered.filter(isHot).length,
   };
   const filtered = baseFiltered.filter(c => {
     if (filterTab === "unread" || filterTab === "waiting") return (unreadByClient[c.id] || 0) > 0;
     if (filterTab === "individual") return !isGroupClient(c);
     if (filterTab === "groups") return isGroupClient(c);
+    if (filterTab === "hot") return isHot(c);
     return true;
   });
   const selected = clients.find(c => c.id === selectedId);
@@ -372,6 +375,7 @@ export default function InboxPage() {
             <FilterChip id="waiting" label="Aguard." count={counts.waiting} />
             <FilterChip id="individual" label="Indiv." count={counts.individual} />
             <FilterChip id="groups" label="Grupos" count={counts.groups} />
+            <FilterChip id="hot" label="🔥 Quentes" count={counts.hot} />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -395,9 +399,13 @@ export default function InboxPage() {
                         {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
                         {c.name || c.phone}
                       </p>
-                      {u > 0 && (
-                        <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {c.score_label === "hot" && <span title={`Lead quente · ${c.lead_score || 0}`}>🔥</span>}
+                        {c.score_label === "warm" && <span title={`Lead morno · ${c.lead_score || 0}`}>🌤️</span>}
+                        {u > 0 && (
+                          <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
                   </div>
@@ -445,6 +453,22 @@ export default function InboxPage() {
                   </Badge>
                   {isGroupClient(selected) && (
                     <Badge variant="outline" className="text-[10px] gap-1"><UsersIcon className="h-3 w-3" />Grupo</Badge>
+                  )}
+                  {selected.score_label && (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] gap-1 ${
+                        selected.score_label === "hot"
+                          ? "border-red-500/50 text-red-500"
+                          : selected.score_label === "warm"
+                          ? "border-amber-500/50 text-amber-500"
+                          : "border-blue-500/50 text-blue-500"
+                      }`}
+                      title="Score comportamental do lead (0-100)"
+                    >
+                      {selected.score_label === "hot" ? "🔥" : selected.score_label === "warm" ? "🌤️" : "❄️"}
+                      {selected.lead_score ?? 0}
+                    </Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
