@@ -31,7 +31,7 @@ const OperationsPanel = () => {
           supabase.from("messages").select("id,client_id,direction,created_at").eq("user_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(5000),
           supabase.from("conversation_state").select("client_id,assigned_agent_id"),
           supabase.from("leads").select("id,status,value,created_at,source").eq("user_id", user.id).gte("created_at", since),
-          supabase.from("campaigns").select("id,name,sent_count,success_count,error_count").eq("user_id", user.id),
+          supabase.from("prospecting_campaigns").select("id,name,total_sent,total_replied,total_converted").eq("user_id", user.id),
           supabase.from("orders").select("total,status,created_at,checkout_id").gte("created_at", since),
         ]);
 
