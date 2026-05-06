@@ -399,9 +399,13 @@ export default function InboxPage() {
                         {isGroup && <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />}
                         {c.name || c.phone}
                       </p>
-                      {u > 0 && (
-                        <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {c.score_label === "hot" && <span title={`Lead quente · ${c.lead_score || 0}`}>🔥</span>}
+                        {c.score_label === "warm" && <span title={`Lead morno · ${c.lead_score || 0}`}>🌤️</span>}
+                        {u > 0 && (
+                          <span className="bg-primary text-primary-foreground text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center">{u}</span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
                   </div>
