@@ -375,6 +375,7 @@ export default function InboxPage() {
             <FilterChip id="waiting" label="Aguard." count={counts.waiting} />
             <FilterChip id="individual" label="Indiv." count={counts.individual} />
             <FilterChip id="groups" label="Grupos" count={counts.groups} />
+            <FilterChip id="hot" label="🔥 Quentes" count={counts.hot} />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
