@@ -454,6 +454,22 @@ export default function InboxPage() {
                   {isGroupClient(selected) && (
                     <Badge variant="outline" className="text-[10px] gap-1"><UsersIcon className="h-3 w-3" />Grupo</Badge>
                   )}
+                  {selected.score_label && (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] gap-1 ${
+                        selected.score_label === "hot"
+                          ? "border-red-500/50 text-red-500"
+                          : selected.score_label === "warm"
+                          ? "border-amber-500/50 text-amber-500"
+                          : "border-blue-500/50 text-blue-500"
+                      }`}
+                      title="Score comportamental do lead (0-100)"
+                    >
+                      {selected.score_label === "hot" ? "🔥" : selected.score_label === "warm" ? "🌤️" : "❄️"}
+                      {selected.lead_score ?? 0}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
               </div>
