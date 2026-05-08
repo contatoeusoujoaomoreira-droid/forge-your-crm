@@ -233,15 +233,77 @@ export default function AgentRoutingAdvanced({ form, setForm, agents, schedules,
               </p>
             </div>
 
-            <div className="text-xs p-2 rounded-md bg-muted/40 border border-dashed leading-relaxed">
-              <strong>Como funciona:</strong><br />
-              1) Lead para de responder → timer inicia<br />
-              2) Após {form.followup_interval_minutes || 120} min → IA gera follow-up contextual<br />
-              3) Máx. {form.followup_max_attempts || 3} tentativas → para de insistir<br />
-              4) Qualquer resposta do lead → timer reseta imediatamente
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between p-2 rounded-md border border-border/60 bg-muted/30">
+                <div>
+                  <Label className="text-xs">Parar ao receber resposta</Label>
+                  <p className="text-[10px] text-muted-foreground">Reseta o timer quando o lead responde</p>
+                </div>
+                <Switch
+                  checked={form.followup_stop_on_reply !== false}
+                  onCheckedChange={(v) => setForm({ ...form, followup_stop_on_reply: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-md border border-border/60 bg-muted/30">
+                <div>
+                  <Label className="text-xs">Usar sequência global D0–D10</Label>
+                  <p className="text-[10px] text-muted-foreground">Aplica os passos da sequência salva</p>
+                </div>
+                <Switch
+                  checked={form.followup_use_global !== false}
+                  onCheckedChange={(v) => setForm({ ...form, followup_use_global: v })}
+                />
+              </div>
             </div>
 
-            <FollowupSequenceEditor />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Gatilhos (palavras-chave para acionar)</Label>
+                <Input
+                  placeholder="Ex: depois penso, talvez, vou ver"
+                  value={form.followup_trigger_keywords || ""}
+                  onChange={(e) => setForm({ ...form, followup_trigger_keywords: e.target.value })}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Vazio = qualquer silêncio do lead aciona</p>
+              </div>
+              <div>
+                <Label className="text-xs">Parar se lead disser (palavras de bloqueio)</Label>
+                <Input
+                  placeholder="Ex: não tenho interesse, parar, sair"
+                  value={form.followup_stop_keywords || ""}
+                  onChange={(e) => setForm({ ...form, followup_stop_keywords: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 rounded-md border border-purple-500/30 bg-purple-500/5">
+              <Settings2 className="h-4 w-4 text-purple-400" />
+              <div className="flex-1">
+                <p className="text-xs font-medium">Sequência global D0 → D10</p>
+                <p className="text-[10px] text-muted-foreground">Edite as mensagens enviadas em cada etapa.</p>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline">Editar sequência</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Sequência de Follow-up D0 → D10</DialogTitle>
+                    <DialogDescription>
+                      Aplicada quando "Usar sequência global" está ativo. As mensagens param automaticamente se o lead responder (e "Parar ao receber resposta" estiver ativo).
+                    </DialogDescription>
+                  </DialogHeader>
+                  <FollowupSequenceEditor />
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="text-[11px] p-2 rounded-md bg-muted/40 border border-dashed leading-relaxed">
+              <strong>Resumo do funcionamento:</strong> {form.followup_stop_on_reply !== false ? "para ao responder" : "ignora respostas"} ·
+              após {form.followup_interval_minutes || 120} min sem interação ·
+              até {form.followup_max_attempts || 3} tentativas ·
+              {form.followup_use_global !== false ? " usa sequência global" : " usa mensagem de resgate"}.
+            </div>
           </div>
         )}
       </Card>
