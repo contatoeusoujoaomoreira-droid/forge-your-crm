@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GitBranch, Bell, Calendar, Clock, Shield, Zap, UserCheck, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import { Plus, Trash2, GitBranch, Bell, Calendar, Clock, Shield, Zap, UserCheck, AlertTriangle, ArrowRightLeft, Settings2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import TeamRadarSettings from "./TeamRadarSettings";
 import { FollowupSequenceEditor } from "./FollowupSequenceEditor";
 
