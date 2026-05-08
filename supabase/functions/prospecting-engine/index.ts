@@ -58,9 +58,14 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
   try {
-    // Find active campaigns
-    const { data: campaigns } = await admin.from('prospecting_campaigns')
-      .select('*').eq('status', 'active');
+    let bodyJson: any = {};
+    try { bodyJson = await req.json(); } catch (_) {}
+    const targetCampaignId = bodyJson?.campaign_id || null;
+
+    // Find active campaigns (or a specific one if provided)
+    let q = admin.from('prospecting_campaigns').select('*').eq('status', 'active');
+    if (targetCampaignId) q = admin.from('prospecting_campaigns').select('*').eq('id', targetCampaignId);
+    const { data: campaigns } = await q;
 
     let totalSent = 0;
     for (const camp of campaigns || []) {
