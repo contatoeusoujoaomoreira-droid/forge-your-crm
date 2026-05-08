@@ -1499,12 +1499,15 @@ Deno.serve(async (req) => {
             }
           } else {
             const chunks = (agent.split_long_messages !== false) ? splitMessage(replyWithLinks) : [replyWithLinks];
+            const cfgDelaySec = Math.max(0, Math.min(300, Number(agent.response_delay_seconds) || 0));
             for (let i = 0; i < chunks.length; i++) {
               const chunk = chunks[i];
               if (agent.simulate_typing !== false) {
                 await sendPresence(waCfg, msg.phone, 'composing');
-                const delayMs = Math.min(4000, 600 + chunk.length * 25);
-                await new Promise((r) => setTimeout(r, delayMs));
+                const baseMs = cfgDelaySec > 0 ? cfgDelaySec * 1000 : Math.min(4000, 600 + chunk.length * 25);
+                await new Promise((r) => setTimeout(r, baseMs));
+              } else if (cfgDelaySec > 0) {
+                await new Promise((r) => setTimeout(r, cfgDelaySec * 1000));
               }
               try { delivery = await sendWhatsApp(waCfg, msg.phone, chunk) || delivery; }
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
