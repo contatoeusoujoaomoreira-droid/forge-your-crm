@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GitBranch, Bell, Calendar, Clock, Shield, Zap, UserCheck, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import TeamRadarSettings from "./TeamRadarSettings";
+import { FollowupSequenceEditor } from "./FollowupSequenceEditor";
 
 interface IntentRoutingRule {
   intent: string;
@@ -238,6 +239,8 @@ export default function AgentRoutingAdvanced({ form, setForm, agents, schedules,
               3) Máx. {form.followup_max_attempts || 3} tentativas → para de insistir<br />
               4) Qualquer resposta do lead → timer reseta imediatamente
             </div>
+
+            <FollowupSequenceEditor />
           </div>
         )}
       </Card>

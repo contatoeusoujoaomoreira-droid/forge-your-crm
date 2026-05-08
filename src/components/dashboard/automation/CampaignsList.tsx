@@ -48,23 +48,23 @@ export default function CampaignsList() {
     const base: any = {
       name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
       daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
-      source_pipelines: [], target_pipeline_id: "", target_stage_id: "",
+      source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
     };
-    if (kind === "template") {
-      const tpl = CAMPAIGN_TEMPLATES.prospect[0];
-      setEditing({ ...base, name: tpl.name, description: tpl.description, message_template: tpl.message_template });
-    } else if (kind === "flow") {
+    if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
-    } else if (kind === "agent") {
-      setEditing({ ...base, name: "Campanha com agente" });
     } else {
-      setEditing(base);
+      setEditing({ ...base, name: "Campanha com agente" });
     }
   };
 
   const save = async () => {
     if (!user || !editing.name) { toast.error("Nome obrigatório"); return; }
+    const kind = editing._kind || (editing.flow_id ? "flow" : "agent");
+    if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
+    if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
+    if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
     const payload: any = { ...editing, user_id: user.id };
+    delete payload._kind;
     if (!payload.agent_id) delete payload.agent_id;
     if (!payload.flow_id) delete payload.flow_id;
     delete payload.created_at; delete payload.updated_at;
@@ -74,6 +74,18 @@ export default function CampaignsList() {
     if (error) { toast.error(error.message); return; }
     toast.success("Campanha salva");
     setEditing(null); load();
+  };
+
+  const runCampaign = async (c: any) => {
+    if (c.status !== "active") {
+      await supabase.from("prospecting_campaigns").update({ status: "active" }).eq("id", c.id);
+    }
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("prospecting-engine", { body: { campaign_id: c.id } });
+    setLoading(false);
+    if (error) toast.error(error.message);
+    else toast.success(`Disparados: ${data?.sent || 0}`);
+    load();
   };
 
   const setStatus = async (id: string, status: string) => {
@@ -299,6 +311,9 @@ export default function CampaignsList() {
           </div>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)}><Users className="h-4 w-4" /></Button>
+            <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
+              <Play className="h-4 w-4 mr-1" />Executar
+            </Button>
             {c.status === "active" ? (
               <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="h-4 w-4" /></Button>
             ) : (
