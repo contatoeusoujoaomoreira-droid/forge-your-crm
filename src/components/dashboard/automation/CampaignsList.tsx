@@ -311,6 +311,9 @@ export default function CampaignsList() {
           </div>
           <div className="flex gap-1">
             <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)}><Users className="h-4 w-4" /></Button>
+            <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
+              <Play className="h-4 w-4 mr-1" />Executar
+            </Button>
             {c.status === "active" ? (
               <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="h-4 w-4" /></Button>
             ) : (
