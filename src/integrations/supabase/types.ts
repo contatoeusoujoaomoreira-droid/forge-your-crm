@@ -131,7 +131,9 @@ export type Database = {
           followup_max_attempts: number
           followup_rescue_message: string | null
           followup_steps: Json | null
+          followup_stop_keywords: string | null
           followup_stop_on_reply: boolean
+          followup_trigger_keywords: string | null
           followup_use_global: boolean
           group_messages: boolean
           handoff_enabled: boolean
@@ -193,7 +195,9 @@ export type Database = {
           followup_max_attempts?: number
           followup_rescue_message?: string | null
           followup_steps?: Json | null
+          followup_stop_keywords?: string | null
           followup_stop_on_reply?: boolean
+          followup_trigger_keywords?: string | null
           followup_use_global?: boolean
           group_messages?: boolean
           handoff_enabled?: boolean
@@ -255,7 +259,9 @@ export type Database = {
           followup_max_attempts?: number
           followup_rescue_message?: string | null
           followup_steps?: Json | null
+          followup_stop_keywords?: string | null
           followup_stop_on_reply?: boolean
+          followup_trigger_keywords?: string | null
           followup_use_global?: boolean
           group_messages?: boolean
           handoff_enabled?: boolean
