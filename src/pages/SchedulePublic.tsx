@@ -82,15 +82,26 @@ const SchedulePublic = () => {
         const { data: existing } = await query.maybeSingle();
         if (existing) {
           leadId = existing.id;
-          await supabase.from("leads").update({ stage_id: schedule.stage_id } as any).eq("id", leadId);
+          await supabase.from("leads").update({
+            stage_id: schedule.stage_id,
+            pipeline_id: schedule.pipeline_id,
+            notes: `Agendamento em ${selectedDate} às ${selectedTime} - ${schedule.title}`,
+          } as any).eq("id", leadId);
         }
       }
       if (!leadId) {
-        await supabase.from("leads").insert({
+        const { data: newLead } = await supabase.from("leads").insert({
           name: guestName, email: guestEmail || null, phone: guestPhone || null,
           source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
+          pipeline_id: schedule.pipeline_id,
           user_id: schedule.user_id, tags: ["agendamento"],
-        } as any);
+          notes: `Agendamento em ${selectedDate} às ${selectedTime} - ${schedule.title}`,
+        } as any).select("id").single();
+        leadId = newLead?.id || null;
+      }
+      // Link appointment to lead
+      if (leadId && appointment) {
+        await supabase.from("appointments").update({ lead_id: leadId } as any).eq("id", appointment.id);
       }
     }
 
