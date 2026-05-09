@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight, BarChart3, TrendingUp, Target } from "lucide-react";
+import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight, BarChart3, TrendingUp, Target, X, Check, ExternalLink, Mail, Phone } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Schedule {
@@ -23,6 +23,7 @@ interface Appointment {
   id: string; guest_name: string; guest_email: string | null;
   guest_phone: string | null; date: string; time: string;
   status: string; notes: string | null; created_at: string;
+  lead_id?: string | null; schedule_id?: string;
 }
 
 const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -44,6 +45,7 @@ const SchedulesList = () => {
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [manualBooking, setManualBooking] = useState(false);
   const [newBooking, setNewBooking] = useState({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const { toast } = useToast();
 
   const fetchSchedules = async () => {
@@ -318,17 +320,144 @@ const SchedulesList = () => {
 
   // Appointments view
   if (showAppointments) {
+    const total = appointments.length;
+    const confirmed = appointments.filter(a => a.status === "confirmed").length;
+    const cancelled = appointments.filter(a => a.status === "cancelled").length;
+    const pending = appointments.filter(a => a.status === "pending" || (!a.status)).length;
+    const upcoming = appointments.filter(a => new Date(`${a.date}T${a.time}`) >= new Date() && a.status !== "cancelled").length;
+
+    const refresh = async () => {
+      const { data } = await supabase.from("appointments").select("*").eq("schedule_id", showAppointments).order("date", { ascending: false });
+      setAppointments((data || []) as Appointment[]);
+      fetchAllAppointments();
+    };
+
+    const updateStatus = async (id: string, status: string) => {
+      await supabase.from("appointments").update({ status, ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}) } as any).eq("id", id);
+      toast({ title: status === "cancelled" ? "Agendamento cancelado" : `Status: ${status}` });
+      refresh();
+    };
+
+    const deleteAppt = async (id: string) => {
+      if (!confirm("Excluir este agendamento?")) return;
+      await supabase.from("appointments").delete().eq("id", id);
+      toast({ title: "Excluído" });
+      refresh();
+    };
+
+    const saveEdit = async (a: Appointment) => {
+      await supabase.from("appointments").update({
+        guest_name: a.guest_name, guest_email: a.guest_email, guest_phone: a.guest_phone,
+        date: a.date, time: a.time, notes: a.notes, status: a.status,
+      } as any).eq("id", a.id);
+      toast({ title: "Atualizado" });
+      setEditingAppt(null);
+      refresh();
+    };
+
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-foreground">Agendamentos</h2><Button variant="ghost" size="sm" onClick={() => setShowAppointments(null)}>← Voltar</Button></div>
-        {appointments.length === 0 ? <div className="surface-card rounded-lg p-8 text-center"><p className="text-muted-foreground">Nenhum agendamento</p></div> : (
-          <div className="space-y-3">{appointments.map(a => (
-            <div key={a.id} className="surface-card rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2"><p className="font-medium text-foreground text-sm">{a.guest_name}</p><span className={`text-[10px] px-2 py-0.5 rounded-full ${a.status === "confirmed" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>{a.status}</span></div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(a.date).toLocaleDateString("pt-BR")}</span><span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {a.time}</span></div>
-              {(a.guest_email || a.guest_phone) && <p className="text-xs text-muted-foreground mt-1">{a.guest_email} {a.guest_phone && `• ${a.guest_phone}`}</p>}
-            </div>
-          ))}</div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">Agendamentos</h2>
+          <Button variant="ghost" size="sm" onClick={() => setShowAppointments(null)}>← Voltar</Button>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {[
+            { label: "Total", value: total, icon: Calendar, color: "text-blue-400" },
+            { label: "Confirmados", value: confirmed, icon: Check, color: "text-emerald-400" },
+            { label: "Pendentes", value: pending, icon: Clock, color: "text-amber-400" },
+            { label: "Cancelados", value: cancelled, icon: X, color: "text-rose-400" },
+            { label: "Próximos", value: upcoming, icon: TrendingUp, color: "text-primary" },
+          ].map(m => (
+            <Card key={m.label} className="surface-card border-border">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div><p className="text-[10px] text-muted-foreground">{m.label}</p><p className="text-xl font-bold text-foreground">{m.value}</p></div>
+                <m.icon className={`h-6 w-6 ${m.color} opacity-60`} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Mini chart by date */}
+        {appointments.length > 0 && (() => {
+          const byDate: Record<string, number> = {};
+          appointments.forEach(a => { byDate[a.date] = (byDate[a.date] || 0) + 1; });
+          const data = Object.entries(byDate).sort().slice(-14).map(([name, count]) => ({ name: name.slice(5), agendamentos: count }));
+          return (
+            <Card className="surface-card border-border">
+              <CardHeader className="pb-2"><CardTitle className="text-xs">Últimos 14 dias</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={150}>
+                  <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 12%)" />
+                    <XAxis dataKey="name" stroke="hsl(0 0% 45%)" fontSize={10} />
+                    <YAxis stroke="hsl(0 0% 45%)" fontSize={10} />
+                    <Tooltip contentStyle={{ background: "hsl(0 0% 4%)", border: "1px solid hsl(0 0% 12%)", borderRadius: 8 }} />
+                    <Bar dataKey="agendamentos" fill="hsl(84 81% 44%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {appointments.length === 0 ? (
+          <div className="surface-card rounded-lg p-8 text-center"><p className="text-muted-foreground">Nenhum agendamento</p></div>
+        ) : (
+          <div className="space-y-2">
+            {appointments.map(a => editingAppt?.id === a.id ? (
+              <div key={a.id} className="surface-card rounded-lg p-4 space-y-3 border border-primary/30">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-[10px]">Nome</Label><Input value={editingAppt.guest_name} onChange={e => setEditingAppt({ ...editingAppt, guest_name: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                  <div><Label className="text-[10px]">Status</Label>
+                    <select value={editingAppt.status} onChange={e => setEditingAppt({ ...editingAppt, status: e.target.value })} className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground">
+                      <option value="pending">Pendente</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option><option value="completed">Concluído</option>
+                    </select>
+                  </div>
+                  <div><Label className="text-[10px]">Email</Label><Input value={editingAppt.guest_email || ""} onChange={e => setEditingAppt({ ...editingAppt, guest_email: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                  <div><Label className="text-[10px]">Telefone</Label><Input value={editingAppt.guest_phone || ""} onChange={e => setEditingAppt({ ...editingAppt, guest_phone: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                  <div><Label className="text-[10px]">Data</Label><Input type="date" value={editingAppt.date} onChange={e => setEditingAppt({ ...editingAppt, date: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                  <div><Label className="text-[10px]">Horário</Label><Input type="time" value={editingAppt.time} onChange={e => setEditingAppt({ ...editingAppt, time: e.target.value })} className="h-8 text-xs bg-secondary/50 border-border mt-1" /></div>
+                </div>
+                <div><Label className="text-[10px]">Observações</Label><Textarea value={editingAppt.notes || ""} onChange={e => setEditingAppt({ ...editingAppt, notes: e.target.value })} rows={2} className="text-xs bg-secondary/50 border-border mt-1" /></div>
+                <div className="flex gap-2"><Button size="sm" onClick={() => saveEdit(editingAppt)}>Salvar</Button><Button size="sm" variant="ghost" onClick={() => setEditingAppt(null)}>Cancelar</Button></div>
+              </div>
+            ) : (
+              <div key={a.id} className="surface-card rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground text-sm">{a.guest_name}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      a.status === "confirmed" ? "bg-emerald-500/20 text-emerald-400"
+                      : a.status === "cancelled" ? "bg-rose-500/20 text-rose-400"
+                      : a.status === "completed" ? "bg-blue-500/20 text-blue-400"
+                      : "bg-amber-500/20 text-amber-400"
+                    }`}>{a.status || "pending"}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {a.lead_id && (
+                      <Button variant="ghost" size="sm" title="Abrir lead no CRM" onClick={() => window.open(`/dashboard?tab=crm&lead=${a.lead_id}`, "_blank")}>
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {a.status !== "confirmed" && <Button variant="ghost" size="sm" title="Confirmar" onClick={() => updateStatus(a.id, "confirmed")}><Check className="h-3 w-3 text-emerald-400" /></Button>}
+                    {a.status !== "cancelled" && <Button variant="ghost" size="sm" title="Cancelar" onClick={() => updateStatus(a.id, "cancelled")}><X className="h-3 w-3 text-rose-400" /></Button>}
+                    <Button variant="ghost" size="sm" title="Editar" onClick={() => setEditingAppt(a)}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="sm" title="Excluir" onClick={() => deleteAppt(a.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                  <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(a.date + "T12:00:00").toLocaleDateString("pt-BR")}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {a.time}</span>
+                  {a.guest_email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {a.guest_email}</span>}
+                  {a.guest_phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {a.guest_phone}</span>}
+                </div>
+                {a.notes && <p className="text-xs text-muted-foreground italic">{a.notes}</p>}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
