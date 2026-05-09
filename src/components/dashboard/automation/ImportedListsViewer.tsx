@@ -4,8 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ListChecks, Trash2, RefreshCcw, Phone, ArrowRight } from "lucide-react";
+import { ListChecks, Trash2, RefreshCcw, Phone, ArrowRight, Send } from "lucide-react";
 
 interface ImportedList {
   id: string;
@@ -33,6 +35,12 @@ export default function ImportedListsViewer() {
   const [activeList, setActiveList] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ImportedContact[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string | null }[]>([]);
+  const [pipelineId, setPipelineId] = useState<string>("");
+  const [stageId, setStageId] = useState<string>("");
+  const [transferring, setTransferring] = useState(false);
 
   const loadLists = async () => {
     if (!user) return;
@@ -44,10 +52,21 @@ export default function ImportedListsViewer() {
     setLists((data as any) || []);
   };
 
-  useEffect(() => { loadLists(); }, [user]);
+  const loadCrm = async () => {
+    if (!user) return;
+    const [{ data: pipes }, { data: stgs }] = await Promise.all([
+      supabase.from("pipelines").select("id, name").eq("user_id", user.id).order("created_at"),
+      supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("user_id", user.id).order("position"),
+    ]);
+    setPipelines(pipes || []);
+    setStages((stgs as any) || []);
+  };
+
+  useEffect(() => { loadLists(); loadCrm(); }, [user]);
 
   const openList = async (id: string) => {
     setActiveList(id);
+    setSelected(new Set());
     setLoading(true);
     const { data } = await supabase
       .from("imported_contacts")
@@ -67,6 +86,76 @@ export default function ImportedListsViewer() {
     loadLists();
   };
 
+  const toggleAll = () => {
+    if (selected.size === contacts.length) setSelected(new Set());
+    else setSelected(new Set(contacts.map((c) => c.id)));
+  };
+
+  const toggleOne = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  };
+
+  const transferToCrm = async () => {
+    if (!user || !activeList) return;
+    if (!stageId) { toast.error("Selecione a etapa do CRM"); return; }
+    const target = contacts.filter((c) => selected.has(c.id));
+    if (target.length === 0) { toast.error("Selecione ao menos um contato"); return; }
+
+    setTransferring(true);
+    let converted = 0, dup = 0;
+    for (const c of target) {
+      const cleanPhone = (c.phone || "").replace(/\D/g, "") || null;
+      // Skip if already converted
+      if (c.status === "converted" && c.lead_id) {
+        await supabase.from("leads").update({ stage_id: stageId, pipeline_id: pipelineId || null }).eq("id", c.lead_id);
+        converted++;
+        continue;
+      }
+      // Find existing lead by phone or email
+      let existing: any = null;
+      if (cleanPhone) {
+        const { data } = await supabase.from("leads").select("id").eq("user_id", user.id).eq("phone", cleanPhone).maybeSingle();
+        existing = data;
+      }
+      if (!existing && c.email) {
+        const { data } = await supabase.from("leads").select("id").eq("user_id", user.id).eq("email", c.email).maybeSingle();
+        existing = data;
+      }
+      if (existing) {
+        await supabase.from("leads").update({ stage_id: stageId, pipeline_id: pipelineId || null }).eq("id", existing.id);
+        await supabase.from("imported_contacts").update({ status: "duplicated", lead_id: existing.id }).eq("id", c.id);
+        dup++;
+        continue;
+      }
+      const { data: lead } = await supabase.from("leads").insert({
+        user_id: user.id,
+        name: c.name || cleanPhone || "Importado",
+        phone: cleanPhone,
+        email: c.email,
+        stage_id: stageId,
+        pipeline_id: pipelineId || null,
+        source: "import",
+        status: "new",
+        tags: ["importado"],
+      } as any).select("id").single();
+      if (lead) {
+        await supabase.from("imported_contacts").update({ status: "converted", lead_id: lead.id }).eq("id", c.id);
+        converted++;
+      }
+    }
+    // Update list counter
+    const { count } = await supabase.from("imported_contacts").select("id", { count: "exact", head: true }).eq("list_id", activeList).eq("status", "converted");
+    await supabase.from("imported_lists").update({ total_converted: count || 0 }).eq("id", activeList);
+
+    toast.success(`${converted} transferidos para o CRM${dup ? ` (${dup} já existiam, etapa atualizada)` : ""}`);
+    setSelected(new Set());
+    openList(activeList);
+    loadLists();
+    setTransferring(false);
+  };
+
   const reconvertPending = async (listId: string) => {
     if (!user) return;
     const pending = contacts.filter((c) => c.status === "pending");
@@ -83,7 +172,7 @@ export default function ImportedListsViewer() {
       const { data: lead } = await supabase.from("leads").insert({
         user_id: user.id, name: c.name || c.phone, phone: c.phone, email: c.email,
         source: "import", status: "new",
-      }).select("id").single();
+      } as any).select("id").single();
       if (lead) {
         await supabase.from("imported_contacts").update({ status: "converted", lead_id: lead.id }).eq("id", c.id);
         ok++;
@@ -95,6 +184,8 @@ export default function ImportedListsViewer() {
   };
 
   const active = lists.find((l) => l.id === activeList);
+  const filteredStages = pipelineId ? stages.filter((s) => s.pipeline_id === pipelineId) : stages;
+  const allSelected = contacts.length > 0 && selected.size === contacts.length;
 
   return (
     <div className="space-y-4">
@@ -122,7 +213,7 @@ export default function ImportedListsViewer() {
                   </div>
                   <div className="flex gap-1 mt-1 flex-wrap">
                     <Badge variant="secondary" className="text-[10px]">{l.total_contacts} contatos</Badge>
-                    <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">{l.total_converted} convertidos</Badge>
+                    <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">{l.total_converted} no CRM</Badge>
                   </div>
                 </div>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteList(l.id); }}>
@@ -141,22 +232,74 @@ export default function ImportedListsViewer() {
           )}
           {active && (
             <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h3 className="font-semibold">{active.name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {active.total_contacts} contatos • {active.total_converted} convertidos em leads
+                    {active.total_contacts} contatos • {active.total_converted} no CRM • {selected.size} selecionados
                   </p>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => reconvertPending(active.id)}>
                   <RefreshCcw className="h-3.5 w-3.5 mr-1" /> Converter pendentes
                 </Button>
               </div>
+
+              {/* Bulk transfer panel */}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
+                <p className="text-xs font-semibold text-foreground">📤 Transferir para o CRM</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[10px]">Pipeline</Label>
+                    <select
+                      value={pipelineId}
+                      onChange={(e) => { setPipelineId(e.target.value); setStageId(""); }}
+                      className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground"
+                    >
+                      <option value="">Qualquer pipeline</option>
+                      {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Etapa *</Label>
+                    <select
+                      value={stageId}
+                      onChange={(e) => setStageId(e.target.value)}
+                      className="w-full h-8 text-xs bg-secondary border border-border rounded px-2 mt-1 text-foreground"
+                    >
+                      <option value="">Selecione...</option>
+                      {filteredStages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelected(new Set(contacts.map((c) => c.id)));
+                    }}
+                    variant="outline"
+                  >
+                    Selecionar todos ({contacts.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={transferToCrm}
+                    disabled={transferring || !stageId || selected.size === 0}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    {transferring ? "Transferindo..." : `Transferir ${selected.size || ""} para o CRM`}
+                  </Button>
+                </div>
+              </div>
+
               {loading && <div className="text-xs text-muted-foreground">Carregando…</div>}
               <div className="max-h-[420px] overflow-auto rounded border border-border">
                 <table className="w-full text-xs">
                   <thead className="bg-secondary/40 sticky top-0">
                     <tr>
+                      <th className="text-left p-2 w-8">
+                        <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                      </th>
                       <th className="text-left p-2">Nome</th>
                       <th className="text-left p-2">Telefone</th>
                       <th className="text-left p-2">Status</th>
@@ -164,7 +307,10 @@ export default function ImportedListsViewer() {
                   </thead>
                   <tbody>
                     {contacts.map((c) => (
-                      <tr key={c.id} className="border-t border-border/50">
+                      <tr key={c.id} className={`border-t border-border/50 ${selected.has(c.id) ? "bg-primary/5" : ""}`}>
+                        <td className="p-2">
+                          <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleOne(c.id)} />
+                        </td>
                         <td className="p-2">{c.name || "—"}</td>
                         <td className="p-2 font-mono flex items-center gap-1">
                           <Phone className="h-3 w-3 text-muted-foreground" />{c.phone || "—"}
@@ -172,7 +318,7 @@ export default function ImportedListsViewer() {
                         <td className="p-2">
                           {c.status === "converted" && (
                             <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">
-                              <ArrowRight className="h-2.5 w-2.5 mr-0.5" /> Lead
+                              <ArrowRight className="h-2.5 w-2.5 mr-0.5" /> No CRM
                             </Badge>
                           )}
                           {c.status === "duplicated" && <Badge variant="secondary" className="text-[10px]">Duplicado</Badge>}
