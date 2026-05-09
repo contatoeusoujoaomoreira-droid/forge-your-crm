@@ -45,6 +45,7 @@ const SchedulesList = () => {
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [manualBooking, setManualBooking] = useState(false);
   const [newBooking, setNewBooking] = useState({ guest_name: "", guest_email: "", guest_phone: "", date: "", time: "", schedule_id: "", notes: "" });
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const { toast } = useToast();
 
   const fetchSchedules = async () => {
