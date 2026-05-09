@@ -49,60 +49,25 @@ const SchedulePublic = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!schedule || !selectedDate || !selectedTime || !guestName) return;
-    
-    const cancellationToken = schedule.allow_cancellation ? crypto.randomUUID() : null;
-    
-    const { data: appointment } = await supabase.from("appointments").insert({
-      schedule_id: schedule.id, guest_name: guestName, guest_email: guestEmail || null,
-      guest_phone: guestPhone || null, date: selectedDate, time: selectedTime,
-      cancellation_token: cancellationToken,
-    } as any).select().single();
 
-    // Notification for schedule owner
-    await supabase.from("notifications").insert({
-      user_id: schedule.user_id,
-      type: "appointment",
-      title: `Novo agendamento: ${guestName}`,
-      message: `${guestName} agendou para ${selectedDate} às ${selectedTime}`,
-      metadata: { schedule_id: schedule.id, date: selectedDate, time: selectedTime },
-    } as any);
+    const { data, error } = await supabase.functions.invoke("book-appointment", {
+      body: {
+        slug,
+        guest_name: guestName,
+        guest_email: guestEmail || null,
+        guest_phone: guestPhone || null,
+        date: selectedDate,
+        time: selectedTime,
+      },
+    });
 
-    if (cancellationToken && appointment) {
-      setCancellationLink(`${window.location.origin}/agendar/${slug}?cancel=${cancellationToken}`);
+    if (error || !data?.ok) {
+      alert(data?.error === "slot_taken" ? "Este horário já foi reservado." : "Erro ao agendar. Tente novamente.");
+      return;
     }
 
-    // Create lead if CRM integration configured
-    if (schedule.stage_id) {
-      // Check if lead already exists
-      let leadId: string | null = null;
-      if (guestEmail || guestPhone) {
-        const query = supabase.from("leads").select("id").eq("user_id", schedule.user_id);
-        if (guestEmail) query.eq("email", guestEmail);
-        else if (guestPhone) query.eq("phone", guestPhone);
-        const { data: existing } = await query.maybeSingle();
-        if (existing) {
-          leadId = existing.id;
-          await supabase.from("leads").update({
-            stage_id: schedule.stage_id,
-            pipeline_id: schedule.pipeline_id,
-            notes: `Agendamento em ${selectedDate} às ${selectedTime} - ${schedule.title}`,
-          } as any).eq("id", leadId);
-        }
-      }
-      if (!leadId) {
-        const { data: newLead } = await supabase.from("leads").insert({
-          name: guestName, email: guestEmail || null, phone: guestPhone || null,
-          source: `agenda:${slug}`, status: "new", stage_id: schedule.stage_id,
-          pipeline_id: schedule.pipeline_id,
-          user_id: schedule.user_id, tags: ["agendamento"],
-          notes: `Agendamento em ${selectedDate} às ${selectedTime} - ${schedule.title}`,
-        } as any).select("id").single();
-        leadId = newLead?.id || null;
-      }
-      // Link appointment to lead
-      if (leadId && appointment) {
-        await supabase.from("appointments").update({ lead_id: leadId } as any).eq("id", appointment.id);
-      }
+    if (data.cancellation_token) {
+      setCancellationLink(`${window.location.origin}/agendar/${slug}?cancel=${data.cancellation_token}`);
     }
 
     setSubmitted(true);
