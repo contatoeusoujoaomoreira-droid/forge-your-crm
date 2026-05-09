@@ -281,7 +281,7 @@ const SchedulePublic = () => {
           <div>
             <label className="text-sm font-medium flex items-center gap-2 mb-3"><Calendar className="h-4 w-4" /> Escolha uma data</label>
             <div className="grid grid-cols-4 gap-2">
-              {dates.slice(0, 12).map(date => {
+              {dates.map(date => {
                 const d = new Date(date + "T12:00:00");
                 const dayName = d.toLocaleDateString("pt-BR", { weekday: "short" });
                 const dayNum = d.getDate();
