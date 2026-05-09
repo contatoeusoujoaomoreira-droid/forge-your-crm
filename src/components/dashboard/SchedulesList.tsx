@@ -23,6 +23,7 @@ interface Appointment {
   id: string; guest_name: string; guest_email: string | null;
   guest_phone: string | null; date: string; time: string;
   status: string; notes: string | null; created_at: string;
+  lead_id?: string | null; schedule_id?: string;
 }
 
 const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
