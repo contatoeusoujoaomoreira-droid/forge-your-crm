@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight, BarChart3, TrendingUp, Target } from "lucide-react";
+import { Plus, Calendar, Copy, Pencil, Trash2, Eye, Clock, Users, ChevronLeft, ChevronRight, BarChart3, TrendingUp, Target, X, Check, ExternalLink, Mail, Phone } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Schedule {
