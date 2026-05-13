@@ -2233,7 +2233,9 @@ export type Database = {
       team_members: {
         Row: {
           created_at: string
+          created_by: string | null
           full_name: string | null
+          hierarchy: string
           id: string
           is_active: boolean
           member_email: string
@@ -2244,7 +2246,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           full_name?: string | null
+          hierarchy?: string
           id?: string
           is_active?: boolean
           member_email: string
@@ -2255,7 +2259,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           full_name?: string | null
+          hierarchy?: string
           id?: string
           is_active?: boolean
           member_email?: string
