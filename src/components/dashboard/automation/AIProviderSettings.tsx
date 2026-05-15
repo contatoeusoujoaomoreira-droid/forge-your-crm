@@ -85,12 +85,12 @@ export default function AIProviderSettings({ userIdOverride }: Props = {}) {
   };
 
   const save = async () => {
-    if (!user) return;
+    if (!targetId) return;
     const provider = editing.provider || "lovable";
     const payload: any = {
       ...editing,
       default_model: normalizeModelForProvider(provider, editing.default_model),
-      user_id: user.id,
+      user_id: targetId,
       label: PROVIDERS.find(p => p.id === provider)?.label || provider,
     };
     delete payload.created_at;
