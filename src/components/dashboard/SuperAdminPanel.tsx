@@ -62,6 +62,7 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   checkout: { label: "Checkout", icon: ShoppingCart },
   automation: { label: "Automação", icon: Zap },
   chat: { label: "Chat", icon: MessageCircle },
+  providers_tab: { label: "Aba Provedores (automação)", icon: KeyRound },
 };
 
 const SuperAdminPanel = () => {
