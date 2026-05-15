@@ -458,9 +458,9 @@ const SuperAdminPanel = () => {
                   </div>
 
                   <div className="border-t border-border pt-3">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">🔑 Chaves de provedor deste usuário</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">⚙️ Provedores de IA deste usuário (chaves descontam dos créditos da conta)</p>
                     {u.user_id
-                      ? <UserApiKeysSection userIdOverride={u.user_id} />
+                      ? <AIProviderSettings userIdOverride={u.user_id} />
                       : <p className="text-xs text-muted-foreground">Aguardando primeiro login.</p>}
                   </div>
                 </div>
