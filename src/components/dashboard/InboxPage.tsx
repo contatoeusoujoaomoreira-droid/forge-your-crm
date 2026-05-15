@@ -641,15 +641,34 @@ export default function InboxPage() {
         <Card className="w-full lg:w-80 p-4 space-y-4 overflow-y-auto hidden lg:block">
           <div className="space-y-2">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground">Inteligência da conversa</p>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-md border border-border p-2 bg-secondary/30">
-                <p className="text-muted-foreground">Origem</p>
-                <p className="font-medium truncate">{selectedMeta.provider || selected?.source || "whatsapp"}</p>
-              </div>
-              <div className="rounded-md border border-border p-2 bg-secondary/30">
-                <p className="text-muted-foreground">Instância</p>
-                <p className="font-mono truncate">{selectedMeta.entry_instance || "—"}</p>
-              </div>
+            <div className="rounded-md border border-border p-2 bg-secondary/30 text-[11px]">
+              <p className="text-muted-foreground mb-1">Origem do lead</p>
+              <select
+                value={selected?.source || ""}
+                onChange={async (e) => {
+                  const newSource = e.target.value || null;
+                  if (!selected) return;
+                  const { error } = await supabase.from("chat_clients").update({ source: newSource }).eq("id", selected.id);
+                  if (error) { toast.error("Não foi possível atualizar"); return; }
+                  setClients((prev) => prev.map((c) => c.id === selected.id ? { ...c, source: newSource } : c));
+                  if (lead?.id) await supabase.from("leads").update({ source: newSource }).eq("id", lead.id);
+                  toast.success("Origem atualizada");
+                }}
+                className="w-full h-7 text-xs rounded bg-background border border-border px-1 text-foreground"
+              >
+                <option value="">Não informada</option>
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Facebook</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube</option>
+                <option value="google">Google / Busca</option>
+                <option value="site">Site / Landing Page</option>
+                <option value="indicacao">Indicação</option>
+                <option value="anuncio">Anúncio Pago</option>
+                <option value="evento">Evento</option>
+                <option value="outro">Outro</option>
+              </select>
             </div>
             {lastFailure && (
               <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] space-y-1">
