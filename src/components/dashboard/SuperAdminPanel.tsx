@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Trash2, Users, Shield, Key,
   BarChart3, Globe, FileText, FileQuestion, Calendar, ShoppingCart, LayoutDashboard,
-  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings,
+  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings, CheckCircle2,
 } from "lucide-react";
 import UsageHistoryTab from "./superadmin/UsageHistoryTab";
 import CreditRequestsTab from "./superadmin/CreditRequestsTab";
