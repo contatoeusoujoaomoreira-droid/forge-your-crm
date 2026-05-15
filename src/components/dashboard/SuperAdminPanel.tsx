@@ -53,6 +53,7 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   crm: { label: "CRM", icon: LayoutDashboard },
   clients: { label: "Clientes", icon: Users },
   import: { label: "Importar", icon: Upload },
+  imported: { label: "Importados", icon: CheckCircle2 },
   analytics: { label: "Analytics", icon: BarChart3 },
   pages: { label: "Pages", icon: Globe },
   forms: { label: "Forms", icon: FileText },
@@ -77,7 +78,7 @@ const SuperAdminPanel = () => {
   const [newName, setNewName] = useState("");
   const [newCredits, setNewCredits] = useState(100);
   const [newPerms, setNewPerms] = useState<Record<string, boolean>>({
-    crm: true, clients: true, import: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true,
+    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true,
   });
   const [creating, setCreating] = useState(false);
 
