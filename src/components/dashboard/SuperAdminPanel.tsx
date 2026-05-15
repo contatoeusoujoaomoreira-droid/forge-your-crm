@@ -79,7 +79,7 @@ const SuperAdminPanel = () => {
   const [newName, setNewName] = useState("");
   const [newCredits, setNewCredits] = useState(100);
   const [newPerms, setNewPerms] = useState<Record<string, boolean>>({
-    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true,
+    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true, providers_tab: false,
   });
   const [creating, setCreating] = useState(false);
 
