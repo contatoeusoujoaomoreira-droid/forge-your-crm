@@ -99,7 +99,8 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
 };
 
 export default function AutomationHub() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin, userPermissions } = useAuth();
+  const showProvidersTab = isSuperAdmin || (userPermissions?.providers_tab === true);
   const [tab, setTab] = useState("whatsapp");
   const [waConfigs, setWaConfigs] = useState<any[]>([]);
   const [waCfg, setWaCfg] = useState<any>({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, label: "Principal" });
@@ -402,7 +403,7 @@ export default function AutomationHub() {
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
           <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
-          <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
+          {showProvidersTab && <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>}
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
         </TabsList>
@@ -808,6 +809,7 @@ export default function AutomationHub() {
           </div>
           <FlowsBuilder />
         </TabsContent>
+        {showProvidersTab && (
         <TabsContent value="aikeys" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Provedores de IA
@@ -820,6 +822,7 @@ export default function AutomationHub() {
           </div>
           <AIProviderSettings />
         </TabsContent>
+        )}
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">

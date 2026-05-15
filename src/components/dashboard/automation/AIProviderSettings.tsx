@@ -60,17 +60,19 @@ const normalizeModelForProvider = (provider: string, model?: string | null) => {
   return ids.includes(raw) ? raw : (ids[0] || "google/gemini-2.5-flash");
 };
 
-export default function AIProviderSettings() {
+interface Props { userIdOverride?: string }
+export default function AIProviderSettings({ userIdOverride }: Props = {}) {
   const { user } = useAuth();
+  const targetId = userIdOverride || user?.id;
   const [items, setItems] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
 
   const load = async () => {
-    if (!user) return;
-    const { data } = await supabase.from("ai_provider_configs").select("*").eq("user_id", user.id);
+    if (!targetId) return;
+    const { data } = await supabase.from("ai_provider_configs").select("*").eq("user_id", targetId);
     setItems(data || []);
   };
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [targetId]);
 
   const newItem = () => {
     const p = PROVIDERS[0];
@@ -83,12 +85,12 @@ export default function AIProviderSettings() {
   };
 
   const save = async () => {
-    if (!user) return;
+    if (!targetId) return;
     const provider = editing.provider || "lovable";
     const payload: any = {
       ...editing,
       default_model: normalizeModelForProvider(provider, editing.default_model),
-      user_id: user.id,
+      user_id: targetId,
       label: PROVIDERS.find(p => p.id === provider)?.label || provider,
     };
     delete payload.created_at;

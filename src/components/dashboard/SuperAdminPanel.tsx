@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Plus, Trash2, Users, Shield, Key,
+  Plus, Trash2, Users, Shield, Key, KeyRound,
   BarChart3, Globe, FileText, FileQuestion, Calendar, ShoppingCart, LayoutDashboard,
   RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings, CheckCircle2,
 } from "lucide-react";
@@ -16,7 +16,7 @@ import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
 import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
-import UserApiKeysSection from "./UserApiKeysSection";
+import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
   id: string;
@@ -62,6 +62,7 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   checkout: { label: "Checkout", icon: ShoppingCart },
   automation: { label: "Automação", icon: Zap },
   chat: { label: "Chat", icon: MessageCircle },
+  providers_tab: { label: "Aba Provedores (automação)", icon: KeyRound },
 };
 
 const SuperAdminPanel = () => {
@@ -78,7 +79,7 @@ const SuperAdminPanel = () => {
   const [newName, setNewName] = useState("");
   const [newCredits, setNewCredits] = useState(100);
   const [newPerms, setNewPerms] = useState<Record<string, boolean>>({
-    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true,
+    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true, providers_tab: false,
   });
   const [creating, setCreating] = useState(false);
 
@@ -458,9 +459,9 @@ const SuperAdminPanel = () => {
                   </div>
 
                   <div className="border-t border-border pt-3">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">🔑 Chaves de provedor deste usuário</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">⚙️ Provedores de IA deste usuário (chaves descontam dos créditos da conta)</p>
                     {u.user_id
-                      ? <UserApiKeysSection userIdOverride={u.user_id} />
+                      ? <AIProviderSettings userIdOverride={u.user_id} />
                       : <p className="text-xs text-muted-foreground">Aguardando primeiro login.</p>}
                   </div>
                 </div>
