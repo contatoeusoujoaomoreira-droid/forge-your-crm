@@ -13,8 +13,6 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { toast } from "sonner";
 import { MessageCircle, Key, Bot, Zap, Copy, CheckCircle2, AlertCircle, Upload, Megaphone, Workflow, KeyRound, Send, Plus, Pencil, GitBranch, Info, Eye, EyeOff, ChevronDown, ChevronRight, Trash2, Save, FlaskConical, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import LeadImporter from "./automation/LeadImporter";
-import ImportedListsViewer from "./automation/ImportedListsViewer";
 import CreditsBadge from "./automation/CreditsBadge";
 import AgentTemplatesModal, { AgentTemplate } from "./automation/AgentTemplatesModal";
 import CampaignsList from "./automation/CampaignsList";
@@ -406,8 +404,6 @@ export default function AutomationHub() {
           <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-          <TabsTrigger value="import"><Upload className="h-4 w-4 mr-1" />Importar Leads</TabsTrigger>
-          <TabsTrigger value="imported"><CheckCircle2 className="h-4 w-4 mr-1" />Importados</TabsTrigger>
           <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
         </TabsList>
 
@@ -824,8 +820,6 @@ export default function AutomationHub() {
           </div>
           <AIProviderSettings />
         </TabsContent>
-        <TabsContent value="import"><LeadImporter onShowImported={() => setTab("imported")} /></TabsContent>
-       <TabsContent value="imported"><ImportedListsViewer /></TabsContent>
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
