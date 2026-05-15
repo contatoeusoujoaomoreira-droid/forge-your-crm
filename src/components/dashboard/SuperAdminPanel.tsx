@@ -16,7 +16,7 @@ import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
 import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
-import UserApiKeysSection from "./UserApiKeysSection";
+import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
   id: string;
