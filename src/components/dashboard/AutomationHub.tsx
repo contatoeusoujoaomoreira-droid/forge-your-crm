@@ -809,6 +809,7 @@ export default function AutomationHub() {
           </div>
           <FlowsBuilder />
         </TabsContent>
+        {showProvidersTab && (
         <TabsContent value="aikeys" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Provedores de IA
@@ -821,6 +822,7 @@ export default function AutomationHub() {
           </div>
           <AIProviderSettings />
         </TabsContent>
+        )}
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
