@@ -789,6 +789,14 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
+    if (cfg.api_type === 'wasender') {
+      const resp = await fetch(`${baseUrl}/api/send-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+        body: JSON.stringify({ to: phone, imageUrl, text: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
   } catch (e) { console.error('image send fail', e); }
   // Fallback: send caption + link as text
   return await sendWhatsApp(cfg, phone, `${caption ? caption + '\n' : ''}${imageUrl}`);
