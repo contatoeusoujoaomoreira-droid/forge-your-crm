@@ -96,6 +96,13 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpUrl: "https://umclique.com.br",
     helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (começa com 'umk_'). O Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
   },
+  wasender: {
+    base: "https://www.wasenderapi.com",
+    tokenLabel: "Session API Key (Bearer)",
+    instanceLabel: "Session ID (opcional, só para painel)",
+    helpUrl: "https://www.wasenderapi.com/dashboard",
+    helpText: "Painel WasenderAPI → Sessions → crie/conecte a sessão (escaneie o QR no WhatsApp → Dispositivos vinculados) → copie a API Key da sessão. Base URL é fixa: https://www.wasenderapi.com",
+  },
   custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
 };
 
