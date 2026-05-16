@@ -213,6 +213,24 @@ Deno.serve(async (req) => {
       case 'ultramsg':
         testUrl = `${baseUrl}/${instance}/instance/status?token=${token}`;
         break;
+      case 'wasender': {
+        // GET /api/status with Bearer session key
+        const r = await fetch(`${baseUrl}/api/status`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+        const t = await r.text();
+        let parsed: any = null; try { parsed = JSON.parse(t); } catch {}
+        const status = parsed?.status || '';
+        const ok = r.ok && (status === 'connected' || status === 'CONNECTED');
+        let hint = '';
+        if (r.status === 401) hint = '❌ API Key inválida. Vá em Dashboard → Sessions → copie a chave da sessão correta.';
+        else if (status === 'need_scan') hint = '⚠ Sessão criada mas precisa escanear o QR Code no painel WasenderAPI antes de enviar.';
+        else if (status === 'disconnected' || status === 'DISCONNECTED') hint = '⚠ Sessão desconectada. Reconecte no painel WasenderAPI.';
+        else if (status === 'expired') hint = '⚠ Sessão expirada. Reconecte no painel WasenderAPI.';
+        else if (ok) hint = '✅ Conectado! WasenderAPI pronto para enviar/receber.';
+        else hint = `Status: ${status || r.status}. ${t.slice(0, 200)}`;
+        return new Response(JSON.stringify({ ok, status: r.status, body: hint, session_status: status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       case 'umclique': {
         // Validate API Key + channel via lightweight endpoint.
         // We attempt validate-whatsapp-number (cheap, returns 401 if API key invalid,
