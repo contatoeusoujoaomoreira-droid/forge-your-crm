@@ -749,7 +749,15 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique' };
+  if (cfg.api_type === 'wasender') {
+    const resp = await fetch(`${baseUrl}/api/send-audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
