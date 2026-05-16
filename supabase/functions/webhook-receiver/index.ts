@@ -712,6 +712,14 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
+    case 'wasender': {
+      const resp = await fetch(`${baseUrl}/api/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+        body: JSON.stringify({ to: phone, text: content }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    }
     default: {
       const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
