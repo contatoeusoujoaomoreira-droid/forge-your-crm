@@ -241,7 +241,50 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
   return null;
 }
 
+function normalizeWasender(raw: any): NormalizedMsg | null {
+  // Wasender webhook: { event: "messages.received", data: { messages: { key, messageBody, message } } }
+  const data = raw.data || {};
+  const m = data.messages || data.message || {};
+  const key = m.key || {};
+  const phoneRaw = key.cleanedSenderPn || key.cleanedParticipantPn || (key.remoteJid || '').split('@')[0] || '';
+  const phone = normalizePhone(phoneRaw);
+  const isGroup = String(key.remoteJid || '').includes('@g.us');
+  const messageObj = m.message || {};
+  const mediaKeys: Record<string, string> = {
+    imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
+    documentMessage: 'document', stickerMessage: 'sticker',
+  };
+  let mediaType: string | undefined;
+  let mediaUrl: string | undefined;
+  let filename: string | undefined;
+  for (const [k, t] of Object.entries(mediaKeys)) {
+    if (messageObj[k]) {
+      mediaType = t;
+      mediaUrl = messageObj[k].url || messageObj[k].directPath;
+      filename = messageObj[k].fileName;
+      break;
+    }
+  }
+  const text = m.messageBody || messageObj.conversation || messageObj.extendedTextMessage?.text || messageObj.imageMessage?.caption || messageObj.videoMessage?.caption || messageObj.documentMessage?.caption || '';
+  const ts = raw.timestamp ? Number(raw.timestamp) : 0;
+  if (!phone && !key.id) return null;
+  return {
+    phone,
+    name: m.pushName || data.pushName,
+    content: text || (mediaType ? `[${mediaType}]` : ''),
+    external_message_id: key.id,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    from_me: key.fromMe === true,
+    timestamp: ts ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString() : undefined,
+    is_group: isGroup,
+    document_filename: filename,
+  } as any;
+}
+
 function detectAndNormalize(raw: any): NormalizedMsg | null {
+  // Wasender: event field with messages.received / data.messages structure
+  if (typeof raw.event === 'string' && raw.event.startsWith('messages.') && raw.data?.messages) return normalizeWasender(raw);
   if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
   if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
   if (raw.data?.key) return normalizeEvolution(raw);
@@ -669,6 +712,14 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
+    case 'wasender': {
+      const resp = await fetch(`${baseUrl}/api/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+        body: JSON.stringify({ to: phone, text: content }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    }
     default: {
       const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
@@ -698,7 +749,15 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique' };
+  if (cfg.api_type === 'wasender') {
+    const resp = await fetch(`${baseUrl}/api/send-audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -727,6 +786,14 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       const resp = await fetch(`${baseUrl}/public-send-message`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
         body: JSON.stringify({ channel_id: instance, to: phone, type: 'image', url: imageUrl, caption: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'wasender') {
+      const resp = await fetch(`${baseUrl}/api/send-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+        body: JSON.stringify({ to: phone, imageUrl, text: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }

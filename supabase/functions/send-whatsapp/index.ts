@@ -78,6 +78,38 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text };
     }
+    case 'wasender': {
+      // Wasender: separate endpoints per media type. All require Bearer session key.
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
+      let url = `${baseUrl}/api/send-message`;
+      const payload: any = { to: phone };
+      if (hasMedia) {
+        const mt = (body.media_type || '').toLowerCase();
+        const url_ = body.media_url;
+        if (mt.startsWith('image') || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url_!)) {
+          url = `${baseUrl}/api/send-image`;
+          payload.imageUrl = url_;
+          if (body.content) payload.text = body.content;
+        } else if (mt.startsWith('video') || /\.(mp4|mov|webm)(\?|$)/i.test(url_!)) {
+          url = `${baseUrl}/api/send-video`;
+          payload.videoUrl = url_;
+          if (body.content) payload.text = body.content;
+        } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav)(\?|$)/i.test(url_!)) {
+          url = `${baseUrl}/api/send-audio`;
+          payload.audioUrl = url_;
+        } else {
+          url = `${baseUrl}/api/send-document`;
+          payload.documentUrl = url_;
+          if (body.filename) payload.fileName = body.filename;
+          if (body.content) payload.text = body.content;
+        }
+      } else {
+        payload.text = body.content;
+      }
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      const text = await resp.text();
+      return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
+    }
     case 'ultramsg': {
       const url = `${baseUrl}/${instance}/messages/chat`;
       const resp = await fetch(url, {

@@ -64,6 +64,7 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "wasender", label: "WasenderAPI · wasenderapi.com" },
   { id: "umclique", label: "umClique · Um Clique Digital" },
   { id: "botconversa", label: "BotConversa · botconversa.com.br" },
   { id: "evolution", label: "Evolution API" },
@@ -94,6 +95,13 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     instanceLabel: "Channel ID (Phone Number ID Meta ou Instance ID W-API)",
     helpUrl: "https://umclique.com.br",
     helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (começa com 'umk_'). O Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
+  },
+  wasender: {
+    base: "https://www.wasenderapi.com",
+    tokenLabel: "Session API Key (Bearer)",
+    instanceLabel: "Session ID (opcional, só para painel)",
+    helpUrl: "https://www.wasenderapi.com/dashboard",
+    helpText: "Painel WasenderAPI → Sessions → crie/conecte a sessão (escaneie o QR no WhatsApp → Dispositivos vinculados) → copie a API Key da sessão. Base URL é fixa: https://www.wasenderapi.com",
   },
   custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
 };
@@ -313,6 +321,14 @@ export default function AutomationHub() {
     if (cfg.api_type === "z-api" && !cfg.instance_id) {
       return { ok: false, message: "Instance ID Z-API obrigatório." };
     }
+    if (cfg.api_type === "wasender") {
+      if (!/wasenderapi\.com\/?$/i.test(cfg.base_url.replace(/\/$/, ""))) {
+        return { ok: false, message: "Base URL da WasenderAPI deve ser: https://www.wasenderapi.com" };
+      }
+      if (cfg.api_token.length < 20) {
+        return { ok: false, message: "API Key da sessão WasenderAPI muito curta. Copie em Dashboard → Sessions → sua sessão." };
+      }
+    }
     return { ok: true, message: "ok" };
   };
 
@@ -491,6 +507,7 @@ export default function AutomationHub() {
                                   const patch: any = { api_type: newType };
                                   // Auto-fill base_url with provider default if empty or generic
                                   if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
+                                  else if (newType === "wasender") patch.base_url = "https://www.wasenderapi.com";
                                   else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
                                   updateLocalConn(c.id, patch);
                                 }}>
