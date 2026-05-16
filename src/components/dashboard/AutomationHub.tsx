@@ -499,6 +499,7 @@ export default function AutomationHub() {
                                   const patch: any = { api_type: newType };
                                   // Auto-fill base_url with provider default if empty or generic
                                   if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
+                                  else if (newType === "wasender") patch.base_url = "https://www.wasenderapi.com";
                                   else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
                                   updateLocalConn(c.id, patch);
                                 }}>
