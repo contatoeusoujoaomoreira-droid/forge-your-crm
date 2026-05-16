@@ -321,6 +321,14 @@ export default function AutomationHub() {
     if (cfg.api_type === "z-api" && !cfg.instance_id) {
       return { ok: false, message: "Instance ID Z-API obrigatório." };
     }
+    if (cfg.api_type === "wasender") {
+      if (!/wasenderapi\.com\/?$/i.test(cfg.base_url.replace(/\/$/, ""))) {
+        return { ok: false, message: "Base URL da WasenderAPI deve ser: https://www.wasenderapi.com" };
+      }
+      if (cfg.api_token.length < 20) {
+        return { ok: false, message: "API Key da sessão WasenderAPI muito curta. Copie em Dashboard → Sessions → sua sessão." };
+      }
+    }
     return { ok: true, message: "ok" };
   };
 
