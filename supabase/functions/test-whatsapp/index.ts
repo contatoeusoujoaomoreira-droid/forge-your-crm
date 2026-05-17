@@ -27,7 +27,8 @@ async function sendTestMessage(cfg: any, phone: string, content: string) {
       const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ phone, message: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
-    case 'evolution': {
+    case 'evolution':
+    case 'evolution_go': {
       const url = `${baseUrl}/message/sendText/${instance}`;
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
@@ -207,6 +208,7 @@ Deno.serve(async (req) => {
         if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
         break;
       case 'evolution':
+      case 'evolution_go':
         testUrl = `${baseUrl}/instance/connectionState/${instance}`;
         headers.apikey = token;
         break;

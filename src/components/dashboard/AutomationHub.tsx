@@ -64,10 +64,11 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
+  { id: "evolution_go", label: "WhatsApp Evolution GO · QR Code" },
   { id: "wasender", label: "WasenderAPI · wasenderapi.com" },
   { id: "umclique", label: "umClique · Um Clique Digital" },
   { id: "botconversa", label: "BotConversa · botconversa.com.br" },
-  { id: "evolution", label: "Evolution API" },
+  { id: "evolution", label: "Evolution API (legado)" },
   { id: "ultramsg", label: "UltraMsg" },
   { id: "custom", label: "Custom" },
 ];
@@ -88,6 +89,12 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpText: "Painel BotConversa → Integrações → API → copie a API Key.",
   },
   evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
+  evolution_go: {
+    base: "https://sua-evolution-go.com",
+    tokenLabel: "Global API Key (admin)",
+    instanceLabel: "Nome da Instância (gerado automaticamente se vazio)",
+    helpText: "Cole a URL do seu servidor Evolution API (GO) e a GLOBAL API KEY. Depois clique em 'Conectar via QR Code' para gerar a instância e escanear no WhatsApp.",
+  },
   ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
   umclique: {
     base: "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1",
@@ -132,6 +139,13 @@ export default function AutomationHub() {
   const [expandedConn, setExpandedConn] = useState<string | null>(null);
   const [draftConn, setDraftConn] = useState<any | null>(null); // unsaved new connection
   const [savingId, setSavingId] = useState<string | null>(null);
+  // Evolution GO QR connect modal
+  const [evoQrOpen, setEvoQrOpen] = useState(false);
+  const [evoQrLoading, setEvoQrLoading] = useState(false);
+  const [evoQrImage, setEvoQrImage] = useState<string | null>(null);
+  const [evoQrState, setEvoQrState] = useState<string>("idle"); // idle | qr | connecting | open | close
+  const [evoQrCfg, setEvoQrCfg] = useState<any>(null);
+  const [evoPollTimer, setEvoPollTimer] = useState<any>(null);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
@@ -396,7 +410,76 @@ export default function AutomationHub() {
     toast.success("Chave criada! Copie agora — não será exibida novamente.");
   };
 
-  // createAgent removed — replaced by AgentBuilder modal
+  // ===== Evolution GO QR connect =====
+  const stopEvoPoll = () => { if (evoPollTimer) { clearInterval(evoPollTimer); setEvoPollTimer(null); } };
+
+  const startEvoQr = async (cfg: any) => {
+    if (!cfg.base_url || !/^https?:\/\//.test(cfg.base_url)) { toast.error("Preencha a URL Base do servidor Evolution GO."); return; }
+    if (!cfg.api_token || cfg.api_token.length < 6) { toast.error("Preencha a GLOBAL API KEY."); return; }
+    setEvoQrCfg(cfg);
+    setEvoQrOpen(true);
+    setEvoQrLoading(true);
+    setEvoQrImage(null);
+    setEvoQrState("connecting");
+    const instanceName = cfg.instance_id || "";
+    const { data, error } = await supabase.functions.invoke("evolution-go", {
+      body: {
+        action: "create",
+        base_url: cfg.base_url,
+        global_api_key: cfg.api_token,
+        instance_name: instanceName || undefined,
+        config_id: cfg.id || undefined,
+        label: cfg.label,
+        extra_headers: cfg.extra_headers || {},
+      },
+    });
+    setEvoQrLoading(false);
+    if (error || !data?.ok) {
+      toast.error(`Falha ao criar instância: ${data?.body || error?.message || "erro"}`);
+      setEvoQrState("close");
+      return;
+    }
+    const qr = data.qrcode;
+    setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
+    setEvoQrState("qr");
+    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    await reloadWaConfigs();
+    // Start polling status
+    const inst = data.instance_name;
+    const token = data.instance_token;
+    const t = setInterval(async () => {
+      const r = await supabase.functions.invoke("evolution-go", {
+        body: { action: "status", base_url: cfg.base_url, global_api_key: cfg.api_token, instance_token: token, instance_name: inst },
+      });
+      const state = r.data?.state;
+      if (state) setEvoQrState(state);
+      if (state === "open") {
+        clearInterval(t); setEvoPollTimer(null);
+        toast.success("✅ WhatsApp conectado!");
+        await reloadWaConfigs();
+        // Ensure webhook is set (Evolution v2 also sets at create, but reinforce):
+        await supabase.functions.invoke("evolution-go", {
+          body: { action: "set_webhook", base_url: cfg.base_url, global_api_key: cfg.api_token, instance_token: token, instance_name: inst },
+        });
+      }
+    }, 3000);
+    setEvoPollTimer(t);
+  };
+
+  const closeEvoQr = () => { stopEvoPoll(); setEvoQrOpen(false); setEvoQrImage(null); setEvoQrState("idle"); setEvoQrCfg(null); };
+
+  const refreshEvoQr = async () => {
+    if (!evoQrCfg) return;
+    setEvoQrLoading(true);
+    const { data } = await supabase.functions.invoke("evolution-go", {
+      body: { action: "qr", base_url: evoQrCfg.base_url, global_api_key: evoQrCfg.api_token, instance_name: evoQrCfg.instance_id },
+    });
+    setEvoQrLoading(false);
+    const qr = data?.qrcode;
+    if (qr) setEvoQrImage(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
+    else toast.error("Não foi possível obter novo QR.");
+  };
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -618,6 +701,11 @@ export default function AutomationHub() {
                               <Button size="sm" onClick={() => saveConn(c)} disabled={savingId === (c.id || "__draft__")}>
                                 <Save className="h-4 w-4 mr-1" />{savingId === (c.id || "__draft__") ? "Salvando..." : "Salvar"}
                               </Button>
+                              {c.api_type === "evolution_go" && (
+                                <Button size="sm" variant="default" onClick={() => startEvoQr(c)}>
+                                  <Sparkles className="h-4 w-4 mr-1" />Conectar via QR Code
+                                </Button>
+                              )}
                               {!isDraft && (
                                 <>
                                   <Button size="sm" variant="outline" onClick={() => testConn(c)} disabled={testing}>
@@ -668,6 +756,45 @@ export default function AutomationHub() {
                 <Button onClick={() => sendTestFor(waCfg)} disabled={testMsgSending}>
                   {testMsgSending ? "Enviando..." : "Disparar agora"}
                 </Button>
+              </div>
+            </Card>
+          )}
+
+          {evoQrOpen && (
+            <Card className="p-4 space-y-3 border-primary/40">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Evolution GO · Conexão por QR Code</h3>
+                <Button size="sm" variant="ghost" onClick={closeEvoQr}>Fechar</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Estado: <strong className={evoQrState === "open" ? "text-emerald-500" : evoQrState === "qr" ? "text-amber-500" : "text-muted-foreground"}>{evoQrState}</strong>
+                {" · "}Instância: <code className="font-mono">{evoQrCfg?.instance_id || "(nova)"}</code>
+              </p>
+              <div className="flex flex-col items-center gap-3 py-4">
+                {evoQrLoading && <p className="text-sm text-muted-foreground">Gerando QR Code…</p>}
+                {!evoQrLoading && evoQrImage && evoQrState !== "open" && (
+                  <img src={evoQrImage} alt="QR Code Evolution GO" className="w-64 h-64 border border-border rounded-lg bg-white p-2" />
+                )}
+                {evoQrState === "open" && (
+                  <div className="text-center space-y-2">
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+                    <p className="font-semibold text-emerald-500">WhatsApp conectado com sucesso!</p>
+                    <p className="text-xs text-muted-foreground">Webhook configurado. Mensagens recebidas já são processadas pelo agente IA.</p>
+                  </div>
+                )}
+                {evoQrState !== "open" && evoQrImage && (
+                  <p className="text-xs text-muted-foreground text-center max-w-xs">
+                    Abra o WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → escaneie acima.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  {evoQrState !== "open" && (
+                    <Button size="sm" variant="outline" onClick={refreshEvoQr} disabled={evoQrLoading}>
+                      Atualizar QR
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={closeEvoQr}>{evoQrState === "open" ? "Concluir" : "Cancelar"}</Button>
+                </div>
               </div>
             </Card>
           )}

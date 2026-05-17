@@ -68,15 +68,30 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text };
     }
-    case 'evolution': {
-      const url = `${baseUrl}/message/sendText/${instance}`;
+    case 'evolution':
+    case 'evolution_go': {
+      // Evolution API v2 (GO) — instance-token authenticates sends.
+      const apikey = token; // instance hash
+      let url = `${baseUrl}/message/sendText/${instance}`;
+      let payload: any = { number: phone, text: body.content };
+      if (hasMedia) {
+        const mt = (body.media_type || '').toLowerCase();
+        const mediatype = mt.startsWith('image') ? 'image' : mt.startsWith('video') ? 'video' : mt.startsWith('audio') ? 'audio' : 'document';
+        if (mediatype === 'audio') {
+          url = `${baseUrl}/message/sendWhatsAppAudio/${instance}`;
+          payload = { number: phone, audio: body.media_url };
+        } else {
+          url = `${baseUrl}/message/sendMedia/${instance}`;
+          payload = { number: phone, mediatype, media: body.media_url, caption: body.content, fileName: body.filename };
+        }
+      }
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: token },
-        body: JSON.stringify({ number: phone, text: body.content }),
+        headers: { 'Content-Type': 'application/json', apikey, ...extra },
+        body: JSON.stringify(payload),
       });
       const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
+      return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
     case 'wasender': {
       // Wasender: separate endpoints per media type. All require Bearer session key.
