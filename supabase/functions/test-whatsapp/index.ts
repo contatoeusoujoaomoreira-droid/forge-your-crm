@@ -9,7 +9,10 @@ const sanitizeBaseUrl = (url: string) =>
   (url || '').replace(/\/$/, '')
     .replace(/\/send-text$/, '')
     .replace(/\/send-image$/, '')
-    .replace(/\/send-document$/, '');
+    .replace(/\/send-document$/, '')
+    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|status|contact-info)\/?$/, '')
+    .replace(/\/api\/?$/, '')
+    .replace(/\/$/, '');
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
 
