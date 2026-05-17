@@ -89,6 +89,12 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpText: "Painel BotConversa → Integrações → API → copie a API Key.",
   },
   evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
+  evolution_go: {
+    base: "https://sua-evolution-go.com",
+    tokenLabel: "Global API Key (admin)",
+    instanceLabel: "Nome da Instância (gerado automaticamente se vazio)",
+    helpText: "Cole a URL do seu servidor Evolution API (GO) e a GLOBAL API KEY. Depois clique em 'Conectar via QR Code' para gerar a instância e escanear no WhatsApp.",
+  },
   ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
   umclique: {
     base: "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1",
