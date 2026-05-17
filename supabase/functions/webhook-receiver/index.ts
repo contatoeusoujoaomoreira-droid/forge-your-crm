@@ -1334,7 +1334,7 @@ Deno.serve(async (req) => {
   };
 
   // Check if client already exists & has avatar — avoid overwriting with null
-  const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
+  const { data: existingPre } = await admin.from('chat_clients').select('id, name, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
   const fetchProviderProfilePic = async (): Promise<string | undefined> => {
@@ -1355,17 +1355,20 @@ Deno.serve(async (req) => {
           if (u) return u;
         }
       } else if (apiType === 'wasender') {
-        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' };
+        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json', ...((prov as any).extra_headers || {}) };
+        const contactIds = Array.from(new Set([msg.phone, (msg as any).contact_lid, (msg as any).raw_jid].filter(Boolean)));
         const attempts = [
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}/picture`,
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}`,
+          ...contactIds.flatMap((id) => [
+            `${baseUrl}/api/contacts/${encodeURIComponent(String(id))}/picture`,
+            `${baseUrl}/api/contacts/${encodeURIComponent(String(id))}`,
+          ]),
         ];
         for (const url of attempts) {
           const r = await fetch(url, { headers }).catch(() => null);
           if (!r?.ok) continue;
           const j = await r.json().catch(() => null);
-          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || extractAvatarUrl(j);
-          if (u) return u;
+          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || j?.data?.profilePictureUrl || extractAvatarUrl(j);
+          if (isUsableAvatarUrl(u)) return u;
         }
       }
     } catch (_) { /* noop */ }
