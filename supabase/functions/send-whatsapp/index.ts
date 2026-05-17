@@ -112,7 +112,8 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       // WaSender uses one official endpoint for text and media. AudioUrl is sent as a voice note.
       const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
       const url = `${baseUrl}/api/send-message`;
-      const payload: any = { to: phone };
+      const to = body.phone && /@g\.us$/i.test(body.phone) ? body.phone : phone;
+      const payload: any = { to };
       if (hasMedia) {
         const mt = (body.media_type || '').toLowerCase();
         const mediaUrl = body.media_url;
