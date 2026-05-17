@@ -112,6 +112,13 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       const result = await sendTestMessage(cfg, phone, body.message);
 
+      // Friendlier error when provider returns HTML (Symfony 405/404 etc.)
+      if (!result.ok && typeof result.body === 'string' && /<!DOCTYPE html|<html/i.test(result.body)) {
+        const m = result.body.match(/<title>([^<]+)<\/title>/i);
+        const title = m?.[1]?.trim() || `HTTP ${result.status}`;
+        result.body = `❌ Provedor retornou página de erro (${result.status}): ${title}. Verifique se a Base URL está correta (sem "/api/send-message" no final) e se o endpoint do provedor está ativo.`;
+      }
+
       // Mirror to Chat module: create/find chat client + insert outbound message
       try {
         const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -135,7 +142,7 @@ Deno.serve(async (req) => {
             content: body.message,
             status: result.ok ? 'sent' : 'failed',
             sender_phone: phone,
-            metadata: { test: true, external_status: result.status, external_body: result.body },
+            metadata: { test: true, external_status: result.status, external_body: result.body, provider: cfg.api_type },
           });
         }
       } catch (e) {
