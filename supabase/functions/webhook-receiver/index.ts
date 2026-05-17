@@ -1251,6 +1251,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
+  if ((matchedConfig?.api_type || '').toLowerCase() === 'wasender' && msg.media_type && (msg as any).media_info) {
+    const resolvedMedia = await resolveWasenderMediaUrl(admin, matchedConfig, raw, msg as any, userId);
+    if (resolvedMedia) (msg as any).media_url = resolvedMedia;
+  }
+
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
     if (dup) {
