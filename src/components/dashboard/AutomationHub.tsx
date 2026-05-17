@@ -701,6 +701,11 @@ export default function AutomationHub() {
                               <Button size="sm" onClick={() => saveConn(c)} disabled={savingId === (c.id || "__draft__")}>
                                 <Save className="h-4 w-4 mr-1" />{savingId === (c.id || "__draft__") ? "Salvando..." : "Salvar"}
                               </Button>
+                              {c.api_type === "evolution_go" && (
+                                <Button size="sm" variant="default" onClick={() => startEvoQr(c)}>
+                                  <Sparkles className="h-4 w-4 mr-1" />Conectar via QR Code
+                                </Button>
+                              )}
                               {!isDraft && (
                                 <>
                                   <Button size="sm" variant="outline" onClick={() => testConn(c)} disabled={testing}>
