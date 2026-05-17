@@ -124,7 +124,15 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       } else {
         payload.text = body.content;
       }
-      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      let resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      // Fallback: /api/send-voice may not exist on some Wasender deployments → retry as /api/send-audio
+      if (!resp.ok && url.endsWith('/api/send-voice')) {
+        const fallbackUrl = `${baseUrl}/api/send-audio`;
+        const fallbackPayload: any = { to: phone, audioUrl: payload.voiceUrl, ptt: true };
+        resp = await fetch(fallbackUrl, { method: 'POST', headers, body: JSON.stringify(fallbackPayload) });
+        const text = await resp.text();
+        return { ok: resp.ok, status: resp.status, body: text, sent_payload: fallbackPayload };
+      }
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
