@@ -111,8 +111,10 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
           payload.videoUrl = url_;
           if (body.content) payload.text = body.content;
         } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-audio`;
-          payload.audioUrl = url_;
+          // PTT (voice note) via WaSender — try /api/send-voice first, fallback to /api/send-audio
+          url = `${baseUrl}/api/send-voice`;
+          payload.voiceUrl = url_;
+          payload.ptt = true;
         } else {
           url = `${baseUrl}/api/send-document`;
           payload.documentUrl = url_;
