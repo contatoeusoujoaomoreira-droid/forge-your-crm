@@ -887,8 +887,10 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
     if (cfg.api_type === 'z-api') {
       const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
       await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
-    } else if (cfg.api_type === 'evolution') {
-      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    } else if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
+      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    } else if (cfg.api_type === 'wasender') {
+      await fetch(`${baseUrl}/api/send-presence`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra }, body: JSON.stringify({ to: phone, presence: kind === 'composing' ? 'typing' : 'recording' }) }).catch(() => {});
     } else if (cfg.api_type === 'umclique' || cfg.api_type === 'um-clique') {
       // Um Clique: presence endpoint (composing | recording)
       const url = `${baseUrl}/v1/messages/presence`;
