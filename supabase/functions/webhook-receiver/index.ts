@@ -754,14 +754,30 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
   if (cfg.api_type === 'wasender') {
+    // Prefer /api/send-voice (PTT/voice note) — falls back to /api/send-audio
+    const voice = await fetch(`${baseUrl}/api/send-voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+      body: JSON.stringify({ to: phone, voiceUrl: audioDataUrl, ptt: true }),
+    }).catch(() => null);
+    if (voice?.ok) return { ok: true, status: voice.status, body: (await voice.text()).slice(0, 500) };
     const resp = await fetch(`${baseUrl}/api/send-audio`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
-      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl }),
+      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl, ptt: true }),
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
+  if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
+    // Evolution v2 native PTT (voice note)
+    const resp = await fetch(`${baseUrl}/message/sendWhatsAppAudio/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
+      body: JSON.stringify({ number: phone, audio: audioDataUrl, encoding: true, ptt: true, delay: 0 }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: `Audio reply not supported on provider ${cfg.api_type}` };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
