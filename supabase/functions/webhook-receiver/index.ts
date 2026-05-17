@@ -222,15 +222,27 @@ function extractAvatarUrl(input: any): string | undefined {
 }
 
 // Status callback (delivered / read) — used to update ✓✓ ticks on existing messages.
+function mapProviderStatus(value: any): string {
+  const n = Number(value);
+  const s = String(value || '').toLowerCase();
+  if (n === 4 || n === 5 || s.includes('read') || s.includes('played')) return 'read';
+  if (n === 3 || s.includes('deliver')) return 'delivered';
+  if (n === 2 || n === 1 || s.includes('sent') || s.includes('pending')) return 'sent';
+  if (n === 0 || s.includes('fail') || s.includes('error')) return 'failed';
+  return 'sent';
+}
+
 function detectStatusCallback(raw: any): { external_message_id?: string; status: string } | null {
   // Z-API: { type: 'MessageStatusCallback', status: 'READ'|'RECEIVED'|'PLAYED', messageId }
   const t = (raw?.type || raw?.event || '').toString().toLowerCase();
   if (t.includes('status') && (raw.messageId || raw.id)) {
-    const s = (raw.status || raw.ack || '').toString().toLowerCase();
-    let mapped = 'sent';
-    if (s.includes('read') || s.includes('played') || raw.ack === 3 || raw.ack === 4) mapped = 'read';
-    else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
-    return { external_message_id: raw.messageId || raw.id, status: mapped };
+    return { external_message_id: raw.messageId || raw.id, status: mapProviderStatus(raw.status || raw.ack) };
+  }
+  // WaSender: { event: 'messages.update', data: { key: { id }, status } } or data.update.status
+  if (t === 'messages.update') {
+    const id = raw.data?.key?.id || raw.data?.id || raw.data?.msgId || raw.data?.update?.key?.id;
+    const statusValue = raw.data?.status ?? raw.data?.update?.status ?? raw.status;
+    if (id) return { external_message_id: String(id), status: mapProviderStatus(statusValue) };
   }
   if (t.includes('readreceipt') || (raw.EventType === 'messages_update' && raw.event?.MessageIDs && !String(raw.type || '').toLowerCase().includes('filedownloaded'))) {
     const ids = raw.event?.MessageIDs || raw.MessageIDs;
