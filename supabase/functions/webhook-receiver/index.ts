@@ -283,8 +283,9 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  // Evolution v2 (GO): event "messages.upsert" with data.key — handle BEFORE Wasender
-  if (typeof raw.event === 'string' && /^messages\.upsert$/i.test(raw.event) && raw.data?.key) return normalizeEvolution(raw);
+  const ev = String(raw.event || '').toLowerCase().replace(/_/g, '.');
+  // Evolution v2 (GO): "messages.upsert" / "MESSAGES_UPSERT" — handle BEFORE Wasender
+  if ((ev === 'messages.upsert' || /^messages\.upsert$/i.test(String(raw.event || ''))) && raw.data?.key) return normalizeEvolution(raw);
   // Wasender: event field with messages.received / data.messages structure
   if (typeof raw.event === 'string' && raw.event.startsWith('messages.') && raw.data?.messages) return normalizeWasender(raw);
   if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
