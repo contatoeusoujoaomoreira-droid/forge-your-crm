@@ -286,9 +286,22 @@ Deno.serve(async (req) => {
       default:
         testUrl = baseUrl;
     }
-    const resp = await fetch(testUrl, { headers });
-    const text = await resp.text();
-    return new Response(JSON.stringify({ ok: resp.ok, status: resp.status, body: text.slice(0, 500) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    try {
+      const resp = await fetch(testUrl, { headers });
+      const text = await resp.text();
+      return new Response(JSON.stringify({ ok: resp.ok, status: resp.status, body: text.slice(0, 500) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (e) {
+      const msg = String((e as any)?.message || e);
+      let friendly = msg;
+      if (/invalid peer certificate|UnknownIssuer|certificate/i.test(msg)) {
+        friendly = `❌ Certificado SSL inválido em ${baseUrl}. Servidores Evolution precisam de um domínio com SSL válido (ex: https://api.seudominio.com via Cloudflare/Let's Encrypt). Não é possível usar HTTPS direto em IP (${baseUrl}). Use HTTP (http://IP:porta) se o servidor permitir, ou configure um domínio com certificado válido.`;
+      } else if (/dns error|failed to lookup|ENOTFOUND|Name or service not known/i.test(msg)) {
+        friendly = `❌ Não foi possível resolver ${baseUrl}. Verifique se a Base URL está correta e acessível publicamente.`;
+      } else if (/Connection refused|tcp connect error/i.test(msg)) {
+        friendly = `❌ Conexão recusada em ${baseUrl}. Verifique se o servidor está online e a porta correta.`;
+      }
+      return new Response(JSON.stringify({ ok: false, status: 0, body: friendly }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
