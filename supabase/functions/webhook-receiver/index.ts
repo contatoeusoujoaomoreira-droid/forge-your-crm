@@ -423,6 +423,80 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
   }
 }
 
+
+function extensionFromContentType(contentType: string, mediaType?: string) {
+  const ct = (contentType || '').toLowerCase();
+  if (ct.includes('jpeg') || ct.includes('jpg')) return 'jpg';
+  if (ct.includes('png')) return 'png';
+  if (ct.includes('webp')) return 'webp';
+  if (ct.includes('gif')) return 'gif';
+  if (ct.includes('mp4')) return 'mp4';
+  if (ct.includes('ogg')) return 'ogg';
+  if (ct.includes('mpeg') || ct.includes('mp3')) return 'mp3';
+  if (ct.includes('wav')) return 'wav';
+  if (ct.includes('pdf')) return 'pdf';
+  if (mediaType === 'audio') return 'ogg';
+  if (mediaType === 'image') return 'jpg';
+  if (mediaType === 'video') return 'mp4';
+  return 'bin';
+}
+
+async function mirrorMediaToStorage(admin: any, userId: string, url: string, mediaType?: string, messageId?: string): Promise<string> {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`media_download_${resp.status}`);
+  const contentType = resp.headers.get('content-type') || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
+  const bytes = new Uint8Array(await resp.arrayBuffer());
+  const ext = extensionFromContentType(contentType, mediaType);
+  const safeId = (messageId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || crypto.randomUUID();
+  const path = `${userId}/webhook/${Date.now()}-${safeId}.${ext}`;
+  const { error } = await admin.storage.from('chat-media').upload(path, bytes, { contentType, upsert: true });
+  if (error) throw new Error(`storage_upload_${error.message}`);
+  const { data } = admin.storage.from('chat-media').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function resolveWasenderMediaUrl(admin: any, cfg: any, raw: any, msg: any, userId: string): Promise<string | undefined> {
+  const mediaInfo = msg?.media_info;
+  if (!cfg || (cfg.api_type || '').toLowerCase() !== 'wasender' || !mediaInfo) return msg?.media_url;
+  const baseUrl = sanitizeBaseUrl(cfg.base_url || 'https://www.wasenderapi.com');
+  const token = cfg.api_token || '';
+  const directPublic = firstString(mediaInfo.publicUrl, mediaInfo.public_url, mediaInfo.downloadUrl, mediaInfo.fileUrl, mediaInfo.fileURL);
+  if (directPublic && /^https?:\/\//i.test(directPublic)) {
+    try { return await mirrorMediaToStorage(admin, userId, directPublic, msg.media_type, msg.external_message_id); }
+    catch (e) { console.warn('wasender direct media mirror failed', e); return directPublic; }
+  }
+  const hasEncryptedPayload = !!(mediaInfo.url && mediaInfo.mediaKey);
+  if (!hasEncryptedPayload) return msg?.media_url;
+  try {
+    const resp = await fetch(`${baseUrl}/api/decrypt-media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json', ...((cfg as any).extra_headers || {}) },
+      body: JSON.stringify({
+        data: {
+          messages: {
+            key: raw?.data?.messages?.key || raw?.data?.key || {},
+            message: raw?.data?.messages?.message || raw?.data?.message || {},
+          },
+        },
+      }),
+    });
+    const text = await resp.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch {}
+    if (!resp.ok) {
+      console.error('wasender decrypt-media failed', resp.status, text.slice(0, 300));
+      return msg?.media_url;
+    }
+    const publicUrl = firstString(json?.publicUrl, json?.data?.publicUrl, json?.data?.url, json?.url);
+    if (!publicUrl) return msg?.media_url;
+    try { return await mirrorMediaToStorage(admin, userId, publicUrl, msg.media_type, msg.external_message_id); }
+    catch (e) { console.warn('wasender decrypted media mirror failed', e); return publicUrl; }
+  } catch (e) {
+    console.error('wasender decrypt-media error', e);
+    return msg?.media_url;
+  }
+}
+
 // Describe image via the agent's selected vision provider.
 async function describeImage(imageUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
