@@ -283,8 +283,9 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
 }
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  // Evolution v2 (GO): event "messages.upsert" with data.key — handle BEFORE Wasender
-  if (typeof raw.event === 'string' && /^messages\.upsert$/i.test(raw.event) && raw.data?.key) return normalizeEvolution(raw);
+  const ev = String(raw.event || '').toLowerCase().replace(/_/g, '.');
+  // Evolution v2 (GO): "messages.upsert" / "MESSAGES_UPSERT" — handle BEFORE Wasender
+  if ((ev === 'messages.upsert' || /^messages\.upsert$/i.test(String(raw.event || ''))) && raw.data?.key) return normalizeEvolution(raw);
   // Wasender: event field with messages.received / data.messages structure
   if (typeof raw.event === 'string' && raw.event.startsWith('messages.') && raw.data?.messages) return normalizeWasender(raw);
   if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
@@ -698,8 +699,9 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
-    case 'evolution': {
-      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
+    case 'evolution':
+    case 'evolution_go': {
+      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, text: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'ultramsg': {
@@ -752,14 +754,30 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
   if (cfg.api_type === 'wasender') {
+    // Prefer /api/send-voice (PTT/voice note) — falls back to /api/send-audio
+    const voice = await fetch(`${baseUrl}/api/send-voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+      body: JSON.stringify({ to: phone, voiceUrl: audioDataUrl, ptt: true }),
+    }).catch(() => null);
+    if (voice?.ok) return { ok: true, status: voice.status, body: (await voice.text()).slice(0, 500) };
     const resp = await fetch(`${baseUrl}/api/send-audio`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
-      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl }),
+      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl, ptt: true }),
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
+  if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
+    // Evolution v2 native PTT (voice note)
+    const resp = await fetch(`${baseUrl}/message/sendWhatsAppAudio/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
+      body: JSON.stringify({ number: phone, audio: audioDataUrl, encoding: true, ptt: true, delay: 0 }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: `Audio reply not supported on provider ${cfg.api_type}` };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -777,9 +795,9 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
-    if (cfg.api_type === 'evolution') {
+    if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
       const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
         body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
@@ -869,8 +887,10 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
     if (cfg.api_type === 'z-api') {
       const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
       await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
-    } else if (cfg.api_type === 'evolution') {
-      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    } else if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
+      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
+    } else if (cfg.api_type === 'wasender') {
+      await fetch(`${baseUrl}/api/send-presence`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra }, body: JSON.stringify({ to: phone, presence: kind === 'composing' ? 'typing' : 'recording' }) }).catch(() => {});
     } else if (cfg.api_type === 'umclique' || cfg.api_type === 'um-clique') {
       // Um Clique: presence endpoint (composing | recording)
       const url = `${baseUrl}/v1/messages/presence`;
@@ -1142,8 +1162,39 @@ Deno.serve(async (req) => {
   const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
+  const fetchProviderProfilePic = async (): Promise<string | undefined> => {
+    try {
+      const prov = matchedConfig;
+      if (!prov) return undefined;
+      const baseUrl = (prov.base_url || '').replace(/\/$/, '');
+      const apiType = (prov.api_type || '').toLowerCase();
+      if (apiType === 'evolution' || apiType === 'evolution_go') {
+        const r = await fetch(`${baseUrl}/chat/fetchProfilePictureUrl/${prov.instance_id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: prov.api_token, ...((prov as any).extra_headers || {}) },
+          body: JSON.stringify({ number: msg.phone }),
+        }).catch(() => null);
+        if (r?.ok) {
+          const j = await r.json().catch(() => null);
+          const u = j?.profilePictureUrl || j?.url || extractAvatarUrl(j);
+          if (u) return u;
+        }
+      } else if (apiType === 'wasender') {
+        const r = await fetch(`${baseUrl}/api/contact-info?jid=${encodeURIComponent(msg.phone)}`, {
+          headers: { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' },
+        }).catch(() => null);
+        if (r?.ok) {
+          const j = await r.json().catch(() => null);
+          const u = j?.profilePicUrl || j?.data?.profilePicUrl || extractAvatarUrl(j);
+          if (u) return u;
+        }
+      }
+    } catch (_) { /* noop */ }
+    return undefined;
+  };
+
   if (!avatarUrl && !existingPre?.avatar_url) {
-    avatarUrl = await fetchZapiProfilePic();
+    avatarUrl = await fetchZapiProfilePic() || await fetchProviderProfilePic();
   }
 
   const upsertPayload: any = {

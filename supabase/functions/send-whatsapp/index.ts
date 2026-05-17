@@ -78,8 +78,9 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         const mt = (body.media_type || '').toLowerCase();
         const mediatype = mt.startsWith('image') ? 'image' : mt.startsWith('video') ? 'video' : mt.startsWith('audio') ? 'audio' : 'document';
         if (mediatype === 'audio') {
+          // PTT (voice note) — Evolution v2 native audio endpoint
           url = `${baseUrl}/message/sendWhatsAppAudio/${instance}`;
-          payload = { number: phone, audio: body.media_url };
+          payload = { number: phone, audio: body.media_url, encoding: true, ptt: true, delay: 0 };
         } else {
           url = `${baseUrl}/message/sendMedia/${instance}`;
           payload = { number: phone, mediatype, media: body.media_url, caption: body.content, fileName: body.filename };
@@ -110,8 +111,10 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
           payload.videoUrl = url_;
           if (body.content) payload.text = body.content;
         } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-audio`;
-          payload.audioUrl = url_;
+          // PTT (voice note) via WaSender — try /api/send-voice first, fallback to /api/send-audio
+          url = `${baseUrl}/api/send-voice`;
+          payload.voiceUrl = url_;
+          payload.ptt = true;
         } else {
           url = `${baseUrl}/api/send-document`;
           payload.documentUrl = url_;
@@ -121,7 +124,15 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       } else {
         payload.text = body.content;
       }
-      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      let resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      // Fallback: /api/send-voice may not exist on some Wasender deployments → retry as /api/send-audio
+      if (!resp.ok && url.endsWith('/api/send-voice')) {
+        const fallbackUrl = `${baseUrl}/api/send-audio`;
+        const fallbackPayload: any = { to: phone, audioUrl: payload.voiceUrl, ptt: true };
+        resp = await fetch(fallbackUrl, { method: 'POST', headers, body: JSON.stringify(fallbackPayload) });
+        const text = await resp.text();
+        return { ok: resp.ok, status: resp.status, body: text, sent_payload: fallbackPayload };
+      }
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
