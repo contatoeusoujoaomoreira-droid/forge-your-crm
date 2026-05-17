@@ -878,17 +878,23 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
   if (cfg.api_type === 'wasender') {
-    // Prefer /api/send-voice (PTT/voice note) — falls back to /api/send-audio
-    const voice = await fetch(`${baseUrl}/api/send-voice`, {
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
+    let audioUrl = audioDataUrl;
+    if (audioDataUrl.startsWith('data:')) {
+      const up = await fetch(`${baseUrl}/api/upload`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ base64: audioDataUrl }),
+      }).catch(() => null);
+      if (up?.ok) {
+        const j = await up.json().catch(() => null);
+        audioUrl = j?.publicUrl || j?.data?.publicUrl || j?.url || audioDataUrl;
+      }
+    }
+    const resp = await fetch(`${baseUrl}/api/send-message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
-      body: JSON.stringify({ to: phone, voiceUrl: audioDataUrl, ptt: true }),
-    }).catch(() => null);
-    if (voice?.ok) return { ok: true, status: voice.status, body: (await voice.text()).slice(0, 500) };
-    const resp = await fetch(`${baseUrl}/api/send-audio`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
-      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl, ptt: true }),
+      headers,
+      body: JSON.stringify({ to: phone, audioUrl }),
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
@@ -934,7 +940,7 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
     if (cfg.api_type === 'wasender') {
-      const resp = await fetch(`${baseUrl}/api/send-image`, {
+      const resp = await fetch(`${baseUrl}/api/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
         body: JSON.stringify({ to: phone, imageUrl, text: caption || '' }),
