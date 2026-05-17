@@ -208,6 +208,7 @@ Deno.serve(async (req) => {
         if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
         break;
       case 'evolution':
+      case 'evolution_go':
         testUrl = `${baseUrl}/instance/connectionState/${instance}`;
         headers.apikey = token;
         break;
