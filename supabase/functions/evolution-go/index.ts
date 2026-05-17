@@ -14,15 +14,25 @@ const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
 const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/webhook-receiver`;
 
 async function evoFetch(baseUrl: string, path: string, apikey: string, method = 'GET', body?: any) {
-  const r = await fetch(`${sanitize(baseUrl)}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', apikey },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await r.text();
-  let json: any = null; try { json = JSON.parse(text); } catch {}
-  return { ok: r.ok, status: r.status, text, json };
+  try {
+    const r = await fetch(`${sanitize(baseUrl)}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', apikey },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await r.text();
+    let json: any = null; try { json = JSON.parse(text); } catch {}
+    return { ok: r.ok, status: r.status, text, json };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const friendly = /dns error|failed to lookup|Name or service not known|ENOTFOUND/i.test(msg)
+      ? `Não foi possível resolver o endereço do servidor Evolution (${baseUrl}). Verifique se a Base URL está correta e acessível publicamente.`
+      : `Falha ao conectar no servidor Evolution: ${msg}`;
+    return { ok: false, status: 0, text: friendly, json: { error: friendly } };
+  }
 }
+
+const PLACEHOLDER_HOSTS = /(sua-evolution|seu-servidor|example\.com|localhost|127\.0\.0\.1|changeme)/i;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -42,6 +52,9 @@ Deno.serve(async (req) => {
 
     if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (PLACEHOLDER_HOSTS.test(baseUrl)) {
+      return new Response(JSON.stringify({ ok: false, error: `A Base URL "${baseUrl}" parece ser um valor de exemplo. Informe o endereço real do seu servidor Evolution GO (ex: https://api.seudominio.com).` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
