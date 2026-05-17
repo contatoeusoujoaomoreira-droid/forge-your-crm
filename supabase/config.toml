@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.manage-team-members]
 verify_jwt = false
+
+[functions.evolution-go]
+verify_jwt = false
