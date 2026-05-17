@@ -113,6 +113,10 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
   custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
 };
 
+const EVOLUTION_GO_PLACEHOLDER_HOSTS = /(sua-evolution|seu-servidor|example\.com|localhost|127\.0\.0\.1|changeme)/i;
+
+const isEvolutionGoPlaceholderUrl = (url?: string) => EVOLUTION_GO_PLACEHOLDER_HOSTS.test((url || "").trim());
+
 export default function AutomationHub() {
   const { user, isSuperAdmin, userPermissions } = useAuth();
   const showProvidersTab = isSuperAdmin || (userPermissions?.providers_tab === true);
@@ -343,6 +347,9 @@ export default function AutomationHub() {
         return { ok: false, message: "API Key da sessão WasenderAPI muito curta. Copie em Dashboard → Sessions → sua sessão." };
       }
     }
+    if (cfg.api_type === "evolution_go" && isEvolutionGoPlaceholderUrl(cfg.base_url)) {
+      return { ok: false, message: "A URL Base da Evolution GO ainda é um exemplo. Informe a URL real e pública do seu servidor Evolution GO." };
+    }
     return { ok: true, message: "ok" };
   };
 
@@ -414,8 +421,8 @@ export default function AutomationHub() {
   const stopEvoPoll = () => { if (evoPollTimer) { clearInterval(evoPollTimer); setEvoPollTimer(null); } };
 
   const startEvoQr = async (cfg: any) => {
-    if (!cfg.base_url || !/^https?:\/\//.test(cfg.base_url)) { toast.error("Preencha a URL Base do servidor Evolution GO."); return; }
-    if (!cfg.api_token || cfg.api_token.length < 6) { toast.error("Preencha a GLOBAL API KEY."); return; }
+    const validation = validateConn(cfg);
+    if (!validation.ok) { toast.error(validation.message); return; }
     setEvoQrCfg(cfg);
     setEvoQrOpen(true);
     setEvoQrLoading(true);
@@ -470,6 +477,8 @@ export default function AutomationHub() {
 
   const refreshEvoQr = async () => {
     if (!evoQrCfg) return;
+    const validation = validateConn(evoQrCfg);
+    if (!validation.ok) { toast.error(validation.message); return; }
     setEvoQrLoading(true);
     const { data } = await supabase.functions.invoke("evolution-go", {
       body: { action: "qr", base_url: evoQrCfg.base_url, global_api_key: evoQrCfg.api_token, instance_name: evoQrCfg.instance_id },
