@@ -1318,12 +1318,16 @@ Deno.serve(async (req) => {
           if (u) return u;
         }
       } else if (apiType === 'wasender') {
-        const r = await fetch(`${baseUrl}/api/contact-info?jid=${encodeURIComponent(msg.phone)}`, {
-          headers: { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' },
-        }).catch(() => null);
-        if (r?.ok) {
+        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' };
+        const attempts = [
+          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}/picture`,
+          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}`,
+        ];
+        for (const url of attempts) {
+          const r = await fetch(url, { headers }).catch(() => null);
+          if (!r?.ok) continue;
           const j = await r.json().catch(() => null);
-          const u = j?.profilePicUrl || j?.data?.profilePicUrl || extractAvatarUrl(j);
+          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || extractAvatarUrl(j);
           if (u) return u;
         }
       }
