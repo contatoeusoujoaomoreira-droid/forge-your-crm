@@ -296,11 +296,11 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   const senderPhone = normalizePhone(String(senderPn || '').split('@')[0] || '');
   const remotePhone = normalizePhone(String(remoteJid || '').split('@')[0] || '');
   const isLidJid = /@lid$/i.test(remoteJid) || key.addressingMode === 'lid';
+  const isGroup = String(remoteJid || '').includes('@g.us');
   // In LID mode WaSender puts the contact LID in remoteJid and the real number in senderPn.
   // Using remoteJid as phone creates duplicate chats and broken avatars.
-  const phoneRaw = senderPhone || remotePhone;
+  const phoneRaw = isGroup ? remotePhone : (senderPhone || remotePhone);
   const phone = normalizePhone(phoneRaw);
-  const isGroup = String(remoteJid || '').includes('@g.us');
   const mediaKeys: Record<string, string> = {
     imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
     documentMessage: 'document', stickerMessage: 'sticker',
