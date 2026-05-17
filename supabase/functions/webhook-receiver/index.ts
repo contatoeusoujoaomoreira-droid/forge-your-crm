@@ -728,7 +728,15 @@ async function callAiWithTools(
 }
 
 
-const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '').replace(/\/send-audio$/, '');
+const sanitizeBaseUrl = (u: string) =>
+  (u || '').replace(/\/$/, '')
+    .replace(/\/send-text$/, '')
+    .replace(/\/send-image$/, '')
+    .replace(/\/send-audio$/, '')
+    .replace(/\/send-document$/, '')
+    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|decrypt-media|upload|status|contact-info|contacts(?:\/.*)?)\/?$/i, '')
+    .replace(/\/api\/?$/i, '')
+    .replace(/\/$/, '');
 
 async function sendWhatsApp(cfg: any, phone: string, content: string) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
