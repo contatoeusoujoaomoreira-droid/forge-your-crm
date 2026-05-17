@@ -699,8 +699,9 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
-    case 'evolution': {
-      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
+    case 'evolution':
+    case 'evolution_go': {
+      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, text: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'ultramsg': {
