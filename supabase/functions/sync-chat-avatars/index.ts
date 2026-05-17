@@ -12,13 +12,15 @@ const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const normalizePhone = (value: string) => (value || '').replace(/\D/g, '');
 
 function extractAvatarUrl(input: any): string | undefined {
-  if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
-  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
+  const isAvatar = (value?: string | null) => /^https?:\/\//i.test(String(value || '')) && !(/\/v\/t62\.|\.enc(?:\?|$)|mmg\.whatsapp\.net/i.test(String(value || '')));
+  if (!input || typeof input !== 'object') return isAvatar(input) ? input : undefined;
+  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'imgUrl', 'profilePictureUrl'];
   for (const key of directKeys) {
     const value = input?.[key];
-    if (typeof value === 'string' && value.startsWith('http')) return value;
+    if (isAvatar(value)) return value;
   }
-  for (const value of Object.values(input)) {
+  for (const [key, value] of Object.entries(input)) {
+    if (/message|media|audio|image|video|document|sticker/i.test(key)) continue;
     if (value && typeof value === 'object') {
       const nested = extractAvatarUrl(value);
       if (nested) return nested;
@@ -54,6 +56,25 @@ async function fetchZapiProfilePicture(cfg: any, phone: string): Promise<string 
   return undefined;
 }
 
+async function fetchWasenderProfilePicture(cfg: any, phone: string, metadata: any = {}): Promise<string | undefined> {
+  try {
+    if ((cfg?.api_type || '').toLowerCase() !== 'wasender') return undefined;
+    const baseUrl = (cfg.base_url || '').replace(/\/$/, '').replace(/\/api\/(send-message|contacts(?:\/.*)?|contact-info|status)\/?$/i, '').replace(/\/api\/?$/i, '');
+    const headers = { Authorization: `Bearer ${cfg.api_token}`, Accept: 'application/json', ...((cfg as any).extra_headers || {}) };
+    const ids = Array.from(new Set([phone, metadata.contact_lid, metadata.raw_jid].filter(Boolean)));
+    for (const id of ids) {
+      for (const path of [`/api/contacts/${encodeURIComponent(String(id))}/picture`, `/api/contacts/${encodeURIComponent(String(id))}`]) {
+        const response = await fetch(`${baseUrl}${path}`, { headers }).catch(() => null);
+        if (!response?.ok) continue;
+        const json = await response.json().catch(() => null);
+        const avatar = json?.data?.imgUrl || json?.imgUrl || json?.data?.profilePicUrl || json?.profilePicUrl || json?.data?.profilePictureUrl || extractAvatarUrl(json);
+        if (avatar) return avatar;
+      }
+    }
+  } catch (_) { /* skip */ }
+  return undefined;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
@@ -68,7 +89,7 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
     const { data: configs } = await admin.from('whatsapp_configs')
       .select('api_type, base_url, api_token, instance_id, extra_headers, is_active, updated_at')
-      .eq('user_id', user.id).eq('api_type', 'z-api')
+      .eq('user_id', user.id).in('api_type', ['z-api', 'wasender'])
       .order('is_active', { ascending: false })
       .order('updated_at', { ascending: false })
       .limit(5);
@@ -100,7 +121,9 @@ Deno.serve(async (req) => {
         let link = fromLogs || current;
         if (!link) {
           for (const cfg of configs || []) {
-            link = await fetchZapiProfilePicture(cfg, phone);
+            link = (cfg as any).api_type === 'wasender'
+              ? await fetchWasenderProfilePicture(cfg, phone, (c as any).metadata || {})
+              : await fetchZapiProfilePicture(cfg, phone);
             if (link) break;
           }
         }

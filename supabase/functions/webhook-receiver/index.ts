@@ -205,14 +205,24 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
   } as any;
 }
 
+function isUsableAvatarUrl(value?: string | null): value is string {
+  const url = String(value || '').trim();
+  if (!/^https?:\/\//i.test(url)) return false;
+  // WaSender message payloads expose encrypted media URLs under generic `url` fields.
+  // Those are not profile photos and break the avatar UI, so never accept them as avatars.
+  if (/\/v\/t62\.|\.enc(?:\?|$)|mmg\.whatsapp\.net/i.test(url)) return false;
+  return true;
+}
+
 function extractAvatarUrl(input: any): string | undefined {
-  if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
-  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
+  if (!input || typeof input !== 'object') return isUsableAvatarUrl(input) ? input : undefined;
+  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'imgUrl', 'profilePictureUrl'];
   for (const key of directKeys) {
     const value = input?.[key];
-    if (typeof value === 'string' && value.startsWith('http')) return value;
+    if (isUsableAvatarUrl(value)) return value;
   }
-  for (const value of Object.values(input)) {
+  for (const [key, value] of Object.entries(input)) {
+    if (/message|media|audio|image|video|document|sticker/i.test(key)) continue;
     if (value && typeof value === 'object') {
       const nested = extractAvatarUrl(value);
       if (nested) return nested;
@@ -283,12 +293,14 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   const messageObj = m.message || data.message || {};
   const remoteJid = firstString(key.remoteJid, m.remoteJid, data.remoteJid, key.remoteJidAlt) || '';
   const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn);
-  const outboundJid = key.fromMe === true ? remoteJid : '';
-  const phoneRaw = key.fromMe === true
-    ? (outboundJid.split('@')[0] || senderPn || '')
-    : (senderPn || remoteJid.split('@')[0] || '');
-  const phone = normalizePhone(phoneRaw);
+  const senderPhone = normalizePhone(String(senderPn || '').split('@')[0] || '');
+  const remotePhone = normalizePhone(String(remoteJid || '').split('@')[0] || '');
+  const isLidJid = /@lid$/i.test(remoteJid) || key.addressingMode === 'lid';
   const isGroup = String(remoteJid || '').includes('@g.us');
+  // In LID mode WaSender puts the contact LID in remoteJid and the real number in senderPn.
+  // Using remoteJid as phone creates duplicate chats and broken avatars.
+  const phoneRaw = isGroup ? remotePhone : (senderPhone || remotePhone);
+  const phone = normalizePhone(phoneRaw);
   const mediaKeys: Record<string, string> = {
     imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
     documentMessage: 'document', stickerMessage: 'sticker',
@@ -331,6 +343,7 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
     is_group: isGroup,
     document_filename: filename,
     raw_jid: remoteJid,
+    contact_lid: isLidJid ? remotePhone : undefined,
     media_info: mediaInfo,
   } as any;
 }
@@ -1321,7 +1334,7 @@ Deno.serve(async (req) => {
   };
 
   // Check if client already exists & has avatar — avoid overwriting with null
-  const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
+  const { data: existingPre } = await admin.from('chat_clients').select('id, name, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
   const fetchProviderProfilePic = async (): Promise<string | undefined> => {
@@ -1342,17 +1355,20 @@ Deno.serve(async (req) => {
           if (u) return u;
         }
       } else if (apiType === 'wasender') {
-        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' };
+        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json', ...((prov as any).extra_headers || {}) };
+        const contactIds = Array.from(new Set([msg.phone, (msg as any).contact_lid, (msg as any).raw_jid].filter(Boolean)));
         const attempts = [
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}/picture`,
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}`,
+          ...contactIds.flatMap((id) => [
+            `${baseUrl}/api/contacts/${encodeURIComponent(String(id))}/picture`,
+            `${baseUrl}/api/contacts/${encodeURIComponent(String(id))}`,
+          ]),
         ];
         for (const url of attempts) {
           const r = await fetch(url, { headers }).catch(() => null);
           if (!r?.ok) continue;
           const j = await r.json().catch(() => null);
-          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || extractAvatarUrl(j);
-          if (u) return u;
+          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || j?.data?.profilePictureUrl || extractAvatarUrl(j);
+          if (isUsableAvatarUrl(u)) return u;
         }
       }
     } catch (_) { /* noop */ }
@@ -1368,12 +1384,21 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: {
+      ...(existingPre?.metadata || {}),
+      is_group: (msg as any).is_group === true,
+      provider: matchedConfig?.api_type || raw.provider || 'whatsapp',
+      entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null,
+      first_context: (existingPre?.metadata || {})?.first_context || msg.content || null,
+      ...(isUsableAvatarUrl(avatarUrl) ? { profile_pic_url: avatarUrl } : {}),
+      ...((msg as any).contact_lid ? { contact_lid: (msg as any).contact_lid } : {}),
+      ...((msg as any).raw_jid ? { raw_jid: (msg as any).raw_jid } : {}),
+    },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
-  if (avatarUrl) upsertPayload.avatar_url = avatarUrl;
-  else if (existingPre?.avatar_url) upsertPayload.avatar_url = existingPre.avatar_url;
+  if (isUsableAvatarUrl(avatarUrl)) upsertPayload.avatar_url = avatarUrl;
+  else if (isUsableAvatarUrl(existingPre?.avatar_url)) upsertPayload.avatar_url = existingPre.avatar_url;
 
   const { data: upserted } = await admin.from('chat_clients').upsert(
     upsertPayload,
@@ -1390,18 +1415,28 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // If message was sent FROM the user's own phone (manual reply via WhatsApp app),
-  // mirror it as outbound and force human takeover (disable AI for this conversation)
+  // If message was sent FROM the connected WhatsApp app, mirror it as outbound.
+  // Do NOT pause AI unless the agent explicitly enabled human handoff behavior.
   if (msg.from_me) {
-    // Ensure conversation_state exists and disable AI
     const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+    const { data: handoffAgent } = await admin.from('ai_agents')
+      .select('id,handoff_enabled')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .eq('handoff_enabled', true)
+      .limit(1)
+      .maybeSingle();
+    const shouldPauseAi = !!handoffAgent?.handoff_enabled;
     if (csExisting) {
-      await admin.from('conversation_state').update({
-        ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq('id', csExisting.id);
+      const patch: any = { updated_at: new Date().toISOString() };
+      if (shouldPauseAi) Object.assign(patch, { ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString() });
+      await admin.from('conversation_state').update(patch).eq('id', csExisting.id);
     } else {
       await admin.from('conversation_state').insert({
-        user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
+        user_id: userId, client_id: client.id,
+        ai_active: shouldPauseAi ? false : true,
+        mode: shouldPauseAi ? 'manual' : 'ai',
+        ...(shouldPauseAi ? { last_human_reply_at: new Date().toISOString() } : {}),
       });
     }
     await admin.from('messages').insert({
@@ -1417,8 +1452,9 @@ Deno.serve(async (req) => {
       external_message_id: msg.external_message_id,
       sender_phone: msg.phone,
       created_at: msg.timestamp || new Date().toISOString(),
-      metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null },
+      metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null, ai_paused_by_handoff: shouldPauseAi },
     });
+    if (shouldPauseAi) await admin.rpc('schedule_handoff_resume', { _client_id: client.id }).catch(() => {});
     await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
     return new Response(JSON.stringify({ ok: true, mirrored: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
