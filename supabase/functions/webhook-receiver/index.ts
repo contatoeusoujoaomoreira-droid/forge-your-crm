@@ -1162,8 +1162,39 @@ Deno.serve(async (req) => {
   const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
+  const fetchProviderProfilePic = async (): Promise<string | undefined> => {
+    try {
+      const prov = matchedConfig;
+      if (!prov) return undefined;
+      const baseUrl = (prov.base_url || '').replace(/\/$/, '');
+      const apiType = (prov.api_type || '').toLowerCase();
+      if (apiType === 'evolution' || apiType === 'evolution_go') {
+        const r = await fetch(`${baseUrl}/chat/fetchProfilePictureUrl/${prov.instance_id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: prov.api_token, ...((prov as any).extra_headers || {}) },
+          body: JSON.stringify({ number: msg.phone }),
+        }).catch(() => null);
+        if (r?.ok) {
+          const j = await r.json().catch(() => null);
+          const u = j?.profilePictureUrl || j?.url || extractAvatarUrl(j);
+          if (u) return u;
+        }
+      } else if (apiType === 'wasender') {
+        const r = await fetch(`${baseUrl}/api/contact-info?jid=${encodeURIComponent(msg.phone)}`, {
+          headers: { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' },
+        }).catch(() => null);
+        if (r?.ok) {
+          const j = await r.json().catch(() => null);
+          const u = j?.profilePicUrl || j?.data?.profilePicUrl || extractAvatarUrl(j);
+          if (u) return u;
+        }
+      }
+    } catch (_) { /* noop */ }
+    return undefined;
+  };
+
   if (!avatarUrl && !existingPre?.avatar_url) {
-    avatarUrl = await fetchZapiProfilePic();
+    avatarUrl = await fetchZapiProfilePic() || await fetchProviderProfilePic();
   }
 
   const upsertPayload: any = {
