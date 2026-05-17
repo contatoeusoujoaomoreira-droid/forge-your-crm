@@ -795,9 +795,9 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
-    if (cfg.api_type === 'evolution') {
+    if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
       const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
         body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
