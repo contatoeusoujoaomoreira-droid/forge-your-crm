@@ -205,14 +205,24 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
   } as any;
 }
 
+function isUsableAvatarUrl(value?: string | null): value is string {
+  const url = String(value || '').trim();
+  if (!/^https?:\/\//i.test(url)) return false;
+  // WaSender message payloads expose encrypted media URLs under generic `url` fields.
+  // Those are not profile photos and break the avatar UI, so never accept them as avatars.
+  if (/\/v\/t62\.|\.enc(?:\?|$)|mmg\.whatsapp\.net/i.test(url)) return false;
+  return true;
+}
+
 function extractAvatarUrl(input: any): string | undefined {
-  if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
-  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
+  if (!input || typeof input !== 'object') return isUsableAvatarUrl(input) ? input : undefined;
+  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'imgUrl', 'profilePictureUrl'];
   for (const key of directKeys) {
     const value = input?.[key];
-    if (typeof value === 'string' && value.startsWith('http')) return value;
+    if (isUsableAvatarUrl(value)) return value;
   }
-  for (const value of Object.values(input)) {
+  for (const [key, value] of Object.entries(input)) {
+    if (/message|media|audio|image|video|document|sticker/i.test(key)) continue;
     if (value && typeof value === 'object') {
       const nested = extractAvatarUrl(value);
       if (nested) return nested;
