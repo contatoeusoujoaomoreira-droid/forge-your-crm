@@ -1384,12 +1384,21 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: {
+      ...(existingPre?.metadata || {}),
+      is_group: (msg as any).is_group === true,
+      provider: matchedConfig?.api_type || raw.provider || 'whatsapp',
+      entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null,
+      first_context: (existingPre?.metadata || {})?.first_context || msg.content || null,
+      ...(isUsableAvatarUrl(avatarUrl) ? { profile_pic_url: avatarUrl } : {}),
+      ...((msg as any).contact_lid ? { contact_lid: (msg as any).contact_lid } : {}),
+      ...((msg as any).raw_jid ? { raw_jid: (msg as any).raw_jid } : {}),
+    },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
-  if (avatarUrl) upsertPayload.avatar_url = avatarUrl;
-  else if (existingPre?.avatar_url) upsertPayload.avatar_url = existingPre.avatar_url;
+  if (isUsableAvatarUrl(avatarUrl)) upsertPayload.avatar_url = avatarUrl;
+  else if (isUsableAvatarUrl(existingPre?.avatar_url)) upsertPayload.avatar_url = existingPre.avatar_url;
 
   const { data: upserted } = await admin.from('chat_clients').upsert(
     upsertPayload,
@@ -1406,18 +1415,28 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // If message was sent FROM the user's own phone (manual reply via WhatsApp app),
-  // mirror it as outbound and force human takeover (disable AI for this conversation)
+  // If message was sent FROM the connected WhatsApp app, mirror it as outbound.
+  // Do NOT pause AI unless the agent explicitly enabled human handoff behavior.
   if (msg.from_me) {
-    // Ensure conversation_state exists and disable AI
     const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+    const { data: handoffAgent } = await admin.from('ai_agents')
+      .select('id,handoff_enabled')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .eq('handoff_enabled', true)
+      .limit(1)
+      .maybeSingle();
+    const shouldPauseAi = !!handoffAgent?.handoff_enabled;
     if (csExisting) {
-      await admin.from('conversation_state').update({
-        ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq('id', csExisting.id);
+      const patch: any = { updated_at: new Date().toISOString() };
+      if (shouldPauseAi) Object.assign(patch, { ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString() });
+      await admin.from('conversation_state').update(patch).eq('id', csExisting.id);
     } else {
       await admin.from('conversation_state').insert({
-        user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
+        user_id: userId, client_id: client.id,
+        ai_active: shouldPauseAi ? false : true,
+        mode: shouldPauseAi ? 'manual' : 'ai',
+        ...(shouldPauseAi ? { last_human_reply_at: new Date().toISOString() } : {}),
       });
     }
     await admin.from('messages').insert({
@@ -1433,8 +1452,9 @@ Deno.serve(async (req) => {
       external_message_id: msg.external_message_id,
       sender_phone: msg.phone,
       created_at: msg.timestamp || new Date().toISOString(),
-      metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null },
+      metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null, ai_paused_by_handoff: shouldPauseAi },
     });
+    if (shouldPauseAi) await admin.rpc('schedule_handoff_resume', { _client_id: client.id }).catch(() => {});
     await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
     return new Response(JSON.stringify({ ok: true, mirrored: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
