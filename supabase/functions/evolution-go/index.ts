@@ -53,6 +53,9 @@ Deno.serve(async (req) => {
     if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    if (PLACEHOLDER_HOSTS.test(baseUrl)) {
+      return new Response(JSON.stringify({ ok: false, error: `A Base URL "${baseUrl}" parece ser um valor de exemplo. Informe o endereço real do seu servidor Evolution GO (ex: https://api.seudominio.com).` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
