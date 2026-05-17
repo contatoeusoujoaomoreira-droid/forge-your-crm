@@ -47,7 +47,11 @@ const sanitizeBaseUrl = (url: string) =>
   (url || '').replace(/\/$/, '')
     .replace(/\/send-text$/, '')
     .replace(/\/send-image$/, '')
-    .replace(/\/send-document$/, '');
+    .replace(/\/send-document$/, '')
+    // WaSender: strip accidental endpoint paths users paste in base_url
+    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|status|contact-info)\/?$/, '')
+    .replace(/\/api\/?$/, '')
+    .replace(/\/$/, '');
 
 async function dispatch(provider: string, cfg: any, phone: string, body: SendBody) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
