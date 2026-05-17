@@ -53,6 +53,16 @@ const sanitizeBaseUrl = (url: string) =>
     .replace(/\/api\/?$/, '')
     .replace(/\/$/, '');
 
+function extractProviderMessageId(bodyText?: string | null): string | null {
+  if (!bodyText) return null;
+  try {
+    const j = JSON.parse(bodyText);
+    return String(j?.data?.msgId || j?.data?.id || j?.msgId || j?.id || j?.messageId || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 async function dispatch(provider: string, cfg: any, phone: string, body: SendBody) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
   const token = cfg.api_token || '';
@@ -236,6 +246,7 @@ Deno.serve(async (req) => {
     let externalStatus: number | null = null;
     let externalBody: string | null = null;
     let sentPayload: any = null;
+    let externalMessageId: string | null = null;
     if (cfg) {
       try {
         const result: any = await dispatch(cfg.api_type, cfg, phone, body);
@@ -243,6 +254,7 @@ Deno.serve(async (req) => {
         externalStatus = result.status ?? null;
         externalBody = (result.body || '').toString().slice(0, 1000);
         sentPayload = result.sent_payload ?? null;
+        externalMessageId = extractProviderMessageId(result.body);
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -261,6 +273,7 @@ Deno.serve(async (req) => {
       media_url: body.media_url,
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
+      external_message_id: externalMessageId,
       sender_phone: phone,
       metadata: {
         external_error: externalError,
@@ -312,6 +325,7 @@ Deno.serve(async (req) => {
       external_status: externalStatus,
       external_body: externalBody,
       sent_payload: sentPayload,
+      external_message_id: externalMessageId,
       has_config: !!cfg,
       provider: cfg?.api_type || null,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
