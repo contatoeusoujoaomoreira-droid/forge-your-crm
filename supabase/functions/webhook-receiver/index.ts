@@ -1234,6 +1234,7 @@ Deno.serve(async (req) => {
     if (userId && matchedConfig && candidateIds.length) {
       const learned = candidateIds.filter((id) =>
         id !== matchedConfig.instance_id &&
+        id !== matchedConfig.api_token &&
         !(matchedConfig.webhook_instance_ids || []).includes(id)
       );
       if (learned.length) {
