@@ -49,9 +49,19 @@ const sanitizeBaseUrl = (url: string) =>
     .replace(/\/send-image$/, '')
     .replace(/\/send-document$/, '')
     // WaSender: strip accidental endpoint paths users paste in base_url
-    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|status|contact-info)\/?$/, '')
+    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|decrypt-media|upload|status|contact-info|contacts(?:\/.*)?)\/?$/i, '')
     .replace(/\/api\/?$/, '')
     .replace(/\/$/, '');
+
+function extractProviderMessageId(bodyText?: string | null): string | null {
+  if (!bodyText) return null;
+  try {
+    const j = JSON.parse(bodyText);
+    return String(j?.data?.msgId || j?.data?.id || j?.msgId || j?.id || j?.messageId || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 async function dispatch(provider: string, cfg: any, phone: string, body: SendBody) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -99,44 +109,32 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
     case 'wasender': {
-      // Wasender: separate endpoints per media type. All require Bearer session key.
+      // WaSender uses one official endpoint for text and media. AudioUrl is sent as a voice note.
       const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
-      let url = `${baseUrl}/api/send-message`;
-      const payload: any = { to: phone };
+      const url = `${baseUrl}/api/send-message`;
+      const to = body.phone && /@g\.us$/i.test(body.phone) ? body.phone : phone;
+      const payload: any = { to };
       if (hasMedia) {
         const mt = (body.media_type || '').toLowerCase();
-        const url_ = body.media_url;
-        if (mt.startsWith('image') || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-image`;
-          payload.imageUrl = url_;
+        const mediaUrl = body.media_url;
+        if (mt.startsWith('image') || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(mediaUrl!)) {
+          payload.imageUrl = mediaUrl;
           if (body.content) payload.text = body.content;
-        } else if (mt.startsWith('video') || /\.(mp4|mov|webm)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-video`;
-          payload.videoUrl = url_;
+        } else if (mt.startsWith('video') || /\.(mp4|mov|webm)(\?|$)/i.test(mediaUrl!)) {
+          payload.videoUrl = mediaUrl;
           if (body.content) payload.text = body.content;
-        } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav)(\?|$)/i.test(url_!)) {
-          // PTT (voice note) via WaSender — try /api/send-voice first, fallback to /api/send-audio
-          url = `${baseUrl}/api/send-voice`;
-          payload.voiceUrl = url_;
-          payload.ptt = true;
+        } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav|aac|amr)(\?|$)/i.test(mediaUrl!)) {
+          payload.audioUrl = mediaUrl;
+          if (body.content && body.content !== body.filename) payload.text = body.content;
         } else {
-          url = `${baseUrl}/api/send-document`;
-          payload.documentUrl = url_;
+          payload.documentUrl = mediaUrl;
           if (body.filename) payload.fileName = body.filename;
           if (body.content) payload.text = body.content;
         }
       } else {
         payload.text = body.content;
       }
-      let resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
-      // Fallback: /api/send-voice may not exist on some Wasender deployments → retry as /api/send-audio
-      if (!resp.ok && url.endsWith('/api/send-voice')) {
-        const fallbackUrl = `${baseUrl}/api/send-audio`;
-        const fallbackPayload: any = { to: phone, audioUrl: payload.voiceUrl, ptt: true };
-        resp = await fetch(fallbackUrl, { method: 'POST', headers, body: JSON.stringify(fallbackPayload) });
-        const text = await resp.text();
-        return { ok: resp.ok, status: resp.status, body: text, sent_payload: fallbackPayload };
-      }
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
@@ -249,6 +247,7 @@ Deno.serve(async (req) => {
     let externalStatus: number | null = null;
     let externalBody: string | null = null;
     let sentPayload: any = null;
+    let externalMessageId: string | null = null;
     if (cfg) {
       try {
         const result: any = await dispatch(cfg.api_type, cfg, phone, body);
@@ -256,6 +255,7 @@ Deno.serve(async (req) => {
         externalStatus = result.status ?? null;
         externalBody = (result.body || '').toString().slice(0, 1000);
         sentPayload = result.sent_payload ?? null;
+        externalMessageId = extractProviderMessageId(result.body);
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -274,6 +274,7 @@ Deno.serve(async (req) => {
       media_url: body.media_url,
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
+      external_message_id: externalMessageId,
       sender_phone: phone,
       metadata: {
         external_error: externalError,
@@ -325,6 +326,7 @@ Deno.serve(async (req) => {
       external_status: externalStatus,
       external_body: externalBody,
       sent_payload: sentPayload,
+      external_message_id: externalMessageId,
       has_config: !!cfg,
       provider: cfg?.api_type || null,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
