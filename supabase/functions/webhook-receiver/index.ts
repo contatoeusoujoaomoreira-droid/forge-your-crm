@@ -241,15 +241,42 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
   return null;
 }
 
+function firstString(...values: any[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return undefined;
+}
+
+function parseWasenderTimestamp(value: any): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'object' && typeof value.low === 'number') {
+    return new Date(value.low * 1000).toISOString();
+  }
+  if (typeof value === 'number') {
+    return new Date(value > 10_000_000_000 ? value : value * 1000).toISOString();
+  }
+  const n = Number(value);
+  if (Number.isFinite(n) && n > 0) return new Date(n > 10_000_000_000 ? n : n * 1000).toISOString();
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 function normalizeWasender(raw: any): NormalizedMsg | null {
-  // Wasender webhook: { event: "messages.received", data: { messages: { key, messageBody, message } } }
+  // WaSender: messages.received and messages.upsert use data.messages as a single object.
   const data = raw.data || {};
-  const m = data.messages || data.message || {};
-  const key = m.key || {};
-  const phoneRaw = key.cleanedSenderPn || key.cleanedParticipantPn || (key.remoteJid || '').split('@')[0] || '';
+  const m = data.messages || data.message || (data.key || data.messageBody ? data : {});
+  const key = m.key || data.key || {};
+  const messageObj = m.message || data.message || {};
+  const remoteJid = firstString(key.remoteJid, m.remoteJid, data.remoteJid, key.remoteJidAlt) || '';
+  const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn);
+  const outboundJid = key.fromMe === true ? remoteJid : '';
+  const phoneRaw = key.fromMe === true
+    ? (outboundJid.split('@')[0] || senderPn || '')
+    : (senderPn || remoteJid.split('@')[0] || '');
   const phone = normalizePhone(phoneRaw);
-  const isGroup = String(key.remoteJid || '').includes('@g.us');
-  const messageObj = m.message || {};
+  const isGroup = String(remoteJid || '').includes('@g.us');
   const mediaKeys: Record<string, string> = {
     imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
     documentMessage: 'document', stickerMessage: 'sticker',
@@ -257,30 +284,45 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   let mediaType: string | undefined;
   let mediaUrl: string | undefined;
   let filename: string | undefined;
+  let mediaInfo: any = null;
   for (const [k, t] of Object.entries(mediaKeys)) {
     if (messageObj[k]) {
       mediaType = t;
-      mediaUrl = messageObj[k].url || messageObj[k].directPath;
-      filename = messageObj[k].fileName;
+      mediaInfo = messageObj[k];
+      mediaUrl = firstString(mediaInfo.url, mediaInfo.mediaUrl, mediaInfo.directPath, mediaInfo.fileUrl, mediaInfo.fileURL);
+      filename = firstString(mediaInfo.fileName, mediaInfo.filename, mediaInfo.title);
       break;
     }
   }
-  const text = m.messageBody || messageObj.conversation || messageObj.extendedTextMessage?.text || messageObj.imageMessage?.caption || messageObj.videoMessage?.caption || messageObj.documentMessage?.caption || '';
-  const ts = raw.timestamp ? Number(raw.timestamp) : 0;
-  if (!phone && !key.id) return null;
+  const text = firstString(
+    m.messageBody,
+    data.messageBody,
+    messageObj.conversation,
+    messageObj.extendedTextMessage?.text,
+    messageObj.imageMessage?.caption,
+    messageObj.videoMessage?.caption,
+    messageObj.documentMessage?.caption,
+    messageObj.buttonsResponseMessage?.selectedDisplayText,
+    messageObj.listResponseMessage?.title
+  ) || '';
+  const ts = firstString(m.messageTimestamp, data.messageTimestamp, raw.timestamp);
+  if (!phone && !key.id && !m.id) return null;
   return {
     phone,
-    name: m.pushName || data.pushName,
+    name: firstString(m.pushName, data.pushName, m.verifiedBizName, data.verifiedBizName),
     content: text || (mediaType ? `[${mediaType}]` : ''),
-    external_message_id: key.id,
+    external_message_id: firstString(key.id, m.id, data.id),
     media_url: mediaUrl,
     media_type: mediaType,
     from_me: key.fromMe === true,
-    timestamp: ts ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString() : undefined,
+    timestamp: parseWasenderTimestamp(ts),
     is_group: isGroup,
     document_filename: filename,
+    raw_jid: remoteJid,
+    media_info: mediaInfo,
   } as any;
 }
+
 
 function detectAndNormalize(raw: any): NormalizedMsg | null {
   const ev = String(raw.event || '').toLowerCase().replace(/_/g, '.');
