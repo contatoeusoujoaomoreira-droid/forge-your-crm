@@ -293,10 +293,12 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   const messageObj = m.message || data.message || {};
   const remoteJid = firstString(key.remoteJid, m.remoteJid, data.remoteJid, key.remoteJidAlt) || '';
   const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn);
-  const outboundJid = key.fromMe === true ? remoteJid : '';
-  const phoneRaw = key.fromMe === true
-    ? (outboundJid.split('@')[0] || senderPn || '')
-    : (senderPn || remoteJid.split('@')[0] || '');
+  const senderPhone = normalizePhone(String(senderPn || '').split('@')[0] || '');
+  const remotePhone = normalizePhone(String(remoteJid || '').split('@')[0] || '');
+  const isLidJid = /@lid$/i.test(remoteJid) || key.addressingMode === 'lid';
+  // In LID mode WaSender puts the contact LID in remoteJid and the real number in senderPn.
+  // Using remoteJid as phone creates duplicate chats and broken avatars.
+  const phoneRaw = senderPhone || remotePhone;
   const phone = normalizePhone(phoneRaw);
   const isGroup = String(remoteJid || '').includes('@g.us');
   const mediaKeys: Record<string, string> = {
@@ -341,6 +343,7 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
     is_group: isGroup,
     document_filename: filename,
     raw_jid: remoteJid,
+    contact_lid: isLidJid ? remotePhone : undefined,
     media_info: mediaInfo,
   } as any;
 }
