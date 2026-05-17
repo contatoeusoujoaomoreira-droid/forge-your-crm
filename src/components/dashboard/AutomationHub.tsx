@@ -139,6 +139,13 @@ export default function AutomationHub() {
   const [expandedConn, setExpandedConn] = useState<string | null>(null);
   const [draftConn, setDraftConn] = useState<any | null>(null); // unsaved new connection
   const [savingId, setSavingId] = useState<string | null>(null);
+  // Evolution GO QR connect modal
+  const [evoQrOpen, setEvoQrOpen] = useState(false);
+  const [evoQrLoading, setEvoQrLoading] = useState(false);
+  const [evoQrImage, setEvoQrImage] = useState<string | null>(null);
+  const [evoQrState, setEvoQrState] = useState<string>("idle"); // idle | qr | connecting | open | close
+  const [evoQrCfg, setEvoQrCfg] = useState<any>(null);
+  const [evoPollTimer, setEvoPollTimer] = useState<any>(null);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
 
