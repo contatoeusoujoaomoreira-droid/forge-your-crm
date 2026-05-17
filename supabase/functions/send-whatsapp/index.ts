@@ -78,8 +78,9 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         const mt = (body.media_type || '').toLowerCase();
         const mediatype = mt.startsWith('image') ? 'image' : mt.startsWith('video') ? 'video' : mt.startsWith('audio') ? 'audio' : 'document';
         if (mediatype === 'audio') {
+          // PTT (voice note) — Evolution v2 native audio endpoint
           url = `${baseUrl}/message/sendWhatsAppAudio/${instance}`;
-          payload = { number: phone, audio: body.media_url };
+          payload = { number: phone, audio: body.media_url, encoding: true, ptt: true, delay: 0 };
         } else {
           url = `${baseUrl}/message/sendMedia/${instance}`;
           payload = { number: phone, mediatype, media: body.media_url, caption: body.content, fileName: body.filename };
