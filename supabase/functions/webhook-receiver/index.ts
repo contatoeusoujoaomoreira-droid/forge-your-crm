@@ -1097,46 +1097,60 @@ Deno.serve(async (req) => {
     // Collect every possible identifier the provider may send in webhooks
     const candidateIds = Array.from(new Set([
       raw.instanceId, raw.instance_id, raw.instance, raw.instanceName,
+      raw.sessionId, raw.session_id, raw.session,
       raw.channel_id, raw.channelId, raw.phone_number_id,
       raw.owner, raw.chat?.owner, raw.message?.owner,
-      raw.data?.channel_id, raw.data?.instanceId, raw.data?.instance_id,
-      raw.payload?.channel_id, raw.payload?.instance_id,
+      raw.data?.channel_id, raw.data?.instanceId, raw.data?.instance_id, raw.data?.sessionId, raw.data?.session_id,
+      raw.payload?.channel_id, raw.payload?.instance_id, raw.payload?.sessionId,
     ].map((v) => (v == null ? '' : String(v).trim())).filter(Boolean)));
     const instanceFromPayload = candidateIds[0] || '';
 
-    if (candidateIds.length) {
-      // Match against either instance_id OR webhook_instance_ids array (umClique sends a separate channel_id)
-      const { data: cfgRows } = await admin.from('whatsapp_configs')
+    const matchByCandidateIds = async (includeInactive = false) => {
+      if (!candidateIds.length) return null;
+      let q = admin.from('whatsapp_configs')
         .select('*')
         .or(`instance_id.in.(${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}),webhook_instance_ids.ov.{${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}}`)
-        .eq('is_active', true)
         .order('updated_at', { ascending: false })
         .limit(1);
-      const cfgByInstance = cfgRows?.[0];
-      if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
-      // Fallback: include inactive configs to still attribute the webhook
-      if (!userId) {
-        const { data: anyRows } = await admin.from('whatsapp_configs')
-          .select('*')
-          .or(`instance_id.in.(${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}),webhook_instance_ids.ov.{${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}}`)
-          .order('updated_at', { ascending: false }).limit(1);
-        const any = anyRows?.[0];
-        if (any) { userId = any.user_id; matchedConfig = any; }
-      }
-      // AUTO-LEARN: if matched by instance_id but raw payload had a different channel_id,
-      // store it in webhook_instance_ids so future calls match instantly.
-      if (userId && matchedConfig) {
-        const learned = candidateIds.filter((id) =>
-          id !== matchedConfig.instance_id &&
-          !(matchedConfig.webhook_instance_ids || []).includes(id)
-        );
-        if (learned.length) {
-          try {
-            await admin.from('whatsapp_configs')
-              .update({ webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] })
-              .eq('id', matchedConfig.id);
-          } catch (e) { console.error('auto-learn webhook id failed', e); }
-        }
+      if (!includeInactive) q = q.eq('is_active', true);
+      const { data } = await q;
+      return data?.[0] || null;
+    };
+
+    const matchWasenderBySession = async (includeInactive = false) => {
+      const sessionId = String(raw.sessionId || raw.session_id || raw.data?.sessionId || '').trim();
+      if (!sessionId) return null;
+      let q = admin.from('whatsapp_configs')
+        .select('*')
+        .eq('api_type', 'wasender')
+        .or(`api_token.eq.${sessionId},instance_id.eq.${sessionId},webhook_instance_ids.cs.{"${sessionId.replace(/"/g, '')}"}`)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (!includeInactive) q = q.eq('is_active', true);
+      const { data } = await q;
+      return data?.[0] || null;
+    };
+
+    const cfgByInstance = await matchByCandidateIds(false) || await matchWasenderBySession(false);
+    if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
+    if (!userId) {
+      const any = await matchByCandidateIds(true) || await matchWasenderBySession(true);
+      if (any) { userId = any.user_id; matchedConfig = any; }
+    }
+
+    // AUTO-LEARN: if the payload includes a provider session/channel id, store it for future routing.
+    if (userId && matchedConfig && candidateIds.length) {
+      const learned = candidateIds.filter((id) =>
+        id !== matchedConfig.instance_id &&
+        !(matchedConfig.webhook_instance_ids || []).includes(id)
+      );
+      if (learned.length) {
+        try {
+          await admin.from('whatsapp_configs')
+            .update({ webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] })
+            .eq('id', matchedConfig.id);
+          matchedConfig = { ...matchedConfig, webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] };
+        } catch (e) { console.error('auto-learn webhook id failed', e); }
       }
     }
     if (!userId) {
