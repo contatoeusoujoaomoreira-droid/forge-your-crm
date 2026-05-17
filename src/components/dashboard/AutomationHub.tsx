@@ -760,6 +760,45 @@ export default function AutomationHub() {
             </Card>
           )}
 
+          {evoQrOpen && (
+            <Card className="p-4 space-y-3 border-primary/40">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Evolution GO · Conexão por QR Code</h3>
+                <Button size="sm" variant="ghost" onClick={closeEvoQr}>Fechar</Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Estado: <strong className={evoQrState === "open" ? "text-emerald-500" : evoQrState === "qr" ? "text-amber-500" : "text-muted-foreground"}>{evoQrState}</strong>
+                {" · "}Instância: <code className="font-mono">{evoQrCfg?.instance_id || "(nova)"}</code>
+              </p>
+              <div className="flex flex-col items-center gap-3 py-4">
+                {evoQrLoading && <p className="text-sm text-muted-foreground">Gerando QR Code…</p>}
+                {!evoQrLoading && evoQrImage && evoQrState !== "open" && (
+                  <img src={evoQrImage} alt="QR Code Evolution GO" className="w-64 h-64 border border-border rounded-lg bg-white p-2" />
+                )}
+                {evoQrState === "open" && (
+                  <div className="text-center space-y-2">
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+                    <p className="font-semibold text-emerald-500">WhatsApp conectado com sucesso!</p>
+                    <p className="text-xs text-muted-foreground">Webhook configurado. Mensagens recebidas já são processadas pelo agente IA.</p>
+                  </div>
+                )}
+                {evoQrState !== "open" && evoQrImage && (
+                  <p className="text-xs text-muted-foreground text-center max-w-xs">
+                    Abra o WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → escaneie acima.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  {evoQrState !== "open" && (
+                    <Button size="sm" variant="outline" onClick={refreshEvoQr} disabled={evoQrLoading}>
+                      Atualizar QR
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={closeEvoQr}>{evoQrState === "open" ? "Concluir" : "Cancelar"}</Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
           <Card className="p-6 space-y-3 border-primary/30">
             <h3 className="font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4 text-primary" />Webhook de Recebimento</h3>
             <p className="text-sm text-muted-foreground">No Z-API, o webhook "Ao receber" precisa apontar para a URL abaixo. Use o botão "Sincronizar webhook" em cada conexão para configurar automaticamente.</p>
