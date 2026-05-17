@@ -410,7 +410,76 @@ export default function AutomationHub() {
     toast.success("Chave criada! Copie agora — não será exibida novamente.");
   };
 
-  // createAgent removed — replaced by AgentBuilder modal
+  // ===== Evolution GO QR connect =====
+  const stopEvoPoll = () => { if (evoPollTimer) { clearInterval(evoPollTimer); setEvoPollTimer(null); } };
+
+  const startEvoQr = async (cfg: any) => {
+    if (!cfg.base_url || !/^https?:\/\//.test(cfg.base_url)) { toast.error("Preencha a URL Base do servidor Evolution GO."); return; }
+    if (!cfg.api_token || cfg.api_token.length < 6) { toast.error("Preencha a GLOBAL API KEY."); return; }
+    setEvoQrCfg(cfg);
+    setEvoQrOpen(true);
+    setEvoQrLoading(true);
+    setEvoQrImage(null);
+    setEvoQrState("connecting");
+    const instanceName = cfg.instance_id || "";
+    const { data, error } = await supabase.functions.invoke("evolution-go", {
+      body: {
+        action: "create",
+        base_url: cfg.base_url,
+        global_api_key: cfg.api_token,
+        instance_name: instanceName || undefined,
+        config_id: cfg.id || undefined,
+        label: cfg.label,
+        extra_headers: cfg.extra_headers || {},
+      },
+    });
+    setEvoQrLoading(false);
+    if (error || !data?.ok) {
+      toast.error(`Falha ao criar instância: ${data?.body || error?.message || "erro"}`);
+      setEvoQrState("close");
+      return;
+    }
+    const qr = data.qrcode;
+    setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
+    setEvoQrState("qr");
+    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    await reloadWaConfigs();
+    // Start polling status
+    const inst = data.instance_name;
+    const token = data.instance_token;
+    const t = setInterval(async () => {
+      const r = await supabase.functions.invoke("evolution-go", {
+        body: { action: "status", base_url: cfg.base_url, global_api_key: cfg.api_token, instance_token: token, instance_name: inst },
+      });
+      const state = r.data?.state;
+      if (state) setEvoQrState(state);
+      if (state === "open") {
+        clearInterval(t); setEvoPollTimer(null);
+        toast.success("✅ WhatsApp conectado!");
+        await reloadWaConfigs();
+        // Ensure webhook is set (Evolution v2 also sets at create, but reinforce):
+        await supabase.functions.invoke("evolution-go", {
+          body: { action: "set_webhook", base_url: cfg.base_url, global_api_key: cfg.api_token, instance_token: token, instance_name: inst },
+        });
+      }
+    }, 3000);
+    setEvoPollTimer(t);
+  };
+
+  const closeEvoQr = () => { stopEvoPoll(); setEvoQrOpen(false); setEvoQrImage(null); setEvoQrState("idle"); setEvoQrCfg(null); };
+
+  const refreshEvoQr = async () => {
+    if (!evoQrCfg) return;
+    setEvoQrLoading(true);
+    const { data } = await supabase.functions.invoke("evolution-go", {
+      body: { action: "qr", base_url: evoQrCfg.base_url, global_api_key: evoQrCfg.api_token, instance_name: evoQrCfg.instance_id },
+    });
+    setEvoQrLoading(false);
+    const qr = data?.qrcode;
+    if (qr) setEvoQrImage(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
+    else toast.error("Não foi possível obter novo QR.");
+  };
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
