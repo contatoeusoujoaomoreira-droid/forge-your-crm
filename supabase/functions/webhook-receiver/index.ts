@@ -1433,6 +1433,20 @@ Deno.serve(async (req) => {
   // If message was sent FROM the connected WhatsApp app, mirror it as outbound.
   // Do NOT pause AI unless the agent explicitly enabled human handoff behavior.
   if (msg.from_me) {
+    const recentCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: recentOutbound } = await admin.from('messages')
+      .select('id, content, agent_id, metadata, external_message_id')
+      .eq('user_id', userId)
+      .eq('client_id', client.id)
+      .eq('direction', 'outbound')
+      .gte('created_at', recentCutoff)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    const normalizedEchoText = String(msg.content || '').trim();
+    const echoMatch = (recentOutbound || []).find((m: any) =>
+      normalizedEchoText && String(m.content || '').trim() === normalizedEchoText
+    );
+    const isAgentEcho = !!(echoMatch?.agent_id || echoMatch?.metadata?.debounced || echoMatch?.metadata?.from_kb);
     const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
     const { data: handoffAgent } = await admin.from('ai_agents')
       .select('id,handoff_enabled')
@@ -1441,7 +1455,17 @@ Deno.serve(async (req) => {
       .eq('handoff_enabled', true)
       .limit(1)
       .maybeSingle();
-    const shouldPauseAi = !!handoffAgent?.handoff_enabled;
+    const shouldPauseAi = !!handoffAgent?.handoff_enabled && !isAgentEcho;
+    if (echoMatch) {
+      const meta = { ...(echoMatch.metadata || {}), provider_echo: true, raw_type: raw.type || raw.event || null, ai_paused_by_handoff: shouldPauseAi };
+      const patchMsg: any = { status: 'sent', metadata: meta };
+      if (msg.external_message_id && !echoMatch.external_message_id) patchMsg.external_message_id = msg.external_message_id;
+      if (msg.media_url) patchMsg.media_url = msg.media_url;
+      if (msg.media_type) patchMsg.media_type = msg.media_type;
+      await admin.from('messages').update(patchMsg).eq('id', echoMatch.id);
+      await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
+      if (!shouldPauseAi) return new Response(JSON.stringify({ ok: true, mirrored: true, provider_echo: true, ai_kept_active: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     if (csExisting) {
       const patch: any = { updated_at: new Date().toISOString() };
       if (shouldPauseAi) Object.assign(patch, { ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString() });
