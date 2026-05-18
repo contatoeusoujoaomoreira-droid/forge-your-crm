@@ -292,14 +292,17 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   const key = m.key || data.key || {};
   const messageObj = m.message || data.message || {};
   const remoteJid = firstString(key.remoteJid, m.remoteJid, data.remoteJid, key.remoteJidAlt) || '';
-  const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn);
+  const remoteJidAlt = firstString(key.remoteJidAlt, m.remoteJidAlt, data.remoteJidAlt);
+  const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn, remoteJidAlt);
   const senderPhone = normalizePhone(String(senderPn || '').split('@')[0] || '');
   const remotePhone = normalizePhone(String(remoteJid || '').split('@')[0] || '');
+  const remoteAltPhone = normalizePhone(String(remoteJidAlt || '').split('@')[0] || '');
   const isLidJid = /@lid$/i.test(remoteJid) || key.addressingMode === 'lid';
   const isGroup = String(remoteJid || '').includes('@g.us');
   // In LID mode WaSender puts the contact LID in remoteJid and the real number in senderPn.
   // Using remoteJid as phone creates duplicate chats and broken avatars.
-  const phoneRaw = isGroup ? remotePhone : (senderPhone || remotePhone);
+  // For fromMe webhooks, senderPn is often the connected device owner; remoteJid is the contact.
+  const phoneRaw = isGroup ? remotePhone : (key.fromMe === true ? (remoteAltPhone || remotePhone || senderPhone) : (senderPhone || remoteAltPhone || remotePhone));
   const phone = normalizePhone(phoneRaw);
   const mediaKeys: Record<string, string> = {
     imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
@@ -343,7 +346,8 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
     is_group: isGroup,
     document_filename: filename,
     raw_jid: remoteJid,
-    contact_lid: isLidJid ? remotePhone : undefined,
+    contact_lid: isLidJid ? remotePhone : (/@lid$/i.test(String(key.senderLid || '')) ? normalizePhone(String(key.senderLid).split('@')[0]) : undefined),
+    remote_jid_alt: remoteJidAlt,
     media_info: mediaInfo,
   } as any;
 }
