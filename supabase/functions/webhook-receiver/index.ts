@@ -1909,8 +1909,8 @@ Deno.serve(async (req) => {
           },
         });
 
-        // === HANDOFF AUTOMÁTICO se cliente pediu humano ou se qualificou ===
-        if (intent.handoff || intent.qualified) {
+        // === HANDOFF AUTOMÁTICO só quando o agente tiver handoff configurado ===
+        if (agent?.handoff_enabled && (intent.handoff || intent.qualified)) {
           await admin.from('conversation_state').upsert({
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',
