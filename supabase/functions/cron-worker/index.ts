@@ -11,7 +11,11 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 
-const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-audio|send-document)$/, '');
+const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '')
+  .replace(/\/(send-text|send-image|send-audio|send-document)$/, '')
+  .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|decrypt-media|upload|status|contact-info|contacts(?:\/.*)?)\/?$/i, '')
+  .replace(/\/api\/?$/i, '')
+  .replace(/\/$/, '');
 
 async function sendWhatsAppText(cfg: any, phone: string, content: string) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -30,6 +34,10 @@ async function sendWhatsAppText(cfg: any, phone: string, content: string) {
     }
     if (cfg.api_type === 'umclique') {
       const r = await fetch(`${baseUrl}/public-send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra }, body: JSON.stringify({ channel_id: instance, to: phone, type: 'text', content }) });
+      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'wasender') {
+      const r = await fetch(`${baseUrl}/api/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra }, body: JSON.stringify({ to: phone, text: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 300) };
     }
     if (cfg.api_type === 'ultramsg') {
