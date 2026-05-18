@@ -59,9 +59,9 @@ async function fetchZapiProfilePicture(cfg: any, phone: string): Promise<string 
 async function fetchWasenderProfilePicture(cfg: any, phone: string, metadata: any = {}): Promise<string | undefined> {
   try {
     if ((cfg?.api_type || '').toLowerCase() !== 'wasender') return undefined;
-    const baseUrl = (cfg.base_url || '').replace(/\/$/, '').replace(/\/api\/(send-message|contacts(?:\/.*)?|contact-info|status)\/?$/i, '').replace(/\/api\/?$/i, '');
+    const baseUrl = (cfg.base_url || '').replace(/\/$/, '').replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|decrypt-media|upload|contacts(?:\/.*)?|contact-info|status)\/?$/i, '').replace(/\/api\/?$/i, '');
     const headers = { Authorization: `Bearer ${cfg.api_token}`, Accept: 'application/json', ...((cfg as any).extra_headers || {}) };
-    const ids = Array.from(new Set([phone, metadata.contact_lid, metadata.raw_jid].filter(Boolean)));
+    const ids = Array.from(new Set([phone, `${phone}@s.whatsapp.net`, metadata.remote_jid_alt, metadata.contact_lid, metadata.raw_jid].filter(Boolean)));
     for (const id of ids) {
       for (const path of [`/api/contacts/${encodeURIComponent(String(id))}/picture`, `/api/contacts/${encodeURIComponent(String(id))}`]) {
         const response = await fetch(`${baseUrl}${path}`, { headers }).catch(() => null);
