@@ -1338,8 +1338,17 @@ Deno.serve(async (req) => {
   };
 
   // Check if client already exists & has avatar — avoid overwriting with null
-  const { data: existingPre } = await admin.from('chat_clients').select('id, name, avatar_url, metadata')
+  let { data: existingPre } = await admin.from('chat_clients').select('id, name, phone, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
+  if (!existingPre && (msg as any).contact_lid) {
+    const { data: byLid } = await admin.from('chat_clients').select('id, name, phone, avatar_url, metadata')
+      .eq('user_id', userId)
+      .or(`metadata->>contact_lid.eq.${(msg as any).contact_lid},metadata->>raw_jid.eq.${(msg as any).contact_lid}@lid`)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byLid) existingPre = byLid;
+  }
 
   const fetchProviderProfilePic = async (): Promise<string | undefined> => {
     try {
@@ -1359,8 +1368,9 @@ Deno.serve(async (req) => {
           if (u) return u;
         }
       } else if (apiType === 'wasender') {
+        const baseUrl = sanitizeBaseUrl(prov.base_url || 'https://www.wasenderapi.com');
         const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json', ...((prov as any).extra_headers || {}) };
-        const contactIds = Array.from(new Set([msg.phone, (msg as any).contact_lid, (msg as any).raw_jid].filter(Boolean)));
+        const contactIds = Array.from(new Set([msg.phone, `${msg.phone}@s.whatsapp.net`, (msg as any).remote_jid_alt, (msg as any).contact_lid, (msg as any).raw_jid].filter(Boolean)));
         const attempts = [
           ...contactIds.flatMap((id) => [
             `${baseUrl}/api/contacts/${encodeURIComponent(String(id))}/picture`,
@@ -1397,6 +1407,7 @@ Deno.serve(async (req) => {
       ...(isUsableAvatarUrl(avatarUrl) ? { profile_pic_url: avatarUrl } : {}),
       ...((msg as any).contact_lid ? { contact_lid: (msg as any).contact_lid } : {}),
       ...((msg as any).raw_jid ? { raw_jid: (msg as any).raw_jid } : {}),
+      ...((msg as any).remote_jid_alt ? { remote_jid_alt: (msg as any).remote_jid_alt } : {}),
     },
     updated_at: new Date().toISOString(),
   };
