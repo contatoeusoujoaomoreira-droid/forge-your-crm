@@ -1097,6 +1097,19 @@ async function resolveAgent(admin: any, userId: string, client: any, lead: any, 
   return waCfg?.default_agent_id || active[0]?.id || null;
 }
 
+async function resolveHandoffAgentForClient(admin: any, userId: string, clientId: string, waCfg: any) {
+  const { data: state } = await admin.from('conversation_state').select('assigned_agent_id').eq('client_id', clientId).maybeSingle();
+  const agentId = state?.assigned_agent_id || waCfg?.default_agent_id || null;
+  if (!agentId) return null;
+  const { data: agent } = await admin.from('ai_agents')
+    .select('id,handoff_enabled')
+    .eq('user_id', userId)
+    .eq('id', agentId)
+    .eq('is_active', true)
+    .maybeSingle();
+  return agent?.handoff_enabled ? agent : null;
+}
+
 // Split a long reply into 1-3 natural chunks.
 function splitMessage(text: string, max = 320): string[] {
   if (!text) return [];
@@ -1448,13 +1461,7 @@ Deno.serve(async (req) => {
     );
     const isAgentEcho = !!(echoMatch?.agent_id || echoMatch?.metadata?.debounced || echoMatch?.metadata?.from_kb);
     const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
-    const { data: handoffAgent } = await admin.from('ai_agents')
-      .select('id,handoff_enabled')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .eq('handoff_enabled', true)
-      .limit(1)
-      .maybeSingle();
+    const handoffAgent = await resolveHandoffAgentForClient(admin, userId, client.id, matchedConfig);
     const shouldPauseAi = !!handoffAgent?.handoff_enabled && !isAgentEcho;
     if (echoMatch) {
       const meta = { ...(echoMatch.metadata || {}), provider_echo: true, raw_type: raw.type || raw.event || null, ai_paused_by_handoff: shouldPauseAi };
