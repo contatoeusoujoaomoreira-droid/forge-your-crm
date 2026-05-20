@@ -1008,8 +1008,9 @@ function findKb(items: any[], q: string, n = 5): any[] {
 }
 function detectIntent(text: string, agent: any) {
   const t = (text || '').toLowerCase();
-  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-  const handoff = handoffKws.some((k: string) => t.includes(k));
+  const configuredHandoff = String(agent?.handoff_keywords || '').trim();
+  const handoffKws = configuredHandoff.split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = !!configuredHandoff && handoffKws.some((k: string) => t.includes(k));
   const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
   const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
   return { handoff, qualified, wantsMedia };
@@ -1917,7 +1918,7 @@ Deno.serve(async (req) => {
         });
 
         // === HANDOFF AUTOMÁTICO só quando o agente tiver handoff configurado ===
-        if (agent?.handoff_enabled && (intent.handoff || intent.qualified)) {
+        if (agent?.handoff_enabled && intent.handoff) {
           await admin.from('conversation_state').upsert({
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',
