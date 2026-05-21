@@ -63,6 +63,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
+    // Hard safety: never leave the app stuck on the loading screen
+    const safety = setTimeout(() => setLoading(false), 4000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -84,10 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         checkRole(session.user.id);
       }
-    });
+    }).catch(() => setLoading(false));
 
-    return () => subscription.unsubscribe();
+    return () => { clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
+
 
   // Live-refresh permissions/roles when super admin updates them
   useEffect(() => {
