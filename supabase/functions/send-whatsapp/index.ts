@@ -285,26 +285,17 @@ Deno.serve(async (req) => {
       },
     }).select().single();
 
-    // Human reply from the CRM. Keep IA active by default; only pause when a handoff action is configured.
+    // Human reply: disable AI for this conversation and schedule the auto-resume timer
     if (clientRow?.id) {
-      const { data: handoffAgent } = await admin.from('ai_agents')
-        .select('id,handoff_enabled')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .eq('handoff_enabled', true)
-        .limit(1)
-        .maybeSingle();
-      if (handoffAgent?.handoff_enabled) {
-        await admin.from('conversation_state').upsert({
-          user_id: userId, client_id: clientRow.id,
-          ai_active: false, mode: 'manual',
-          last_human_reply_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'client_id' });
-        await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }).catch(() => {});
-      }
+      await admin.from('conversation_state').upsert({
+        user_id: userId, client_id: clientRow.id,
+        ai_active: false, mode: 'manual',
+        last_human_reply_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'client_id' });
+      await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }).catch(() => {});
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
-      if (handoffAgent?.handoff_enabled) try {
+      try {
         await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ event: 'handoff_human', user_id: userId, payload: { name: clientRow.name || phone } }),
