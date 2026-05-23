@@ -222,27 +222,15 @@ function extractAvatarUrl(input: any): string | undefined {
 }
 
 // Status callback (delivered / read) — used to update ✓✓ ticks on existing messages.
-function mapProviderStatus(value: any): string {
-  const n = Number(value);
-  const s = String(value || '').toLowerCase();
-  if (n === 4 || n === 5 || s.includes('read') || s.includes('played')) return 'read';
-  if (n === 3 || s.includes('deliver')) return 'delivered';
-  if (n === 2 || n === 1 || s.includes('sent') || s.includes('pending')) return 'sent';
-  if (n === 0 || s.includes('fail') || s.includes('error')) return 'failed';
-  return 'sent';
-}
-
 function detectStatusCallback(raw: any): { external_message_id?: string; status: string } | null {
   // Z-API: { type: 'MessageStatusCallback', status: 'READ'|'RECEIVED'|'PLAYED', messageId }
   const t = (raw?.type || raw?.event || '').toString().toLowerCase();
   if (t.includes('status') && (raw.messageId || raw.id)) {
-    return { external_message_id: raw.messageId || raw.id, status: mapProviderStatus(raw.status || raw.ack) };
-  }
-  // WaSender: { event: 'messages.update', data: { key: { id }, status } } or data.update.status
-  if (t === 'messages.update') {
-    const id = raw.data?.key?.id || raw.data?.id || raw.data?.msgId || raw.data?.update?.key?.id;
-    const statusValue = raw.data?.status ?? raw.data?.update?.status ?? raw.status;
-    if (id) return { external_message_id: String(id), status: mapProviderStatus(statusValue) };
+    const s = (raw.status || raw.ack || '').toString().toLowerCase();
+    let mapped = 'sent';
+    if (s.includes('read') || s.includes('played') || raw.ack === 3 || raw.ack === 4) mapped = 'read';
+    else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
+    return { external_message_id: raw.messageId || raw.id, status: mapped };
   }
   if (t.includes('readreceipt') || (raw.EventType === 'messages_update' && raw.event?.MessageIDs && !String(raw.type || '').toLowerCase().includes('filedownloaded'))) {
     const ids = raw.event?.MessageIDs || raw.MessageIDs;
@@ -253,42 +241,15 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
   return null;
 }
 
-function firstString(...values: any[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  }
-  return undefined;
-}
-
-function parseWasenderTimestamp(value: any): string | undefined {
-  if (!value) return undefined;
-  if (typeof value === 'object' && typeof value.low === 'number') {
-    return new Date(value.low * 1000).toISOString();
-  }
-  if (typeof value === 'number') {
-    return new Date(value > 10_000_000_000 ? value : value * 1000).toISOString();
-  }
-  const n = Number(value);
-  if (Number.isFinite(n) && n > 0) return new Date(n > 10_000_000_000 ? n : n * 1000).toISOString();
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
-}
-
 function normalizeWasender(raw: any): NormalizedMsg | null {
-  // WaSender: messages.received and messages.upsert use data.messages as a single object.
+  // Wasender webhook: { event: "messages.received", data: { messages: { key, messageBody, message } } }
   const data = raw.data || {};
-  const m = data.messages || data.message || (data.key || data.messageBody ? data : {});
-  const key = m.key || data.key || {};
-  const messageObj = m.message || data.message || {};
-  const remoteJid = firstString(key.remoteJid, m.remoteJid, data.remoteJid, key.remoteJidAlt) || '';
-  const senderPn = firstString(key.cleanedParticipantPn, key.cleanedSenderPn, key.senderPn, m.cleanedSenderPn, data.cleanedSenderPn);
-  const outboundJid = key.fromMe === true ? remoteJid : '';
-  const phoneRaw = key.fromMe === true
-    ? (outboundJid.split('@')[0] || senderPn || '')
-    : (senderPn || remoteJid.split('@')[0] || '');
+  const m = data.messages || data.message || {};
+  const key = m.key || {};
+  const phoneRaw = key.cleanedSenderPn || key.cleanedParticipantPn || (key.remoteJid || '').split('@')[0] || '';
   const phone = normalizePhone(phoneRaw);
-  const isGroup = String(remoteJid || '').includes('@g.us');
+  const isGroup = String(key.remoteJid || '').includes('@g.us');
+  const messageObj = m.message || {};
   const mediaKeys: Record<string, string> = {
     imageMessage: 'image', videoMessage: 'video', audioMessage: 'audio',
     documentMessage: 'document', stickerMessage: 'sticker',
@@ -296,50 +257,34 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   let mediaType: string | undefined;
   let mediaUrl: string | undefined;
   let filename: string | undefined;
-  let mediaInfo: any = null;
   for (const [k, t] of Object.entries(mediaKeys)) {
     if (messageObj[k]) {
       mediaType = t;
-      mediaInfo = messageObj[k];
-      mediaUrl = firstString(mediaInfo.url, mediaInfo.mediaUrl, mediaInfo.directPath, mediaInfo.fileUrl, mediaInfo.fileURL);
-      filename = firstString(mediaInfo.fileName, mediaInfo.filename, mediaInfo.title);
+      mediaUrl = messageObj[k].url || messageObj[k].directPath;
+      filename = messageObj[k].fileName;
       break;
     }
   }
-  const text = firstString(
-    m.messageBody,
-    data.messageBody,
-    messageObj.conversation,
-    messageObj.extendedTextMessage?.text,
-    messageObj.imageMessage?.caption,
-    messageObj.videoMessage?.caption,
-    messageObj.documentMessage?.caption,
-    messageObj.buttonsResponseMessage?.selectedDisplayText,
-    messageObj.listResponseMessage?.title
-  ) || '';
-  const ts = firstString(m.messageTimestamp, data.messageTimestamp, raw.timestamp);
-  if (!phone && !key.id && !m.id) return null;
+  const text = m.messageBody || messageObj.conversation || messageObj.extendedTextMessage?.text || messageObj.imageMessage?.caption || messageObj.videoMessage?.caption || messageObj.documentMessage?.caption || '';
+  const ts = raw.timestamp ? Number(raw.timestamp) : 0;
+  if (!phone && !key.id) return null;
   return {
     phone,
-    name: firstString(m.pushName, data.pushName, m.verifiedBizName, data.verifiedBizName),
+    name: m.pushName || data.pushName,
     content: text || (mediaType ? `[${mediaType}]` : ''),
-    external_message_id: firstString(key.id, m.id, data.id),
+    external_message_id: key.id,
     media_url: mediaUrl,
     media_type: mediaType,
     from_me: key.fromMe === true,
-    timestamp: parseWasenderTimestamp(ts),
+    timestamp: ts ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString() : undefined,
     is_group: isGroup,
     document_filename: filename,
-    raw_jid: remoteJid,
-    media_info: mediaInfo,
   } as any;
 }
 
-
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  const ev = String(raw.event || '').toLowerCase().replace(/_/g, '.');
-  // Evolution v2 (GO): "messages.upsert" / "MESSAGES_UPSERT" — handle BEFORE Wasender
-  if ((ev === 'messages.upsert' || /^messages\.upsert$/i.test(String(raw.event || ''))) && raw.data?.key) return normalizeEvolution(raw);
+  // Evolution v2 (GO): event "messages.upsert" with data.key — handle BEFORE Wasender
+  if (typeof raw.event === 'string' && /^messages\.upsert$/i.test(raw.event) && raw.data?.key) return normalizeEvolution(raw);
   // Wasender: event field with messages.received / data.messages structure
   if (typeof raw.event === 'string' && raw.event.startsWith('messages.') && raw.data?.messages) return normalizeWasender(raw);
   if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
@@ -432,80 +377,6 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
   } catch (e) {
     console.error('transcribeAudio error', e);
     return '';
-  }
-}
-
-
-function extensionFromContentType(contentType: string, mediaType?: string) {
-  const ct = (contentType || '').toLowerCase();
-  if (ct.includes('jpeg') || ct.includes('jpg')) return 'jpg';
-  if (ct.includes('png')) return 'png';
-  if (ct.includes('webp')) return 'webp';
-  if (ct.includes('gif')) return 'gif';
-  if (ct.includes('mp4')) return 'mp4';
-  if (ct.includes('ogg')) return 'ogg';
-  if (ct.includes('mpeg') || ct.includes('mp3')) return 'mp3';
-  if (ct.includes('wav')) return 'wav';
-  if (ct.includes('pdf')) return 'pdf';
-  if (mediaType === 'audio') return 'ogg';
-  if (mediaType === 'image') return 'jpg';
-  if (mediaType === 'video') return 'mp4';
-  return 'bin';
-}
-
-async function mirrorMediaToStorage(admin: any, userId: string, url: string, mediaType?: string, messageId?: string): Promise<string> {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`media_download_${resp.status}`);
-  const contentType = resp.headers.get('content-type') || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
-  const bytes = new Uint8Array(await resp.arrayBuffer());
-  const ext = extensionFromContentType(contentType, mediaType);
-  const safeId = (messageId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || crypto.randomUUID();
-  const path = `${userId}/webhook/${Date.now()}-${safeId}.${ext}`;
-  const { error } = await admin.storage.from('chat-media').upload(path, bytes, { contentType, upsert: true });
-  if (error) throw new Error(`storage_upload_${error.message}`);
-  const { data } = admin.storage.from('chat-media').getPublicUrl(path);
-  return data.publicUrl;
-}
-
-async function resolveWasenderMediaUrl(admin: any, cfg: any, raw: any, msg: any, userId: string): Promise<string | undefined> {
-  const mediaInfo = msg?.media_info;
-  if (!cfg || (cfg.api_type || '').toLowerCase() !== 'wasender' || !mediaInfo) return msg?.media_url;
-  const baseUrl = sanitizeBaseUrl(cfg.base_url || 'https://www.wasenderapi.com');
-  const token = cfg.api_token || '';
-  const directPublic = firstString(mediaInfo.publicUrl, mediaInfo.public_url, mediaInfo.downloadUrl, mediaInfo.fileUrl, mediaInfo.fileURL);
-  if (directPublic && /^https?:\/\//i.test(directPublic)) {
-    try { return await mirrorMediaToStorage(admin, userId, directPublic, msg.media_type, msg.external_message_id); }
-    catch (e) { console.warn('wasender direct media mirror failed', e); return directPublic; }
-  }
-  const hasEncryptedPayload = !!(mediaInfo.url && mediaInfo.mediaKey);
-  if (!hasEncryptedPayload) return msg?.media_url;
-  try {
-    const resp = await fetch(`${baseUrl}/api/decrypt-media`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json', ...((cfg as any).extra_headers || {}) },
-      body: JSON.stringify({
-        data: {
-          messages: {
-            key: raw?.data?.messages?.key || raw?.data?.key || {},
-            message: raw?.data?.messages?.message || raw?.data?.message || {},
-          },
-        },
-      }),
-    });
-    const text = await resp.text();
-    let json: any = null;
-    try { json = JSON.parse(text); } catch {}
-    if (!resp.ok) {
-      console.error('wasender decrypt-media failed', resp.status, text.slice(0, 300));
-      return msg?.media_url;
-    }
-    const publicUrl = firstString(json?.publicUrl, json?.data?.publicUrl, json?.data?.url, json?.url);
-    if (!publicUrl) return msg?.media_url;
-    try { return await mirrorMediaToStorage(admin, userId, publicUrl, msg.media_type, msg.external_message_id); }
-    catch (e) { console.warn('wasender decrypted media mirror failed', e); return publicUrl; }
-  } catch (e) {
-    console.error('wasender decrypt-media error', e);
-    return msg?.media_url;
   }
 }
 
@@ -814,15 +685,7 @@ async function callAiWithTools(
 }
 
 
-const sanitizeBaseUrl = (u: string) =>
-  (u || '').replace(/\/$/, '')
-    .replace(/\/send-text$/, '')
-    .replace(/\/send-image$/, '')
-    .replace(/\/send-audio$/, '')
-    .replace(/\/send-document$/, '')
-    .replace(/\/api\/(send-message|send-image|send-video|send-voice|send-audio|send-document|decrypt-media|upload|status|contact-info|contacts(?:\/.*)?)\/?$/i, '')
-    .replace(/\/api\/?$/i, '')
-    .replace(/\/$/, '');
+const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '').replace(/\/send-audio$/, '');
 
 async function sendWhatsApp(cfg: any, phone: string, content: string) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
@@ -835,9 +698,8 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
-    case 'evolution':
-    case 'evolution_go': {
-      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, text: content }) });
+    case 'evolution': {
+      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
     case 'ultramsg': {
@@ -890,36 +752,14 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
   if (cfg.api_type === 'wasender') {
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
-    let audioUrl = audioDataUrl;
-    if (audioDataUrl.startsWith('data:')) {
-      const up = await fetch(`${baseUrl}/api/upload`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ base64: audioDataUrl }),
-      }).catch(() => null);
-      if (up?.ok) {
-        const j = await up.json().catch(() => null);
-        audioUrl = j?.publicUrl || j?.data?.publicUrl || j?.url || audioDataUrl;
-      }
-    }
-    const resp = await fetch(`${baseUrl}/api/send-message`, {
+    const resp = await fetch(`${baseUrl}/api/send-audio`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ to: phone, audioUrl }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
+      body: JSON.stringify({ to: phone, audioUrl: audioDataUrl }),
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
-    // Evolution v2 native PTT (voice note)
-    const resp = await fetch(`${baseUrl}/message/sendWhatsAppAudio/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
-      body: JSON.stringify({ number: phone, audio: audioDataUrl, encoding: true, ptt: true, delay: 0 }),
-    });
-    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
-  }
-  return { ok: false, status: 400, body: `Audio reply not supported on provider ${cfg.api_type}` };
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -937,9 +777,9 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
-    if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
+    if (cfg.api_type === 'evolution') {
       const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra },
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
         body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
@@ -952,7 +792,7 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
     if (cfg.api_type === 'wasender') {
-      const resp = await fetch(`${baseUrl}/api/send-message`, {
+      const resp = await fetch(`${baseUrl}/api/send-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
         body: JSON.stringify({ to: phone, imageUrl, text: caption || '' }),
@@ -1029,10 +869,8 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
     if (cfg.api_type === 'z-api') {
       const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
       await fetch(`${root}/send-chat-state`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, state: kind }) }).catch(() => {});
-    } else if (cfg.api_type === 'evolution' || cfg.api_type === 'evolution_go') {
-      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token, ...extra }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
-    } else if (cfg.api_type === 'wasender') {
-      await fetch(`${baseUrl}/api/send-presence`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra }, body: JSON.stringify({ to: phone, presence: kind === 'composing' ? 'typing' : 'recording' }) }).catch(() => {});
+    } else if (cfg.api_type === 'evolution') {
+      await fetch(`${baseUrl}/chat/sendPresence/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, presence: kind, delay: 1500 }) }).catch(() => {});
     } else if (cfg.api_type === 'umclique' || cfg.api_type === 'um-clique') {
       // Um Clique: presence endpoint (composing | recording)
       const url = `${baseUrl}/v1/messages/presence`;
@@ -1189,61 +1027,46 @@ Deno.serve(async (req) => {
     // Collect every possible identifier the provider may send in webhooks
     const candidateIds = Array.from(new Set([
       raw.instanceId, raw.instance_id, raw.instance, raw.instanceName,
-      raw.sessionId, raw.session_id, raw.session,
       raw.channel_id, raw.channelId, raw.phone_number_id,
       raw.owner, raw.chat?.owner, raw.message?.owner,
-      raw.data?.channel_id, raw.data?.instanceId, raw.data?.instance_id, raw.data?.sessionId, raw.data?.session_id,
-      raw.payload?.channel_id, raw.payload?.instance_id, raw.payload?.sessionId,
+      raw.data?.channel_id, raw.data?.instanceId, raw.data?.instance_id,
+      raw.payload?.channel_id, raw.payload?.instance_id,
     ].map((v) => (v == null ? '' : String(v).trim())).filter(Boolean)));
     const instanceFromPayload = candidateIds[0] || '';
 
-    const matchByCandidateIds = async (includeInactive = false) => {
-      if (!candidateIds.length) return null;
-      let q = admin.from('whatsapp_configs')
+    if (candidateIds.length) {
+      // Match against either instance_id OR webhook_instance_ids array (umClique sends a separate channel_id)
+      const { data: cfgRows } = await admin.from('whatsapp_configs')
         .select('*')
         .or(`instance_id.in.(${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}),webhook_instance_ids.ov.{${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}}`)
+        .eq('is_active', true)
         .order('updated_at', { ascending: false })
         .limit(1);
-      if (!includeInactive) q = q.eq('is_active', true);
-      const { data } = await q;
-      return data?.[0] || null;
-    };
-
-    const matchWasenderBySession = async (includeInactive = false) => {
-      const sessionId = String(raw.sessionId || raw.session_id || raw.data?.sessionId || '').trim();
-      if (!sessionId) return null;
-      let q = admin.from('whatsapp_configs')
-        .select('*')
-        .eq('api_type', 'wasender')
-        .or(`api_token.eq.${sessionId},instance_id.eq.${sessionId},webhook_instance_ids.cs.{"${sessionId.replace(/"/g, '')}"}`)
-        .order('updated_at', { ascending: false })
-        .limit(1);
-      if (!includeInactive) q = q.eq('is_active', true);
-      const { data } = await q;
-      return data?.[0] || null;
-    };
-
-    const cfgByInstance = await matchByCandidateIds(false) || await matchWasenderBySession(false);
-    if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
-    if (!userId) {
-      const any = await matchByCandidateIds(true) || await matchWasenderBySession(true);
-      if (any) { userId = any.user_id; matchedConfig = any; }
-    }
-
-    // AUTO-LEARN: if the payload includes a provider session/channel id, store it for future routing.
-    if (userId && matchedConfig && candidateIds.length) {
-      const learned = candidateIds.filter((id) =>
-        id !== matchedConfig.instance_id &&
-        id !== matchedConfig.api_token &&
-        !(matchedConfig.webhook_instance_ids || []).includes(id)
-      );
-      if (learned.length) {
-        try {
-          await admin.from('whatsapp_configs')
-            .update({ webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] })
-            .eq('id', matchedConfig.id);
-          matchedConfig = { ...matchedConfig, webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] };
-        } catch (e) { console.error('auto-learn webhook id failed', e); }
+      const cfgByInstance = cfgRows?.[0];
+      if (cfgByInstance) { userId = cfgByInstance.user_id; matchedConfig = cfgByInstance; }
+      // Fallback: include inactive configs to still attribute the webhook
+      if (!userId) {
+        const { data: anyRows } = await admin.from('whatsapp_configs')
+          .select('*')
+          .or(`instance_id.in.(${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}),webhook_instance_ids.ov.{${candidateIds.map((v) => `"${v.replace(/"/g, '')}"`).join(',')}}`)
+          .order('updated_at', { ascending: false }).limit(1);
+        const any = anyRows?.[0];
+        if (any) { userId = any.user_id; matchedConfig = any; }
+      }
+      // AUTO-LEARN: if matched by instance_id but raw payload had a different channel_id,
+      // store it in webhook_instance_ids so future calls match instantly.
+      if (userId && matchedConfig) {
+        const learned = candidateIds.filter((id) =>
+          id !== matchedConfig.instance_id &&
+          !(matchedConfig.webhook_instance_ids || []).includes(id)
+        );
+        if (learned.length) {
+          try {
+            await admin.from('whatsapp_configs')
+              .update({ webhook_instance_ids: [...(matchedConfig.webhook_instance_ids || []), ...learned] })
+              .eq('id', matchedConfig.id);
+          } catch (e) { console.error('auto-learn webhook id failed', e); }
+        }
       }
     }
     if (!userId) {
@@ -1268,11 +1091,6 @@ Deno.serve(async (req) => {
   const msg = detectAndNormalize(raw);
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-
-  if ((matchedConfig?.api_type || '').toLowerCase() === 'wasender' && msg.media_type && (msg as any).media_info) {
-    const resolvedMedia = await resolveWasenderMediaUrl(admin, matchedConfig, raw, msg as any, userId);
-    if (resolvedMedia) (msg as any).media_url = resolvedMedia;
   }
 
   if (msg.external_message_id) {
@@ -1324,43 +1142,8 @@ Deno.serve(async (req) => {
   const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
-  const fetchProviderProfilePic = async (): Promise<string | undefined> => {
-    try {
-      const prov = matchedConfig;
-      if (!prov) return undefined;
-      const baseUrl = (prov.base_url || '').replace(/\/$/, '');
-      const apiType = (prov.api_type || '').toLowerCase();
-      if (apiType === 'evolution' || apiType === 'evolution_go') {
-        const r = await fetch(`${baseUrl}/chat/fetchProfilePictureUrl/${prov.instance_id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: prov.api_token, ...((prov as any).extra_headers || {}) },
-          body: JSON.stringify({ number: msg.phone }),
-        }).catch(() => null);
-        if (r?.ok) {
-          const j = await r.json().catch(() => null);
-          const u = j?.profilePictureUrl || j?.url || extractAvatarUrl(j);
-          if (u) return u;
-        }
-      } else if (apiType === 'wasender') {
-        const headers = { Authorization: `Bearer ${prov.api_token}`, Accept: 'application/json' };
-        const attempts = [
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}/picture`,
-          `${baseUrl}/api/contacts/${encodeURIComponent(msg.phone)}`,
-        ];
-        for (const url of attempts) {
-          const r = await fetch(url, { headers }).catch(() => null);
-          if (!r?.ok) continue;
-          const j = await r.json().catch(() => null);
-          const u = j?.data?.imgUrl || j?.imgUrl || j?.data?.profilePicUrl || j?.profilePicUrl || extractAvatarUrl(j);
-          if (u) return u;
-        }
-      }
-    } catch (_) { /* noop */ }
-    return undefined;
-  };
-
   if (!avatarUrl && !existingPre?.avatar_url) {
-    avatarUrl = await fetchZapiProfilePic() || await fetchProviderProfilePic();
+    avatarUrl = await fetchZapiProfilePic();
   }
 
   const upsertPayload: any = {
