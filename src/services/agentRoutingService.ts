@@ -1,23 +1,21 @@
-// Agent selection + handoff resolution helpers used by Inbox / Automation UI.
-// Heavy logic lives in the webhook-receiver / ai-agent edge functions; this module
-// exposes the read-side queries the UI needs.
+// Agent selection + handoff resolution helpers.
+// Heavy logic lives in edge functions; this is the read surface for the UI.
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AgentSummary {
   id: string;
   name: string;
-  is_default: boolean;
-  handoff_enabled: boolean;
+  handoff_enabled: boolean | null;
   handoff_keywords: string | null;
 }
 
 export async function listAgents(userId: string): Promise<AgentSummary[]> {
   const { data } = await supabase
     .from("ai_agents")
-    .select("id,name,is_default,handoff_enabled,handoff_keywords")
+    .select("id,name,handoff_enabled,handoff_keywords")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
-  return (data || []) as AgentSummary[];
+  return ((data as unknown) as AgentSummary[]) || [];
 }
 
 export async function resolveAgentForClient(userId: string, clientId: string): Promise<AgentSummary | null> {
@@ -27,12 +25,22 @@ export async function resolveAgentForClient(userId: string, clientId: string): P
     .eq("user_id", userId)
     .eq("client_id", clientId)
     .maybeSingle();
-  if (cs?.assigned_agent_id) {
-    const { data } = await supabase.from("ai_agents").select("id,name,is_default,handoff_enabled,handoff_keywords").eq("id", cs.assigned_agent_id).maybeSingle();
-    if (data) return data as AgentSummary;
+  const assigned = (cs as any)?.assigned_agent_id;
+  if (assigned) {
+    const { data } = await supabase
+      .from("ai_agents")
+      .select("id,name,handoff_enabled,handoff_keywords")
+      .eq("id", assigned)
+      .maybeSingle();
+    if (data) return (data as unknown) as AgentSummary;
   }
-  const { data: def } = await supabase.from("ai_agents").select("id,name,is_default,handoff_enabled,handoff_keywords").eq("user_id", userId).eq("is_default", true).maybeSingle();
-  return (def as AgentSummary) || null;
+  const { data: any1 } = await supabase
+    .from("ai_agents")
+    .select("id,name,handoff_enabled,handoff_keywords")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  return ((any1 as unknown) as AgentSummary) || null;
 }
 
 export async function setAgentActive(userId: string, clientId: string, active: boolean) {

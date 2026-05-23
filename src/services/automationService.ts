@@ -1,25 +1,9 @@
-// Automation orchestration — followups, campaigns, AI agent runs.
+// Automation orchestration façade — followups, agent runs, prospecting, cron nudge.
 // All UI code should funnel through here. Edge functions remain the executor today;
 // when migrating to VPS we only swap the transport.
 import { supabase } from "@/integrations/supabase/client";
 
-export interface FollowupScheduleInput {
-  clientId: string;
-  steps: { delayMinutes: number; template: string }[];
-  pipelineStageId?: string;
-}
-
-export async function scheduleFollowup(input: FollowupScheduleInput) {
-  const { data, error } = await supabase.from("followup_sequences").insert({
-    client_id: input.clientId,
-    steps: input.steps as any,
-    pipeline_stage_id: input.pipelineStageId ?? null,
-    status: "active",
-  } as any).select().single();
-  return { ok: !error, data, error: error?.message };
-}
-
-export async function runAgent(opts: { conversationId: string; clientId: string; agentId?: string; message: string }) {
+export async function runAgent(opts: { conversationId?: string; clientId: string; agentId?: string; message: string }) {
   const { data, error } = await supabase.functions.invoke("ai-agent", { body: opts });
   if (error) return { ok: false, error: error.message };
   return { ok: true, data };
