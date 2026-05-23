@@ -1008,9 +1008,8 @@ function findKb(items: any[], q: string, n = 5): any[] {
 }
 function detectIntent(text: string, agent: any) {
   const t = (text || '').toLowerCase();
-  const configuredHandoff = String(agent?.handoff_keywords || '').trim();
-  const handoffKws = configuredHandoff.split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-  const handoff = !!configuredHandoff && handoffKws.some((k: string) => t.includes(k));
+  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => t.includes(k));
   const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
   const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
   return { handoff, qualified, wantsMedia };
@@ -1096,19 +1095,6 @@ async function resolveAgent(admin: any, userId: string, client: any, lead: any, 
   );
   if (byStage) return byStage.id;
   return waCfg?.default_agent_id || active[0]?.id || null;
-}
-
-async function resolveHandoffAgentForClient(admin: any, userId: string, clientId: string, waCfg: any) {
-  const { data: state } = await admin.from('conversation_state').select('assigned_agent_id').eq('client_id', clientId).maybeSingle();
-  const agentId = state?.assigned_agent_id || waCfg?.default_agent_id || null;
-  if (!agentId) return null;
-  const { data: agent } = await admin.from('ai_agents')
-    .select('id,handoff_enabled')
-    .eq('user_id', userId)
-    .eq('id', agentId)
-    .eq('is_active', true)
-    .maybeSingle();
-  return agent?.handoff_enabled ? agent : null;
 }
 
 // Split a long reply into 1-3 natural chunks.
@@ -1462,7 +1448,13 @@ Deno.serve(async (req) => {
     );
     const isAgentEcho = !!(echoMatch?.agent_id || echoMatch?.metadata?.debounced || echoMatch?.metadata?.from_kb);
     const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
-    const handoffAgent = await resolveHandoffAgentForClient(admin, userId, client.id, matchedConfig);
+    const { data: handoffAgent } = await admin.from('ai_agents')
+      .select('id,handoff_enabled')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .eq('handoff_enabled', true)
+      .limit(1)
+      .maybeSingle();
     const shouldPauseAi = !!handoffAgent?.handoff_enabled && !isAgentEcho;
     if (echoMatch) {
       const meta = { ...(echoMatch.metadata || {}), provider_echo: true, raw_type: raw.type || raw.event || null, ai_paused_by_handoff: shouldPauseAi };
@@ -1918,7 +1910,7 @@ Deno.serve(async (req) => {
         });
 
         // === HANDOFF AUTOMÁTICO só quando o agente tiver handoff configurado ===
-        if (agent?.handoff_enabled && intent.handoff) {
+        if (agent?.handoff_enabled && (intent.handoff || intent.qualified)) {
           await admin.from('conversation_state').upsert({
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',

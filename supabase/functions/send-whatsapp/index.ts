@@ -57,23 +57,10 @@ function extractProviderMessageId(bodyText?: string | null): string | null {
   if (!bodyText) return null;
   try {
     const j = JSON.parse(bodyText);
-    return String(j?.data?.msgId || j?.data?.id || j?.data?.key?.id || j?.data?.message?.key?.id || j?.key?.id || j?.msgId || j?.id || j?.messageId || '').trim() || null;
+    return String(j?.data?.msgId || j?.data?.id || j?.msgId || j?.id || j?.messageId || '').trim() || null;
   } catch {
     return null;
   }
-}
-
-async function getHandoffAgentForClient(admin: any, userId: string, clientId: string, cfg: any) {
-  const { data: state } = await admin.from('conversation_state').select('assigned_agent_id').eq('client_id', clientId).maybeSingle();
-  const agentId = state?.assigned_agent_id || cfg?.default_agent_id || null;
-  if (!agentId) return null;
-  const { data: agent } = await admin.from('ai_agents')
-    .select('id,handoff_enabled')
-    .eq('user_id', userId)
-    .eq('id', agentId)
-    .eq('is_active', true)
-    .maybeSingle();
-  return agent?.handoff_enabled ? agent : null;
 }
 
 async function dispatch(provider: string, cfg: any, phone: string, body: SendBody) {
@@ -263,11 +250,7 @@ Deno.serve(async (req) => {
     let externalMessageId: string | null = null;
     if (cfg) {
       try {
-        const groupJid = String(clientRow?.metadata?.raw_jid || clientRow?.metadata?.remote_jid || '').includes('@g.us')
-          ? String(clientRow.metadata.raw_jid || clientRow.metadata.remote_jid)
-          : '';
-        const dispatchPhone = cfg.api_type === 'wasender' && groupJid ? groupJid : phone;
-        const result: any = await dispatch(cfg.api_type, cfg, dispatchPhone, body);
+        const result: any = await dispatch(cfg.api_type, cfg, phone, body);
         externalSent = result.ok;
         externalStatus = result.status ?? null;
         externalBody = (result.body || '').toString().slice(0, 1000);
@@ -304,7 +287,13 @@ Deno.serve(async (req) => {
 
     // Human reply from the CRM. Keep IA active by default; only pause when a handoff action is configured.
     if (clientRow?.id) {
-      const handoffAgent = await getHandoffAgentForClient(admin, userId, clientRow.id, cfg);
+      const { data: handoffAgent } = await admin.from('ai_agents')
+        .select('id,handoff_enabled')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .eq('handoff_enabled', true)
+        .limit(1)
+        .maybeSingle();
       if (handoffAgent?.handoff_enabled) {
         await admin.from('conversation_state').upsert({
           user_id: userId, client_id: clientRow.id,

@@ -117,10 +117,6 @@ export default function InboxPage() {
         const c = p.new as Client;
         setClients(prev => [c, ...prev.filter(x => x.id !== c.id)]);
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversation_state", filter: `user_id=eq.${user.id}` }, (p) => {
-        const st = p.new as ConvState;
-        if (st?.client_id === selectedId) setConvState(st);
-      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user, selectedId]);
