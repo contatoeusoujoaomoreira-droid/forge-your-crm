@@ -155,10 +155,12 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     const pips = pipeData || [];
     setPipelines(pips);
 
+    // Hard caps to prevent rendering thousands of rows and saturating memory.
+    // Older items remain in DB and can be fetched on demand via search/filter.
     const [stagesRes, leadsRes, activitiesRes] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
-      supabase.from("leads").select("*").eq("user_id", user.id).order("position"),
-      supabase.from("activities").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("leads").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(500),
+      supabase.from("activities").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(200),
     ]);
     if (stagesRes.data) setStages(stagesRes.data);
     if (leadsRes.data) setLeads(leadsRes.data.map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
