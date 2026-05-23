@@ -62,15 +62,13 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
   );
 }
 
+// Only 3 supported providers going forward.
+// Existing connections to legacy providers (evolution, evolution_go, ultramsg, botconversa, custom)
+// continue to function via the existing handler code, but cannot be created from the UI.
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
-  { id: "evolution_go", label: "WhatsApp Evolution GO · QR Code" },
   { id: "wasender", label: "WasenderAPI · wasenderapi.com" },
   { id: "umclique", label: "umClique · Um Clique Digital" },
-  { id: "botconversa", label: "BotConversa · botconversa.com.br" },
-  { id: "evolution", label: "Evolution API (legado)" },
-  { id: "ultramsg", label: "UltraMsg" },
-  { id: "custom", label: "Custom" },
 ];
 
 const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanceLabel: string; helpUrl?: string; helpText?: string }> = {
