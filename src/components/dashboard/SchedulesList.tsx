@@ -62,7 +62,7 @@ const SchedulesList = () => {
   };
 
   const fetchAllAppointments = async () => {
-    const { data } = await supabase.from("appointments").select("*").order("date", { ascending: true }).limit(500);
+    const { data } = await supabase.from("appointments").select("*").order("date", { ascending: true });
     setAllAppointments((data || []) as Appointment[]);
   };
 

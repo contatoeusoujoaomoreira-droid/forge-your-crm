@@ -30,42 +30,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null);
 
   const checkRole = async (userId: string) => {
-    try {
-      const withTimeout = <T,>(p: PromiseLike<T>, ms = 6000): Promise<T> =>
-        Promise.race([
-          Promise.resolve(p) as Promise<T>,
-          new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
-        ]);
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
 
-      const [rolesRes, muRes] = await Promise.allSettled([
-        withTimeout(supabase.from("user_roles").select("role").eq("user_id", userId)),
-        withTimeout(
-          supabase.from("managed_users").select("permissions, is_active").eq("user_id", userId).maybeSingle()
-        ),
-      ]);
+    const roles = (roleData || []).map((r: any) => r.role);
+    setIsSuperAdmin(roles.includes("super_admin"));
 
-      const roleData = rolesRes.status === "fulfilled" ? (rolesRes.value as any).data : null;
-      const roles = (roleData || []).map((r: any) => r.role);
-      setIsSuperAdmin(roles.includes("super_admin"));
+    // Check managed_users for permissions
+    const { data: mu } = await supabase
+      .from("managed_users")
+      .select("permissions, is_active")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-      const mu = muRes.status === "fulfilled" ? (muRes.value as any).data : null;
-      if (mu) {
-        setUserPermissions(mu.permissions as Record<string, boolean>);
-      } else {
-        setUserPermissions(null);
-      }
-    } catch {
-      // Never block the app if the backend is slow/unavailable
-      setIsSuperAdmin(false);
-      setUserPermissions(null);
+    if (mu) {
+      setUserPermissions(mu.permissions as Record<string, boolean>);
+    } else if (roles.includes("super_admin")) {
+      setUserPermissions(null); // null = full access
+    } else {
+      setUserPermissions(null); // no managed record = no overrides; rely on plan defaults
     }
   };
 
-
   useEffect(() => {
-    // Hard safety: never leave the app stuck on the loading screen
-    const safety = setTimeout(() => setLoading(false), 4000);
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -87,11 +76,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         checkRole(session.user.id);
       }
-    }).catch(() => setLoading(false));
+    });
 
-    return () => { clearTimeout(safety); subscription.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, []);
-
 
   // Live-refresh permissions/roles when super admin updates them
   useEffect(() => {
