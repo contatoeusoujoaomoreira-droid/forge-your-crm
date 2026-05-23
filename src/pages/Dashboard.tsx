@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
-  FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
+  FileText, Calendar, Shield, Users, Bell, X,
   MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
