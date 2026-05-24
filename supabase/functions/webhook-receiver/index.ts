@@ -282,14 +282,35 @@ function normalizeWasender(raw: any): NormalizedMsg | null {
   } as any;
 }
 
+function normalizeOmniconect(raw: any): NormalizedMsg | null {
+  // UAZAPI v2 webhook: { event: "messages", data: { key, message, pushName, messageTimestamp, ... } }
+  const data = raw.data || raw.message || raw;
+  if (!data) return null;
+  // Some payloads use simplified shape: { from, text, type, media }
+  if (data.from && (data.text || data.media || data.type)) {
+    const phone = normalizePhone(String(data.from).split('@')[0] || '');
+    return {
+      phone, name: data.pushName || data.notifyName,
+      content: data.text || (data.type ? `[${data.type}]` : ''),
+      external_message_id: data.id || data.messageId,
+      from_me: data.fromMe === true,
+      media_url: data.media?.url || data.mediaUrl,
+      media_type: data.type,
+      is_group: String(data.from).includes('@g.us'),
+    } as any;
+  }
+  // Baileys-shaped payload (key + message)
+  return normalizeEvolution({ data });
+}
+
 function detectAndNormalize(raw: any): NormalizedMsg | null {
-  // Evolution v2 (GO): event "messages.upsert" with data.key — handle BEFORE Wasender
-  if (typeof raw.event === 'string' && /^messages\.upsert$/i.test(raw.event) && raw.data?.key) return normalizeEvolution(raw);
+  // UAZAPI/OmniConect: event === 'messages' (singular 'messages' without dot suffix)
+  if (typeof raw.event === 'string' && /^(messages|messages_upsert)$/i.test(raw.event) && (raw.data?.key || raw.data?.from || raw.data?.message)) return normalizeOmniconect(raw);
   // Wasender: event field with messages.received / data.messages structure
   if (typeof raw.event === 'string' && raw.event.startsWith('messages.') && raw.data?.messages) return normalizeWasender(raw);
   if (raw.instanceName || raw.owner || raw.chat || raw.message || raw.EventType || String(raw.type || '').includes('FileDownloaded')) return normalizeUmclique(raw);
   if (raw.type === 'ReceivedCallback' || raw.event === 'message' || raw.text || raw.messageId || raw.phone) return normalizeZApi(raw);
-  if (raw.data?.key) return normalizeEvolution(raw);
+  if (raw.data?.key) return normalizeOmniconect(raw);
   if (raw.phone && raw.message) {
     return { phone: normalizePhone(raw.phone), name: raw.name, content: raw.message };
   }
@@ -698,14 +719,6 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       const resp = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
-    case 'evolution': {
-      const resp = await fetch(`${baseUrl}/message/sendText/${instance}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
-      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
-    }
-    case 'ultramsg': {
-      const resp = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
-      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
-    }
     case 'umclique': {
       const resp = await fetch(`${baseUrl}/public-send-message`, {
         method: 'POST',
@@ -719,6 +732,14 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
         body: JSON.stringify({ to: phone, text: content }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+    }
+    case 'omniconect': {
+      const resp = await fetch(`${baseUrl}/send/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', token },
+        body: JSON.stringify({ number: phone, text: content }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
@@ -759,7 +780,15 @@ async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) 
     });
     return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender' };
+  if (cfg.api_type === 'omniconect') {
+    const resp = await fetch(`${baseUrl}/send/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', token },
+      body: JSON.stringify({ number: phone, type: 'audio', file: audioDataUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Audio reply only supported on Z-API/umClique/Wasender/OmniConect' };
 }
 
 // Send single image via WhatsApp (Z-API supported, others fallback to text link)
@@ -777,13 +806,6 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }
-    if (cfg.api_type === 'evolution') {
-      const resp = await fetch(`${baseUrl}/message/sendMedia/${instance}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token },
-        body: JSON.stringify({ number: phone, mediatype: 'image', media: imageUrl, caption: caption || '' }),
-      });
-      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
-    }
     if (cfg.api_type === 'umclique') {
       const resp = await fetch(`${baseUrl}/public-send-message`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
@@ -796,6 +818,13 @@ async function sendWhatsAppImage(cfg: any, phone: string, imageUrl: string, capt
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra },
         body: JSON.stringify({ to: phone, imageUrl, text: caption || '' }),
+      });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
+    }
+    if (cfg.api_type === 'omniconect') {
+      const resp = await fetch(`${baseUrl}/send/media`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', token },
+        body: JSON.stringify({ number: phone, type: 'image', file: imageUrl, text: caption || '' }),
       });
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 300) };
     }

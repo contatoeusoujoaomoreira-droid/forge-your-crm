@@ -22,30 +22,11 @@ async function sendTestMessage(cfg: any, phone: string, content: string) {
   switch (cfg.api_type) {
     case 'z-api': {
       const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
-      const url = `${root}/send-text`;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
-      const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ phone, message: content }) });
-      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
-    }
-    case 'evolution':
-    case 'evolution_go': {
-      const url = `${baseUrl}/message/sendText/${instance}`;
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: token }, body: JSON.stringify({ number: phone, text: content }) });
-      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
-    }
-    case 'ultramsg': {
-      const url = `${baseUrl}/${instance}/messages/chat`;
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
-      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
-    }
-    case 'botconversa': {
-      const url = `${baseUrl}/webhook/subscriber/${phone}/send_message/`;
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'API-KEY': token, ...extra }, body: JSON.stringify({ type: 'text', value: content }) });
+      const r = await fetch(`${root}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify({ phone, message: content }) });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
     case 'wasender': {
-      const url = `${baseUrl}/api/send-message`;
-      const r = await fetch(url, {
+      const r = await fetch(`${baseUrl}/api/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra },
         body: JSON.stringify({ to: phone, text: content }),
@@ -53,16 +34,19 @@ async function sendTestMessage(cfg: any, phone: string, content: string) {
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
     case 'umclique': {
-      const url = `${baseUrl}/public-send-message`;
-      const r = await fetch(url, {
+      const r = await fetch(`${baseUrl}/public-send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
         body: JSON.stringify({ channel_id: instance, to: phone, type: 'text', content }),
       });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
-    case 'custom': {
-      const r = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
+    case 'omniconect': {
+      const r = await fetch(`${baseUrl}/send/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', token },
+        body: JSON.stringify({ number: phone, text: content }),
+      });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 500) };
     }
   }
@@ -75,18 +59,24 @@ async function configureReceivedWebhook(cfg: any, webhookUrl: string) {
   const instance = cfg.instance_id || '';
   const extra = cfg.extra_headers || {};
 
-  if (cfg.api_type !== 'z-api') {
-    return { ok: false, status: 400, body: 'Configuração automática de webhook disponível para Z-API' };
+  if (cfg.api_type === 'z-api') {
+    const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+    const resp = await fetch(`${root}/update-webhook-received`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...extra },
+      body: JSON.stringify({ value: webhookUrl }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
   }
-
-  const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
-  const resp = await fetch(`${root}/update-webhook-received`, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify({ value: webhookUrl }),
-  });
-  return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  if (cfg.api_type === 'omniconect') {
+    const resp = await fetch(`${baseUrl}/webhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', token },
+      body: JSON.stringify({ url: webhookUrl, events: ['messages', 'connection'], excludeMessages: ['fromMe'] }),
+    });
+    return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+  }
+  return { ok: false, status: 400, body: 'Configuração automática de webhook disponível para Z-API e OmniConect' };
 }
 
 Deno.serve(async (req) => {
@@ -104,12 +94,10 @@ Deno.serve(async (req) => {
     const token = cfg.api_token || '';
     const instance = cfg.instance_id || '';
 
-    // ----- Mode: send a real test message -----
     if (body.mode === 'send_test' && body.phone && body.message) {
       const phone = normalizePhone(body.phone);
       const result = await sendTestMessage(cfg, phone, body.message);
 
-      // Mirror to Chat module: create/find chat client + insert outbound message
       try {
         const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
         const userId = userData.user.id;
@@ -124,20 +112,13 @@ Deno.serve(async (req) => {
         }
         if (client) {
           await admin.from('messages').insert({
-            user_id: userId,
-            client_id: client.id,
-            lead_id: client.lead_id,
-            direction: 'outbound',
-            channel: 'whatsapp',
-            content: body.message,
-            status: result.ok ? 'sent' : 'failed',
-            sender_phone: phone,
+            user_id: userId, client_id: client.id, lead_id: client.lead_id,
+            direction: 'outbound', channel: 'whatsapp', content: body.message,
+            status: result.ok ? 'sent' : 'failed', sender_phone: phone,
             metadata: { test: true, external_status: result.status, external_body: result.body },
           });
         }
-      } catch (e) {
-        console.error('mirror test message failed', e);
-      }
+      } catch (e) { console.error('mirror test message failed', e); }
 
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -158,7 +139,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ----- Mode: webhook test (verifies webhook-receiver is reachable AND inserts a sentinel event) -----
     if (body.mode === 'test_webhook') {
       const targetUrl = body.webhook_url || `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-receiver`;
       try {
@@ -166,30 +146,20 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Webhook-Test': '1' },
           body: JSON.stringify({
-            __test__: true,
-            provider: cfg.api_type || 'umclique',
-            instanceName: cfg.instance_id || '',
-            channel_id: cfg.instance_id || '',
-            user_id: userData.user.id,
-            timestamp: new Date().toISOString(),
+            __test__: true, provider: cfg.api_type || 'omniconect',
+            instanceName: cfg.instance_id || '', channel_id: cfg.instance_id || '',
+            user_id: userData.user.id, timestamp: new Date().toISOString(),
             note: 'Webhook test from dashboard',
           }),
         });
         const ptxt = await probe.text();
         return new Response(JSON.stringify({
-          ok: probe.ok,
-          status: probe.status,
-          body: probe.ok
-            ? `✅ Webhook URL respondeu (${probe.status}). Configure no painel umClique → Configurações → API & Webhooks → Novo Webhook Split apontando para:\n${targetUrl}\n\nResposta: ${ptxt.slice(0, 200)}`
-            : `❌ Webhook não respondeu corretamente (${probe.status}): ${ptxt.slice(0, 300)}`,
+          ok: probe.ok, status: probe.status,
+          body: probe.ok ? `✅ Webhook URL respondeu (${probe.status}). ${ptxt.slice(0, 200)}` : `❌ Webhook não respondeu (${probe.status}): ${ptxt.slice(0, 300)}`,
           webhook_url: targetUrl,
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (e) {
-        return new Response(JSON.stringify({
-          ok: false, status: 0,
-          body: `❌ Falha ao alcançar o webhook: ${String(e).slice(0, 300)}`,
-          webhook_url: targetUrl,
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ ok: false, status: 0, body: `❌ Falha: ${String(e).slice(0, 300)}`, webhook_url: targetUrl }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
@@ -202,89 +172,62 @@ Deno.serve(async (req) => {
         if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
         break;
       }
-      case 'botconversa':
-        testUrl = `${baseUrl}/webhook/subscriber/`;
-        headers['API-KEY'] = token;
-        if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
-        break;
-      case 'evolution':
-      case 'evolution_go':
-        testUrl = `${baseUrl}/instance/connectionState/${instance}`;
-        headers.apikey = token;
-        break;
-      case 'ultramsg':
-        testUrl = `${baseUrl}/${instance}/instance/status?token=${token}`;
-        break;
       case 'wasender': {
-        // GET /api/status with Bearer session key
-        const r = await fetch(`${baseUrl}/api/status`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-        });
+        const r = await fetch(`${baseUrl}/api/status`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
         const t = await r.text();
         let parsed: any = null; try { parsed = JSON.parse(t); } catch {}
         const status = parsed?.status || '';
         const ok = r.ok && (status === 'connected' || status === 'CONNECTED');
         let hint = '';
-        if (r.status === 401) hint = '❌ API Key inválida. Vá em Dashboard → Sessions → copie a chave da sessão correta.';
-        else if (status === 'need_scan') hint = '⚠ Sessão criada mas precisa escanear o QR Code no painel WasenderAPI antes de enviar.';
-        else if (status === 'disconnected' || status === 'DISCONNECTED') hint = '⚠ Sessão desconectada. Reconecte no painel WasenderAPI.';
-        else if (status === 'expired') hint = '⚠ Sessão expirada. Reconecte no painel WasenderAPI.';
-        else if (ok) hint = '✅ Conectado! WasenderAPI pronto para enviar/receber.';
+        if (r.status === 401) hint = '❌ API Key inválida.';
+        else if (status === 'need_scan') hint = '⚠ Precisa escanear o QR Code no painel WasenderAPI.';
+        else if (status === 'disconnected' || status === 'DISCONNECTED') hint = '⚠ Sessão desconectada.';
+        else if (status === 'expired') hint = '⚠ Sessão expirada.';
+        else if (ok) hint = '✅ Conectado! WasenderAPI pronto.';
+        else hint = `Status: ${status || r.status}. ${t.slice(0, 200)}`;
+        return new Response(JSON.stringify({ ok, status: r.status, body: hint, session_status: status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      case 'omniconect': {
+        const r = await fetch(`${baseUrl}/instance/status`, { headers: { token, Accept: 'application/json' } });
+        const t = await r.text();
+        let parsed: any = null; try { parsed = JSON.parse(t); } catch {}
+        const inst = parsed?.instance || parsed || {};
+        const status = inst.status || parsed?.status || '';
+        const ok = r.ok && status === 'connected';
+        let hint = '';
+        if (r.status === 401) hint = '❌ Token de instância inválido.';
+        else if (status === 'disconnected') hint = '⚠ Desconectado. Gere o QR para conectar.';
+        else if (status === 'connecting') hint = '⏳ Conectando — escaneie o QR.';
+        else if (ok) hint = `✅ Conectado! ${inst.profileName ? `Perfil: ${inst.profileName}` : ''}`;
         else hint = `Status: ${status || r.status}. ${t.slice(0, 200)}`;
         return new Response(JSON.stringify({ ok, status: r.status, body: hint, session_status: status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       case 'umclique': {
-        // Validate API Key + channel via lightweight endpoint.
-        // We attempt validate-whatsapp-number (cheap, returns 401 if API key invalid,
-        // 200/400 if key valid). This avoids creating a real send.
         testUrl = `${baseUrl}/validate-whatsapp-number`;
         headers['X-API-Key'] = token;
         if (cfg.extra_headers) headers = { ...headers, ...cfg.extra_headers };
-        // Use POST with a stub number — see logic below
-        const r = await fetch(testUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ number: '5511999999999', locale: 'br' }),
-        });
+        const r = await fetch(testUrl, { method: 'POST', headers, body: JSON.stringify({ number: '5511999999999', locale: 'br' }) });
         const t = await r.text();
-        // 401 = invalid api key. 403 = feature not available (still means key works!).
-        // 200/400 = key OK. Anything 5xx is upstream issue.
         const apiKeyOk = r.status !== 401 && r.status !== 404;
         let hint = '';
-        if (r.status === 401) hint = '❌ API Key inválida. Verifique em umClique → Configurações → API & Webhooks.';
-        else if (r.status === 403) hint = '✅ API Key OK. Seu plano não inclui validação de números (não é problema para envio).';
-        else if (r.status === 404) hint = '❌ Endpoint não encontrado. Confira a Base URL: deve ser https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1';
+        if (r.status === 401) hint = '❌ API Key inválida.';
+        else if (r.status === 403) hint = '✅ API Key OK.';
+        else if (r.status === 404) hint = '❌ Endpoint não encontrado.';
         else if (r.ok) hint = '✅ API Key e Base URL OK!';
         else hint = `⚠ Status ${r.status}: ${t.slice(0, 200)}`;
-        // Now also test that the channel_id exists by trying a no-op send (will return Integration not found if channel wrong)
         let channelOk = true; let channelMsg = '';
         if (instance && apiKeyOk) {
-          const r2 = await fetch(`${baseUrl}/public-send-message`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ channel_id: instance, to: '0', type: 'text', content: '__test__' }),
-          });
+          const r2 = await fetch(`${baseUrl}/public-send-message`, { method: 'POST', headers, body: JSON.stringify({ channel_id: instance, to: '0', type: 'text', content: '__test__' }) });
           const t2 = await r2.text();
           if (/Integration not found or inactive/i.test(t2)) {
             channelOk = false;
-            channelMsg = `❌ Channel ID "${instance}" não foi encontrado na sua conta umClique. Vá em Canais → 3 pontos → Detalhes do Canal → copie o "Instance ID" (W-API) ou "Phone Number ID" (Meta).`;
-          } else {
-            channelMsg = `✅ Channel ID reconhecido pela umClique.`;
-          }
-        } else if (!instance) {
-          channelOk = false;
-          channelMsg = '⚠ Channel ID vazio — preencha com o Instance ID (W-API) ou Phone Number ID (Meta).';
-        }
-        return new Response(JSON.stringify({
-          ok: apiKeyOk && channelOk,
-          status: r.status,
-          body: `${hint}\n${channelMsg}`,
-          api_key_ok: apiKeyOk,
-          channel_ok: channelOk,
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            channelMsg = `❌ Channel ID "${instance}" não encontrado.`;
+          } else channelMsg = `✅ Channel ID reconhecido.`;
+        } else if (!instance) { channelOk = false; channelMsg = '⚠ Channel ID vazio.'; }
+        return new Response(JSON.stringify({ ok: apiKeyOk && channelOk, status: r.status, body: `${hint}\n${channelMsg}`, api_key_ok: apiKeyOk, channel_ok: channelOk }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       default:
-        testUrl = baseUrl;
+        return new Response(JSON.stringify({ ok: false, status: 400, body: `Provider ${cfg.api_type} não suportado` }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     const resp = await fetch(testUrl, { headers });
     const text = await resp.text();

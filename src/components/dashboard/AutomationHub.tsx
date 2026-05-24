@@ -64,13 +64,9 @@ function SecretInput({ value, onChange, placeholder, allowCopy = true }: { value
 
 const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
-  { id: "evolution_go", label: "WhatsApp Evolution GO · QR Code" },
   { id: "wasender", label: "WasenderAPI · wasenderapi.com" },
   { id: "umclique", label: "umClique · Um Clique Digital" },
-  { id: "botconversa", label: "BotConversa · botconversa.com.br" },
-  { id: "evolution", label: "Evolution API (legado)" },
-  { id: "ultramsg", label: "UltraMsg" },
-  { id: "custom", label: "Custom" },
+  { id: "omniconect", label: "OmniConect · WhatsApp Não Oficial (UAZAPI)" },
 ];
 
 const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanceLabel: string; helpUrl?: string; helpText?: string }> = {
@@ -79,39 +75,30 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     tokenLabel: "Token (da URL da instância)",
     instanceLabel: "Instance ID",
     helpUrl: "https://app.z-api.io",
-    helpText: "Painel Z-API → sua instância → copie a URL completa da API (já contém Instance ID e Token).",
+    helpText: "Painel Z-API → sua instância → copie a URL completa (já contém Instance ID e Token).",
   },
-  botconversa: {
-    base: "https://backend.botconversa.com.br/api/v1",
-    tokenLabel: "API Key (X-API-Key do BotConversa)",
-    instanceLabel: "Subscriber/Bot ID (opcional)",
-    helpUrl: "https://app.botconversa.com.br",
-    helpText: "Painel BotConversa → Integrações → API → copie a API Key.",
-  },
-  evolution: { base: "https://sua-evolution.com", tokenLabel: "API Key", instanceLabel: "Instance Name" },
-  evolution_go: {
-    base: "https://sua-evolution-go.com",
-    tokenLabel: "Global API Key (admin)",
-    instanceLabel: "Nome da Instância (gerado automaticamente se vazio)",
-    helpText: "Cole a URL do seu servidor Evolution API (GO) e a GLOBAL API KEY. Depois clique em 'Conectar via QR Code' para gerar a instância e escanear no WhatsApp.",
-  },
-  ultramsg: { base: "https://api.ultramsg.com", tokenLabel: "Token", instanceLabel: "Instance ID (instanceXXXX)" },
   umclique: {
     base: "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1",
     tokenLabel: "API Key (umk_...)",
     instanceLabel: "Channel ID (Phone Number ID Meta ou Instance ID W-API)",
     helpUrl: "https://umclique.com.br",
-    helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (começa com 'umk_'). O Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
+    helpText: "Painel umClique → Configurações → API & Webhooks → Nova API Key (umk_...). Channel ID está em Canais → 3 pontos → Detalhes do Canal.",
   },
   wasender: {
     base: "https://www.wasenderapi.com",
     tokenLabel: "Session API Key (Bearer)",
-    instanceLabel: "Session ID (opcional, só para painel)",
+    instanceLabel: "Session ID (opcional)",
     helpUrl: "https://www.wasenderapi.com/dashboard",
-    helpText: "Painel WasenderAPI → Sessions → crie/conecte a sessão (escaneie o QR no WhatsApp → Dispositivos vinculados) → copie a API Key da sessão. Base URL é fixa: https://www.wasenderapi.com",
+    helpText: "Painel WasenderAPI → Sessions → conecte a sessão (QR no WhatsApp) → copie a API Key. Base URL fixa: https://www.wasenderapi.com",
   },
-  custom: { base: "https://...", tokenLabel: "Bearer Token", instanceLabel: "Identificador" },
+  omniconect: {
+    base: "https://free.uazapi.com",
+    tokenLabel: "Instance Token (gerado ao criar a instância)",
+    instanceLabel: "Nome da Instância",
+    helpText: "OmniConect via UAZAPI. Cole a Base URL (ex: https://free.uazapi.com) e o seu Admin Token. Use 'Conectar via QR Code' para criar a instância automaticamente, gerar o token de instância e escanear o QR no WhatsApp.",
+  },
 };
+
 
 export default function AutomationHub() {
   const { user, isSuperAdmin, userPermissions } = useAuth();

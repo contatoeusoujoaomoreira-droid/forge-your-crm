@@ -18,7 +18,7 @@ import ImportedListsViewer from "@/components/dashboard/automation/ImportedLists
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/DashboardAnalytics";
-import LandingPagesList from "@/components/dashboard/LandingPagesList";
+
 import QuizList from "@/components/dashboard/QuizList";
 import FormsList from "@/components/dashboard/FormsList";
 import SchedulesList from "@/components/dashboard/SchedulesList";
@@ -35,7 +35,7 @@ const allTabs = [
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
   { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
-  { id: "pages", label: "Pages", icon: Globe, group: "tools" },
+  
   { id: "forms", label: "Forms", icon: FileText, group: "tools" },
   { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
   { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
@@ -330,7 +330,7 @@ const Dashboard = () => {
             {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
-            {activeTab === "pages" && <LandingPagesList />}
+            
             {activeTab === "forms" && <FormsList />}
             {activeTab === "quiz" && <QuizList />}
             {activeTab === "schedules" && <SchedulesList />}

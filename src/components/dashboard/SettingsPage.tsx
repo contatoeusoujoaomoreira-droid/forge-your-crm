@@ -94,15 +94,13 @@ const SettingsPage = () => {
 
   const fetchProjects = async () => {
     if (!user) return;
-    const [pages, forms, quizzes, schedules, checkouts] = await Promise.all([
-      supabase.from("landing_pages").select("id, title, slug").eq("user_id", user.id),
+    const [forms, quizzes, schedules, checkouts] = await Promise.all([
       supabase.from("forms").select("id, title, slug").eq("user_id", user.id),
       supabase.from("quizzes").select("id, title, slug").eq("user_id", user.id),
       supabase.from("schedules").select("id, title, slug").eq("user_id", user.id),
       supabase.from("checkouts").select("id, title, slug").eq("user_id", user.id),
     ]);
     const all: ProjectOption[] = [
-      ...(pages.data || []).map((p: any) => ({ ...p, type: "page" })),
       ...(forms.data || []).map((f: any) => ({ ...f, type: "form" })),
       ...(quizzes.data || []).map((q: any) => ({ ...q, type: "quiz" })),
       ...(schedules.data || []).map((s: any) => ({ ...s, type: "schedule" })),
