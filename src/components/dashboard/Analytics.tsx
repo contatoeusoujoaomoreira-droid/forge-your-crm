@@ -26,11 +26,9 @@ const Analytics = () => {
     const fetchStats = async () => {
       if (!user) return;
 
-      const [leadsRes, stagesRes, pagesRes, viewsRes, formsRes, formRespRes, quizzesRes, quizRespRes, ordersRes, appointmentsRes] = await Promise.all([
+      const [leadsRes, stagesRes, formsRes, formRespRes, quizzesRes, quizRespRes, ordersRes, appointmentsRes] = await Promise.all([
         supabase.from("leads").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
-        supabase.from("landing_pages").select("id"),
-        supabase.from("page_views").select("id"),
         supabase.from("forms").select("id"),
         supabase.from("form_responses").select("id"),
         supabase.from("quizzes").select("id"),
@@ -38,6 +36,8 @@ const Analytics = () => {
         supabase.from("orders").select("total"),
         supabase.from("appointments").select("id"),
       ]);
+      const pagesRes: any = { data: [] };
+      const viewsRes: any = { data: [] };
 
       const leads = leadsRes.data || [];
       const stages = stagesRes.data || [];
