@@ -16,7 +16,6 @@ interface SendBody {
   media_url?: string;
   media_type?: string;
   filename?: string;
-  // Template fields (Meta - umClique)
   template_name?: string;
   template_language?: string;
   template_variables?: any[];
@@ -24,21 +23,22 @@ interface SendBody {
   template_buttons?: any[];
 }
 
-// Map various media_type strings (mime, short label, undefined) to umClique schema
 function mapUmcliqueMediaType(mediaType?: string, mediaUrl?: string): 'image' | 'video' | 'audio' | 'document' {
   const m = (mediaType || '').toLowerCase().trim();
   if (m.startsWith('image') || m === 'img' || m === 'photo' || m === 'picture') return 'image';
   if (m.startsWith('video') || m === 'mp4') return 'video';
   if (m.startsWith('audio') || m === 'voice' || m === 'ptt' || m === 'ogg' || m === 'mp3') return 'audio';
   if (m.startsWith('application') || m === 'document' || m === 'doc' || m === 'pdf' || m === 'file') return 'document';
-  // Fallback: infer from URL extension
   const url = (mediaUrl || '').toLowerCase();
   if (/\.(jpe?g|png|gif|webp|bmp)(\?|$)/.test(url)) return 'image';
   if (/\.(mp4|mov|webm|avi|mkv)(\?|$)/.test(url)) return 'video';
   if (/\.(mp3|ogg|wav|m4a|aac|opus)(\?|$)/.test(url)) return 'audio';
   if (/\.(pdf|docx?|xlsx?|pptx?|txt|csv|zip)(\?|$)/.test(url)) return 'document';
-  // Last resort: image is the most permissive default in umClique
   return 'image';
+}
+
+function mapOmniconectType(mediaType?: string, mediaUrl?: string): string {
+  return mapUmcliqueMediaType(mediaType, mediaUrl);
 }
 
 const normalizePhone = (raw: string) => raw.replace(/\D/g, '');
@@ -63,38 +63,11 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const payload: any = { phone };
       if (hasMedia) { payload.image = body.media_url; payload.caption = body.content; }
       else { payload.message = body.content; }
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
-      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify(payload) });
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text };
     }
-    case 'evolution':
-    case 'evolution_go': {
-      // Evolution API v2 (GO) — instance-token authenticates sends.
-      const apikey = token; // instance hash
-      let url = `${baseUrl}/message/sendText/${instance}`;
-      let payload: any = { number: phone, text: body.content };
-      if (hasMedia) {
-        const mt = (body.media_type || '').toLowerCase();
-        const mediatype = mt.startsWith('image') ? 'image' : mt.startsWith('video') ? 'video' : mt.startsWith('audio') ? 'audio' : 'document';
-        if (mediatype === 'audio') {
-          url = `${baseUrl}/message/sendWhatsAppAudio/${instance}`;
-          payload = { number: phone, audio: body.media_url };
-        } else {
-          url = `${baseUrl}/message/sendMedia/${instance}`;
-          payload = { number: phone, mediatype, media: body.media_url, caption: body.content, fileName: body.filename };
-        }
-      }
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey, ...extra },
-        body: JSON.stringify(payload),
-      });
-      const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
-    }
     case 'wasender': {
-      // Wasender: separate endpoints per media type. All require Bearer session key.
       const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json', ...extra };
       let url = `${baseUrl}/api/send-message`;
       const payload: any = { to: phone };
@@ -102,19 +75,15 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         const mt = (body.media_type || '').toLowerCase();
         const url_ = body.media_url;
         if (mt.startsWith('image') || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-image`;
-          payload.imageUrl = url_;
+          url = `${baseUrl}/api/send-image`; payload.imageUrl = url_;
           if (body.content) payload.text = body.content;
         } else if (mt.startsWith('video') || /\.(mp4|mov|webm)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-video`;
-          payload.videoUrl = url_;
+          url = `${baseUrl}/api/send-video`; payload.videoUrl = url_;
           if (body.content) payload.text = body.content;
         } else if (mt.startsWith('audio') || /\.(mp3|ogg|m4a|opus|wav)(\?|$)/i.test(url_!)) {
-          url = `${baseUrl}/api/send-audio`;
-          payload.audioUrl = url_;
+          url = `${baseUrl}/api/send-audio`; payload.audioUrl = url_;
         } else {
-          url = `${baseUrl}/api/send-document`;
-          payload.documentUrl = url_;
+          url = `${baseUrl}/api/send-document`; payload.documentUrl = url_;
           if (body.filename) payload.fileName = body.filename;
           if (body.content) payload.text = body.content;
         }
@@ -125,35 +94,10 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
-    case 'ultramsg': {
-      const url = `${baseUrl}/${instance}/messages/chat`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ token, to: phone, body: body.content }).toString(),
-      });
-      const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
-    }
-    case 'botconversa': {
-      // BotConversa: POST {base}/webhook/subscriber/{phone}/send_message/  (API Key in header)
-      const url = `${baseUrl}/webhook/subscriber/${phone}/send_message/`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'API-KEY': token, ...extra },
-        body: JSON.stringify({ type: hasMedia ? 'image' : 'text', value: hasMedia ? body.media_url : body.content, caption: body.content }),
-      });
-      const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
-    }
     case 'umclique': {
-      // umClique / Um Clique Digital — POST {base}/public-send-message com X-API-Key
       const url = `${baseUrl}/public-send-message`;
       const isTemplate = !!body.template_name;
-      const payload: any = {
-        channel_id: instance,
-        to: phone,
-      };
+      const payload: any = { channel_id: instance, to: phone };
       if (isTemplate) {
         payload.type = 'template';
         payload.template_name = body.template_name;
@@ -170,22 +114,24 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
         payload.type = 'text';
         payload.content = body.content;
       }
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra },
-        body: JSON.stringify(payload),
-      });
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': token, ...extra }, body: JSON.stringify(payload) });
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, body: text, sent_payload: payload };
     }
-    case 'custom': {
-      const resp = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra },
-        body: JSON.stringify({ phone, message: body.content, media_url: body.media_url }),
-      });
-      const text = await resp.text();
-      return { ok: resp.ok, status: resp.status, body: text };
+    case 'omniconect': {
+      // UAZAPI: header `token: <instance_token>`
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', token };
+      if (hasMedia) {
+        const type = mapOmniconectType(body.media_type, body.media_url);
+        const payload: any = { number: phone, type, file: body.media_url };
+        if (body.content) payload.text = body.content;
+        if (body.filename) payload.docName = body.filename;
+        const resp = await fetch(`${baseUrl}/send/media`, { method: 'POST', headers, body: JSON.stringify(payload) });
+        return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 800), sent_payload: payload };
+      }
+      const payload = { number: phone, text: body.content };
+      const resp = await fetch(`${baseUrl}/send/text`, { method: 'POST', headers, body: JSON.stringify(payload) });
+      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 800), sent_payload: payload };
     }
     default:
       return { ok: false, status: 400, body: `Provider ${provider} não suportado` };
@@ -194,7 +140,6 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -213,7 +158,6 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
-    // Resolve phone
     let phone = body.phone ? normalizePhone(body.phone) : '';
     let clientRow: any = null;
     if (body.client_id) {
@@ -225,7 +169,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Phone required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Get config
     const { data: cfg } = await admin.from('whatsapp_configs').select('*')
       .eq('user_id', userId).eq('is_active', true).maybeSingle();
 
@@ -249,7 +192,6 @@ Deno.serve(async (req) => {
       externalError = 'WhatsApp não configurado';
     }
 
-    // Always persist message (with rich error context for diagnostics)
     const { data: msg } = await admin.from('messages').insert({
       user_id: userId,
       client_id: clientRow?.id || body.client_id || null,
@@ -269,7 +211,6 @@ Deno.serve(async (req) => {
       },
     }).select().single();
 
-    // Human reply: disable AI for this conversation and schedule the auto-resume timer
     if (clientRow?.id) {
       await admin.from('conversation_state').upsert({
         user_id: userId, client_id: clientRow.id,
@@ -287,19 +228,14 @@ Deno.serve(async (req) => {
       } catch {}
     }
 
-    // Deduct credits per outbound message (skipped automatically for super_admin and unlimited tier)
     if (externalSent) {
       const action = body.media_url ? 'image_vision' : 'chat_message_text';
       try {
         await admin.rpc('deduct_credits_by_action', {
-          _user_id: userId,
-          _action: action,
-          _quantity: 1,
+          _user_id: userId, _action: action, _quantity: 1,
           _metadata: { phone, message_id: msg?.id, channel: 'whatsapp' },
         });
-      } catch (e) {
-        console.warn('credit deduction failed', e);
-      }
+      } catch (e) { console.warn('credit deduction failed', e); }
     }
 
     return new Response(JSON.stringify({
