@@ -976,6 +976,14 @@ Deno.serve(async (req) => {
 
   // === DEBOUNCE FLUSH (called by cron-worker after grouping window) ===
   if (raw.__debounced__ === true && raw.user_id && raw.client_id) {
+    // Require shared secret from internal caller when configured
+    const CRON_SECRET = Deno.env.get('CRON_SECRET');
+    if (CRON_SECRET) {
+      const auth = req.headers.get('authorization') || '';
+      const hdr = req.headers.get('x-cron-secret') || '';
+      const ok = auth === `Bearer ${CRON_SECRET}` || hdr === CRON_SECRET || auth === `Bearer ${SUPABASE_SERVICE}`;
+      if (!ok) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     try {
       const dUserId = String(raw.user_id);
       const dClientId = String(raw.client_id);
