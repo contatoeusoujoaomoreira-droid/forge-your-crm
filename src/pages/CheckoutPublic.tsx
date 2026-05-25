@@ -132,14 +132,16 @@ const CheckoutPublic = () => {
   const buttonLabel = style.submitButtonText || `Enviar ${orderLabel} via WhatsApp`;
 
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
+    if (!couponCode.trim() || !checkout?.id) return;
     setCouponError("");
-    const { data } = await supabase.from("coupons").select("*").eq("code", couponCode.trim().toUpperCase()).eq("is_active", true).maybeSingle();
-    if (!data) { setCouponError("Cupom inválido"); return; }
-    if (data.max_uses && data.used_count >= data.max_uses) { setCouponError("Cupom esgotado"); return; }
-    if (data.expires_at && new Date(data.expires_at) < new Date()) { setCouponError("Cupom expirado"); return; }
-    if (data.checkout_id && data.checkout_id !== checkout?.id) { setCouponError("Cupom inválido para este checkout"); return; }
-    setAppliedCoupon(data);
+    const { data } = await supabase.rpc("validate_coupon" as any, { _code: couponCode.trim(), _checkout_id: checkout.id });
+    const res = data as any;
+    if (!res?.ok) {
+      const reason = res?.reason;
+      setCouponError(reason === "expired" ? "Cupom expirado" : reason === "exhausted" ? "Cupom esgotado" : reason === "wrong_checkout" ? "Cupom inválido para este checkout" : "Cupom inválido");
+      return;
+    }
+    setAppliedCoupon({ id: res.id, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
