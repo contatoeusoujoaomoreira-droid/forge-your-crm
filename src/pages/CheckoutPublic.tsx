@@ -148,9 +148,13 @@ const CheckoutPublic = () => {
     e.preventDefault();
     if (!checkout || !customer.name || cartItems.length === 0) return;
 
-    // Increment coupon usage
+    // Atomically increment coupon usage with server-side max_uses enforcement
     if (appliedCoupon) {
-      await supabase.from("coupons").update({ used_count: (appliedCoupon.used_count || 0) + 1 } as any).eq("id", appliedCoupon.id);
+      const { data: apply } = await supabase.rpc("apply_coupon" as any, { _coupon_id: appliedCoupon.id });
+      if (!(apply as any)?.ok) {
+        setCouponError("Cupom não pôde mais ser usado");
+        return;
+      }
     }
 
     await supabase.from("orders").insert({
@@ -162,14 +166,13 @@ const CheckoutPublic = () => {
       discount_amount: discountAmount,
     } as any);
 
-    // Notification for checkout owner
-    await supabase.from("notifications").insert({
-      user_id: checkout.user_id,
-      type: "order",
-      title: `Nova venda: R$ ${total.toFixed(2)}`,
-      message: `${customer.name} fez um pedido de R$ ${total.toFixed(2)}`,
-      metadata: { checkout_id: checkout.id, total, customer_name: customer.name },
-    } as any);
+    // Notification for checkout owner (server-side helper validates checkout ownership)
+    await supabase.rpc("notify_checkout_owner" as any, {
+      _checkout_id: checkout.id,
+      _title: `Nova venda: R$ ${total.toFixed(2)}`,
+      _message: `${customer.name} fez um pedido de R$ ${total.toFixed(2)}`,
+      _metadata: { checkout_id: checkout.id, total, customer_name: customer.name },
+    });
 
     if (style.pixEnabled && style.pixKey) { setStep("pix"); return; }
 
