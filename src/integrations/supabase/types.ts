@@ -2330,11 +2330,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_coupon: { Args: { _coupon_id: string }; Returns: Json }
       apply_lead_score: {
         Args: { _client_id: string; _delta: number; _reason?: string }
         Returns: Json
       }
       approve_credit_request: { Args: { _request_id: string }; Returns: Json }
+      cancel_appointment: { Args: { _token: string }; Returns: Json }
       deduct_credits: {
         Args: {
           _amount: number
@@ -2361,6 +2363,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      notify_checkout_owner: {
+        Args: {
+          _checkout_id: string
+          _message: string
+          _metadata?: Json
+          _title: string
+        }
+        Returns: undefined
+      }
       notify_team_event: {
         Args: { _event: string; _payload: Json; _user_id: string }
         Returns: undefined
@@ -2372,6 +2383,10 @@ export type Database = {
       }
       sync_super_admin_entitlements: { Args: never; Returns: undefined }
       user_usage_stats: { Args: { _user_id: string }; Returns: Json }
+      validate_coupon: {
+        Args: { _checkout_id: string; _code: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "user" | "professional" | "basic"
