@@ -23,11 +23,8 @@ const SchedulePublic = () => {
   useEffect(() => {
     if (cancelToken) {
       const cancelAppointment = async () => {
-        const { data } = await supabase.from("appointments").select("*").eq("cancellation_token", cancelToken).maybeSingle();
-        if (data && !data.cancelled_at) {
-          await supabase.from("appointments").update({ cancelled_at: new Date().toISOString(), status: "cancelled" } as any).eq("id", data.id);
-          setCancelled(true);
-        }
+        const { data } = await supabase.rpc("cancel_appointment" as any, { _token: cancelToken });
+        if ((data as any)?.ok) setCancelled(true);
         setLoading(false);
       };
       cancelAppointment();
