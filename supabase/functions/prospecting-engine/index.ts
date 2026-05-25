@@ -55,6 +55,15 @@ const inBusinessHours = (cfg: any) => {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+  const CRON_SECRET = Deno.env.get('CRON_SECRET');
+  if (CRON_SECRET) {
+    const auth = req.headers.get('authorization') || '';
+    const hdr = req.headers.get('x-cron-secret') || '';
+    const ok = auth === `Bearer ${CRON_SECRET}` || hdr === CRON_SECRET || auth === `Bearer ${SUPABASE_SERVICE}`;
+    if (!ok) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
   try {

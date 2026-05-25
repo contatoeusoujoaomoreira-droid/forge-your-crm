@@ -132,23 +132,29 @@ const CheckoutPublic = () => {
   const buttonLabel = style.submitButtonText || `Enviar ${orderLabel} via WhatsApp`;
 
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
+    if (!couponCode.trim() || !checkout?.id) return;
     setCouponError("");
-    const { data } = await supabase.from("coupons").select("*").eq("code", couponCode.trim().toUpperCase()).eq("is_active", true).maybeSingle();
-    if (!data) { setCouponError("Cupom inválido"); return; }
-    if (data.max_uses && data.used_count >= data.max_uses) { setCouponError("Cupom esgotado"); return; }
-    if (data.expires_at && new Date(data.expires_at) < new Date()) { setCouponError("Cupom expirado"); return; }
-    if (data.checkout_id && data.checkout_id !== checkout?.id) { setCouponError("Cupom inválido para este checkout"); return; }
-    setAppliedCoupon(data);
+    const { data } = await supabase.rpc("validate_coupon" as any, { _code: couponCode.trim(), _checkout_id: checkout.id });
+    const res = data as any;
+    if (!res?.ok) {
+      const reason = res?.reason;
+      setCouponError(reason === "expired" ? "Cupom expirado" : reason === "exhausted" ? "Cupom esgotado" : reason === "wrong_checkout" ? "Cupom inválido para este checkout" : "Cupom inválido");
+      return;
+    }
+    setAppliedCoupon({ id: res.id, code: res.code, discount_type: res.discount_type, discount_value: res.discount_value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkout || !customer.name || cartItems.length === 0) return;
 
-    // Increment coupon usage
+    // Atomically increment coupon usage with server-side max_uses enforcement
     if (appliedCoupon) {
-      await supabase.from("coupons").update({ used_count: (appliedCoupon.used_count || 0) + 1 } as any).eq("id", appliedCoupon.id);
+      const { data: apply } = await supabase.rpc("apply_coupon" as any, { _coupon_id: appliedCoupon.id });
+      if (!(apply as any)?.ok) {
+        setCouponError("Cupom não pôde mais ser usado");
+        return;
+      }
     }
 
     await supabase.from("orders").insert({
@@ -160,14 +166,13 @@ const CheckoutPublic = () => {
       discount_amount: discountAmount,
     } as any);
 
-    // Notification for checkout owner
-    await supabase.from("notifications").insert({
-      user_id: checkout.user_id,
-      type: "order",
-      title: `Nova venda: R$ ${total.toFixed(2)}`,
-      message: `${customer.name} fez um pedido de R$ ${total.toFixed(2)}`,
-      metadata: { checkout_id: checkout.id, total, customer_name: customer.name },
-    } as any);
+    // Notification for checkout owner (server-side helper validates checkout ownership)
+    await supabase.rpc("notify_checkout_owner" as any, {
+      _checkout_id: checkout.id,
+      _title: `Nova venda: R$ ${total.toFixed(2)}`,
+      _message: `${customer.name} fez um pedido de R$ ${total.toFixed(2)}`,
+      _metadata: { checkout_id: checkout.id, total, customer_name: customer.name },
+    });
 
     if (style.pixEnabled && style.pixKey) { setStep("pix"); return; }
 
