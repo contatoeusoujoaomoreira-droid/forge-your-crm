@@ -860,9 +860,11 @@ function findKb(items: any[], q: string, n = 5): any[] {
 }
 function detectIntent(text: string, agent: any) {
   const t = (text || '').toLowerCase();
-  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-  const handoff = handoffKws.some((k: string) => t.includes(k));
-  const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
+  // Default handoff keywords now require EXPLICIT request to talk to a human.
+  // Avoids false positives like "pessoa" / "ajuda" that disabled the agent mid-conversation.
+  const handoffKws = (agent?.handoff_keywords || 'falar com humano,quero um humano,atendente humano,falar com atendente,falar com pessoa,quero falar com alguém,vendedor humano').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => k && t.includes(k));
+  const qualified = ['quero comprar','fechar negócio','quero fechar','enviar contrato','meu cpf é','meu cnpj é','pode mandar o pix','vou pagar agora'].some(k => t.includes(k));
   const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
   return { handoff, qualified, wantsMedia };
 }
