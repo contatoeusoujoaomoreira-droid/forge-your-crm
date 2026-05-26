@@ -95,7 +95,7 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     base: "https://omnibuildercrm.uazapi.com",
     tokenLabel: "Instance Token (gerado automaticamente)",
     instanceLabel: "Nome da Instância (opcional)",
-    helpText: "OmniConect via UAZAPI já pré-configurado. Basta clicar em 'Gerar QR Code' — o sistema cria a instância, ativa o webhook global e gera o QR automaticamente.",
+    helpText: "OmniConect já pré-configurado. Basta clicar em 'Gerar QR Code' — o sistema cria/reusa a instância, ativa o webhook e gera o QR automaticamente.",
   },
 };
 
