@@ -156,6 +156,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     handoff_keywords: "",
     handoff_mode: "pause",
     handoff_pause_minutes: 30,
+    respond_in_groups: false,
+    disable_on_human_takeover: true,
     stop_words: "",
     inactivity_timeout_minutes: null,
     message_limit: null,
