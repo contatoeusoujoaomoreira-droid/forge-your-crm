@@ -60,6 +60,7 @@ export default function InboxPage() {
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const [unreadByClient, setUnreadByClient] = useState<Record<string, number>>({});
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
+  const [hasActiveWhatsApp, setHasActiveWhatsApp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -67,15 +68,17 @@ export default function InboxPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }, { data: tm }, { data: orders }] = await Promise.all([
+      const [{ data: cs }, { data: ag }, { data: pls }, { data: sts }, { data: tm }, { data: orders }, { data: wa }] = await Promise.all([
         supabase.from("chat_clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
         supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
         supabase.from("pipelines").select("*").eq("user_id", user.id),
         supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
         supabase.from("team_members").select("*").eq("owner_user_id", user.id).eq("is_active", true),
         supabase.from("orders").select("total").eq("status", "paid").limit(500),
+        supabase.from("whatsapp_configs").select("id").eq("user_id", user.id).eq("is_active", true).limit(1),
       ]);
       setClients(cs || []); setAgents(ag || []); setPipelines(pls || []); setStages(sts || []);
+      setHasActiveWhatsApp((wa || []).length > 0);
       setTeamMembers(tm || []);
       const totals = (orders || []).map((o: any) => Number(o.total || 0)).filter((n: number) => n > 0);
       setAvgTicket(totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0);
@@ -673,7 +676,7 @@ export default function InboxPage() {
             {lastFailure && (() => {
               const status = lastFailure.metadata?.external_status;
               const body = String(lastFailure.metadata?.external_error || lastFailure.metadata?.external_body || "");
-              const isNoConn = !status || status === "—" || /no_active_config|nenhuma conexão|inativ|not configured/i.test(body);
+              const isNoConn = !hasActiveWhatsApp && (!status || status === "—" || /no_active_config|nenhuma conexão|inativ|not configured/i.test(body));
               return (
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] space-y-1">
                   <p className="font-semibold text-amber-700 dark:text-amber-400">
