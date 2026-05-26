@@ -860,9 +860,11 @@ function findKb(items: any[], q: string, n = 5): any[] {
 }
 function detectIntent(text: string, agent: any) {
   const t = (text || '').toLowerCase();
-  const handoffKws = (agent?.handoff_keywords || 'humano,atendente,pessoa,falar com alguém,vendedor').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-  const handoff = handoffKws.some((k: string) => t.includes(k));
-  const qualified = ['quero comprar','fechar','contrato','cartão','pix','agendar visita','marcar reunião','enviar proposta','meu cpf','cnpj'].some(k => t.includes(k));
+  // Default handoff keywords now require EXPLICIT request to talk to a human.
+  // Avoids false positives like "pessoa" / "ajuda" that disabled the agent mid-conversation.
+  const handoffKws = (agent?.handoff_keywords || 'falar com humano,quero um humano,atendente humano,falar com atendente,falar com pessoa,quero falar com alguém,vendedor humano').split(/[,;\n]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+  const handoff = handoffKws.some((k: string) => k && t.includes(k));
+  const qualified = ['quero comprar','fechar negócio','quero fechar','enviar contrato','meu cpf é','meu cnpj é','pode mandar o pix','vou pagar agora'].some(k => t.includes(k));
   const wantsMedia = ['imagem','imagens','foto','fotos','catálogo','catalogo','drive','vídeo','video','link','mostra','manda','envia'].some(k => t.includes(k));
   return { handoff, qualified, wantsMedia };
 }
@@ -1606,14 +1608,21 @@ Deno.serve(async (req) => {
           } else {
             const chunks = (agent.split_long_messages !== false) ? splitMessage(replyWithLinks) : [replyWithLinks];
             const cfgDelaySec = Math.max(0, Math.min(300, Number(agent.response_delay_seconds) || 0));
+            // Apply the configured response delay ONCE (before the first chunk),
+            // not per chunk — previous behavior multiplied delay × N chunks.
+            if (cfgDelaySec > 0) {
+              if (agent.simulate_typing !== false) await sendPresence(waCfg, msg.phone, 'composing');
+              await new Promise((r) => setTimeout(r, cfgDelaySec * 1000));
+            }
             for (let i = 0; i < chunks.length; i++) {
               const chunk = chunks[i];
-              if (agent.simulate_typing !== false) {
+              if (i > 0 && agent.simulate_typing !== false) {
+                // Small natural inter-chunk pause based on chunk length (max ~3s).
                 await sendPresence(waCfg, msg.phone, 'composing');
-                const baseMs = cfgDelaySec > 0 ? cfgDelaySec * 1000 : Math.min(4000, 600 + chunk.length * 25);
-                await new Promise((r) => setTimeout(r, baseMs));
-              } else if (cfgDelaySec > 0) {
-                await new Promise((r) => setTimeout(r, cfgDelaySec * 1000));
+                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + chunk.length * 20)));
+              } else if (i === 0 && cfgDelaySec === 0 && agent.simulate_typing !== false) {
+                await sendPresence(waCfg, msg.phone, 'composing');
+                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + chunk.length * 20)));
               }
               try { delivery = await sendWhatsApp(waCfg, msg.phone, chunk) || delivery; }
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
@@ -1654,8 +1663,9 @@ Deno.serve(async (req) => {
           },
         });
 
-        // === HANDOFF AUTOMÁTICO se cliente pediu humano ou se qualificou ===
-        if (intent.handoff || intent.qualified) {
+        // === HANDOFF: só desativa o agente em pedido EXPLÍCITO de humano.
+        // Lead qualificado apenas notifica (agente continua atendendo até concluir).
+        if (intent.handoff) {
           await admin.from('conversation_state').upsert({
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',
@@ -1663,8 +1673,17 @@ Deno.serve(async (req) => {
           }, { onConflict: 'client_id' });
           await admin.from('notifications').insert({
             user_id: userId,
-            type: intent.handoff ? 'handoff' : 'qualified',
-            title: intent.handoff ? '🙋 Cliente pediu atendimento humano' : '✅ Lead qualificado',
+            type: 'handoff',
+            title: '🙋 Cliente pediu atendimento humano',
+            message: `${client.name || msg.phone}: "${(lastUserText || '').slice(0, 100)}"`,
+            related_id: client.id,
+            metadata: { phone: msg.phone, intent },
+          });
+        } else if (intent.qualified) {
+          await admin.from('notifications').insert({
+            user_id: userId,
+            type: 'qualified',
+            title: '✅ Lead qualificado',
             message: `${client.name || msg.phone}: "${(lastUserText || '').slice(0, 100)}"`,
             related_id: client.id,
             metadata: { phone: msg.phone, intent },
