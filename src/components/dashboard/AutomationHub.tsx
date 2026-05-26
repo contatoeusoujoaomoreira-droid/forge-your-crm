@@ -92,10 +92,10 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpText: "Painel WasenderAPI → Sessions → conecte a sessão (QR no WhatsApp) → copie a API Key. Base URL fixa: https://www.wasenderapi.com",
   },
   omniconect: {
-    base: "https://free.uazapi.com",
-    tokenLabel: "Instance Token (gerado ao criar a instância)",
-    instanceLabel: "Nome da Instância",
-    helpText: "OmniConect via UAZAPI. Cole a Base URL (ex: https://free.uazapi.com) e o seu Admin Token. Use 'Conectar via QR Code' para criar a instância automaticamente, gerar o token de instância e escanear o QR no WhatsApp.",
+    base: "https://omnibuildercrm.uazapi.com",
+    tokenLabel: "Instance Token (gerado automaticamente)",
+    instanceLabel: "Nome da Instância (opcional)",
+    helpText: "OmniConect via UAZAPI já pré-configurado. Basta clicar em 'Gerar QR Code' — o sistema cria a instância, ativa o webhook global e gera o QR automaticamente.",
   },
 };
 
