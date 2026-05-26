@@ -754,81 +754,103 @@ export default function AutomationHub() {
                           <div className="p-4 space-y-3 bg-background border-t border-border">
                             <div className="grid grid-cols-2 gap-3">
                               <div className="col-span-2">
+                                <Label className="text-xs mb-2 block">Escolha o tipo de conexão</Label>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {[
+                                    { id: "omniconect", title: "OmniConect", subtitle: "WhatsApp via QR Code", desc: "Conexão automática · 1 clique", icon: "📱" },
+                                    { id: "z-api", title: "Z-API", subtitle: "z-api.io", desc: "Configuração manual · Instance + Token", icon: "🔌" },
+                                  ].map((p) => {
+                                    const selected = c.api_type === p.id;
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const patch: any = { api_type: p.id };
+                                          if (p.id === "omniconect") {
+                                            patch.base_url = OMNI_DEFAULT_BASE;
+                                            patch.extra_headers = { ...(c.extra_headers || {}), admin_token: OMNI_DEFAULT_ADMIN_TOKEN };
+                                          } else if (p.id === "z-api" && (!c.base_url || c.base_url.includes("uazapi"))) {
+                                            patch.base_url = "";
+                                          }
+                                          updateLocalConn(c.id, patch);
+                                        }}
+                                        className={`relative rounded-xl border-2 p-4 text-left transition-all hover:border-primary/60 hover:bg-primary/5 ${selected ? "border-primary bg-primary/10 shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]" : "border-border bg-background"}`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <span className="text-2xl">{p.icon}</span>
+                                          {selected && <Badge className="text-[10px]">Selecionado</Badge>}
+                                        </div>
+                                        <p className="mt-2 font-semibold text-sm">{p.title}</p>
+                                        <p className="text-[11px] text-muted-foreground">{p.subtitle}</p>
+                                        <p className="text-[10px] text-muted-foreground mt-1">{p.desc}</p>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {!["omniconect", "z-api"].includes(c.api_type) && (
+                                  <p className="text-[11px] text-amber-600 mt-2">Provedor legado ({c.api_type}). Escolha OmniConect ou Z-API acima.</p>
+                                )}
+                              </div>
+                              <div className="col-span-2">
                                 <Label className="text-xs">Nome desta conexão</Label>
                                 <Input value={c.label || ""} onChange={(e) => updateLocalConn(c.id, { label: e.target.value })} placeholder="Ex: Comercial · 11 9999-9999" />
                               </div>
-                              <div>
-                                <Label className="text-xs">Tipo de API</Label>
-                                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={c.api_type} onChange={(e) => {
-                                  const newType = e.target.value;
-                                  const newHint = PROVIDER_HINTS[newType];
-                                  const patch: any = { api_type: newType };
-                                  // Auto-fill base_url with provider default if empty or generic
-                                  if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
-                                  else if (newType === "wasender") patch.base_url = "https://www.wasenderapi.com";
-                                  else if (newType === "omniconect") {
-                                    patch.base_url = OMNI_DEFAULT_BASE;
-                                    patch.extra_headers = { ...(c.extra_headers || {}), admin_token: OMNI_DEFAULT_ADMIN_TOKEN };
-                                  }
-                                  else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
-                                  updateLocalConn(c.id, patch);
-                                }}>
-                                  {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                                </select>
-                              </div>
-                              {c.api_type === "umclique" && (
-                                <div className="col-span-2 p-3 rounded-md border border-primary/40 bg-primary/5 text-[11px] space-y-1">
-                                  <p className="font-semibold text-primary">📘 Como conectar a umClique passo a passo</p>
-                                  <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-                                    <li>Acesse <a href="https://connect.umcliquedigital.com" target="_blank" rel="noreferrer" className="underline text-primary">connect.umcliquedigital.com</a> → faça login.</li>
-                                    <li><strong>Configurações → API & Webhooks → Nova API Key</strong>. Copie a chave (começa com <code>umk_</code>) — só é exibida uma vez!</li>
-                                    <li><strong>Canais → ⋯ (3 pontos) → Detalhes do Canal</strong>. Copie o <strong>Instance ID</strong> (W-API/QR Code) ou <strong>Phone Number ID</strong> (Meta) e cole no campo "Channel ID" acima.</li>
-                                    <li>Cole a URL Base exatamente como abaixo no campo "URL Base":<br/><code className="text-[10px]">https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</code></li>
-                                    <li>Salve, clique em <strong>Testar</strong> para validar API Key + Channel ID.</li>
-                                    <li>Volte ao painel umClique → <strong>API & Webhooks → Novo Webhook Split</strong>, escolha o canal e cole nossa URL de webhook (mostrada abaixo do card). Status deve ficar como <strong>ativo</strong>.</li>
-                                    <li>Clique em <strong>Testar webhook</strong> para confirmar que a URL responde.</li>
-                                  </ol>
-                                  <p className="text-amber-600">⚠ Se aparecer <em>"Integration not found or inactive"</em>: o Channel ID está incorreto OU o canal foi desativado na umClique. Reveja o passo 3.</p>
+
+                              {c.api_type === "omniconect" && (
+                                <div className="col-span-2 space-y-2">
+                                  <Label className="text-xs">Instance Token (gerado automaticamente)</Label>
+                                  <SecretInput value={c.api_token || ""} onChange={() => {}} placeholder="Será gerado ao clicar em Gerar QR Code" />
+                                  <p className="text-[11px] text-muted-foreground">URL base, webhook e instância são configurados automaticamente. Você só precisa do nome e do agente IA.</p>
                                 </div>
                               )}
-                              <div>
-                                <Label className="text-xs">{hint?.instanceLabel || "Instance ID"}</Label>
-                                <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder={c.api_type === "umclique" ? "uazapi_xxxxx_xxxxx ou Phone Number ID" : "3ABC..."} className="font-mono text-xs" />
-                                {c.api_type === "umclique" && c.instance_id && c.instance_id.length < 5 && (
-                                  <p className="text-[11px] text-destructive mt-1">Channel ID muito curto.</p>
-                                )}
-                              </div>
-                              <div className="col-span-2">
-                                <Label className="text-xs">URL Base da API</Label>
-                                <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={hint?.base} className="font-mono text-xs" />
-                                {c.api_type === "z-api" && (
-                                  <p className="text-[11px] text-muted-foreground mt-1">💡 Cole a URL completa da "API da instância mobile" — o sistema extrai Instance ID e Token automaticamente.</p>
-                                )}
-                                {c.api_type === "umclique" && c.base_url && !/cslsnijdeayzfpmwjtmw\.supabase\.co\/functions\/v1\/?$/.test(c.base_url) && (
-                                  <p className="text-[11px] text-destructive mt-1">⚠ URL Base deve ser exatamente https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1</p>
-                                )}
-                              </div>
-                              <div className="col-span-2">
-                                <Label className="text-xs flex items-center gap-1">{hint?.tokenLabel || "Token / API Key"} <Eye className="h-3 w-3 text-muted-foreground" /></Label>
-                                <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder={c.api_type === "umclique" ? "umk_xxxxxxxxxxxxxxxx" : "Token..."} />
-                                {c.api_type === "umclique" && c.api_token && !c.api_token.startsWith("umk_") && (
-                                  <p className="text-[11px] text-destructive mt-1">⚠ A API Key da umClique deve começar com "umk_".</p>
-                                )}
-                              </div>
+
                               {c.api_type === "z-api" && (
-                                <div className="col-span-2">
-                                  <Label className="text-xs">Client-Token (Segurança Z-API)</Label>
-                                  <SecretInput
-                                    value={(typeof c.extra_headers === "object" ? c.extra_headers?.["Client-Token"] : "") || ""}
-                                    onChange={(v) => {
-                                      const cur = typeof c.extra_headers === "object" ? { ...c.extra_headers } : {};
-                                      cur["Client-Token"] = v;
-                                      updateLocalConn(c.id, { extra_headers: cur });
-                                    }}
-                                    placeholder="Fa1234567890abcdef..."
-                                  />
-                                  <p className="text-[11px] text-muted-foreground mt-1">Painel Z-API → sua instância → aba "Segurança" → copie o Client-Token.</p>
-                                </div>
+                                <>
+                                  <div>
+                                    <Label className="text-xs">Instance ID</Label>
+                                    <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} placeholder="3ABC..." className="font-mono text-xs" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Label className="text-xs">URL Base da API</Label>
+                                    <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={PROVIDER_HINTS["z-api"].base} className="font-mono text-xs" />
+                                    <p className="text-[11px] text-muted-foreground mt-1">💡 Cole a URL completa da "API da instância mobile" — o sistema extrai Instance ID e Token automaticamente.</p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Label className="text-xs flex items-center gap-1">Token (da URL da instância) <Eye className="h-3 w-3 text-muted-foreground" /></Label>
+                                    <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder="Token..." />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Label className="text-xs">Client-Token (Segurança Z-API)</Label>
+                                    <SecretInput
+                                      value={(typeof c.extra_headers === "object" ? c.extra_headers?.["Client-Token"] : "") || ""}
+                                      onChange={(v) => {
+                                        const cur = typeof c.extra_headers === "object" ? { ...c.extra_headers } : {};
+                                        cur["Client-Token"] = v;
+                                        updateLocalConn(c.id, { extra_headers: cur });
+                                      }}
+                                      placeholder="Fa1234567890abcdef..."
+                                    />
+                                    <p className="text-[11px] text-muted-foreground mt-1">Painel Z-API → sua instância → aba "Segurança" → copie o Client-Token.</p>
+                                  </div>
+                                </>
+                              )}
+
+                              {!["omniconect", "z-api"].includes(c.api_type) && (
+                                <>
+                                  <div>
+                                    <Label className="text-xs">{hint?.instanceLabel || "Instance ID"}</Label>
+                                    <Input value={c.instance_id || ""} onChange={(e) => updateLocalConn(c.id, { instance_id: e.target.value })} className="font-mono text-xs" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Label className="text-xs">URL Base da API</Label>
+                                    <Input value={c.base_url || ""} onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })} placeholder={hint?.base} className="font-mono text-xs" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <Label className="text-xs">{hint?.tokenLabel || "Token / API Key"}</Label>
+                                    <SecretInput value={c.api_token || ""} onChange={(v) => updateLocalConn(c.id, { api_token: v })} placeholder="Token..." />
+                                  </div>
+                                </>
                               )}
 
                               <div>
