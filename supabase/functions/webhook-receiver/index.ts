@@ -136,7 +136,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   const msg = data.message || {};
   const phone = (key.remoteJid || '').split('@')[0];
   const isGroup = (key.remoteJid || '').includes('@g.us');
-  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
+  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.documentMessage?.caption || '';
   const reactionEmoji = msg.reactionMessage?.text;
   const mediaType = msg.imageMessage ? 'image'
     : msg.videoMessage ? 'video'
@@ -145,16 +145,22 @@ function normalizeEvolution(raw: any): NormalizedMsg {
     : msg.stickerMessage ? 'sticker'
     : reactionEmoji ? 'reaction'
     : undefined;
+  // UAZAPI/Evolution surface media url at top-level of data (mediaUrl/fileUrl) or inside the message node (url)
+  const mediaUrl = data.mediaUrl || data.fileUrl || data.FileURL || data.media?.url
+    || msg.imageMessage?.url || msg.videoMessage?.url || msg.audioMessage?.url
+    || msg.documentMessage?.url || msg.stickerMessage?.url;
   return {
     phone: normalizePhone(phone),
     name: data.pushName,
     content: text || reactionEmoji || (mediaType ? `[${mediaType}]` : ''),
     external_message_id: key.id,
     from_me: key.fromMe === true,
+    media_url: mediaUrl,
     media_type: mediaType,
     avatar_url: data.profilePicUrl || data.profilePicture || data.senderPhoto || data.avatarUrl || data.picture,
     is_group: isGroup,
     reaction_emoji: reactionEmoji,
+    document_filename: msg.documentMessage?.fileName || data.fileName,
   } as any;
 }
 
