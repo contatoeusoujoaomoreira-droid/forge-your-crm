@@ -143,6 +143,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     style: "Consultivo",
     tone: "Cordial",
     response_delay_seconds: 15,
+    timezone: "America/Sao_Paulo",
     ai_provider_config_id: "",
     model: "google/gemini-2.5-flash",
     system_prompt: "",
@@ -489,11 +490,28 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
               </div>
             </div>
 
-            <div>
-              <Label>Tempo de resposta (segundos)</Label>
-              <Input type="number" min={0} max={300} value={form.response_delay_seconds || 0}
-                onChange={(e) => setForm({ ...form, response_delay_seconds: Number(e.target.value) })} />
-              <p className="text-xs text-muted-foreground mt-1">Simula digitação (aparência humana)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tempo de resposta (segundos)</Label>
+                <Input type="number" min={0} max={300} value={form.response_delay_seconds ?? 0}
+                  onChange={(e) => setForm({ ...form, response_delay_seconds: Number(e.target.value) })} />
+                <p className="text-xs text-muted-foreground mt-1">0 = imediato. Valor exato é aplicado antes da resposta.</p>
+              </div>
+              <div>
+                <Label>Fuso horário</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                  value={form.timezone || "America/Sao_Paulo"}
+                  onChange={(e) => setForm({ ...form, timezone: e.target.value })}>
+                  {[
+                    "America/Sao_Paulo","America/Manaus","America/Belem","America/Fortaleza","America/Recife",
+                    "America/Cuiaba","America/Campo_Grande","America/Porto_Velho","America/Rio_Branco","America/Noronha",
+                    "America/Bahia","America/Maceio","America/Argentina/Buenos_Aires","America/Santiago","America/Bogota",
+                    "America/Lima","America/Mexico_City","America/New_York","America/Los_Angeles","Europe/Lisbon",
+                    "Europe/Madrid","Europe/London","UTC"
+                  ].map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">A IA usa este fuso para "hoje", "amanhã", etc.</p>
+              </div>
             </div>
 
             <div className="border-t pt-3 space-y-3">

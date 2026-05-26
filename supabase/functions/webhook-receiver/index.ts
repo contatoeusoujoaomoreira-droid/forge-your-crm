@@ -63,12 +63,20 @@ function resolveAiRuntime(agent: any, cfg?: any) {
 }
 
 function buildSystemPrompt(agent: any, ctx: string) {
+  const tz = agent.timezone || 'America/Sao_Paulo';
+  let nowStr = '';
+  try {
+    nowStr = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz, dateStyle: 'full', timeStyle: 'short',
+    }).format(new Date());
+  } catch { nowStr = new Date().toISOString(); }
   return [
     agent.system_prompt || 'Você é um assistente profissional no WhatsApp.',
     `Nome de apresentação: ${agent.display_name || agent.name || 'Agente'}`,
     `Personalidade: ${agent.personality || 'profissional'}`,
     `Estilo: ${agent.style || 'consultivo'}`,
     `Tom: ${agent.tone || 'cordial'}`,
+    `Data/Hora atual (fuso ${tz}): ${nowStr}. Use sempre essa referência ao interpretar "hoje", "amanhã", "agora", etc.`,
     agent.rules ? `Regras e restrições:\n${agent.rules}` : '',
     agent.examples ? `Exemplos de conversa:\n${agent.examples}` : '',
     agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
@@ -128,7 +136,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   const msg = data.message || {};
   const phone = (key.remoteJid || '').split('@')[0];
   const isGroup = (key.remoteJid || '').includes('@g.us');
-  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
+  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.documentMessage?.caption || '';
   const reactionEmoji = msg.reactionMessage?.text;
   const mediaType = msg.imageMessage ? 'image'
     : msg.videoMessage ? 'video'
@@ -137,16 +145,22 @@ function normalizeEvolution(raw: any): NormalizedMsg {
     : msg.stickerMessage ? 'sticker'
     : reactionEmoji ? 'reaction'
     : undefined;
+  // UAZAPI/Evolution surface media url at top-level of data (mediaUrl/fileUrl) or inside the message node (url)
+  const mediaUrl = data.mediaUrl || data.fileUrl || data.FileURL || data.media?.url
+    || msg.imageMessage?.url || msg.videoMessage?.url || msg.audioMessage?.url
+    || msg.documentMessage?.url || msg.stickerMessage?.url;
   return {
     phone: normalizePhone(phone),
     name: data.pushName,
     content: text || reactionEmoji || (mediaType ? `[${mediaType}]` : ''),
     external_message_id: key.id,
     from_me: key.fromMe === true,
+    media_url: mediaUrl,
     media_type: mediaType,
     avatar_url: data.profilePicUrl || data.profilePicture || data.senderPhoto || data.avatarUrl || data.picture,
     is_group: isGroup,
     reaction_emoji: reactionEmoji,
+    document_filename: msg.documentMessage?.fileName || data.fileName,
   } as any;
 }
 
