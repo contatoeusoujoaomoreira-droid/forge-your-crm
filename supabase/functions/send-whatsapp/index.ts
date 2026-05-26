@@ -162,6 +162,9 @@ Deno.serve(async (req) => {
     let clientRow: any = null;
     if (body.client_id) {
       const { data } = await admin.from('chat_clients').select('*').eq('id', body.client_id).maybeSingle();
+      if (data && data.user_id !== userId) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       clientRow = data;
       if (data?.phone) phone = normalizePhone(data.phone);
     }
