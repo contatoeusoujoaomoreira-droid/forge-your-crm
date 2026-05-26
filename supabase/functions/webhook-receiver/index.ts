@@ -440,26 +440,28 @@ async function describeImage(imageUrl: string, providerCfg: any, openaiKey: stri
     }
 
     const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
-    if (!key) return '';
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases, foco no que é relevante para atendimento de cliente).' },
-            { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        }],
-        max_tokens: 200,
-      }),
-    });
-    if (!r.ok) return '';
-    const j = await r.json();
-    const desc = j.choices?.[0]?.message?.content || '';
-    if (desc) return desc;
+    if (key) {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases, foco no que é relevante para atendimento de cliente).' },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          }],
+          max_tokens: 200,
+        }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const desc = j.choices?.[0]?.message?.content || '';
+        if (desc) return desc;
+      }
+    }
 
     const lovableKey = Deno.env.get('LOVABLE_API_KEY') || '';
     if (lovableKey) {
@@ -1332,7 +1334,7 @@ Deno.serve(async (req) => {
           user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
         });
       }
-      await admin.rpc('schedule_handoff_resume', { _client_id: client.id }).catch(() => {});
+      try { await admin.rpc('schedule_handoff_resume', { _client_id: client.id }); } catch (_) {}
     }
     await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
     return new Response(JSON.stringify({ ok: true, mirrored: true, ai_disabled: shouldDisableAi }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
