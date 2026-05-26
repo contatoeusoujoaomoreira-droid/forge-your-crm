@@ -36,6 +36,14 @@ async function sendWhatsAppText(cfg: any, phone: string, content: string) {
       const r = await fetch(`${baseUrl}/${instance}/messages/chat`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, to: phone, body: content }).toString() });
       return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 300) };
     }
+    if (cfg.api_type === 'omniconect') {
+      const r = await fetch(`${baseUrl}/send/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', token },
+        body: JSON.stringify({ number: phone, text: content }),
+      });
+      return { ok: r.ok, status: r.status, body: (await r.text()).slice(0, 300) };
+    }
   } catch (e) { return { ok: false, status: 500, body: String(e).slice(0, 200) }; }
   return { ok: false, status: 400, body: 'unsupported provider' };
 }
