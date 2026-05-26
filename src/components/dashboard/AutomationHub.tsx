@@ -135,6 +135,8 @@ export default function AutomationHub() {
   const [evoPollTimer, setEvoPollTimer] = useState<any>(null);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
+  const OMNI_DEFAULT_BASE = "https://omnibuildercrm.uazapi.com";
+  const OMNI_DEFAULT_ADMIN_TOKEN = "x26znUTwindOpKzpT1eaZQOVg6vtbI582EdrTZsZuJCqttgr05";
 
   useEffect(() => {
     if (!user) return;
