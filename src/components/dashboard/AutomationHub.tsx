@@ -545,8 +545,8 @@ export default function AutomationHub() {
       } else if (status) {
         setEvoQrState(status);
       }
-      // refresh QR if still pending
-      if (status !== "connected" && status !== "connecting") {
+      // refresh QR if still pending and user is on QR tab
+      if (status !== "connected" && status !== "connecting" && pairMode === "qr") {
         const c3 = await supabase.functions.invoke("omniconect", {
           body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
         });
@@ -556,6 +556,63 @@ export default function AutomationHub() {
     }, 4000);
     setEvoPollTimer(t);
   };
+
+  // One-click: cria nova conexão OmniConect sem preencher nada
+  const startOmniQuickConnect = async () => {
+    setPairMode("qr");
+    setPairPhone("");
+    setPairCode("");
+    await startOmniQr({
+      id: null,
+      api_type: "omniconect",
+      base_url: OMNI_DEFAULT_BASE,
+      extra_headers: { admin_token: OMNI_DEFAULT_ADMIN_TOKEN },
+      label: `WhatsApp ${waConfigs.length + 1}`,
+      is_active: true,
+      auto_create_lead: true,
+      ai_auto_reply: true,
+    });
+  };
+
+  // Solicita código de pareamento (8 dígitos) usando o número de telefone
+  const requestPairCode = async () => {
+    if (!omniInstanceToken || !omniBaseUrl) {
+      toast.error("Instância ainda não foi criada.");
+      return;
+    }
+    const phone = pairPhone.replace(/\D/g, "");
+    if (phone.length < 10) {
+      toast.error("Informe o número com DDD e DDI (ex: 5511999998888).");
+      return;
+    }
+    setPairLoading(true);
+    setPairCode("");
+    const { data } = await supabase.functions.invoke("omniconect", {
+      body: { action: "qr", base_url: omniBaseUrl, instance_token: omniInstanceToken, phone },
+    });
+    setPairLoading(false);
+    const code = data?.paircode;
+    if (code) {
+      setPairCode(code);
+      toast.success("Código gerado. Abra o WhatsApp e digite o código.");
+    } else {
+      toast.error(`Não foi possível gerar o código.`);
+    }
+  };
+
+  // Verifica status de uma conexão OmniConect salva
+  const checkOmniStatus = async (c: any) => {
+    if (c.api_type !== "omniconect" || !c.api_token) return;
+    const { data } = await supabase.functions.invoke("omniconect", {
+      body: { action: "status", base_url: c.base_url || OMNI_DEFAULT_BASE, instance_token: c.api_token },
+    });
+    const status = data?.status || "unknown";
+    setOmniStatuses(prev => ({ ...prev, [c.id]: status }));
+    if (status === "connected") toast.success(`${c.label}: conectado`);
+    else toast.info(`${c.label}: ${status}`);
+  };
+
+
 
 
 
