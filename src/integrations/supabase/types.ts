@@ -171,6 +171,7 @@ export type Database = {
           stop_words: string | null
           style: string | null
           system_prompt: string
+          timezone: string
           tone: string | null
           total_tokens_used: number | null
           transcribe_audio: boolean
@@ -237,6 +238,7 @@ export type Database = {
           stop_words?: string | null
           style?: string | null
           system_prompt?: string
+          timezone?: string
           tone?: string | null
           total_tokens_used?: number | null
           transcribe_audio?: boolean
@@ -303,6 +305,7 @@ export type Database = {
           stop_words?: string | null
           style?: string | null
           system_prompt?: string
+          timezone?: string
           tone?: string | null
           total_tokens_used?: number | null
           transcribe_audio?: boolean
