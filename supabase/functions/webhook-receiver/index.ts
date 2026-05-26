@@ -1554,6 +1554,12 @@ Deno.serve(async (req) => {
     console.error('flow runner error', e);
   }
 
+  // Skip AI in WhatsApp group chats unless agent explicitly opts in
+  const isGroupChat = (msg as any).is_group === true;
+  if (isGroupChat && agent && agent.respond_in_groups !== true) {
+    return new Response(JSON.stringify({ ok: true, group_skipped: true, message_id: insertedMsg?.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   // === DEBOUNCE ENQUEUE: agrupa rajadas curtas em vez de responder a cada msg ===
   if (!flowHandled && agent?.group_messages && (agent.debounce_seconds || 0) > 0 && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
@@ -1578,12 +1584,6 @@ Deno.serve(async (req) => {
       console.error('debounce enqueue failed, falling back to direct AI', e);
       // fall through to immediate reply
     }
-  }
-
-  // Skip AI in WhatsApp group chats unless agent explicitly opts in
-  const isGroupChat = (msg as any).is_group === true;
-  if (isGroupChat && agent && agent.respond_in_groups !== true) {
-    return new Response(JSON.stringify({ ok: true, group_skipped: true, message_id: insertedMsg?.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // AI auto-reply (skipped if flow handled the message)
