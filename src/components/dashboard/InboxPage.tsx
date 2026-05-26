@@ -670,13 +670,32 @@ export default function InboxPage() {
                 <option value="outro">Outro</option>
               </select>
             </div>
-            {lastFailure && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] space-y-1">
-                <p className="font-semibold text-destructive">Última falha WhatsApp</p>
-                <p>Status: {lastFailure.metadata?.external_status || "—"}</p>
-                <p className="break-words text-muted-foreground">{lastFailure.metadata?.external_error || lastFailure.metadata?.external_body}</p>
-              </div>
-            )}
+            {lastFailure && (() => {
+              const status = lastFailure.metadata?.external_status;
+              const body = String(lastFailure.metadata?.external_error || lastFailure.metadata?.external_body || "");
+              const isNoConn = !status || status === "—" || /no_active_config|nenhuma conexão|inativ|not configured/i.test(body);
+              return (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] space-y-1">
+                  <p className="font-semibold text-amber-700 dark:text-amber-400">
+                    {isNoConn ? "Sem conexão WhatsApp ativa" : "Última falha no envio"}
+                  </p>
+                  {isNoConn ? (
+                    <>
+                      <p className="text-muted-foreground">Configure uma conexão na aba Automações para enviar/receber mensagens.</p>
+                      <Button size="sm" variant="outline" className="h-7 mt-1 w-full"
+                        onClick={() => navigate("/dashboard?tab=automation")}>
+                        Configurar agora
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      {status && status !== "—" && <p>Status: {status}</p>}
+                      {body && <p className="break-words text-muted-foreground">{body}</p>}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Lead linkage */}
