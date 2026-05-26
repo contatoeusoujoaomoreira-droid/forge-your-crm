@@ -464,7 +464,19 @@ export default function AutomationHub() {
     setEvoPollTimer(t);
   };
 
-  const closeEvoQr = () => { stopEvoPoll(); setEvoQrOpen(false); setEvoQrImage(null); setEvoQrState("idle"); setEvoQrCfg(null); };
+  const closeEvoQr = () => {
+    stopEvoPoll();
+    setEvoQrOpen(false);
+    setEvoQrImage(null);
+    setEvoQrState("idle");
+    setEvoQrCfg(null);
+    setOmniInstanceToken("");
+    setOmniInstanceName("");
+    setOmniBaseUrl("");
+    setPairMode("qr");
+    setPairPhone("");
+    setPairCode("");
+  };
 
   const refreshEvoQr = async () => {
     if (!evoQrCfg) return;
