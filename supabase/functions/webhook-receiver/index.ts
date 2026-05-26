@@ -1580,6 +1580,12 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Skip AI in WhatsApp group chats unless agent explicitly opts in
+  const isGroupChat = (msg as any).is_group === true;
+  if (isGroupChat && agent && agent.respond_in_groups !== true) {
+    return new Response(JSON.stringify({ ok: true, group_skipped: true, message_id: insertedMsg?.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   // AI auto-reply (skipped if flow handled the message)
   if (!flowHandled && waCfg?.ai_auto_reply !== false && convStateInit?.ai_active && convStateInit?.mode === 'ai' && agent) {
     try {
