@@ -418,11 +418,17 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
 // Describe image via the agent's selected vision provider.
 async function describeImage(imageUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
-    // Gemini vision when user selected Google
-    if (providerCfg?.provider === 'google' && providerCfg?.api_key_encrypted) {
-      const imgResp = await fetch(imageUrl);
-      const ct = imgResp.headers.get('content-type') || 'image/jpeg';
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(await imgResp.arrayBuffer())));
+    const imageResp = await fetch(imageUrl);
+    if (!imageResp.ok) return '';
+    const ct = imageResp.headers.get('content-type') || 'image/jpeg';
+    const bytes = new Uint8Array(await imageResp.arrayBuffer());
+    let binary = '';
+    const chunkSz = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
+    const b64 = btoa(binary);
+
+    // Gemini vision when user selected Gemini
+    if ((providerCfg?.provider === 'gemini' || providerCfg?.provider === 'google') && providerCfg?.api_key_encrypted) {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${providerCfg.api_key_encrypted}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [
@@ -452,7 +458,24 @@ async function describeImage(imageUrl: string, providerCfg: any, openaiKey: stri
     });
     if (!r.ok) return '';
     const j = await r.json();
-    return j.choices?.[0]?.message?.content || '';
+    const desc = j.choices?.[0]?.message?.content || '';
+    if (desc) return desc;
+
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY') || '';
+    if (lovableKey) {
+      const lr = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${lovableKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: 'Descreva em português o conteúdo desta imagem com foco no atendimento do cliente. Seja objetivo.' },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ] }],
+        }),
+      });
+      if (lr.ok) { const lj = await lr.json(); return lj.choices?.[0]?.message?.content || ''; }
+    }
   } catch (e) {
     console.error('describeImage error', e);
     return '';
