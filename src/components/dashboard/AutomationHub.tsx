@@ -768,6 +768,11 @@ export default function AutomationHub() {
                                   <Sparkles className="h-4 w-4 mr-1" />Conectar via QR Code
                                 </Button>
                               )}
+                              {c.api_type === "omniconect" && (
+                                <Button size="sm" variant="default" onClick={() => startOmniQr(c)}>
+                                  <Sparkles className="h-4 w-4 mr-1" />Gerar QR Code
+                                </Button>
+                              )}
                               {!isDraft && (
                                 <>
                                   <Button size="sm" variant="outline" onClick={() => testConn(c)} disabled={testing}>
