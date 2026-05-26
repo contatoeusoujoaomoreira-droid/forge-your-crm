@@ -143,6 +143,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     style: "Consultivo",
     tone: "Cordial",
     response_delay_seconds: 15,
+    timezone: "America/Sao_Paulo",
     ai_provider_config_id: "",
     model: "google/gemini-2.5-flash",
     system_prompt: "",
