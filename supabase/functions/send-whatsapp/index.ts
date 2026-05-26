@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
         last_human_reply_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'client_id' });
-      await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }).catch(() => {});
+      try { await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }); } catch (_) {}
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
       try {
         await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`, {
