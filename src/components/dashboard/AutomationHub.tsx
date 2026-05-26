@@ -490,7 +490,7 @@ export default function AutomationHub() {
     else toast.error("Não foi possível obter novo QR.");
   };
 
-  // ===== OmniConect (UAZAPI) QR connect =====
+  // ===== OmniConect QR connect =====
   const startOmniQr = async (cfg: any) => {
     const baseUrl = cfg.base_url || OMNI_DEFAULT_BASE;
     const adminToken = cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN;
@@ -499,32 +499,50 @@ export default function AutomationHub() {
     setEvoQrLoading(true);
     setEvoQrImage(null);
     setEvoQrState("connecting");
-    const { data, error } = await supabase.functions.invoke("omniconect", {
-      body: {
-        action: "create",
-        base_url: baseUrl,
-        admin_token: adminToken,
-        instance_name: cfg.instance_id || undefined,
-        config_id: cfg.id || undefined,
-        label: cfg.label,
-      },
-    });
-    setEvoQrLoading(false);
-    if (error || !data?.ok) {
-      toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
-      setEvoQrState("close");
-      return;
-    }
-    const instanceToken = data.instance_token;
-    const instanceName = data.instance_name;
-    // If QR not returned by create, request via /instance/connect
-    let qr = data.qrcode;
-    if (!qr) {
-      const c2 = await supabase.functions.invoke("omniconect", {
+
+    let instanceToken = cfg.api_token || "";
+    let instanceName = cfg.instance_id || "";
+    let qr: string | null = null;
+
+    // If we already have an instance, reuse it (no new create — avoids hitting limit)
+    if (instanceToken) {
+      const c = await supabase.functions.invoke("omniconect", {
         body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
       });
-      qr = c2.data?.qrcode || null;
+      if (c.data?.ok) {
+        qr = c.data?.qrcode || null;
+      } else {
+        instanceToken = ""; // fallback to create
+      }
     }
+
+    if (!instanceToken) {
+      const { data, error } = await supabase.functions.invoke("omniconect", {
+        body: { action: "create", base_url: baseUrl, admin_token: adminToken,
+          instance_name: cfg.instance_id || undefined, config_id: cfg.id || undefined, label: cfg.label },
+      });
+      if (error || !data?.ok) {
+        setEvoQrLoading(false);
+        toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
+        setEvoQrState("close");
+        return;
+      }
+      instanceToken = data.instance_token;
+      instanceName = data.instance_name;
+      qr = data.qrcode;
+      if (data.reused) toast.info("Reaproveitando instância OmniConect existente.");
+      if (!qr) {
+        const c2 = await supabase.functions.invoke("omniconect", {
+          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+        });
+        qr = c2.data?.qrcode || null;
+      }
+    }
+
+    setOmniInstanceToken(instanceToken);
+    setOmniInstanceName(instanceName);
+    setOmniBaseUrl(baseUrl);
+    setEvoQrLoading(false);
     setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
     setEvoQrState("qr");
     toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
