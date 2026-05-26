@@ -16,6 +16,7 @@ interface SendBody {
   media_url?: string;
   media_type?: string;
   filename?: string;
+  manual_takeover?: boolean;
   template_name?: string;
   template_language?: string;
   template_variables?: any[];
@@ -235,12 +236,20 @@ Deno.serve(async (req) => {
     }).select().single();
 
     if (clientRow?.id) {
-      await admin.from('conversation_state').upsert({
-        user_id: userId, client_id: clientRow.id,
-        ai_active: false, mode: 'manual',
-        last_human_reply_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'client_id' });
+      if (body.manual_takeover === true) {
+        await admin.from('conversation_state').upsert({
+          user_id: userId, client_id: clientRow.id,
+          ai_active: false, mode: 'manual',
+          last_human_reply_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'client_id' });
+      } else {
+        await admin.from('conversation_state').upsert({
+          user_id: userId, client_id: clientRow.id,
+          last_human_reply_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'client_id' });
+      }
       try { await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }); } catch (_) {}
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
       try {
