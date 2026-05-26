@@ -661,14 +661,22 @@ export default function AutomationHub() {
                 </h3>
                 <p className="text-xs text-muted-foreground">Cada conexão é independente, com seu próprio agente, pipeline e tokens.</p>
               </div>
-              <Button size="sm" onClick={() => {
-                if (draftConn) return;
-                const fresh = { id: null, api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}`, extra_headers: {} };
-                setDraftConn(fresh);
-                setExpandedConn("__draft__");
-              }}>
-                <Plus className="h-4 w-4 mr-1" />Nova conexão
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={startOmniQuickConnect} className="gap-1">
+                  <Sparkles className="h-4 w-4" />Conectar WhatsApp
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => {
+                  if (draftConn) return;
+                  const fresh = { id: null, api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}`, extra_headers: {} };
+                  setDraftConn(fresh);
+                  setExpandedConn("__draft__");
+                }}>
+                  <Plus className="h-4 w-4 mr-1" />Avançado
+                </Button>
+              </div>
+            </div>
+            <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-xs text-muted-foreground">
+              ⚡ <strong className="text-primary">Conexão profissional em 1 clique:</strong> clique em "Conectar WhatsApp" e escaneie o QR Code ou use o código de pareamento. Instância, webhook e ativação são feitos automaticamente — sem precisar de URL, token ou instância manual.
             </div>
 
             {(waConfigs.length === 0 && !draftConn) ? (
