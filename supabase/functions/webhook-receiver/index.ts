@@ -63,12 +63,20 @@ function resolveAiRuntime(agent: any, cfg?: any) {
 }
 
 function buildSystemPrompt(agent: any, ctx: string) {
+  const tz = agent.timezone || 'America/Sao_Paulo';
+  let nowStr = '';
+  try {
+    nowStr = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz, dateStyle: 'full', timeStyle: 'short',
+    }).format(new Date());
+  } catch { nowStr = new Date().toISOString(); }
   return [
     agent.system_prompt || 'Você é um assistente profissional no WhatsApp.',
     `Nome de apresentação: ${agent.display_name || agent.name || 'Agente'}`,
     `Personalidade: ${agent.personality || 'profissional'}`,
     `Estilo: ${agent.style || 'consultivo'}`,
     `Tom: ${agent.tone || 'cordial'}`,
+    `Data/Hora atual (fuso ${tz}): ${nowStr}. Use sempre essa referência ao interpretar "hoje", "amanhã", "agora", etc.`,
     agent.rules ? `Regras e restrições:\n${agent.rules}` : '',
     agent.examples ? `Exemplos de conversa:\n${agent.examples}` : '',
     agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
