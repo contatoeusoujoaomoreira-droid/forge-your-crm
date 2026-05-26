@@ -1212,20 +1212,33 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // If message was sent FROM the user's own phone (manual reply via WhatsApp app),
-  // mirror it as outbound and force human takeover (disable AI for this conversation)
+  // If message was sent FROM the user's own phone, decide whether to:
+  //  (a) ignore it (because WE sent it via API — UAZAPI echoes outbound back as fromMe), or
+  //  (b) mirror as outbound + take over (real manual reply from the user's WhatsApp app).
   if (msg.from_me) {
-    // Ensure conversation_state exists and disable AI
-    const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
-    if (csExisting) {
-      await admin.from('conversation_state').update({
-        ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq('id', csExisting.id);
-    } else {
-      await admin.from('conversation_state').insert({
-        user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
-      });
+    // 1) Dedup against external id we already stored (sends save UAZAPI id)
+    let isOurOwnSend = false;
+    if (msg.external_message_id) {
+      const { data: own } = await admin.from('messages').select('id')
+        .eq('user_id', userId).eq('external_message_id', msg.external_message_id)
+        .eq('direction', 'outbound').maybeSingle();
+      if (own) isOurOwnSend = true;
     }
+    // 2) Fallback: same content sent within last 90s for this client
+    if (!isOurOwnSend) {
+      const since = new Date(Date.now() - 90_000).toISOString();
+      const { data: recent } = await admin.from('messages').select('id, content')
+        .eq('user_id', userId).eq('client_id', client.id).eq('direction', 'outbound')
+        .gte('created_at', since).order('created_at', { ascending: false }).limit(5);
+      if ((recent || []).some((r: any) => (r.content || '').trim() === (msg.content || '').trim() && (msg.content || '').trim().length > 0)) {
+        isOurOwnSend = true;
+      }
+    }
+    if (isOurOwnSend) {
+      return new Response(JSON.stringify({ ok: true, echo_skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Real human reply from the phone — mirror as outbound
     await admin.from('messages').insert({
       user_id: userId,
       client_id: client.id,
@@ -1241,9 +1254,34 @@ Deno.serve(async (req) => {
       created_at: msg.timestamp || new Date().toISOString(),
       metadata: { sent_from_phone: true, mirror: true, raw_type: raw.type || raw.event || null },
     });
+
+    // Only flip AI off if the assigned agent (or any active agent for this user) opts in
+    let shouldDisableAi = true;
+    try {
+      const { data: csNow } = await admin.from('conversation_state').select('assigned_agent_id').eq('client_id', client.id).maybeSingle();
+      const aid = csNow?.assigned_agent_id;
+      if (aid) {
+        const { data: ag } = await admin.from('ai_agents').select('disable_on_human_takeover').eq('id', aid).maybeSingle();
+        if (ag && ag.disable_on_human_takeover === false) shouldDisableAi = false;
+      }
+    } catch {}
+    if (shouldDisableAi) {
+      const { data: csExisting } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
+      if (csExisting) {
+        await admin.from('conversation_state').update({
+          ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq('id', csExisting.id);
+      } else {
+        await admin.from('conversation_state').insert({
+          user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
+        });
+      }
+      await admin.rpc('schedule_handoff_resume', { _client_id: client.id }).catch(() => {});
+    }
     await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
-    return new Response(JSON.stringify({ ok: true, mirrored: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: true, mirrored: true, ai_disabled: shouldDisableAi }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+
 
   // Use matched config (multi-instance) if available; otherwise fallback to first active for the user
   const { data: waCfg } = matchedConfig
