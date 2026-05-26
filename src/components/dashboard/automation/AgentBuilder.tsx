@@ -156,6 +156,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     handoff_keywords: "",
     handoff_mode: "pause",
     handoff_pause_minutes: 30,
+    respond_in_groups: false,
+    disable_on_human_takeover: true,
     stop_words: "",
     inactivity_timeout_minutes: null,
     message_limit: null,
@@ -236,6 +238,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         system_prompt: "", rules: "", examples: "", objections: "",
         pipeline_id: "", stage_id: "", routing_rules: [],
         handoff_enabled: false, handoff_keywords: "", handoff_mode: "pause", handoff_pause_minutes: 30,
+        respond_in_groups: false, disable_on_human_takeover: true,
         stop_words: "",
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
@@ -813,10 +816,33 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             />
 
             <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>👥 Responder em grupos de WhatsApp</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Quando desligado, o agente ignora mensagens vindas de grupos.</p>
+                </div>
+                <Switch checked={!!form.respond_in_groups}
+                  onCheckedChange={(v) => setForm({ ...form, respond_in_groups: v })} />
+              </div>
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>🙋 Desativar agente quando humano responder pelo WhatsApp</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Se você mandar uma mensagem direto pelo seu WhatsApp, o agente pausa nessa conversa. Desligue para manter o agente ativo mesmo após resposta humana.</p>
+                </div>
+                <Switch checked={form.disable_on_human_takeover !== false}
+                  onCheckedChange={(v) => setForm({ ...form, disable_on_human_takeover: v })} />
+              </div>
+            </Card>
+
+            <Card className="p-4 space-y-3">
               <Label className="flex items-center gap-2">⛔ Palavras de parada</Label>
               <Input placeholder="Ex: cancelar, sair, parar (separe por vírgula)"
                 value={form.stop_words || ""} onChange={(e) => setForm({ ...form, stop_words: e.target.value })} />
             </Card>
+
 
             <Card className="p-4 space-y-3">
               <Label className="flex items-center gap-2">⏱️ Timeout por inatividade (minutos)</Label>

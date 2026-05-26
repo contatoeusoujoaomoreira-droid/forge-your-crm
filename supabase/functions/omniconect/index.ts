@@ -74,10 +74,12 @@ Deno.serve(async (req) => {
         if (reuse?.token) {
           const reuseToken = reuse.token;
           const reuseName = reuse.name || reuse.instanceName || instanceName;
-          await uaz(baseUrl, '/webhook', { token: reuseToken }, 'POST', {
-            url: WEBHOOK_URL, events: ['messages', 'connection'], excludeMessages: ['fromMe'],
+          const wh = await uaz(baseUrl, '/webhook', { token: reuseToken }, 'POST', {
+            url: WEBHOOK_URL,
+            events: ['messages', 'messages_update', 'connection', 'presence'],
+            excludeMessages: ['fromMe'],
             addUrlEvents: false, addUrlTypesMessages: false,
-          }).catch(() => {});
+          });
           const patch: any = {
             api_type: 'omniconect', base_url: baseUrl, instance_id: reuseName, api_token: reuseToken,
             extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [reuseName],
@@ -93,7 +95,9 @@ Deno.serve(async (req) => {
           const inst = conn.json?.instance || conn.json;
           return new Response(JSON.stringify({
             ok: true, reused: true, config_id: configId, instance_name: reuseName, instance_token: reuseToken,
-            qrcode: inst?.qrcode || null, paircode: inst?.paircode || null, raw: conn.json,
+            qrcode: inst?.qrcode || null, paircode: inst?.paircode || null,
+            webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+            raw: conn.json,
           }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Remova uma conexão antiga para liberar espaço.', body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -116,12 +120,19 @@ Deno.serve(async (req) => {
         if (ins.data) configId = (ins.data as any).id;
       }
 
-      await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
-        url: WEBHOOK_URL, events: ['messages', 'connection'], excludeMessages: ['fromMe'],
+      const wh = await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
+        url: WEBHOOK_URL,
+        events: ['messages', 'messages_update', 'connection', 'presence'],
+        excludeMessages: ['fromMe'],
         addUrlEvents: false, addUrlTypesMessages: false,
-      }).catch(() => {});
+      });
 
-      return new Response(JSON.stringify({ ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken, qrcode, paircode, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({
+        ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken,
+        qrcode, paircode,
+        webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+        raw: r.json,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'qr' || action === 'connect') {

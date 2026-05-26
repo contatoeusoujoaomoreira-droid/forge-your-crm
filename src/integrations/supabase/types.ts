@@ -123,6 +123,7 @@ export type Database = {
           business_hours: Json
           created_at: string
           debounce_seconds: number
+          disable_on_human_takeover: boolean
           display_name: string | null
           enable_scheduling_tools: boolean
           examples: string | null
@@ -156,6 +157,7 @@ export type Database = {
           personality: string | null
           pipeline_id: string | null
           reply_to_audio_with_audio: boolean
+          respond_in_groups: boolean
           response_delay_seconds: number | null
           routing_rules: Json
           rules: string | null
@@ -187,6 +189,7 @@ export type Database = {
           business_hours?: Json
           created_at?: string
           debounce_seconds?: number
+          disable_on_human_takeover?: boolean
           display_name?: string | null
           enable_scheduling_tools?: boolean
           examples?: string | null
@@ -220,6 +223,7 @@ export type Database = {
           personality?: string | null
           pipeline_id?: string | null
           reply_to_audio_with_audio?: boolean
+          respond_in_groups?: boolean
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
@@ -251,6 +255,7 @@ export type Database = {
           business_hours?: Json
           created_at?: string
           debounce_seconds?: number
+          disable_on_human_takeover?: boolean
           display_name?: string | null
           enable_scheduling_tools?: boolean
           examples?: string | null
@@ -284,6 +289,7 @@ export type Database = {
           personality?: string | null
           pipeline_id?: string | null
           reply_to_audio_with_audio?: boolean
+          respond_in_groups?: boolean
           response_delay_seconds?: number | null
           routing_rules?: Json
           rules?: string | null
@@ -1377,6 +1383,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          max_whatsapp_instances: number
           permissions: Json
           plan: string
           tier: string
@@ -1392,6 +1399,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          max_whatsapp_instances?: number
           permissions?: Json
           plan?: string
           tier?: string
@@ -1407,6 +1415,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          max_whatsapp_instances?: number
           permissions?: Json
           plan?: string
           tier?: string

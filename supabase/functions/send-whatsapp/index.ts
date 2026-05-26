@@ -121,17 +121,20 @@ async function dispatch(provider: string, cfg: any, phone: string, body: SendBod
     case 'omniconect': {
       // UAZAPI: header `token: <instance_token>`
       const headers: Record<string, string> = { 'Content-Type': 'application/json', token };
+      const parseExt = (txt: string) => { try { const j = JSON.parse(txt); return j?.id || j?.messageID || j?.messageId || j?.message?.id || j?.key?.id || null; } catch { return null; } };
       if (hasMedia) {
         const type = mapOmniconectType(body.media_type, body.media_url);
         const payload: any = { number: phone, type, file: body.media_url };
         if (body.content) payload.text = body.content;
         if (body.filename) payload.docName = body.filename;
         const resp = await fetch(`${baseUrl}/send/media`, { method: 'POST', headers, body: JSON.stringify(payload) });
-        return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 800), sent_payload: payload };
+        const txt = (await resp.text()).slice(0, 800);
+        return { ok: resp.ok, status: resp.status, body: txt, sent_payload: payload, external_id: parseExt(txt) };
       }
       const payload = { number: phone, text: body.content };
       const resp = await fetch(`${baseUrl}/send/text`, { method: 'POST', headers, body: JSON.stringify(payload) });
-      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 800), sent_payload: payload };
+      const txt = (await resp.text()).slice(0, 800);
+      return { ok: resp.ok, status: resp.status, body: txt, sent_payload: payload, external_id: parseExt(txt) };
     }
     default:
       return { ok: false, status: 400, body: `Provider ${provider} não suportado` };
@@ -180,6 +183,7 @@ Deno.serve(async (req) => {
     let externalStatus: number | null = null;
     let externalBody: string | null = null;
     let sentPayload: any = null;
+    let externalId: string | null = null;
     if (cfg) {
       try {
         const result: any = await dispatch(cfg.api_type, cfg, phone, body);
@@ -187,6 +191,7 @@ Deno.serve(async (req) => {
         externalStatus = result.status ?? null;
         externalBody = (result.body || '').toString().slice(0, 1000);
         sentPayload = result.sent_payload ?? null;
+        externalId = result.external_id ?? null;
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -205,12 +210,15 @@ Deno.serve(async (req) => {
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
       sender_phone: phone,
+      external_message_id: externalId,
       metadata: {
         external_error: externalError,
         external_status: externalStatus,
         external_body: externalBody,
         provider: cfg?.api_type || null,
         sent_payload: sentPayload,
+        instance_id: cfg?.instance_id || null,
+        instance_label: cfg?.label || null,
       },
     }).select().single();
 
