@@ -15,14 +15,30 @@ const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/webhook-receiver`;
 const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
 
 async function uaz(baseUrl: string, path: string, headers: Record<string, string>, method = 'GET', body?: any) {
-  const r = await fetch(`${sanitize(baseUrl)}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await r.text();
-  let json: any = null; try { json = JSON.parse(text); } catch {}
-  return { ok: r.ok, status: r.status, text, json };
+  const url = `${sanitize(baseUrl)}${path}`;
+  let lastErr: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 25000);
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Connection': 'close', ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const text = await r.text();
+      let json: any = null; try { json = JSON.parse(text); } catch {}
+      return { ok: r.ok, status: r.status, text, json };
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.message || e);
+      if (!/http2|SendRequest|connection|reset|ECONNRESET|timeout|aborted|network/i.test(msg)) break;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  return { ok: false, status: 0, text: String(lastErr?.message || lastErr || 'network_error'), json: null };
 }
 
 Deno.serve(async (req) => {
