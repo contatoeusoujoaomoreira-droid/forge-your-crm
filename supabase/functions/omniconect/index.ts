@@ -13,6 +13,15 @@ const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/webhook-receiver`;
 
 const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
+const OMNI_EVENTS = ['messages', 'messages_update', 'connection', 'presence', 'chats', 'groups', 'contacts'];
+const webhookUrlFor = (configId?: string | null) => configId ? `${WEBHOOK_URL}?config_id=${encodeURIComponent(configId)}` : WEBHOOK_URL;
+
+async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {
+  return await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', {
+    url: customUrl || webhookUrlFor(configId),
+    events: OMNI_EVENTS,
+  });
+}
 
 async function uaz(baseUrl: string, path: string, headers: Record<string, string>, method = 'GET', body?: any) {
   const url = `${sanitize(baseUrl)}${path}`;
@@ -90,16 +99,13 @@ Deno.serve(async (req) => {
         if (reuse?.token) {
           const reuseToken = reuse.token;
           const reuseName = reuse.name || reuse.instanceName || instanceName;
-          const wh = await uaz(baseUrl, '/webhook', { token: reuseToken }, 'POST', {
-            url: WEBHOOK_URL,
-            events: ['messages', 'messages_update', 'connection', 'presence'],
-            excludeMessages: ['fromMe'],
-            addUrlEvents: false, addUrlTypesMessages: false,
-          });
           const patch: any = {
             api_type: 'omniconect', base_url: baseUrl, instance_id: reuseName, api_token: reuseToken,
             extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [reuseName],
           };
+          if (body.default_agent_id) patch.default_agent_id = body.default_agent_id;
+          if (body.default_pipeline_id) patch.default_pipeline_id = body.default_pipeline_id;
+          if (body.default_stage_id) patch.default_stage_id = body.default_stage_id;
           let configId = body.config_id;
           if (configId) {
             await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId);
@@ -107,6 +113,7 @@ Deno.serve(async (req) => {
             const ins = await admin.from('whatsapp_configs').insert({ ...patch, user_id: userId, label: body.label || `OmniConect ${String(reuseName).slice(-6)}`, auto_create_lead: true, ai_auto_reply: true }).select('id').single();
             if (ins.data) configId = (ins.data as any).id;
           }
+          const wh = await setOmniWebhook(baseUrl, reuseToken, configId);
           const conn = await uaz(baseUrl, '/instance/connect', { token: reuseToken }, 'POST', {});
           const inst = conn.json?.instance || conn.json;
           return new Response(JSON.stringify({
@@ -128,6 +135,9 @@ Deno.serve(async (req) => {
         api_type: 'omniconect', base_url: baseUrl, instance_id: instanceName, api_token: instToken,
         extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [instanceName],
       };
+      if (body.default_agent_id) patch.default_agent_id = body.default_agent_id;
+      if (body.default_pipeline_id) patch.default_pipeline_id = body.default_pipeline_id;
+      if (body.default_stage_id) patch.default_stage_id = body.default_stage_id;
       let configId = body.config_id;
       if (configId) {
         await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId);
@@ -136,12 +146,7 @@ Deno.serve(async (req) => {
         if (ins.data) configId = (ins.data as any).id;
       }
 
-      const wh = await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
-        url: WEBHOOK_URL,
-        events: ['messages', 'messages_update', 'connection', 'presence'],
-        excludeMessages: ['fromMe'],
-        addUrlEvents: false, addUrlTypesMessages: false,
-      });
+      const wh = await setOmniWebhook(baseUrl, instToken, configId);
 
       return new Response(JSON.stringify({
         ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken,
@@ -160,7 +165,17 @@ Deno.serve(async (req) => {
       const qrcode = inst?.qrcode || r.json?.qrcode || null;
       const paircode = inst?.paircode || r.json?.paircode || null;
       const status = inst?.status || r.json?.status || null;
-      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      let configId = body.config_id || null;
+      if (!configId) {
+        const { data: cfg } = await admin.from('whatsapp_configs').select('id, instance_id, webhook_instance_ids').eq('user_id', userId).eq('api_token', instanceToken).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        configId = cfg?.id || null;
+        if (cfg?.id) {
+          const ids = Array.from(new Set([...(cfg.webhook_instance_ids || []), cfg.instance_id].filter(Boolean)));
+          await admin.from('whatsapp_configs').update({ api_type: 'omniconect', base_url: baseUrl, is_active: true, webhook_instance_ids: ids }).eq('id', cfg.id);
+        }
+      }
+      const wh = await setOmniWebhook(baseUrl, instanceToken, configId);
+      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) }, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'status') {
@@ -173,13 +188,7 @@ Deno.serve(async (req) => {
 
     if (action === 'set_webhook') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      const r = await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', {
-        url: body.webhook_url || WEBHOOK_URL,
-        events: body.events || ['messages', 'connection'],
-        excludeMessages: body.excludeMessages || ['fromMe'],
-        addUrlEvents: false,
-        addUrlTypesMessages: false,
-      });
+      const r = await setOmniWebhook(baseUrl, instanceToken, body.config_id || null, body.webhook_url);
       return new Response(JSON.stringify({ ok: r.ok, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
