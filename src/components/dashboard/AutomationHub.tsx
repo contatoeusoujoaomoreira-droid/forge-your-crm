@@ -916,30 +916,76 @@ export default function AutomationHub() {
           {evoQrOpen && (
             <Card className="p-4 space-y-3 border-primary/40">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />{evoQrCfg?.api_type === "omniconect" ? "OmniConect · Conexão por QR Code" : "Evolution GO · Conexão por QR Code"}</h3>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  {evoQrCfg?.api_type === "omniconect" ? "Conectar WhatsApp" : "Evolution GO · Conexão por QR Code"}
+                </h3>
                 <Button size="sm" variant="ghost" onClick={closeEvoQr}>Fechar</Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Estado: <strong className={evoQrState === "open" ? "text-emerald-500" : evoQrState === "qr" ? "text-amber-500" : "text-muted-foreground"}>{evoQrState}</strong>
-                {" · "}Instância: <code className="font-mono">{evoQrCfg?.instance_id || "(nova)"}</code>
-              </p>
+              <div className="flex items-center gap-2 text-xs">
+                <Badge variant={evoQrState === "open" ? "default" : "secondary"} className={evoQrState === "open" ? "bg-emerald-500 hover:bg-emerald-500" : ""}>
+                  {evoQrState === "open" ? "✓ Conectado" : evoQrState === "qr" ? "Aguardando leitura" : evoQrState === "connecting" ? "Criando instância…" : evoQrState}
+                </Badge>
+                {omniInstanceName && <span className="text-muted-foreground">Instância: <code className="font-mono">{omniInstanceName}</code></span>}
+              </div>
+
+              {evoQrCfg?.api_type === "omniconect" && evoQrState !== "open" && (
+                <div className="flex gap-1 p-1 rounded-lg bg-secondary/50 w-fit">
+                  <button
+                    onClick={() => setPairMode("qr")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${pairMode === "qr" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >QR Code</button>
+                  <button
+                    onClick={() => setPairMode("phone")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${pairMode === "phone" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >Código de pareamento</button>
+                </div>
+              )}
+
               <div className="flex flex-col items-center gap-3 py-4">
-                {evoQrLoading && <p className="text-sm text-muted-foreground">Gerando QR Code…</p>}
-                {!evoQrLoading && evoQrImage && evoQrState !== "open" && (
-                  <img src={evoQrImage} alt="QR Code Evolution GO" className="w-64 h-64 border border-border rounded-lg bg-white p-2" />
-                )}
-                {evoQrState === "open" && (
+                {evoQrState === "open" ? (
                   <div className="text-center space-y-2">
                     <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
                     <p className="font-semibold text-emerald-500">WhatsApp conectado com sucesso!</p>
-                    <p className="text-xs text-muted-foreground">Webhook configurado. Mensagens recebidas já são processadas pelo agente IA.</p>
+                    <p className="text-xs text-muted-foreground">Webhook global ativado. Mensagens já são processadas pelo agente IA.</p>
+                  </div>
+                ) : pairMode === "qr" || evoQrCfg?.api_type !== "omniconect" ? (
+                  <>
+                    {evoQrLoading && <p className="text-sm text-muted-foreground">Gerando QR Code…</p>}
+                    {!evoQrLoading && evoQrImage && (
+                      <img src={evoQrImage} alt="QR Code WhatsApp" className="w-64 h-64 border border-border rounded-lg bg-white p-2" />
+                    )}
+                    {evoQrImage && (
+                      <p className="text-xs text-muted-foreground text-center max-w-xs">
+                        Abra o WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → escaneie acima.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full max-w-sm space-y-3">
+                    <div>
+                      <Label className="text-xs">Número de telefone (com DDI e DDD)</Label>
+                      <Input
+                        value={pairPhone}
+                        onChange={(e) => setPairPhone(e.target.value)}
+                        placeholder="5511999998888"
+                        className="font-mono"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">Apenas dígitos. Ex: 5511987654321</p>
+                    </div>
+                    <Button size="sm" onClick={requestPairCode} disabled={pairLoading || !omniInstanceToken} className="w-full">
+                      {pairLoading ? "Gerando código…" : "Gerar código de pareamento"}
+                    </Button>
+                    {pairCode && (
+                      <div className="text-center space-y-2 p-4 rounded-lg border-2 border-primary/40 bg-primary/5">
+                        <p className="text-xs text-muted-foreground">Digite no WhatsApp:</p>
+                        <code className="block text-3xl font-mono font-bold tracking-[0.3em] text-primary">{pairCode}</code>
+                        <p className="text-[11px] text-muted-foreground">WhatsApp → Aparelhos conectados → Conectar com número de telefone</p>
+                      </div>
+                    )}
                   </div>
                 )}
-                {evoQrState !== "open" && evoQrImage && (
-                  <p className="text-xs text-muted-foreground text-center max-w-xs">
-                    Abra o WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → escaneie acima.
-                  </p>
-                )}
+
                 <div className="flex gap-2">
                   {evoQrState !== "open" && evoQrCfg?.api_type !== "omniconect" && (
                     <Button size="sm" variant="outline" onClick={refreshEvoQr} disabled={evoQrLoading}>
