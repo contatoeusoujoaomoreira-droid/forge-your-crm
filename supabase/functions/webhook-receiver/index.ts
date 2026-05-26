@@ -741,7 +741,10 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
         headers: { 'Content-Type': 'application/json', token },
         body: JSON.stringify({ number: phone, text: content }),
       });
-      return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
+      const txt = (await resp.text()).slice(0, 800);
+      let extId: string | undefined;
+      try { const j = JSON.parse(txt); extId = j?.id || j?.messageID || j?.messageId || j?.message?.id || j?.key?.id; } catch {}
+      return { ok: resp.ok, status: resp.status, body: txt, external_id: extId };
     }
     default: {
       const resp = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify({ phone, message: content }) });
