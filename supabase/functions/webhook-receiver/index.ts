@@ -418,11 +418,17 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
 // Describe image via the agent's selected vision provider.
 async function describeImage(imageUrl: string, providerCfg: any, openaiKey: string): Promise<string> {
   try {
-    // Gemini vision when user selected Google
-    if (providerCfg?.provider === 'google' && providerCfg?.api_key_encrypted) {
-      const imgResp = await fetch(imageUrl);
-      const ct = imgResp.headers.get('content-type') || 'image/jpeg';
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(await imgResp.arrayBuffer())));
+    const imageResp = await fetch(imageUrl);
+    if (!imageResp.ok) return '';
+    const ct = imageResp.headers.get('content-type') || 'image/jpeg';
+    const bytes = new Uint8Array(await imageResp.arrayBuffer());
+    let binary = '';
+    const chunkSz = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
+    const b64 = btoa(binary);
+
+    // Gemini vision when user selected Gemini
+    if ((providerCfg?.provider === 'gemini' || providerCfg?.provider === 'google') && providerCfg?.api_key_encrypted) {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${providerCfg.api_key_encrypted}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [
@@ -434,25 +440,44 @@ async function describeImage(imageUrl: string, providerCfg: any, openaiKey: stri
     }
 
     const key = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
-    if (!key) return '';
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases, foco no que é relevante para atendimento de cliente).' },
+    if (key) {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Descreva brevemente em português o conteúdo desta imagem (1-2 frases, foco no que é relevante para atendimento de cliente).' },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          }],
+          max_tokens: 200,
+        }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const desc = j.choices?.[0]?.message?.content || '';
+        if (desc) return desc;
+      }
+    }
+
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY') || '';
+    if (lovableKey) {
+      const lr = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${lovableKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: 'Descreva em português o conteúdo desta imagem com foco no atendimento do cliente. Seja objetivo.' },
             { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        }],
-        max_tokens: 200,
-      }),
-    });
-    if (!r.ok) return '';
-    const j = await r.json();
-    return j.choices?.[0]?.message?.content || '';
+          ] }],
+        }),
+      });
+      if (lr.ok) { const lj = await lr.json(); return lj.choices?.[0]?.message?.content || ''; }
+    }
   } catch (e) {
     console.error('describeImage error', e);
     return '';
@@ -1309,7 +1334,7 @@ Deno.serve(async (req) => {
           user_id: userId, client_id: client.id, ai_active: false, mode: 'manual', last_human_reply_at: new Date().toISOString(),
         });
       }
-      await admin.rpc('schedule_handoff_resume', { _client_id: client.id }).catch(() => {});
+      try { await admin.rpc('schedule_handoff_resume', { _client_id: client.id }); } catch (_) {}
     }
     await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', client.id);
     return new Response(JSON.stringify({ ok: true, mirrored: true, ai_disabled: shouldDisableAi }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
