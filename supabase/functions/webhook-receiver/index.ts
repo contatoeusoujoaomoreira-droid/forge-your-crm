@@ -966,6 +966,17 @@ async function resolveAgent(admin: any, userId: string, client: any, lead: any, 
   return waCfg?.default_agent_id || active[0]?.id || null;
 }
 
+async function resolveWhatsAppConfigForClient(admin: any, userId: string, client: any) {
+  const entry = String(client?.metadata?.entry_instance || client?.metadata?.instance_id || '').trim();
+  const { data: cfgs } = await admin.from('whatsapp_configs').select('*').eq('user_id', userId).eq('is_active', true).order('updated_at', { ascending: false });
+  const list = cfgs || [];
+  if (entry) {
+    const exact = list.find((cfg: any) => cfg.instance_id === entry || (Array.isArray(cfg.webhook_instance_ids) && cfg.webhook_instance_ids.includes(entry)));
+    if (exact) return exact;
+  }
+  return list[0] || null;
+}
+
 // Split a long reply into 1-3 natural chunks.
 function splitMessage(text: string, max = 320): string[] {
   if (!text) return [];
@@ -1022,7 +1033,7 @@ Deno.serve(async (req) => {
       const { data: providerCfg } = agent.ai_provider_config_id
         ? await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).maybeSingle()
         : { data: null };
-      const { data: waCfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', dUserId).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      const waCfg = await resolveWhatsAppConfigForClient(admin, dUserId, client);
 
       const { data: history } = await admin.from('messages').select('direction, content')
         .eq('client_id', dClientId).order('created_at', { ascending: false }).limit(20);
@@ -1080,6 +1091,11 @@ Deno.serve(async (req) => {
     await admin.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyRow.id);
     userId = keyRow.user_id;
   } else {
+    const configId = url.searchParams.get('config_id') || raw.config_id;
+    if (configId) {
+      const { data: cfgById } = await admin.from('whatsapp_configs').select('*').eq('id', String(configId)).eq('is_active', true).maybeSingle();
+      if (cfgById) { userId = cfgById.user_id; matchedConfig = cfgById; }
+    }
     // Collect every possible identifier the provider may send in webhooks
     const candidateIds = Array.from(new Set([
       raw.instanceId, raw.instance_id, raw.instance, raw.instanceName,
@@ -1090,7 +1106,7 @@ Deno.serve(async (req) => {
     ].map((v) => (v == null ? '' : String(v).trim())).filter(Boolean)));
     const instanceFromPayload = candidateIds[0] || '';
 
-    if (candidateIds.length) {
+    if (!userId && candidateIds.length) {
       // Match against either instance_id OR webhook_instance_ids array (umClique sends a separate channel_id)
       const { data: cfgRows } = await admin.from('whatsapp_configs')
         .select('*')
@@ -1303,7 +1319,7 @@ Deno.serve(async (req) => {
   // Use matched config (multi-instance) if available; otherwise fallback to first active for the user
   const { data: waCfg } = matchedConfig
     ? { data: matchedConfig }
-    : await admin.from('whatsapp_configs').select('*').eq('user_id', userId).eq('is_active', true).order('created_at').limit(1).maybeSingle();
+    : { data: await resolveWhatsAppConfigForClient(admin, userId, client) };
 
   if (client && !client.lead_id && waCfg?.auto_create_lead) {
     let stageId = waCfg.default_stage_id;

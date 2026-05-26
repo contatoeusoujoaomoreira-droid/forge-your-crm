@@ -507,7 +507,7 @@ export default function AutomationHub() {
     // If we already have an instance, reuse it (no new create — avoids hitting limit)
     if (instanceToken) {
       const c = await supabase.functions.invoke("omniconect", {
-        body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+        body: { action: "qr", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
       });
       if (c.data?.ok) {
         qr = c.data?.qrcode || null;
@@ -519,7 +519,10 @@ export default function AutomationHub() {
     if (!instanceToken) {
       const { data, error } = await supabase.functions.invoke("omniconect", {
         body: { action: "create", base_url: baseUrl, admin_token: adminToken,
-          instance_name: cfg.instance_id || undefined, config_id: cfg.id || undefined, label: cfg.label },
+          instance_name: cfg.instance_id || undefined, config_id: cfg.id || undefined, label: cfg.label,
+          default_agent_id: cfg.default_agent_id || undefined,
+          default_pipeline_id: cfg.default_pipeline_id || undefined,
+          default_stage_id: cfg.default_stage_id || undefined },
       });
       if (error || !data?.ok) {
         setEvoQrLoading(false);
@@ -533,7 +536,7 @@ export default function AutomationHub() {
       if (data.reused) toast.info("Reaproveitando instância OmniConect existente.");
       if (!qr) {
         const c2 = await supabase.functions.invoke("omniconect", {
-          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         qr = c2.data?.qrcode || null;
       }
@@ -557,7 +560,7 @@ export default function AutomationHub() {
         clearInterval(t); setEvoPollTimer(null);
         toast.success("✅ WhatsApp conectado!");
         await supabase.functions.invoke("omniconect", {
-          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken },
+          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         await reloadWaConfigs();
       } else if (status) {
@@ -566,7 +569,7 @@ export default function AutomationHub() {
       // refresh QR if still pending and user is on QR tab
       if (status !== "connected" && status !== "connecting" && pairMode === "qr") {
         const c3 = await supabase.functions.invoke("omniconect", {
-          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         const nq = c3.data?.qrcode;
         if (nq) setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`);

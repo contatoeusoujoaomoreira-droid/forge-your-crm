@@ -49,6 +49,19 @@ const sanitizeBaseUrl = (url: string) =>
     .replace(/\/send-image$/, '')
     .replace(/\/send-document$/, '');
 
+const configMatchesClient = (cfg: any, client: any) => {
+  const entry = String(client?.metadata?.entry_instance || client?.metadata?.instance_id || '').trim();
+  if (!entry) return false;
+  return cfg?.instance_id === entry || (Array.isArray(cfg?.webhook_instance_ids) && cfg.webhook_instance_ids.includes(entry));
+};
+
+async function resolveWhatsAppConfig(admin: any, userId: string, clientRow: any) {
+  const { data: cfgs } = await admin.from('whatsapp_configs').select('*')
+    .eq('user_id', userId).eq('is_active', true).order('updated_at', { ascending: false });
+  const list = cfgs || [];
+  return list.find((cfg: any) => configMatchesClient(cfg, clientRow)) || list[0] || null;
+}
+
 async function dispatch(provider: string, cfg: any, phone: string, body: SendBody) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
   const token = cfg.api_token || '';
@@ -175,8 +188,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Phone required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { data: cfg } = await admin.from('whatsapp_configs').select('*')
-      .eq('user_id', userId).eq('is_active', true).maybeSingle();
+    const cfg = await resolveWhatsAppConfig(admin, userId, clientRow);
 
     let externalSent = false;
     let externalError: string | null = null;
