@@ -1661,8 +1661,9 @@ Deno.serve(async (req) => {
           },
         });
 
-        // === HANDOFF AUTOMÁTICO se cliente pediu humano ou se qualificou ===
-        if (intent.handoff || intent.qualified) {
+        // === HANDOFF: só desativa o agente em pedido EXPLÍCITO de humano.
+        // Lead qualificado apenas notifica (agente continua atendendo até concluir).
+        if (intent.handoff) {
           await admin.from('conversation_state').upsert({
             user_id: userId, client_id: client.id,
             ai_active: false, mode: 'manual',
@@ -1670,8 +1671,17 @@ Deno.serve(async (req) => {
           }, { onConflict: 'client_id' });
           await admin.from('notifications').insert({
             user_id: userId,
-            type: intent.handoff ? 'handoff' : 'qualified',
-            title: intent.handoff ? '🙋 Cliente pediu atendimento humano' : '✅ Lead qualificado',
+            type: 'handoff',
+            title: '🙋 Cliente pediu atendimento humano',
+            message: `${client.name || msg.phone}: "${(lastUserText || '').slice(0, 100)}"`,
+            related_id: client.id,
+            metadata: { phone: msg.phone, intent },
+          });
+        } else if (intent.qualified) {
+          await admin.from('notifications').insert({
+            user_id: userId,
+            type: 'qualified',
+            title: '✅ Lead qualificado',
             message: `${client.name || msg.phone}: "${(lastUserText || '').slice(0, 100)}"`,
             related_id: client.id,
             metadata: { phone: msg.phone, intent },
