@@ -469,6 +469,75 @@ export default function AutomationHub() {
     else toast.error("Não foi possível obter novo QR.");
   };
 
+  // ===== OmniConect (UAZAPI) QR connect =====
+  const startOmniQr = async (cfg: any) => {
+    const baseUrl = cfg.base_url || OMNI_DEFAULT_BASE;
+    const adminToken = cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN;
+    setEvoQrCfg({ ...cfg, base_url: baseUrl, extra_headers: { ...(cfg.extra_headers || {}), admin_token: adminToken }, api_type: "omniconect" });
+    setEvoQrOpen(true);
+    setEvoQrLoading(true);
+    setEvoQrImage(null);
+    setEvoQrState("connecting");
+    const { data, error } = await supabase.functions.invoke("omniconect", {
+      body: {
+        action: "create",
+        base_url: baseUrl,
+        admin_token: adminToken,
+        instance_name: cfg.instance_id || undefined,
+        config_id: cfg.id || undefined,
+        label: cfg.label,
+      },
+    });
+    setEvoQrLoading(false);
+    if (error || !data?.ok) {
+      toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
+      setEvoQrState("close");
+      return;
+    }
+    const instanceToken = data.instance_token;
+    const instanceName = data.instance_name;
+    // If QR not returned by create, request via /instance/connect
+    let qr = data.qrcode;
+    if (!qr) {
+      const c2 = await supabase.functions.invoke("omniconect", {
+        body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+      });
+      qr = c2.data?.qrcode || null;
+    }
+    setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
+    setEvoQrState("qr");
+    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    await reloadWaConfigs();
+    const t = setInterval(async () => {
+      const r = await supabase.functions.invoke("omniconect", {
+        body: { action: "status", base_url: baseUrl, instance_token: instanceToken },
+      });
+      const status = r.data?.status;
+      if (status === "connected") {
+        setEvoQrState("open");
+        clearInterval(t); setEvoPollTimer(null);
+        toast.success("✅ WhatsApp conectado!");
+        await supabase.functions.invoke("omniconect", {
+          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken },
+        });
+        await reloadWaConfigs();
+      } else if (status) {
+        setEvoQrState(status);
+      }
+      // refresh QR if still pending
+      if (status !== "connected" && status !== "connecting") {
+        const c3 = await supabase.functions.invoke("omniconect", {
+          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+        });
+        const nq = c3.data?.qrcode;
+        if (nq) setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`);
+      }
+    }, 4000);
+    setEvoPollTimer(t);
+  };
+
+
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
