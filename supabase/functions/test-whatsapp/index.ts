@@ -140,7 +140,8 @@ Deno.serve(async (req) => {
     }
 
     if (body.mode === 'test_webhook') {
-      const targetUrl = body.webhook_url || `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-receiver`;
+      // SECURITY: Always probe our own webhook-receiver. Ignore user-supplied URL to prevent SSRF.
+      const targetUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-receiver`;
       try {
         const probe = await fetch(targetUrl, {
           method: 'POST',
