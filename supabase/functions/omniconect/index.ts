@@ -120,12 +120,19 @@ Deno.serve(async (req) => {
         if (ins.data) configId = (ins.data as any).id;
       }
 
-      await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
-        url: WEBHOOK_URL, events: ['messages', 'connection'], excludeMessages: ['fromMe'],
+      const wh = await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
+        url: WEBHOOK_URL,
+        events: ['messages', 'messages_update', 'connection', 'presence'],
+        excludeMessages: ['fromMe'],
         addUrlEvents: false, addUrlTypesMessages: false,
-      }).catch(() => {});
+      });
 
-      return new Response(JSON.stringify({ ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken, qrcode, paircode, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({
+        ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken,
+        qrcode, paircode,
+        webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+        raw: r.json,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'qr' || action === 'connect') {
