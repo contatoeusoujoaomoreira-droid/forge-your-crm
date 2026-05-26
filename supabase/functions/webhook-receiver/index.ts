@@ -1702,11 +1702,14 @@ Deno.serve(async (req) => {
           direction: 'outbound', channel: 'whatsapp', content: replyWithLinks,
           status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id,
           sender_phone: msg.phone,
+          external_message_id: (delivery as any).external_id || null,
           media_type: voiceUsed ? 'audio' : null,
           metadata: {
             external_status: delivery.status, external_body: delivery.body, voice: voiceUsed,
             kb_sources: selected.map((s: any) => ({ id: s.id, title: s.title, category: s.category })),
             intent,
+            instance_id: waCfg?.instance_id || null,
+            instance_label: waCfg?.label || null,
           },
         });
 
