@@ -855,7 +855,7 @@ export default function AutomationHub() {
                   </p>
                 )}
                 <div className="flex gap-2">
-                  {evoQrState !== "open" && (
+                  {evoQrState !== "open" && evoQrCfg?.api_type !== "omniconect" && (
                     <Button size="sm" variant="outline" onClick={refreshEvoQr} disabled={evoQrLoading}>
                       Atualizar QR
                     </Button>
