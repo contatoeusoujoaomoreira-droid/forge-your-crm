@@ -66,7 +66,7 @@ const PROVIDERS = [
   { id: "z-api", label: "Z-API · z-api.io" },
   { id: "wasender", label: "WasenderAPI · wasenderapi.com" },
   { id: "umclique", label: "umClique · Um Clique Digital" },
-  { id: "omniconect", label: "OmniConect · WhatsApp Não Oficial (UAZAPI)" },
+  { id: "omniconect", label: "OmniConect · WhatsApp QR Code" },
 ];
 
 const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanceLabel: string; helpUrl?: string; helpText?: string }> = {
