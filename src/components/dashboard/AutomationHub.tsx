@@ -580,6 +580,10 @@ export default function AutomationHub() {
                                   // Auto-fill base_url with provider default if empty or generic
                                   if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
                                   else if (newType === "wasender") patch.base_url = "https://www.wasenderapi.com";
+                                  else if (newType === "omniconect") {
+                                    patch.base_url = OMNI_DEFAULT_BASE;
+                                    patch.extra_headers = { ...(c.extra_headers || {}), admin_token: OMNI_DEFAULT_ADMIN_TOKEN };
+                                  }
                                   else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
                                   updateLocalConn(c.id, patch);
                                 }}>
