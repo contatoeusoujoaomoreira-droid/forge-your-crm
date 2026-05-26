@@ -92,10 +92,10 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpText: "Painel WasenderAPI → Sessions → conecte a sessão (QR no WhatsApp) → copie a API Key. Base URL fixa: https://www.wasenderapi.com",
   },
   omniconect: {
-    base: "https://free.uazapi.com",
-    tokenLabel: "Instance Token (gerado ao criar a instância)",
-    instanceLabel: "Nome da Instância",
-    helpText: "OmniConect via UAZAPI. Cole a Base URL (ex: https://free.uazapi.com) e o seu Admin Token. Use 'Conectar via QR Code' para criar a instância automaticamente, gerar o token de instância e escanear o QR no WhatsApp.",
+    base: "https://omnibuildercrm.uazapi.com",
+    tokenLabel: "Instance Token (gerado automaticamente)",
+    instanceLabel: "Nome da Instância (opcional)",
+    helpText: "OmniConect via UAZAPI já pré-configurado. Basta clicar em 'Gerar QR Code' — o sistema cria a instância, ativa o webhook global e gera o QR automaticamente.",
   },
 };
 
@@ -135,6 +135,8 @@ export default function AutomationHub() {
   const [evoPollTimer, setEvoPollTimer] = useState<any>(null);
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
+  const OMNI_DEFAULT_BASE = "https://omnibuildercrm.uazapi.com";
+  const OMNI_DEFAULT_ADMIN_TOKEN = "x26znUTwindOpKzpT1eaZQOVg6vtbI582EdrTZsZuJCqttgr05";
 
   useEffect(() => {
     if (!user) return;
@@ -467,6 +469,75 @@ export default function AutomationHub() {
     else toast.error("Não foi possível obter novo QR.");
   };
 
+  // ===== OmniConect (UAZAPI) QR connect =====
+  const startOmniQr = async (cfg: any) => {
+    const baseUrl = cfg.base_url || OMNI_DEFAULT_BASE;
+    const adminToken = cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN;
+    setEvoQrCfg({ ...cfg, base_url: baseUrl, extra_headers: { ...(cfg.extra_headers || {}), admin_token: adminToken }, api_type: "omniconect" });
+    setEvoQrOpen(true);
+    setEvoQrLoading(true);
+    setEvoQrImage(null);
+    setEvoQrState("connecting");
+    const { data, error } = await supabase.functions.invoke("omniconect", {
+      body: {
+        action: "create",
+        base_url: baseUrl,
+        admin_token: adminToken,
+        instance_name: cfg.instance_id || undefined,
+        config_id: cfg.id || undefined,
+        label: cfg.label,
+      },
+    });
+    setEvoQrLoading(false);
+    if (error || !data?.ok) {
+      toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
+      setEvoQrState("close");
+      return;
+    }
+    const instanceToken = data.instance_token;
+    const instanceName = data.instance_name;
+    // If QR not returned by create, request via /instance/connect
+    let qr = data.qrcode;
+    if (!qr) {
+      const c2 = await supabase.functions.invoke("omniconect", {
+        body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+      });
+      qr = c2.data?.qrcode || null;
+    }
+    setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
+    setEvoQrState("qr");
+    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    await reloadWaConfigs();
+    const t = setInterval(async () => {
+      const r = await supabase.functions.invoke("omniconect", {
+        body: { action: "status", base_url: baseUrl, instance_token: instanceToken },
+      });
+      const status = r.data?.status;
+      if (status === "connected") {
+        setEvoQrState("open");
+        clearInterval(t); setEvoPollTimer(null);
+        toast.success("✅ WhatsApp conectado!");
+        await supabase.functions.invoke("omniconect", {
+          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken },
+        });
+        await reloadWaConfigs();
+      } else if (status) {
+        setEvoQrState(status);
+      }
+      // refresh QR if still pending
+      if (status !== "connected" && status !== "connecting") {
+        const c3 = await supabase.functions.invoke("omniconect", {
+          body: { action: "qr", base_url: baseUrl, instance_token: instanceToken },
+        });
+        const nq = c3.data?.qrcode;
+        if (nq) setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`);
+      }
+    }, 4000);
+    setEvoPollTimer(t);
+  };
+
+
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -578,6 +649,10 @@ export default function AutomationHub() {
                                   // Auto-fill base_url with provider default if empty or generic
                                   if (newType === "umclique") patch.base_url = "https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1";
                                   else if (newType === "wasender") patch.base_url = "https://www.wasenderapi.com";
+                                  else if (newType === "omniconect") {
+                                    patch.base_url = OMNI_DEFAULT_BASE;
+                                    patch.extra_headers = { ...(c.extra_headers || {}), admin_token: OMNI_DEFAULT_ADMIN_TOKEN };
+                                  }
                                   else if (!c.base_url || c.base_url.startsWith("https://cslsnijdeayzfpmwjtmw")) patch.base_url = newHint?.base?.startsWith("http") ? newHint.base : "";
                                   updateLocalConn(c.id, patch);
                                 }}>
@@ -693,6 +768,11 @@ export default function AutomationHub() {
                                   <Sparkles className="h-4 w-4 mr-1" />Conectar via QR Code
                                 </Button>
                               )}
+                              {c.api_type === "omniconect" && (
+                                <Button size="sm" variant="default" onClick={() => startOmniQr(c)}>
+                                  <Sparkles className="h-4 w-4 mr-1" />Gerar QR Code
+                                </Button>
+                              )}
                               {!isDraft && (
                                 <>
                                   <Button size="sm" variant="outline" onClick={() => testConn(c)} disabled={testing}>
@@ -750,7 +830,7 @@ export default function AutomationHub() {
           {evoQrOpen && (
             <Card className="p-4 space-y-3 border-primary/40">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Evolution GO · Conexão por QR Code</h3>
+                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />{evoQrCfg?.api_type === "omniconect" ? "OmniConect · Conexão por QR Code" : "Evolution GO · Conexão por QR Code"}</h3>
                 <Button size="sm" variant="ghost" onClick={closeEvoQr}>Fechar</Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -775,7 +855,7 @@ export default function AutomationHub() {
                   </p>
                 )}
                 <div className="flex gap-2">
-                  {evoQrState !== "open" && (
+                  {evoQrState !== "open" && evoQrCfg?.api_type !== "omniconect" && (
                     <Button size="sm" variant="outline" onClick={refreshEvoQr} disabled={evoQrLoading}>
                       Atualizar QR
                     </Button>
