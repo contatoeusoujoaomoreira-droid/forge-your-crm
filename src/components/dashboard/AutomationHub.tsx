@@ -706,6 +706,19 @@ export default function AutomationHub() {
                           <div className="flex items-center gap-2">
                             {!isDraft && (
                               <>
+                                {c.api_type === "omniconect" && omniStatuses[c.id] && (
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] ${omniStatuses[c.id] === "connected" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" : "bg-amber-500/15 text-amber-600 border-amber-500/30"}`}
+                                  >
+                                    {omniStatuses[c.id] === "connected" ? "● Online" : `● ${omniStatuses[c.id]}`}
+                                  </Badge>
+                                )}
+                                {c.api_type === "omniconect" && (
+                                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); checkOmniStatus(c); }} title="Verificar status">
+                                    Status
+                                  </Button>
+                                )}
                                 <Switch checked={c.is_active} onCheckedChange={() => toggleConnectionActive(c)} />
                                 <Badge variant={c.is_active ? "default" : "secondary"} className="text-[10px]">{c.is_active ? "Ativa" : "Inativa"}</Badge>
                                 <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); deleteConnection(c.id); }} title="Excluir">
