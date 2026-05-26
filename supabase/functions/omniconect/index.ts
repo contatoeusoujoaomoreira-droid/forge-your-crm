@@ -51,23 +51,62 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'list') {
+      if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const r = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+      const instances = Array.isArray(r.json) ? r.json : (r.json?.instances || []);
+      return new Response(JSON.stringify({ ok: r.ok, instances, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if (action === 'create') {
       if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      const r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
+      let r = await uaz(baseUrl, '/instance/init', { admintoken: adminToken }, 'POST', { name: instanceName });
+      if (!r.ok && (r.status === 404 || r.status === 405)) {
+        r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
+      }
+
+      // Handle "Maximum number of instances reached" → reuse an existing instance
+      if (!r.ok && /maximum number of instances|limit/i.test(r.text)) {
+        const listRes = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+        const all: any[] = Array.isArray(listRes.json) ? listRes.json : (listRes.json?.instances || []);
+        const disconnected = all.find((i) => (i.status || '').toLowerCase() !== 'connected');
+        const reuse = disconnected || all[0];
+        if (reuse?.token) {
+          const reuseToken = reuse.token;
+          const reuseName = reuse.name || reuse.instanceName || instanceName;
+          await uaz(baseUrl, '/webhook', { token: reuseToken }, 'POST', {
+            url: WEBHOOK_URL, events: ['messages', 'connection'], excludeMessages: ['fromMe'],
+            addUrlEvents: false, addUrlTypesMessages: false,
+          }).catch(() => {});
+          const patch: any = {
+            api_type: 'omniconect', base_url: baseUrl, instance_id: reuseName, api_token: reuseToken,
+            extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [reuseName],
+          };
+          let configId = body.config_id;
+          if (configId) {
+            await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId);
+          } else {
+            const ins = await admin.from('whatsapp_configs').insert({ ...patch, user_id: userId, label: body.label || `OmniConect ${String(reuseName).slice(-6)}`, auto_create_lead: true, ai_auto_reply: true }).select('id').single();
+            if (ins.data) configId = (ins.data as any).id;
+          }
+          const conn = await uaz(baseUrl, '/instance/connect', { token: reuseToken }, 'POST', {});
+          const inst = conn.json?.instance || conn.json;
+          return new Response(JSON.stringify({
+            ok: true, reused: true, config_id: configId, instance_name: reuseName, instance_token: reuseToken,
+            qrcode: inst?.qrcode || null, paircode: inst?.paircode || null, raw: conn.json,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Remova uma conexão antiga para liberar espaço.', body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const instToken = r.json?.token || r.json?.instance?.token || '';
-      const qrcode = r.json?.instance?.qrcode || null;
-      const paircode = r.json?.instance?.paircode || null;
+      const qrcode = r.json?.instance?.qrcode || r.json?.qrcode || null;
+      const paircode = r.json?.instance?.paircode || r.json?.paircode || null;
 
-      // Persist config
       const patch: any = {
-        api_type: 'omniconect',
-        base_url: baseUrl,
-        instance_id: instanceName,
-        api_token: instToken,
-        extra_headers: { admin_token: adminToken },
-        is_active: true,
-        webhook_instance_ids: [instanceName],
+        api_type: 'omniconect', base_url: baseUrl, instance_id: instanceName, api_token: instToken,
+        extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [instanceName],
       };
       let configId = body.config_id;
       if (configId) {
@@ -77,13 +116,9 @@ Deno.serve(async (req) => {
         if (ins.data) configId = (ins.data as any).id;
       }
 
-      // Auto-configure webhook
       await uaz(baseUrl, '/webhook', { token: instToken }, 'POST', {
-        url: WEBHOOK_URL,
-        events: ['messages', 'connection'],
-        excludeMessages: ['fromMe'],
-        addUrlEvents: false,
-        addUrlTypesMessages: false,
+        url: WEBHOOK_URL, events: ['messages', 'connection'], excludeMessages: ['fromMe'],
+        addUrlEvents: false, addUrlTypesMessages: false,
       }).catch(() => {});
 
       return new Response(JSON.stringify({ ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken, qrcode, paircode, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
