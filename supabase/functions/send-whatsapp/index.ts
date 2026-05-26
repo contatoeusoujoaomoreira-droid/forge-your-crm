@@ -183,6 +183,7 @@ Deno.serve(async (req) => {
     let externalStatus: number | null = null;
     let externalBody: string | null = null;
     let sentPayload: any = null;
+    let externalId: string | null = null;
     if (cfg) {
       try {
         const result: any = await dispatch(cfg.api_type, cfg, phone, body);
@@ -190,6 +191,7 @@ Deno.serve(async (req) => {
         externalStatus = result.status ?? null;
         externalBody = (result.body || '').toString().slice(0, 1000);
         sentPayload = result.sent_payload ?? null;
+        externalId = result.external_id ?? null;
         if (!result.ok) externalError = `[${result.status}] ${result.body}`.slice(0, 500);
       } catch (e) {
         externalError = String(e).slice(0, 500);
@@ -208,12 +210,15 @@ Deno.serve(async (req) => {
       media_type: body.media_type,
       status: externalSent ? 'sent' : (cfg ? 'failed' : 'pending'),
       sender_phone: phone,
+      external_message_id: externalId,
       metadata: {
         external_error: externalError,
         external_status: externalStatus,
         external_body: externalBody,
         provider: cfg?.api_type || null,
         sent_payload: sentPayload,
+        instance_id: cfg?.instance_id || null,
+        instance_label: cfg?.label || null,
       },
     }).select().single();
 
