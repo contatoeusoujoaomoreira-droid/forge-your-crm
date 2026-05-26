@@ -238,6 +238,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
         system_prompt: "", rules: "", examples: "", objections: "",
         pipeline_id: "", stage_id: "", routing_rules: [],
         handoff_enabled: false, handoff_keywords: "", handoff_mode: "pause", handoff_pause_minutes: 30,
+        respond_in_groups: false, disable_on_human_takeover: true,
         stop_words: "",
         inactivity_timeout_minutes: null, message_limit: null,
         business_hours: { enabled: false, start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
