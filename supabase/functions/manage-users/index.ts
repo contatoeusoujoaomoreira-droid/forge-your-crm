@@ -5,11 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SEED_SUPER_ADMIN_EMAILS = new Set([
-  "jpm19990@gmail.com",
-  "miih.br97.moreira@gmail.com",
-  "contatoeusoujoaomoreira@gmail.com",
-]);
+// Super admin status is managed exclusively via the `user_roles` table.
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -83,8 +79,15 @@ Deno.serve(async (req: Request) => {
     if (action === "update_user") {
       const { managed_user_id, is_active, permissions, ai_credits, full_name, plan, tier, credits_balance, credits_monthly } = body;
       const { data: currentMu } = await supabaseAdmin.from("managed_users").select("*").eq("id", managed_user_id).single();
-      const isSeedSuper = currentMu?.email ? SEED_SUPER_ADMIN_EMAILS.has(String(currentMu.email).toLowerCase()) : false;
-      const isSuperTier = tier === "super_admin" || currentMu?.tier === "super_admin" || isSeedSuper;
+      // Super admin status is determined exclusively from the user_roles table — no email hardcoding.
+      let isSuperByRole = false;
+      if (currentMu?.user_id) {
+        const { data: roleRow } = await supabaseAdmin
+          .from("user_roles").select("role")
+          .eq("user_id", currentMu.user_id).eq("role", "super_admin").maybeSingle();
+        isSuperByRole = !!roleRow;
+      }
+      const isSuperTier = tier === "super_admin" || (tier === undefined && (currentMu?.tier === "super_admin" || isSuperByRole));
       const updates: any = {};
       if (is_active !== undefined) updates.is_active = is_active;
       if (permissions !== undefined) updates.permissions = permissions;
