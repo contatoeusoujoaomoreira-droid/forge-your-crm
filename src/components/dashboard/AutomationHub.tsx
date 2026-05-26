@@ -133,6 +133,15 @@ export default function AutomationHub() {
   const [evoQrState, setEvoQrState] = useState<string>("idle"); // idle | qr | connecting | open | close
   const [evoQrCfg, setEvoQrCfg] = useState<any>(null);
   const [evoPollTimer, setEvoPollTimer] = useState<any>(null);
+  // OmniConect (UAZAPI) extra state for pair-code + status
+  const [omniInstanceToken, setOmniInstanceToken] = useState<string>("");
+  const [omniInstanceName, setOmniInstanceName] = useState<string>("");
+  const [omniBaseUrl, setOmniBaseUrl] = useState<string>("");
+  const [pairMode, setPairMode] = useState<"qr" | "phone">("qr");
+  const [pairPhone, setPairPhone] = useState("");
+  const [pairCode, setPairCode] = useState<string>("");
+  const [pairLoading, setPairLoading] = useState(false);
+  const [omniStatuses, setOmniStatuses] = useState<Record<string, string>>({});
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
   const OMNI_DEFAULT_BASE = "https://omnibuildercrm.uazapi.com";
