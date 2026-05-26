@@ -830,7 +830,7 @@ export default function AutomationHub() {
           {evoQrOpen && (
             <Card className="p-4 space-y-3 border-primary/40">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Evolution GO · Conexão por QR Code</h3>
+                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />{evoQrCfg?.api_type === "omniconect" ? "OmniConect · Conexão por QR Code" : "Evolution GO · Conexão por QR Code"}</h3>
                 <Button size="sm" variant="ghost" onClick={closeEvoQr}>Fechar</Button>
               </div>
               <p className="text-xs text-muted-foreground">
