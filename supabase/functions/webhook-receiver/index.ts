@@ -1619,9 +1619,17 @@ Deno.serve(async (req) => {
   }
 
   // === DEBOUNCE ENQUEUE: agrupa rajadas curtas em vez de responder a cada msg ===
-  if (!flowHandled && agent?.group_messages && (agent.debounce_seconds || 0) > 0 && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  // A janela de debounce respeita o TEMPO DE RESPOSTA configurado no agente
+  // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
+  // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
+  if (!flowHandled && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
-      const debounceMs = Math.max(2, Number(agent.debounce_seconds || 8)) * 1000;
+      const responseDelay = Number(agent.response_delay_seconds || 0);
+      const fallbackDebounce = Number(agent.debounce_seconds || 8);
+      // Janela efetiva = response_delay quando configurado, senão debounce_seconds, mínimo 1s, máximo 30s.
+      const effectiveSec = Math.min(30, Math.max(1, responseDelay > 0 ? responseDelay : fallbackDebounce));
+      const debounceMs = effectiveSec * 1000;
+      console.log(`[FLOW] debounce window=${effectiveSec}s (response_delay=${responseDelay}, debounce_cfg=${fallbackDebounce})`);
       const processAfter = new Date(Date.now() + debounceMs).toISOString();
       const newEntry = { content: inboundContent, ts: new Date().toISOString(), external_id: msg.external_message_id || null };
       const { data: existingQ } = await admin.from('message_debounce_queue')
