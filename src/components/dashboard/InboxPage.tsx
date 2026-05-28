@@ -14,7 +14,7 @@ import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
-interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; }
+interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; handoff_resume_at?: string | null; }
 
 type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups" | "hot";
 
@@ -163,9 +163,25 @@ export default function InboxPage() {
     if (!input.trim() || !selectedId) return;
     const text = input.trim();
     setInput("");
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: { client_id: selectedId, content: text } });
+    // Sempre marca como takeover humano — o agente pausa de acordo com a config
+    // do próprio agente (disable_on_human_takeover + handoff_mode + handoff_pause_minutes).
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: { client_id: selectedId, content: text, manual_takeover: true },
+    });
     if (error) toast.error(error.message);
     else if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
+    // Recarrega conversation_state para atualizar UI de pausa
+    const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
+    if (st) setConvState(st as any);
+  };
+
+  const reactivateAgent = async () => {
+    if (!convState) return;
+    await supabase.from("conversation_state").update({
+      ai_active: true, mode: "ai", handoff_resume_at: null, updated_at: new Date().toISOString(),
+    }).eq("id", convState.id);
+    setConvState({ ...convState, ai_active: true, mode: "ai", handoff_resume_at: null } as any);
+    toast.success("Agente reativado para esta conversa");
   };
 
   const toggleAi = async (active: boolean) => {
@@ -582,6 +598,21 @@ export default function InboxPage() {
               </div>
             )}
             <div className="border-t border-border">
+              {convState && !convState.ai_active && (
+                <div className="px-3 pt-2">
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                      <Bot className="h-3.5 w-3.5" />
+                      <span className="font-medium">
+                        Agente pausado{convState.handoff_resume_at ? ` até ${new Date(convState.handoff_resume_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}` : " (permanente até reativar)"}
+                      </span>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={reactivateAgent}>
+                      Reativar agora
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="px-3 pt-2 flex items-center gap-1">
                 <button
                   onClick={() => setComposeMode("reply")}

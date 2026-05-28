@@ -1,78 +1,46 @@
-## Limpeza, Renovação e Atualização do Sistema
+Esta solicitação tem 7 frentes interligadas. Proponho executar em uma única rodada, mas em blocos claros:
 
-Operação ampla em 3 frentes. Confirme antes que eu execute (vai mexer em ~30 arquivos, deletar tabelas e edge functions).
+## 1. Conexão WhatsApp — UI com abas + auto-conectado
+- Refatorar `AutomationHub.tsx` (seção Conexões / OmniConect):
+  - Adicionar **abas** dentro da conexão: "OmniConect (QR/Pareamento)" e "Outras opções (avançado)". A aba OmniConect mostra apenas QR Code e Código de Pareamento — nada mais.
+  - Dentro do OmniConect, sub-toggle entre **QR Code** e **Código de Pareamento** (input de telefone + `paircode` que já vem da edge function).
+  - Após conectar, **polling de status** a cada 3s; quando `connected=true`, fechar modal/painel de QR automaticamente e renderizar o card "CONECTADO" (estilo Z-API igual à imagem: avatar/iniciais, "Operacional · respondendo mensagens", botão Desconectar, agente responsável, webhook ativo, último evento).
+  - Esse card "Conectado" já existe em parte — vou consolidar num componente `<WhatsAppConnectedCard />`.
 
----
+## 2. Código de pareamento funcional
+- A edge function `omniconect` já aceita `body.phone` no `action: 'connect'` e retorna `paircode`. UI precisa enviar o telefone e exibir o código formatado (XXXX-XXXX).
 
-### 1) Eliminar COMPLETAMENTE o módulo Pages
+## 3. Takeover humano → pausa automática do agente
+- Nova tabela `agent_pause` (ou coluna em `conversations`): `conversation_id`, `paused_until` (timestamp nullable; null = permanente), `paused_by`.
+- Em `InboxPage.tsx`: ao enviar mensagem manual (humana), chamar `pauseAgent(conversationId, duration)`. UI: dropdown ao lado do input com opções: 30min / 1h / 4h / 24h / Permanente / Não pausar. Salvar preferência por usuário.
+- Em `webhook-receiver/index.ts` (ou `ai-agent`): antes de disparar o agente, checar `paused_until > now()` → pular resposta automática.
+- Indicador visual no chat: "Agente pausado até HH:MM" com botão "Reativar".
 
-**Banco de dados (migration drop):**
-- `landing_pages`
-- `landing_page_sections`
-- `page_views`
-- Função `generate-landing-page` removida (edge function)
+## 4. Avatares/fotos de perfil no chat
+- Edge function `sync-chat-avatars` já existe. Garantir que:
+  - Webhook salva `profile_pic_url` ao receber mensagem (UAZAPI envia em `chat.imagePreview` ou via `/chat/details`).
+  - InboxPage renderiza `<Avatar src={contact.profile_pic_url}>` com fallback de iniciais.
+- Adicionar chamada para sincronizar avatar quando um contato novo aparece.
 
-**Manter:** `custom_domains` (ainda usado por outros módulos para roteamento) — mas removendo `project_type='page'` opcionalmente; vou manter a tabela intacta por enquanto.
+## 5. Tempo de resposta configurado deve ser respeitado
+- Hoje em `webhook-receiver` o debounce fixo de ~8s espera o lead terminar de digitar, **e ignora** `agent.response_delay_seconds`.
+- Fix: a janela de debounce passa a usar `agent.response_delay_seconds` (com mínimo 1s, máximo 30s). Se configurado 1s → espera 1s e responde. O self-trigger (`EdgeRuntime.waitUntil`) já está em produção, só precisa usar o valor correto.
 
-**Código removido:**
-- `src/pages/PageEditor.tsx`, `src/pages/LandingPagePublic.tsx`
-- `src/components/dashboard/LandingPagesList.tsx`, `PageAnalytics.tsx`, `PageHTMLEditor.tsx`, `AIPageGenerator.tsx`, `AIEditorChat.tsx`, `GrapesEditor.tsx`, `GrapesEditorPro.tsx`, `GrapesEditorUltra.tsx`, `BlocksLibrary.tsx`, `TemplatesModal.tsx`, `TemplatesLibraryHTML.tsx`
-- `src/components/page-builder/` (pasta inteira)
-- `src/stores/useEditorStore.ts`, `src/grapes-theme.css`
-- `public/templates/*.html`
-- `supabase/functions/generate-landing-page/`
+## 6. Validar fluxo end-to-end
+- Após as mudanças, testar: webhook → debounce → ai-agent → send-whatsapp → mensagem aparece no chat em tempo real.
+- Logs em cada etapa com `[FLOW]` para facilitar diagnóstico.
 
-**Atualizações:**
-- `src/App.tsx`: remover rotas `/editor/:id`, `/p/:slug` e a rota raiz que serve landing principal (volta para `Index`).
-- `src/pages/Dashboard.tsx`: remover aba "Pages" e qualquer trigger.
-- Remover `grapesjs` e dependências relacionadas do `package.json` (faço via `bun remove`).
+## 7. Detalhes técnicos
+- Migration: tabela `agent_pause` com RLS + GRANTs.
+- Sem novas dependências.
+- Preservar lógica existente de multi-instância, mídias, fuso horário.
 
----
+## Arquivos afetados
+- `src/components/dashboard/AutomationHub.tsx` (abas + auto-conectado + pareamento UI)
+- novo `src/components/dashboard/automation/WhatsAppConnectedCard.tsx`
+- `src/components/dashboard/InboxPage.tsx` (takeover + avatar + dropdown pausa)
+- `supabase/functions/webhook-receiver/index.ts` (debounce dinâmico + check pausa + sync avatar)
+- `supabase/functions/omniconect/index.ts` (sem mudanças significativas)
+- Nova migration: `agent_pause` table
 
-### 2) Remover provedores WhatsApp obsoletos
-
-**Provedores eliminados** (UI + edge functions + dados): `evolution`, `evolution_go`, `botconversa`, `ultramsg`, `custom`.
-
-- Edge function `evolution-go` deletada.
-- Limpeza em `send-whatsapp/index.ts`, `test-whatsapp/index.ts`, `webhook-receiver/index.ts`.
-- UI `AutomationHub.tsx`: lista de provedores reduzida.
-- Migration: `DELETE FROM whatsapp_configs WHERE api_type IN ('evolution','evolution_go','botconversa','ultramsg','custom')`.
-
-**Mantidos:** `z-api`, `umclique`, `wasender`, e o novo `omniconect`.
-
----
-
-### 3) Nova integração OmniConect (UAZAPI)
-
-Padrão da UAZAPI (`https://free.uazapi.com` ou self-hosted):
-- **Admin token**: necessário só para `/instance/create` e `/instance/all` (configurado por usuário).
-- **Instance token**: gerado no create, salvo em `api_token`. Header: `token: <instance_token>`.
-- **Endpoints usados:**
-  - `POST /instance/init` → QR/paircode (start connect)
-  - `GET /instance/status` → estado
-  - `POST /instance/disconnect`, `DELETE /instance/`
-  - `POST /send/text` `{number, text}`
-  - `POST /send/media` `{number, type: image|video|audio|document, file, text, docName}`
-  - `POST /webhook` `{url, events:[messages,connection], excludeMessages:[reaction,...]}`
-
-**Mudanças:**
-- Nova edge function `omniconect/index.ts`: actions `create`, `qr`, `status`, `set_webhook`, `disconnect`, `delete`.
-- `send-whatsapp`: novo case `omniconect` (texto + mídia + áudio).
-- `test-whatsapp`: novo case `omniconect` chamando `/instance/status`.
-- `webhook-receiver`: normalizador para payloads UAZAPI (`event: messages`, `data.message`, `data.from`, `data.text`, `data.media`).
-- `AutomationHub.tsx`: opção "OmniConect · WhatsApp Não Oficial" com modal de QR + polling igual ao Wasender. Campos: Base URL (default `https://free.uazapi.com`), Admin Token, Instance Name.
-
----
-
-### Plano de execução
-
-1. Migration: drop tabelas Pages + delete provedores obsoletos do `whatsapp_configs`.
-2. Deletar edge functions: `generate-landing-page`, `evolution-go`.
-3. Criar edge function `omniconect`.
-4. Reescrever `send-whatsapp`, `test-whatsapp`, `webhook-receiver` removendo legados + adicionando omniconect.
-5. Reescrever `AutomationHub.tsx`: lista enxuta de provedores + fluxo OmniConect.
-6. Apagar arquivos do módulo Pages.
-7. Atualizar `App.tsx`, `Dashboard.tsx`.
-8. `bun remove grapesjs grapesjs-blocks-basic` (e correlatos se houver).
-
-Confirma para eu seguir?
+Confirma para eu executar tudo nesta rodada? Ou prefere que eu faça em 2 PRs (1 = UI Conexão + pareamento + auto-conectado; 2 = takeover + avatares + tempo de resposta)?
