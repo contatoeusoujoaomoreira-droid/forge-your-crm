@@ -558,11 +558,19 @@ export default function AutomationHub() {
       if (status === "connected") {
         setEvoQrState("open");
         clearInterval(t); setEvoPollTimer(null);
-        toast.success("✅ WhatsApp conectado!");
+        toast.success("✅ WhatsApp conectado e operacional!");
         await supabase.functions.invoke("omniconect", {
           body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         await reloadWaConfigs();
+        // Auto-fecha o modal de QR após 1.5s — fluxo padrão de plataformas profissionais (Z-API style)
+        setTimeout(() => {
+          setEvoQrOpen(false);
+          setEvoQrImage(null);
+          setEvoQrState("idle");
+          setPairCode("");
+        }, 1500);
+        return;
       } else if (status) {
         setEvoQrState(status);
       }
