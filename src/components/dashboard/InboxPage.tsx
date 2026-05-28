@@ -163,9 +163,25 @@ export default function InboxPage() {
     if (!input.trim() || !selectedId) return;
     const text = input.trim();
     setInput("");
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: { client_id: selectedId, content: text } });
+    // Sempre marca como takeover humano — o agente pausa de acordo com a config
+    // do próprio agente (disable_on_human_takeover + handoff_mode + handoff_pause_minutes).
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: { client_id: selectedId, content: text, manual_takeover: true },
+    });
     if (error) toast.error(error.message);
     else if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
+    // Recarrega conversation_state para atualizar UI de pausa
+    const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
+    if (st) setConvState(st as any);
+  };
+
+  const reactivateAgent = async () => {
+    if (!convState) return;
+    await supabase.from("conversation_state").update({
+      ai_active: true, mode: "ai", handoff_resume_at: null, updated_at: new Date().toISOString(),
+    }).eq("id", convState.id);
+    setConvState({ ...convState, ai_active: true, mode: "ai", handoff_resume_at: null } as any);
+    toast.success("Agente reativado para esta conversa");
   };
 
   const toggleAi = async (active: boolean) => {
