@@ -598,6 +598,21 @@ export default function InboxPage() {
               </div>
             )}
             <div className="border-t border-border">
+              {convState && !convState.ai_active && (
+                <div className="px-3 pt-2">
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                      <Bot className="h-3.5 w-3.5" />
+                      <span className="font-medium">
+                        Agente pausado{convState.handoff_resume_at ? ` até ${new Date(convState.handoff_resume_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}` : " (permanente até reativar)"}
+                      </span>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={reactivateAgent}>
+                      Reativar agora
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="px-3 pt-2 flex items-center gap-1">
                 <button
                   onClick={() => setComposeMode("reply")}
