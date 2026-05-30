@@ -164,11 +164,16 @@ export default function InboxPage() {
     if (!input.trim() || !selectedId) return;
     const text = input.trim();
     setInput("");
-    // Sempre marca como takeover humano — o agente pausa de acordo com a config
-    // do próprio agente (disable_on_human_takeover + handoff_mode + handoff_pause_minutes).
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: { client_id: selectedId, content: text, manual_takeover: true },
-    });
+    // Pausa granular conforme dropdown ("agent" = usa config do agente; "0" = não pausa; "perm" = permanente)
+    let payload: any = { client_id: selectedId, content: text };
+    if (pauseMinutes === "0") {
+      payload.manual_takeover = false;
+    } else {
+      payload.manual_takeover = true;
+      if (pauseMinutes === "perm") payload.pause_minutes = null;
+      else if (pauseMinutes !== "agent") payload.pause_minutes = Number(pauseMinutes);
+    }
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: payload });
     if (error) toast.error(error.message);
     else if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
     // Recarrega conversation_state para atualizar UI de pausa
