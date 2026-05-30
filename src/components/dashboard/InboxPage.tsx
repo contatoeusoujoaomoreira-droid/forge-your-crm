@@ -43,6 +43,7 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [pauseMinutes, setPauseMinutes] = useState<string>("agent"); // "agent" | "0" | "30" | "60" | "240" | "1440" | "perm"
   const [search, setSearch] = useState("");
   const [convState, setConvState] = useState<ConvState | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
@@ -163,11 +164,16 @@ export default function InboxPage() {
     if (!input.trim() || !selectedId) return;
     const text = input.trim();
     setInput("");
-    // Sempre marca como takeover humano — o agente pausa de acordo com a config
-    // do próprio agente (disable_on_human_takeover + handoff_mode + handoff_pause_minutes).
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: { client_id: selectedId, content: text, manual_takeover: true },
-    });
+    // Pausa granular conforme dropdown ("agent" = usa config do agente; "0" = não pausa; "perm" = permanente)
+    let payload: any = { client_id: selectedId, content: text };
+    if (pauseMinutes === "0") {
+      payload.manual_takeover = false;
+    } else {
+      payload.manual_takeover = true;
+      if (pauseMinutes === "perm") payload.pause_minutes = null;
+      else if (pauseMinutes !== "agent") payload.pause_minutes = Number(pauseMinutes);
+    }
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: payload });
     if (error) toast.error(error.message);
     else if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
     // Recarrega conversation_state para atualizar UI de pausa
@@ -661,6 +667,20 @@ export default function InboxPage() {
                       placeholder={convState?.ai_active ? "Mensagem (IA pode responder)" : "Digite uma mensagem..."}
                       className="flex-1 min-w-0"
                     />
+                    <select
+                      value={pauseMinutes}
+                      onChange={(e) => setPauseMinutes(e.target.value)}
+                      className="h-10 px-2 rounded-md border border-input bg-background text-xs"
+                      title="Pausar agente IA ao enviar"
+                    >
+                      <option value="agent">⏱ Pausa: padrão do agente</option>
+                      <option value="0">Não pausar IA</option>
+                      <option value="30">Pausar 30 min</option>
+                      <option value="60">Pausar 1 h</option>
+                      <option value="240">Pausar 4 h</option>
+                      <option value="1440">Pausar 24 h</option>
+                      <option value="perm">Pausar permanentemente</option>
+                    </select>
                     <Button onClick={send}><Send className="h-4 w-4" /></Button>
                   </>
                 )}

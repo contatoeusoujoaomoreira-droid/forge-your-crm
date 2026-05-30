@@ -1206,29 +1206,54 @@ Deno.serve(async (req) => {
   // Try fetching profile picture from Z-API if we don't have one in the payload
   const fetchZapiProfilePic = async (): Promise<string | undefined> => {
     try {
-      const prov = matchedConfig || (await admin.from('whatsapp_configs')
+      // 1) Try matched provider first (Z-API or OmniConect/UAZAPI)
+      const providers: any[] = [];
+      if (matchedConfig) providers.push(matchedConfig);
+      const { data: extra } = await admin.from('whatsapp_configs')
         .select('api_type, base_url, api_token, instance_id, extra_headers, is_active, updated_at')
-        .eq('user_id', userId).eq('api_type', 'z-api')
+        .eq('user_id', userId)
+        .in('api_type', ['z-api', 'omniconect'])
         .order('is_active', { ascending: false })
         .order('updated_at', { ascending: false })
-        .limit(1)).data?.[0];
-      if (!prov) return undefined;
-      const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture).*$/, '');
-      if ((prov.api_type || '').toLowerCase() === 'z-api') {
-        const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}`;
-        const headers: Record<string,string> = { 'Content-Type': 'application/json', ...((prov as any).extra_headers || {}) };
-        const attempts = [
-          () => fetch(`${root}/profile-picture?phone=${msg.phone}`, { headers }),
-          () => fetch(`${root}/profile-picture/${msg.phone}`, { headers }),
-          () => fetch(`${root}/profile-picture`, { method: 'POST', headers, body: JSON.stringify({ phone: msg.phone }) }),
-        ];
-        for (const attempt of attempts) {
-          const r = await attempt().catch(() => null);
-          if (!r?.ok) continue;
-          const text = await r.text();
-          const j = (() => { try { return JSON.parse(text); } catch { return text; } })();
-          const found = extractAvatarUrl(j);
-          if (found) return found;
+        .limit(3);
+      for (const p of extra || []) {
+        if (!providers.find((x) => x.api_token === p.api_token && x.instance_id === p.instance_id)) providers.push(p);
+      }
+
+      for (const prov of providers) {
+        const apiType = (prov.api_type || '').toLowerCase();
+        const baseUrl = (prov.base_url || '').replace(/\/$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture|chat).*$/, '');
+        if (apiType === 'z-api') {
+          const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${prov.instance_id}/token/${prov.api_token}`;
+          const headers: Record<string,string> = { 'Content-Type': 'application/json', ...((prov as any).extra_headers || {}) };
+          const attempts = [
+            () => fetch(`${root}/profile-picture?phone=${msg.phone}`, { headers }),
+            () => fetch(`${root}/profile-picture/${msg.phone}`, { headers }),
+            () => fetch(`${root}/profile-picture`, { method: 'POST', headers, body: JSON.stringify({ phone: msg.phone }) }),
+          ];
+          for (const attempt of attempts) {
+            const r = await attempt().catch(() => null);
+            if (!r?.ok) continue;
+            const text = await r.text();
+            const j = (() => { try { return JSON.parse(text); } catch { return text; } })();
+            const found = extractAvatarUrl(j);
+            if (found) return found;
+          }
+        } else if (apiType === 'omniconect') {
+          const root = baseUrl || 'https://free.uazapi.com';
+          const headers: Record<string,string> = { 'Content-Type': 'application/json', token: prov.api_token || '' };
+          const attempts = [
+            () => fetch(`${root}/chat/GetNameAndImageURL`, { method: 'POST', headers, body: JSON.stringify({ number: msg.phone }) }),
+            () => fetch(`${root}/chat/details`, { method: 'POST', headers, body: JSON.stringify({ number: msg.phone }) }),
+          ];
+          for (const attempt of attempts) {
+            const r = await attempt().catch(() => null);
+            if (!r?.ok) continue;
+            const text = await r.text();
+            const j = (() => { try { return JSON.parse(text); } catch { return text; } })();
+            const found = extractAvatarUrl(j);
+            if (found) return found;
+          }
         }
       }
     } catch (_) { /* noop */ }
@@ -1239,6 +1264,7 @@ Deno.serve(async (req) => {
   const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
+  // Proactive sync: fetch avatar on every inbound if we don't have one yet (covers new contacts immediately)
   if (!avatarUrl && !existingPre?.avatar_url) {
     avatarUrl = await fetchZapiProfilePic();
   }
