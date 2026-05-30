@@ -43,6 +43,7 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [pauseMinutes, setPauseMinutes] = useState<string>("agent"); // "agent" | "0" | "30" | "60" | "240" | "1440" | "perm"
   const [search, setSearch] = useState("");
   const [convState, setConvState] = useState<ConvState | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
