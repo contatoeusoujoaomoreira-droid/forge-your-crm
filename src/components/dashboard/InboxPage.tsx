@@ -667,6 +667,20 @@ export default function InboxPage() {
                       placeholder={convState?.ai_active ? "Mensagem (IA pode responder)" : "Digite uma mensagem..."}
                       className="flex-1 min-w-0"
                     />
+                    <select
+                      value={pauseMinutes}
+                      onChange={(e) => setPauseMinutes(e.target.value)}
+                      className="h-10 px-2 rounded-md border border-input bg-background text-xs"
+                      title="Pausar agente IA ao enviar"
+                    >
+                      <option value="agent">⏱ Pausa: padrão do agente</option>
+                      <option value="0">Não pausar IA</option>
+                      <option value="30">Pausar 30 min</option>
+                      <option value="60">Pausar 1 h</option>
+                      <option value="240">Pausar 4 h</option>
+                      <option value="1440">Pausar 24 h</option>
+                      <option value="perm">Pausar permanentemente</option>
+                    </select>
                     <Button onClick={send}><Send className="h-4 w-4" /></Button>
                   </>
                 )}
