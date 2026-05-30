@@ -251,7 +251,17 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'client_id' });
       }
-      try { await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id }); } catch (_) {}
+      try {
+        if (body.manual_takeover === true && body.pause_minutes !== undefined) {
+          // Explicit override from composer dropdown
+          const resumeAt = body.pause_minutes === null
+            ? null
+            : new Date(Date.now() + Number(body.pause_minutes) * 60000).toISOString();
+          await admin.from('conversation_state').update({ handoff_resume_at: resumeAt, updated_at: new Date().toISOString() }).eq('client_id', clientRow.id);
+        } else {
+          await admin.rpc('schedule_handoff_resume', { _client_id: clientRow.id });
+        }
+      } catch (_) {}
       await admin.from('chat_clients').update({ last_outbound_at: new Date().toISOString() }).eq('id', clientRow.id);
       try {
         await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`, {
