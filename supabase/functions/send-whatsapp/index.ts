@@ -17,6 +17,7 @@ interface SendBody {
   media_type?: string;
   filename?: string;
   manual_takeover?: boolean;
+  pause_minutes?: number | null; // null = permanent, number = explicit minutes (overrides agent config)
   template_name?: string;
   template_language?: string;
   template_variables?: any[];
