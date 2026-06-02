@@ -142,6 +142,20 @@ const FormPublic = () => {
         const leadPhoneRaw = phoneField ? answers[phoneField.id] || null : null;
         const leadPhone = leadPhoneRaw ? leadPhoneRaw.replace(/\D/g, "") || null : null;
 
+        // Capture UTM / ad-click params from URL for attribution
+        const urlParams = new URLSearchParams(window.location.search);
+        const pick = (k: string) => urlParams.get(k) || null;
+        const utm = {
+          source: pick("utm_source"),
+          medium: pick("utm_medium"),
+          campaign: pick("utm_campaign"),
+          content: pick("utm_content"),
+          term: pick("utm_term"),
+          fbclid: pick("fbclid"),
+          gclid: pick("gclid"),
+          ctwa_clid: pick("ctwa_clid"),
+        };
+
         // Anti-duplicate: match by phone first, then email, scoped to this user_id
         let existing: { id: string } | null = null;
         if (leadPhone) {
@@ -165,8 +179,9 @@ const FormPublic = () => {
           if (data) existing = data;
         }
 
+        let leadIdForTouchpoint: string | null = null;
         if (existing) {
-          // Update last touch + add activity instead of duplicating
+          leadIdForTouchpoint = existing.id;
           await supabase.from("leads").update({
             updated_at: new Date().toISOString(),
             name: leadName,
@@ -178,7 +193,7 @@ const FormPublic = () => {
             description: `Nova submissão do formulário "${form.title}" (${slug})`,
           } as any);
         } else {
-          await supabase.from("leads").insert({
+          const { data: inserted } = await supabase.from("leads").insert({
             name: leadName,
             email: leadEmail,
             phone: leadPhone,
@@ -186,8 +201,30 @@ const FormPublic = () => {
             status: "new", stage_id: finalStageId, user_id: form.user_id,
             pipeline_id: pipelineId || null,
             tags: settings.autoTags || [],
-          } as any);
+            utm_source: utm.source,
+            utm_medium: utm.medium,
+            utm_campaign: utm.campaign,
+          } as any).select("id").maybeSingle();
+          leadIdForTouchpoint = inserted?.id || null;
         }
+
+        // Attribution touchpoint (always, even without UTM — useful to track direct submissions)
+        await supabase.from("attribution_touchpoints").insert({
+          user_id: form.user_id,
+          lead_id: leadIdForTouchpoint,
+          source: utm.source,
+          medium: utm.medium,
+          campaign: utm.campaign,
+          content: utm.content,
+          term: utm.term,
+          fbclid: utm.fbclid,
+          gclid: utm.gclid,
+          ctwa_clid: utm.ctwa_clid,
+          landing_url: window.location.href,
+          referrer: document.referrer || null,
+          channel: "form",
+          meta: { form_id: form.id, slug },
+        } as any);
       }
     }
 

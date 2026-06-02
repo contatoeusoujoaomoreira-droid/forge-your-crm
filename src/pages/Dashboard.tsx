@@ -9,7 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +27,12 @@ import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 import InboxPage from "@/components/dashboard/InboxPage";
 import AutomationHub from "@/components/dashboard/AutomationHub";
+import TrackingDashboard from "@/components/dashboard/TrackingDashboard";
 import RequestCreditsModal from "@/components/dashboard/RequestCreditsModal";
 
 const allTabs = [
   { id: "analytics", label: "Dashboard", icon: BarChart3, group: "crm" },
+  { id: "tracking", label: "Rastreador", icon: Target, group: "crm" },
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
@@ -330,6 +332,8 @@ const Dashboard = () => {
             {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
+            {activeTab === "tracking" && <TrackingDashboard />}
+            
             
             {activeTab === "forms" && <FormsList />}
             {activeTab === "quiz" && <QuizList />}
