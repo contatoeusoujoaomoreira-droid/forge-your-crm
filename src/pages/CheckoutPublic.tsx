@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ShoppingCart, Plus, Minus, Star, Timer, Copy, Check, Tag } from "lucide-react";
 import qrcode from "qrcode-generator";
+import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
 
 interface CheckoutItem {
   id: string; name: string; description: string; price: number; image?: string;
@@ -165,6 +166,15 @@ const CheckoutPublic = () => {
       coupon_code: appliedCoupon?.code || null,
       discount_amount: discountAmount,
     } as any);
+
+    // Attribution touchpoint (checkout)
+    const utm = readUtmFromUrl();
+    await insertTouchpoint(utm, {
+      user_id: checkout.user_id,
+      channel: "checkout",
+      conversion_value: total,
+      meta: { checkout_id: checkout.id, customer_name: customer.name, customer_phone: customer.phone, customer_email: customer.email },
+    });
 
     // Notification for checkout owner (server-side helper validates checkout ownership)
     await supabase.rpc("notify_checkout_owner" as any, {

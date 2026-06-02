@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Share2, Copy, Check, MessageCircle } from "lucide-react";
+import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
 
 interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; imageUrls?: string[]; }
 interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; stageId?: string; whatsappMessage?: string; }
@@ -68,11 +69,13 @@ const QuizPublic = () => {
     // Create lead with CRM integration
     const stageId = matched?.stageId || quiz.stage_id || quiz.settings?.stageId;
     const settings = quiz.settings || {};
+    const utm = readUtmFromUrl();
+    let createdLeadId: string | null = null;
     if (stageId && leadInfo.name) {
       const qualificationLabel = matched ? matched.title : `Score: ${score}`;
       const priority = score >= (results.length > 0 ? results[results.length - 1]?.minScore || 0 : 999) ? "hot" : score >= (results.length > 1 ? results[Math.floor(results.length / 2)]?.minScore || 0 : 999) ? "warm" : "cold";
-      
-      await supabase.from("leads").insert({
+
+      const { data: inserted } = await supabase.from("leads").insert({
         name: leadInfo.name, email: leadInfo.email || null, phone: leadInfo.phone || null,
         source: settings.leadSource ? `${settings.leadSource}:${slug}` : `quiz:${slug}`,
         status: "new", stage_id: stageId,
@@ -81,8 +84,18 @@ const QuizPublic = () => {
         notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
         tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
         priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
-      } as any);
+        utm_source: utm.source, utm_medium: utm.medium, utm_campaign: utm.campaign,
+      } as any).select("id").maybeSingle();
+      createdLeadId = inserted?.id || null;
     }
+
+    // Attribution touchpoint (quiz)
+    await insertTouchpoint(utm, {
+      user_id: quiz.user_id,
+      lead_id: createdLeadId,
+      channel: "quiz",
+      meta: { quiz_id: quiz.id, slug, score, result: matched?.title || null },
+    });
 
     setCurrentStep("done");
     setSubmitting(false);

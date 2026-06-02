@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users, Mail, Phone, Building, DollarSign, Pencil, Trash2,
-  MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar,
+  MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar, Target,
 } from "lucide-react";
 
 interface Lead {
@@ -17,6 +17,7 @@ interface Lead {
   company: string | null; value: number; stage_id: string | null;
   position: number; notes: string | null; source: string | null;
   status: string; created_at: string; tags: string[];
+  utm_source?: string | null; utm_medium?: string | null; utm_campaign?: string | null;
 }
 
 interface Stage {
@@ -100,6 +101,7 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
       </div>
       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
         {lead.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{lead.source}</span>}
+        {lead.utm_campaign && <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded flex items-center gap-1" title={`Campanha: ${lead.utm_campaign}${lead.utm_source ? ` • ${lead.utm_source}` : ""}`}><Target className="h-2.5 w-2.5" />{lead.utm_campaign}</span>}
         {lead.value > 0 && <span className="text-[10px] text-primary font-medium">R$ {lead.value.toLocaleString("pt-BR")}</span>}
         {(lead.tags || []).slice(0, 2).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
         <span className="text-[10px] text-muted-foreground ml-auto">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</span>

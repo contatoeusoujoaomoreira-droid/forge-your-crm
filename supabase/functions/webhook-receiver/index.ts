@@ -219,6 +219,59 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
   } as any;
 }
 
+// Extract Click-to-WhatsApp Ads / referral metadata from inbound raw payload.
+// Covers Meta/Z-API/Evolution variants: source_url, source_id, ctwa_clid, headline, body.
+function extractReferral(raw: any): {
+  ctwa_clid?: string; source_url?: string; source_id?: string; headline?: string; body?: string;
+  source_type?: string; campaign?: string; content?: string; term?: string; medium?: string; source?: string;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw.data || raw;
+  const msg = data.message || raw.message || {};
+  // Look in several common locations
+  const candidates = [
+    raw.referral, data.referral, msg.referral,
+    msg.extendedTextMessage?.contextInfo?.externalAdReply,
+    msg.imageMessage?.contextInfo?.externalAdReply,
+    msg.videoMessage?.contextInfo?.externalAdReply,
+    msg.conversation?.contextInfo?.externalAdReply,
+    raw.contextInfo?.externalAdReply,
+    data.contextInfo?.externalAdReply,
+    raw.click_to_wa, data.click_to_wa,
+  ].filter(Boolean);
+  const ref = candidates[0];
+  if (!ref) return null;
+  const sourceUrl: string | undefined = ref.source_url || ref.sourceUrl || ref.url;
+  let ctwa: string | undefined = ref.ctwa_clid || ref.ctwaClid || ref.click_id || ref.clickId;
+  let utm: Record<string, string> = {};
+  if (sourceUrl) {
+    try {
+      const u = new URL(sourceUrl);
+      utm = {
+        source: u.searchParams.get('utm_source') || '',
+        medium: u.searchParams.get('utm_medium') || '',
+        campaign: u.searchParams.get('utm_campaign') || '',
+        content: u.searchParams.get('utm_content') || '',
+        term: u.searchParams.get('utm_term') || '',
+      };
+      if (!ctwa) ctwa = u.searchParams.get('ctwa_clid') || undefined;
+    } catch {}
+  }
+  return {
+    ctwa_clid: ctwa,
+    source_url: sourceUrl,
+    source_id: ref.source_id || ref.sourceId || ref.ad_id,
+    headline: ref.headline || ref.title,
+    body: ref.body || ref.description,
+    source_type: ref.source_type || ref.sourceType || (sourceUrl ? 'ad' : undefined),
+    source: utm.source || 'facebook',
+    medium: utm.medium || 'click_to_wa',
+    campaign: utm.campaign || ref.campaign_id || ref.campaignId,
+    content: utm.content || ref.adset_id || ref.adsetId,
+    term: utm.term || ref.ad_id || ref.adId,
+  };
+}
+
 function extractAvatarUrl(input: any): string | undefined {
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
   const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
@@ -1189,6 +1242,7 @@ Deno.serve(async (req) => {
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+  const referral = extractReferral(raw);
 
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
@@ -1274,7 +1328,7 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}), ...(referral ? { attribution: { ...(existingPre?.metadata?.attribution || {}), source: referral.source, medium: referral.medium, campaign: referral.campaign, content: referral.content, term: referral.term, ctwa_clid: referral.ctwa_clid, source_url: referral.source_url, headline: referral.headline, captured_at: new Date().toISOString() } } : {}) },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
@@ -1295,6 +1349,44 @@ Deno.serve(async (req) => {
   if (!client) {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+
+  // Attribution: register a touchpoint for new WhatsApp leads or click-to-WA ads
+  try {
+    const isNewClient = !existingPre;
+    const hasReferral = !!referral;
+    if (isNewClient || hasReferral) {
+      // Avoid duplicate touchpoint for same ctwa_clid
+      let alreadyTracked = false;
+      if (referral?.ctwa_clid) {
+        const { data: existsTouch } = await admin.from('attribution_touchpoints')
+          .select('id').eq('user_id', userId).eq('ctwa_clid', referral.ctwa_clid).limit(1).maybeSingle();
+        if (existsTouch) alreadyTracked = true;
+      }
+      if (!alreadyTracked) {
+        await admin.from('attribution_touchpoints').insert({
+          user_id: userId,
+          client_id: client.id,
+          lead_id: client.lead_id || null,
+          channel: 'whatsapp',
+          source: referral?.source || null,
+          medium: referral?.medium || null,
+          campaign: referral?.campaign || null,
+          content: referral?.content || null,
+          term: referral?.term || null,
+          ctwa_clid: referral?.ctwa_clid || null,
+          landing_url: referral?.source_url || null,
+          meta: {
+            phone: msg.phone,
+            first_message: (msg.content || '').slice(0, 240),
+            referral_headline: referral?.headline || null,
+            referral_source_id: (referral as any)?.source_id || null,
+            instance: matchedConfig?.instance_id || null,
+          },
+        });
+      }
+    }
+  } catch (_) { /* silent */ }
+
 
   // If message was sent FROM the user's own phone, decide whether to:
   //  (a) ignore it (because WE sent it via API — UAZAPI echoes outbound back as fromMe), or
@@ -1387,6 +1479,12 @@ Deno.serve(async (req) => {
       if (lead) {
         await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
         client.lead_id = lead.id;
+        // Backfill lead_id on the most recent attribution touchpoint for this client
+        try {
+          await admin.from('attribution_touchpoints')
+            .update({ lead_id: lead.id })
+            .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
+        } catch {}
       }
     }
   }
