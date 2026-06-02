@@ -272,7 +272,7 @@ function extractReferral(raw: any): {
   };
 }
 
-
+function extractAvatarUrl(input: any): string | undefined {
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
   const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
   for (const key of directKeys) {
