@@ -36,7 +36,6 @@ const PERMISSION_KEYS: { key: string; label: string }[] = [
   { key: "import", label: "Importar" },
   { key: "imported", label: "Listas importadas" },
   { key: "analytics", label: "Analytics" },
-  { key: "pages", label: "Pages" },
   { key: "forms", label: "Forms" },
   { key: "quiz", label: "Quiz" },
   { key: "schedules", label: "Agenda" },
@@ -47,8 +46,8 @@ const PERMISSION_KEYS: { key: string; label: string }[] = [
 
 const PRESETS: Record<string, Record<string, boolean>> = {
   admin: Object.fromEntries(PERMISSION_KEYS.map(p => [p.key, true])),
-  manager: { crm: true, clients: true, import: true, imported: true, analytics: true, pages: false, forms: true, quiz: true, schedules: true, checkout: false, automation: true, chat: true },
-  attendant: { crm: false, clients: true, import: false, imported: false, analytics: false, pages: false, forms: false, quiz: false, schedules: true, checkout: false, automation: false, chat: true },
+  manager: { crm: true, clients: true, import: true, imported: true, analytics: true, forms: true, quiz: true, schedules: true, checkout: false, automation: true, chat: true },
+  attendant: { crm: false, clients: true, import: false, imported: false, analytics: false, forms: false, quiz: false, schedules: true, checkout: false, automation: false, chat: true },
 };
 
 export default function TeamMembersSection() {
