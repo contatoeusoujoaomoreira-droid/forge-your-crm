@@ -49,6 +49,39 @@ export type Database = {
           },
         ]
       }
+      ad_campaign_spend: {
+        Row: {
+          campaign: string
+          id: string
+          meta: Json
+          source: string
+          spend: number
+          spend_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          campaign: string
+          id?: string
+          meta?: Json
+          source?: string
+          spend?: number
+          spend_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          campaign?: string
+          id?: string
+          meta?: Json
+          source?: string
+          spend?: number
+          spend_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       agent_knowledge: {
         Row: {
           agent_id: string
@@ -456,6 +489,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      attribution_conversions: {
+        Row: {
+          appointment_id: string | null
+          conversion_type: string
+          converted_at: string
+          id: string
+          lead_id: string | null
+          meta: Json
+          order_id: string | null
+          touchpoint_id: string | null
+          user_id: string
+          value: number
+        }
+        Insert: {
+          appointment_id?: string | null
+          conversion_type?: string
+          converted_at?: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          order_id?: string | null
+          touchpoint_id?: string | null
+          user_id: string
+          value?: number
+        }
+        Update: {
+          appointment_id?: string | null
+          conversion_type?: string
+          converted_at?: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          order_id?: string | null
+          touchpoint_id?: string | null
+          user_id?: string
+          value?: number
+        }
+        Relationships: []
       }
       attribution_touchpoints: {
         Row: {
@@ -1593,6 +1665,45 @@ export type Database = {
           sender_name?: string | null
           sender_phone?: string | null
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_ads_configs: {
+        Row: {
+          access_token: string | null
+          ad_account_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          last_sync_error: string | null
+          last_sync_status: string | null
+          last_synced_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          last_synced_at?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
