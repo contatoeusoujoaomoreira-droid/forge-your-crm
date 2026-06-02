@@ -155,12 +155,6 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
           ))}
         </div>
       ) : (
-
-      {filtered.length === 0 ? (
-        <div className="surface-card rounded-lg p-8 text-center"><p className="text-xs text-muted-foreground">Nenhum lead encontrado</p></div>
-      ) : view === "list" ? (
-        <div className="space-y-2">{filtered.map(l => <LeadCard key={l.id} lead={l} />)}</div>
-      ) : (
         <div className="flex gap-3 overflow-x-auto pb-2">
           {stages.map(stage => {
             const stageLeads = filtered.filter(l => l.stage_id === stage.id);
