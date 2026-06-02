@@ -332,6 +332,8 @@ const Dashboard = () => {
             {activeTab === "imported" && <ImportedListsViewer />}
             {activeTab === "chat" && <InboxPage />}
             {activeTab === "analytics" && <Analytics />}
+            {activeTab === "tracking" && <TrackingDashboard />}
+            
             
             {activeTab === "forms" && <FormsList />}
             {activeTab === "quiz" && <QuizList />}
