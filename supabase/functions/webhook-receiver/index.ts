@@ -1479,6 +1479,12 @@ Deno.serve(async (req) => {
       if (lead) {
         await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
         client.lead_id = lead.id;
+        // Backfill lead_id on the most recent attribution touchpoint for this client
+        try {
+          await admin.from('attribution_touchpoints')
+            .update({ lead_id: lead.id })
+            .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
+        } catch {}
       }
     }
   }
