@@ -20,10 +20,25 @@ const PROVIDERS = [
 
 const PROVIDER_MODELS: Record<string, { id: string; label: string }[]> = {
   lovable: [
-    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido)" },
-    { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    // Google Gemini — Lovable AI Gateway
+    { id: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite (mais barato)" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (recomendado)" },
+    { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (raciocínio)" },
+    { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (preview)" },
+    { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+    { id: "google/gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite (preview)" },
+    { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (preview)" },
+    // OpenAI GPT-5 family
+    { id: "openai/gpt-5-nano", label: "GPT-5 Nano (rápido)" },
     { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
     { id: "openai/gpt-5", label: "GPT-5" },
+    { id: "openai/gpt-5.2", label: "GPT-5.2" },
+    { id: "openai/gpt-5.4-nano", label: "GPT-5.4 Nano" },
+    { id: "openai/gpt-5.4-mini", label: "GPT-5.4 Mini" },
+    { id: "openai/gpt-5.4", label: "GPT-5.4" },
+    { id: "openai/gpt-5.4-pro", label: "GPT-5.4 Pro" },
+    { id: "openai/gpt-5.5", label: "GPT-5.5 (top)" },
+    { id: "openai/gpt-5.5-pro", label: "GPT-5.5 Pro" },
   ],
   openai: [
     { id: "gpt-4o", label: "GPT-4o" },
