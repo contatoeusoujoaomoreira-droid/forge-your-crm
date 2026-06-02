@@ -473,6 +473,9 @@ const SuperAdminPanel = () => {
       )}
         </TabsContent>
 
+        <TabsContent value="health" className="pt-4">
+          <HealthPanel />
+        </TabsContent>
         <TabsContent value="requests" className="pt-4">
           <CreditRequestsTab users={users.map(u => ({ user_id: u.user_id, email: u.email, full_name: u.full_name }))} />
         </TabsContent>
