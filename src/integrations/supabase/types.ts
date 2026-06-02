@@ -457,6 +457,69 @@ export type Database = {
           },
         ]
       }
+      attribution_touchpoints: {
+        Row: {
+          campaign: string | null
+          captured_at: string
+          channel: string
+          client_id: string | null
+          content: string | null
+          conversion_value: number
+          ctwa_clid: string | null
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          landing_url: string | null
+          lead_id: string | null
+          medium: string | null
+          meta: Json
+          referrer: string | null
+          source: string | null
+          term: string | null
+          user_id: string
+        }
+        Insert: {
+          campaign?: string | null
+          captured_at?: string
+          channel?: string
+          client_id?: string | null
+          content?: string | null
+          conversion_value?: number
+          ctwa_clid?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          lead_id?: string | null
+          medium?: string | null
+          meta?: Json
+          referrer?: string | null
+          source?: string | null
+          term?: string | null
+          user_id: string
+        }
+        Update: {
+          campaign?: string | null
+          captured_at?: string
+          channel?: string
+          client_id?: string | null
+          content?: string | null
+          conversion_value?: number
+          ctwa_clid?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          lead_id?: string | null
+          medium?: string | null
+          meta?: Json
+          referrer?: string | null
+          source?: string | null
+          term?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string
