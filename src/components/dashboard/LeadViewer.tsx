@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users, Mail, Phone, Building, DollarSign, Pencil, Trash2,
-  MessageCircle, List, LayoutDashboard, Search, X, Tag,
+  MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar,
 } from "lucide-react";
 
 interface Lead {
@@ -33,7 +33,14 @@ interface LeadViewerProps {
 const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [view, setView] = useState<"list" | "kanban">("list");
+  const [view, setView] = useState<"list" | "kanban" | "boards">(() => {
+    const v = typeof window !== "undefined" ? localStorage.getItem("leadviewer-view") : null;
+    return (v === "kanban" || v === "boards" || v === "list") ? v : "list";
+  });
+  const setViewPersist = (v: "list" | "kanban" | "boards") => {
+    setView(v);
+    try { localStorage.setItem("leadviewer-view", v); } catch {}
+  };
   const [search, setSearch] = useState("");
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -109,10 +116,45 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
             <Search className="h-3 w-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." className="h-7 pl-7 w-36 text-xs bg-secondary/50 border-border" />
           </div>
-          <Button variant={view === "list" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setView("list")}><List className="h-3 w-3" /></Button>
-          <Button variant={view === "kanban" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setView("kanban")}><LayoutDashboard className="h-3 w-3" /></Button>
+          <Button variant={view === "list" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setViewPersist("list")} title="Lista"><List className="h-3 w-3" /></Button>
+          <Button variant={view === "kanban" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setViewPersist("kanban")} title="Kanban"><LayoutDashboard className="h-3 w-3" /></Button>
+          <Button variant={view === "boards" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setViewPersist("boards")} title="Quadros"><LayoutGrid className="h-3 w-3" /></Button>
         </div>
       </div>
+
+      {filtered.length === 0 ? (
+        <div className="surface-card rounded-lg p-8 text-center"><p className="text-xs text-muted-foreground">Nenhum lead encontrado</p></div>
+      ) : view === "list" ? (
+        <div className="space-y-2">{filtered.map(l => <LeadCard key={l.id} lead={l} />)}</div>
+      ) : view === "boards" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filtered.map(l => (
+            <div key={l.id} onClick={() => { setEditLead({ ...l }); setEditOpen(true); }}
+              className="surface-card rounded-lg p-4 cursor-pointer hover:border-primary/30 transition-colors space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
+                  {l.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">{l.name}</p>
+                  {l.company && <p className="text-[10px] text-muted-foreground truncate">{l.company}</p>}
+                </div>
+                {l.phone && <button onClick={e => { e.stopPropagation(); openWhatsApp(l); }} className="p-1.5 hover:bg-primary/10 rounded"><MessageCircle className="h-3.5 w-3.5 text-primary" /></button>}
+              </div>
+              {l.email && <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate"><Mail className="h-3 w-3 shrink-0" />{l.email}</p>}
+              {l.phone && <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate"><Phone className="h-3 w-3 shrink-0" />{l.phone}</p>}
+              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                {l.value > 0 ? <span className="text-xs text-primary font-semibold">R$ {l.value.toLocaleString("pt-BR")}</span> : <span />}
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{new Date(l.created_at).toLocaleDateString("pt-BR")}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {l.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{l.source}</span>}
+                {(l.tags || []).slice(0, 3).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
 
       {filtered.length === 0 ? (
         <div className="surface-card rounded-lg p-8 text-center"><p className="text-xs text-muted-foreground">Nenhum lead encontrado</p></div>
