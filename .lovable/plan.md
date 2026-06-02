@@ -1,46 +1,108 @@
-Esta solicitação tem 7 frentes interligadas. Proponho executar em uma única rodada, mas em blocos claros:
+# Plano — Refatoração e novas features Omni Builder CRM
 
-## 1. Conexão WhatsApp — UI com abas + auto-conectado
-- Refatorar `AutomationHub.tsx` (seção Conexões / OmniConect):
-  - Adicionar **abas** dentro da conexão: "OmniConect (QR/Pareamento)" e "Outras opções (avançado)". A aba OmniConect mostra apenas QR Code e Código de Pareamento — nada mais.
-  - Dentro do OmniConect, sub-toggle entre **QR Code** e **Código de Pareamento** (input de telefone + `paircode` que já vem da edge function).
-  - Após conectar, **polling de status** a cada 3s; quando `connected=true`, fechar modal/painel de QR automaticamente e renderizar o card "CONECTADO" (estilo Z-API igual à imagem: avatar/iniciais, "Operacional · respondendo mensagens", botão Desconectar, agente responsável, webhook ativo, último evento).
-  - Esse card "Conectado" já existe em parte — vou consolidar num componente `<WhatsAppConnectedCard />`.
+Entrega em **3 fases sequenciais**, cada fase é um deploy independente e validável. Nada é começado sem a anterior estar estável.
 
-## 2. Código de pareamento funcional
-- A edge function `omniconect` já aceita `body.phone` no `action: 'connect'` e retorna `paircode`. UI precisa enviar o telefone e exibir o código formatado (XXXX-XXXX).
+---
 
-## 3. Takeover humano → pausa automática do agente
-- Nova tabela `agent_pause` (ou coluna em `conversations`): `conversation_id`, `paused_until` (timestamp nullable; null = permanente), `paused_by`.
-- Em `InboxPage.tsx`: ao enviar mensagem manual (humana), chamar `pauseAgent(conversationId, duration)`. UI: dropdown ao lado do input com opções: 30min / 1h / 4h / 24h / Permanente / Não pausar. Salvar preferência por usuário.
-- Em `webhook-receiver/index.ts` (ou `ai-agent`): antes de disparar o agente, checar `paused_until > now()` → pular resposta automática.
-- Indicador visual no chat: "Agente pausado até HH:MM" com botão "Reativar".
+## FASE 1 — Dashboard, Forms e Provedores IA
 
-## 4. Avatares/fotos de perfil no chat
-- Edge function `sync-chat-avatars` já existe. Garantir que:
-  - Webhook salva `profile_pic_url` ao receber mensagem (UAZAPI envia em `chat.imagePreview` ou via `/chat/details`).
-  - InboxPage renderiza `<Avatar src={contact.profile_pic_url}>` com fallback de iniciais.
-- Adicionar chamada para sincronizar avatar quando um contato novo aparece.
+### 1.1 Dashboard focado em CRM/Chat
+- Remover `Pages` por completo: KPIs, gráficos, queries, rotas, componentes e tabelas órfãs (`pages`, `page_views`, etc.) após auditoria de dependências.
+- Refatorar `Analytics.tsx` / `DashboardAnalytics.tsx`:
+  - **Filtro global de período** (Hoje, Ontem, 7d, 30d, mês atual, mês anterior, custom) com estado compartilhado via context.
+  - **Grupo KPIs CRM**: negócios ativos, ganhos, perdidos, taxa conversão, ticket médio, tempo médio fechamento, valor pipeline, valor ponderado.
+  - **Grupo KPIs Leads**: total, hoje, semana, mês, por origem, convertidos, perdidos.
+  - **Grupo KPIs Chat**: conversas iniciadas, ativas, encerradas, tempo médio 1ª resposta, tempo médio atendimento, conversões originadas do chat (lead criado a partir de `messages`).
+- Todas as queries respeitam o filtro de período (parâmetros `from`/`to`).
 
-## 5. Tempo de resposta configurado deve ser respeitado
-- Hoje em `webhook-receiver` o debounce fixo de ~8s espera o lead terminar de digitar, **e ignora** `agent.response_delay_seconds`.
-- Fix: a janela de debounce passa a usar `agent.response_delay_seconds` (com mínimo 1s, máximo 30s). Se configurado 1s → espera 1s e responde. O self-trigger (`EdgeRuntime.waitUntil`) já está em produção, só precisa usar o valor correto.
+### 1.2 Forms — visualização profissional de leads
+- Novo `FormLeadsViewer` reaproveitando `LeadViewer` compartilhado:
+  - **3 modos**: Kanban, Lista, Quadros (toggle persistente).
+  - **Drawer detalhado** ao clicar no lead: dados completos, origem, UTM, criado em, status, observações, **timeline** (de `activities` + `messages` + mudanças de stage).
+- **Anti-duplicidade** no ingest público (`ContactFormRenderer` + edge de submissão):
+  - Match por telefone normalizado (E.164), email lowercase, fallback nome+canal.
+  - Em duplicata: atualiza lead existente, adiciona activity "novo contato via form X", não cria duplicado.
+- **Garantia de sync com CRM**: form deve ter `user_id`, `pipeline_id`, `stage_id` obrigatórios; lead cai na stage configurada; trigger valida.
 
-## 6. Validar fluxo end-to-end
-- Após as mudanças, testar: webhook → debounce → ai-agent → send-whatsapp → mensagem aparece no chat em tempo real.
-- Logs em cada etapa com `[FLOW]` para facilitar diagnóstico.
+### 1.3 Provedores de IA — expansão de modelos
+- Atualizar catálogo em `AIProviderSettings.tsx` e `model_credit_costs` para incluir os modelos atuais do Lovable AI Gateway (Gemini 3.x, GPT-5.4/5.5 família).
+- Remover modelos depreciados/inativos.
+- Validar custo (`credits_per_message`) por modelo com super admin antes do seed.
 
-## 7. Detalhes técnicos
-- Migration: tabela `agent_pause` com RLS + GRANTs.
-- Sem novas dependências.
-- Preservar lógica existente de multi-instância, mídias, fuso horário.
+---
 
-## Arquivos afetados
-- `src/components/dashboard/AutomationHub.tsx` (abas + auto-conectado + pareamento UI)
-- novo `src/components/dashboard/automation/WhatsAppConnectedCard.tsx`
-- `src/components/dashboard/InboxPage.tsx` (takeover + avatar + dropdown pausa)
-- `supabase/functions/webhook-receiver/index.ts` (debounce dinâmico + check pausa + sync avatar)
-- `supabase/functions/omniconect/index.ts` (sem mudanças significativas)
-- Nova migration: `agent_pause` table
+## FASE 2 — Super Admin (Saúde) + Segurança/Backup
 
-Confirma para eu executar tudo nesta rodada? Ou prefere que eu faça em 2 PRs (1 = UI Conexão + pareamento + auto-conectado; 2 = takeover + avatares + tempo de resposta)?
+### 2.1 Central de Saúde da Plataforma
+Nova aba no `SuperAdminPanel` ao lado de "Histórico de Uso":
+- **Infraestrutura** (via `supabase--db_health` consumido por edge function `platform-health`):
+  - Tamanho do banco, WAL, % conexões, deadlocks, OOM, restarts, storage usado por bucket.
+- **Estabilidade**: uptime/latência das edge functions críticas (webhook-receiver, ai-agent, send-whatsapp) via amostragem dos `function_edge_logs`.
+- **Segurança**: contagem de auth failures (analytics_query em `auth_logs`), tentativas suspeitas (>5 falhas/IP), últimos logs críticos do Postgres.
+- **Saúde por conta**: por `user_id` → créditos consumidos 24h, msgs enviadas, erros de edge atribuíveis, tamanho aproximado (linhas em messages/leads/clients).
+- **Alertas inteligentes**: regras simples (disco >80%, conexões >70%, erros >X/min) gravadas em `platform_alerts` + badge no menu.
+
+### 2.2 Auditoria de Segurança e Backup
+- Rodar `security--run_security_scan` + `supabase--linter` e corrigir findings críticos.
+- Documentar política de backup (Lovable Cloud já faz daily; expor data do último backup no painel).
+- Revisar webhooks/filas: idempotência em `webhook-receiver`, retry em `message_debounce_queue`, DLQ para falhas persistentes.
+- Index review nas tabelas hot (`messages`, `leads`, `chat_clients`, `credit_transactions`).
+
+---
+
+## FASE 3 — Agenda + Rastreador Inteligente
+
+### 3.1 Refatoração visual do módulo Agenda
+- Mantém lógica (`book-appointment`, `schedules`, `appointments`), refaz UI:
+  - Layout calendário tipo Cal.com (week/day/month).
+  - Cards de serviço polidos, fluxo de criação simplificado.
+  - Mantém capacidade, confirmação gamificada, cancelamento via token.
+
+### 3.2 Novo módulo Rastreador Inteligente (MVP UTM)
+- **Tabela `attribution_touchpoints`**: `id, user_id, client_id?, lead_id?, source, medium, campaign, content, term, ctwa_clid, fbclid, gclid, landing_url, referrer, captured_at, meta jsonb`.
+- **Tabela `attribution_conversions`**: liga touchpoint → lead → order/won deal com valor.
+- **Captura**:
+  - Forms públicos: já lê `utm_*` da URL → grava touchpoint vinculado ao lead.
+  - WhatsApp: parser do `ctwa_clid` e mensagem de referral da Meta no `webhook-receiver` (campos `referral.source_url`, `referral.headline` da UAZAPI/Z-API).
+  - Checkout/Quiz: persist UTM no order.
+- **UI `TrackingDashboard`**:
+  - Filtros por período/campanha/origem.
+  - Tabela hierárquica: Campanha → Conjunto (inferido por `utm_content`) → Anúncio (`utm_term`) → Criativo.
+  - Métricas: leads, conversas, deals criados, ganhos, receita, ROAS estimado (se usuário informar gasto manualmente).
+  - Tooltips "i" em cada campo com explicação + exemplo de URL.
+- **Central de ajuda**: componente `<InfoTip>` reutilizável; cada item de configuração ganha uma explicação curta + link para drawer com passo-a-passo.
+- **Integração Meta oficial**: marcada como Fase 4 futura (requer App Meta + token).
+
+---
+
+## Detalhes técnicos
+
+### Migrations
+- `DROP TABLE` Pages-related (após confirmar zero referências em código).
+- `CREATE TABLE attribution_touchpoints`, `attribution_conversions`, `platform_alerts` — todas com GRANTs + RLS (`user_id = auth.uid()` para attribution; super_admin only para platform_alerts).
+- Index em `messages(user_id, created_at)`, `leads(user_id, created_at, status)`.
+
+### Edge functions novas
+- `platform-health` — agrega db_health + logs (super_admin only, JWT verify in-code).
+- `attribution-ingest` — opcional, para postback de conversões.
+
+### Frontend
+- Novo context `DashboardFilterContext` com período global.
+- Componentes: `KpiGroup`, `PeriodFilter`, `InfoTip`, `TrackingTable`, `HealthPanel`, `FormLeadsViewer`.
+- Reaproveita shadcn (Tabs, Card, Dialog, Drawer, Calendar).
+
+### Não-objetivos / riscos
+- Não altera lógica core de `ai-agent`, `webhook-receiver` (apenas adiciona captura attribution).
+- Não introduz Meta Ads API agora.
+- Drop de Pages é irreversível — backup verificado antes.
+
+---
+
+## Validação por fase
+Cada fase termina com:
+1. `supabase--linter` sem findings críticos.
+2. Smoke test manual dos fluxos afetados.
+3. Verificação de console/network sem erros.
+4. Confirmação do usuário antes da próxima fase.
+
+Confirme para começar a **Fase 1**.
