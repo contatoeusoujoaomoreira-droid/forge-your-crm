@@ -137,15 +137,57 @@ const FormPublic = () => {
       }
 
       if ((nameField || emailField) && finalStageId) {
-        await supabase.from("leads").insert({
-          name: answers[nameField?.id || ""] || "Form Lead",
-          email: emailField ? answers[emailField.id] || null : null,
-          phone: phoneField ? answers[phoneField.id] || null : null,
-          source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
-          status: "new", stage_id: finalStageId, user_id: form.user_id,
-          pipeline_id: pipelineId || null,
-          tags: settings.autoTags || [],
-        } as any);
+        const leadName = answers[nameField?.id || ""] || "Form Lead";
+        const leadEmail = emailField ? (answers[emailField.id] || "").toLowerCase().trim() || null : null;
+        const leadPhoneRaw = phoneField ? answers[phoneField.id] || null : null;
+        const leadPhone = leadPhoneRaw ? leadPhoneRaw.replace(/\D/g, "") || null : null;
+
+        // Anti-duplicate: match by phone first, then email, scoped to this user_id
+        let existing: { id: string } | null = null;
+        if (leadPhone) {
+          const { data } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("user_id", form.user_id)
+            .eq("phone", leadPhone)
+            .limit(1)
+            .maybeSingle();
+          if (data) existing = data;
+        }
+        if (!existing && leadEmail) {
+          const { data } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("user_id", form.user_id)
+            .eq("email", leadEmail)
+            .limit(1)
+            .maybeSingle();
+          if (data) existing = data;
+        }
+
+        if (existing) {
+          // Update last touch + add activity instead of duplicating
+          await supabase.from("leads").update({
+            updated_at: new Date().toISOString(),
+            name: leadName,
+          } as any).eq("id", existing.id);
+          await supabase.from("activities").insert({
+            user_id: form.user_id,
+            lead_id: existing.id,
+            type: "note",
+            description: `Nova submissão do formulário "${form.title}" (${slug})`,
+          } as any);
+        } else {
+          await supabase.from("leads").insert({
+            name: leadName,
+            email: leadEmail,
+            phone: leadPhone,
+            source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
+            status: "new", stage_id: finalStageId, user_id: form.user_id,
+            pipeline_id: pipelineId || null,
+            tags: settings.autoTags || [],
+          } as any);
+        }
       }
     }
 
