@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users, Mail, Phone, Building, DollarSign, Pencil, Trash2,
-  MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar,
+  MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar, Target,
 } from "lucide-react";
 
 interface Lead {
@@ -17,6 +17,7 @@ interface Lead {
   company: string | null; value: number; stage_id: string | null;
   position: number; notes: string | null; source: string | null;
   status: string; created_at: string; tags: string[];
+  utm_source?: string | null; utm_medium?: string | null; utm_campaign?: string | null;
 }
 
 interface Stage {
