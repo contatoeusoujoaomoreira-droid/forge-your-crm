@@ -497,6 +497,22 @@ export default function InboxPage() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{selected.phone}</p>
+                {(selected as any).metadata?.attribution?.campaign && (
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded" title={`Origem: ${(selected as any).metadata.attribution.source || "ad"}`}>
+                      🎯 {(selected as any).metadata.attribution.campaign}
+                    </span>
+                    {(selected as any).metadata.attribution.content && (
+                      <span className="text-[10px] bg-secondary/60 px-1.5 py-0.5 rounded" title="Conjunto/Adset">{(selected as any).metadata.attribution.content}</span>
+                    )}
+                    {(selected as any).metadata.attribution.term && (
+                      <span className="text-[10px] bg-secondary/60 px-1.5 py-0.5 rounded" title="Criativo/Anúncio">{(selected as any).metadata.attribution.term}</span>
+                    )}
+                    {(selected as any).metadata.attribution.ctwa_clid && (
+                      <span className="text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded" title="Click-to-WhatsApp Ad">CTWA</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {avgTicket > 0 && (
