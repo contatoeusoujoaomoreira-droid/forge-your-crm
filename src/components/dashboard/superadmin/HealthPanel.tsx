@@ -49,7 +49,26 @@ const HealthPanel = () => {
     if (error) {
       toast({ title: "Erro ao carregar saúde", description: error.message, variant: "destructive" });
     } else if (data && !(data as any).error) {
-      setSnap(data as unknown as Snapshot);
+      const d = data as any;
+      setSnap({
+        db_size_mb: d.db_size_mb ?? 0,
+        connections: d.connections ?? 0,
+        connections_max: d.connections_max ?? 0,
+        connections_pct: d.connections_pct ?? 0,
+        deadlocks: d.deadlocks ?? 0,
+        rolled_back: d.rolled_back ?? 0,
+        total_users: d.total_users ?? 0,
+        active_users_24h: d.active_users_24h ?? 0,
+        messages_24h: d.messages_24h ?? 0,
+        inbound_24h: d.inbound_24h ?? 0,
+        outbound_24h: d.outbound_24h ?? 0,
+        leads_24h: d.leads_24h ?? 0,
+        credits_24h: d.credits_24h ?? 0,
+        top_msgs: Array.isArray(d.top_msgs) ? d.top_msgs.map((t: any) => ({ ...t, messages: t.messages ?? 0 })) : [],
+        top_credits: Array.isArray(d.top_credits) ? d.top_credits.map((t: any) => ({ ...t, credits: t.credits ?? 0 })) : [],
+        recent_alerts: Array.isArray(d.recent_alerts) ? d.recent_alerts : [],
+        snapshot_at: d.snapshot_at ?? new Date().toISOString(),
+      });
     } else if ((data as any)?.error) {
       toast({ title: "Acesso negado", description: "Apenas super admins podem ver a saúde da plataforma.", variant: "destructive" });
     }
