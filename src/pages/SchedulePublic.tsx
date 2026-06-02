@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar, Clock, XCircle, CheckCircle, PartyPopper, MessageCircle, Star } from "lucide-react";
+import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
 
 const SchedulePublic = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -65,6 +66,16 @@ const SchedulePublic = () => {
 
     if (data.cancellation_token) {
       setCancellationLink(`${window.location.origin}/agendar/${slug}?cancel=${data.cancellation_token}`);
+    }
+
+    // Attribution touchpoint (schedule)
+    if (schedule?.user_id) {
+      const utm = readUtmFromUrl();
+      await insertTouchpoint(utm, {
+        user_id: schedule.user_id,
+        channel: "schedule",
+        meta: { schedule_id: schedule.id, slug, date: selectedDate, time: selectedTime, guest_name: guestName, guest_phone: guestPhone },
+      });
     }
 
     setSubmitted(true);
