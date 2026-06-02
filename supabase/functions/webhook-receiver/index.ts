@@ -1328,7 +1328,7 @@ Deno.serve(async (req) => {
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}) },
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}), ...(referral ? { attribution: { ...(existingPre?.metadata?.attribution || {}), source: referral.source, medium: referral.medium, campaign: referral.campaign, content: referral.content, term: referral.term, ctwa_clid: referral.ctwa_clid, source_url: referral.source_url, headline: referral.headline, captured_at: new Date().toISOString() } } : {}) },
     updated_at: new Date().toISOString(),
   };
   // Only set avatar if we have a fresh one — never wipe existing
