@@ -1350,6 +1350,44 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
+  // Attribution: register a touchpoint for new WhatsApp leads or click-to-WA ads
+  try {
+    const isNewClient = !existingPre;
+    const hasReferral = !!referral;
+    if (isNewClient || hasReferral) {
+      // Avoid duplicate touchpoint for same ctwa_clid
+      let alreadyTracked = false;
+      if (referral?.ctwa_clid) {
+        const { data: existsTouch } = await admin.from('attribution_touchpoints')
+          .select('id').eq('user_id', userId).eq('ctwa_clid', referral.ctwa_clid).limit(1).maybeSingle();
+        if (existsTouch) alreadyTracked = true;
+      }
+      if (!alreadyTracked) {
+        await admin.from('attribution_touchpoints').insert({
+          user_id: userId,
+          client_id: client.id,
+          lead_id: client.lead_id || null,
+          channel: 'whatsapp',
+          source: referral?.source || null,
+          medium: referral?.medium || null,
+          campaign: referral?.campaign || null,
+          content: referral?.content || null,
+          term: referral?.term || null,
+          ctwa_clid: referral?.ctwa_clid || null,
+          landing_url: referral?.source_url || null,
+          meta: {
+            phone: msg.phone,
+            first_message: (msg.content || '').slice(0, 240),
+            referral_headline: referral?.headline || null,
+            referral_source_id: (referral as any)?.source_id || null,
+            instance: matchedConfig?.instance_id || null,
+          },
+        });
+      }
+    }
+  } catch (_) { /* silent */ }
+
+
   // If message was sent FROM the user's own phone, decide whether to:
   //  (a) ignore it (because WE sent it via API — UAZAPI echoes outbound back as fromMe), or
   //  (b) mirror as outbound + take over (real manual reply from the user's WhatsApp app).
