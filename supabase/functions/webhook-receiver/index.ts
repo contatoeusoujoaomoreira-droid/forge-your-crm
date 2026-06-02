@@ -1242,6 +1242,7 @@ Deno.serve(async (req) => {
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+  const referral = extractReferral(raw);
 
   if (msg.external_message_id) {
     const { data: dup } = await admin.from('messages').select('id').eq('user_id', userId).eq('external_message_id', msg.external_message_id).maybeSingle();
