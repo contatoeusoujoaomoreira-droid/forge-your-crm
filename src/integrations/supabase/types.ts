@@ -1728,6 +1728,45 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_alerts: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          level: string
+          message: string | null
+          metadata: Json
+          resolved: boolean
+          resolved_at: string | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string | null
+          metadata?: Json
+          resolved?: boolean
+          resolved_at?: string | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string | null
+          metadata?: Json
+          resolved?: boolean
+          resolved_at?: string | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2388,6 +2427,7 @@ export type Database = {
         Args: { _event: string; _payload: Json; _user_id: string }
         Returns: undefined
       }
+      platform_health_snapshot: { Args: never; Returns: Json }
       resume_expired_handoffs: { Args: never; Returns: number }
       schedule_handoff_resume: {
         Args: { _client_id: string }
