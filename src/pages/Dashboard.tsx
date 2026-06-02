@@ -9,7 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
