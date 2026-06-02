@@ -50,28 +50,25 @@ Nova aba no `SuperAdminPanel` ao lado de "Histórico de Uso":
 
 ---
 
-## FASE 3 — Agenda + Rastreador Inteligente
+## FASE 3 — Agenda + Rastreador Inteligente ✅ (MVP)
 
-### 3.1 Refatoração visual do módulo Agenda
-- Mantém lógica (`book-appointment`, `schedules`, `appointments`), refaz UI:
-  - Layout calendário tipo Cal.com (week/day/month).
-  - Cards de serviço polidos, fluxo de criação simplificado.
-  - Mantém capacidade, confirmação gamificada, cancelamento via token.
+### 3.1 Agenda
+- Mantida estrutura atual (já cobre Cal.com-style com views Month/Week/Day, capacidade, cancelamento via token, agendamento manual, analytics).
+- Polimento visual incremental virá conforme feedback de uso.
 
-### 3.2 Novo módulo Rastreador Inteligente (MVP UTM)
-- **Tabela `attribution_touchpoints`**: `id, user_id, client_id?, lead_id?, source, medium, campaign, content, term, ctwa_clid, fbclid, gclid, landing_url, referrer, captured_at, meta jsonb`.
-- **Tabela `attribution_conversions`**: liga touchpoint → lead → order/won deal com valor.
-- **Captura**:
-  - Forms públicos: já lê `utm_*` da URL → grava touchpoint vinculado ao lead.
-  - WhatsApp: parser do `ctwa_clid` e mensagem de referral da Meta no `webhook-receiver` (campos `referral.source_url`, `referral.headline` da UAZAPI/Z-API).
-  - Checkout/Quiz: persist UTM no order.
-- **UI `TrackingDashboard`**:
-  - Filtros por período/campanha/origem.
-  - Tabela hierárquica: Campanha → Conjunto (inferido por `utm_content`) → Anúncio (`utm_term`) → Criativo.
-  - Métricas: leads, conversas, deals criados, ganhos, receita, ROAS estimado (se usuário informar gasto manualmente).
-  - Tooltips "i" em cada campo com explicação + exemplo de URL.
-- **Central de ajuda**: componente `<InfoTip>` reutilizável; cada item de configuração ganha uma explicação curta + link para drawer com passo-a-passo.
-- **Integração Meta oficial**: marcada como Fase 4 futura (requer App Meta + token).
+### 3.2 Rastreador Inteligente (MVP UTM) — entregue
+- Tabela `attribution_touchpoints` (RLS por user, INSERT público para ingest).
+- Captura automática em `FormPublic`: lê `utm_*`, `fbclid`, `gclid`, `ctwa_clid` da URL + landing_url + referrer; grava no lead (utm_source/medium/campaign) e cria touchpoint vinculado.
+- Novo tab "Rastreador" em `Dashboard` com `TrackingDashboard`:
+  - Filtros de período (Hoje, 7d, 30d, Mês, Tudo).
+  - KPIs (toques, leads atribuídos, campanhas ativas, receita atribuída).
+  - Breakdown source/medium.
+  - Árvore Campanha → Conjunto (`utm_content`) → Anúncio (`utm_term`).
+  - Input manual de gasto por campanha → ROAS calculado.
+  - Tooltips `<InfoTip>` em cada métrica + bloco "Como configurar" com exemplo.
+- Componente reutilizável `InfoTip` para ajuda contextual.
+- **Pendente futura**: captura no checkout/quiz, parser de `referral` no `webhook-receiver`, integração Meta API oficial.
+
 
 ---
 
