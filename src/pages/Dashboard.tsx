@@ -27,6 +27,7 @@ import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 import InboxPage from "@/components/dashboard/InboxPage";
 import AutomationHub from "@/components/dashboard/AutomationHub";
+import TrackingDashboard from "@/components/dashboard/TrackingDashboard";
 import RequestCreditsModal from "@/components/dashboard/RequestCreditsModal";
 
 const allTabs = [
