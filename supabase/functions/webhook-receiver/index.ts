@@ -219,7 +219,60 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
   } as any;
 }
 
-function extractAvatarUrl(input: any): string | undefined {
+// Extract Click-to-WhatsApp Ads / referral metadata from inbound raw payload.
+// Covers Meta/Z-API/Evolution variants: source_url, source_id, ctwa_clid, headline, body.
+function extractReferral(raw: any): {
+  ctwa_clid?: string; source_url?: string; source_id?: string; headline?: string; body?: string;
+  source_type?: string; campaign?: string; content?: string; term?: string; medium?: string; source?: string;
+} | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw.data || raw;
+  const msg = data.message || raw.message || {};
+  // Look in several common locations
+  const candidates = [
+    raw.referral, data.referral, msg.referral,
+    msg.extendedTextMessage?.contextInfo?.externalAdReply,
+    msg.imageMessage?.contextInfo?.externalAdReply,
+    msg.videoMessage?.contextInfo?.externalAdReply,
+    msg.conversation?.contextInfo?.externalAdReply,
+    raw.contextInfo?.externalAdReply,
+    data.contextInfo?.externalAdReply,
+    raw.click_to_wa, data.click_to_wa,
+  ].filter(Boolean);
+  const ref = candidates[0];
+  if (!ref) return null;
+  const sourceUrl: string | undefined = ref.source_url || ref.sourceUrl || ref.url;
+  let ctwa: string | undefined = ref.ctwa_clid || ref.ctwaClid || ref.click_id || ref.clickId;
+  let utm: Record<string, string> = {};
+  if (sourceUrl) {
+    try {
+      const u = new URL(sourceUrl);
+      utm = {
+        source: u.searchParams.get('utm_source') || '',
+        medium: u.searchParams.get('utm_medium') || '',
+        campaign: u.searchParams.get('utm_campaign') || '',
+        content: u.searchParams.get('utm_content') || '',
+        term: u.searchParams.get('utm_term') || '',
+      };
+      if (!ctwa) ctwa = u.searchParams.get('ctwa_clid') || undefined;
+    } catch {}
+  }
+  return {
+    ctwa_clid: ctwa,
+    source_url: sourceUrl,
+    source_id: ref.source_id || ref.sourceId || ref.ad_id,
+    headline: ref.headline || ref.title,
+    body: ref.body || ref.description,
+    source_type: ref.source_type || ref.sourceType || (sourceUrl ? 'ad' : undefined),
+    source: utm.source || 'facebook',
+    medium: utm.medium || 'click_to_wa',
+    campaign: utm.campaign || ref.campaign_id || ref.campaignId,
+    content: utm.content || ref.adset_id || ref.adsetId,
+    term: utm.term || ref.ad_id || ref.adId,
+  };
+}
+
+
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
   const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
   for (const key of directKeys) {
