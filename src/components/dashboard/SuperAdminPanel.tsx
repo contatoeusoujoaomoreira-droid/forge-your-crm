@@ -9,13 +9,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Trash2, Users, Shield, Key, KeyRound,
   BarChart3, Globe, FileText, FileQuestion, Calendar, ShoppingCart, LayoutDashboard,
-  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings, CheckCircle2,
+  RefreshCw, UserPlus, ChevronDown, ChevronRight, Zap, MessageCircle, Upload, History, Coins, Settings, CheckCircle2, Activity,
 } from "lucide-react";
 import UsageHistoryTab from "./superadmin/UsageHistoryTab";
 import CreditRequestsTab from "./superadmin/CreditRequestsTab";
 import CreditCostsTab from "./superadmin/CreditCostsTab";
 import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
+import HealthPanel from "./superadmin/HealthPanel";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
@@ -55,7 +56,6 @@ const PERMISSION_LABELS: Record<string, { label: string; icon: any }> = {
   import: { label: "Importar", icon: Upload },
   imported: { label: "Importados", icon: CheckCircle2 },
   analytics: { label: "Analytics", icon: BarChart3 },
-  pages: { label: "Pages", icon: Globe },
   forms: { label: "Forms", icon: FileText },
   quiz: { label: "Quiz", icon: FileQuestion },
   schedules: { label: "Agenda", icon: Calendar },
@@ -79,7 +79,7 @@ const SuperAdminPanel = () => {
   const [newName, setNewName] = useState("");
   const [newCredits, setNewCredits] = useState(100);
   const [newPerms, setNewPerms] = useState<Record<string, boolean>>({
-    crm: true, clients: true, import: true, imported: true, analytics: true, pages: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true, providers_tab: false,
+    crm: true, clients: true, import: true, imported: true, analytics: true, forms: true, quiz: true, schedules: true, checkout: true, automation: true, chat: true, providers_tab: false,
   });
   const [creating, setCreating] = useState(false);
 
@@ -235,6 +235,7 @@ const SuperAdminPanel = () => {
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="users"><Users className="h-3 w-3 mr-1" /> Usuários</TabsTrigger>
+          <TabsTrigger value="health"><Activity className="h-3 w-3 mr-1" /> Saúde</TabsTrigger>
           <TabsTrigger value="requests"><Coins className="h-3 w-3 mr-1" /> Solicitações</TabsTrigger>
           <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos por ação</TabsTrigger>
           <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
