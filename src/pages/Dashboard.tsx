@@ -32,6 +32,7 @@ import RequestCreditsModal from "@/components/dashboard/RequestCreditsModal";
 
 const allTabs = [
   { id: "analytics", label: "Dashboard", icon: BarChart3, group: "crm" },
+  { id: "tracking", label: "Rastreador", icon: Target, group: "crm" },
   { id: "crm", label: "CRM", icon: LayoutDashboard, group: "crm" },
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
