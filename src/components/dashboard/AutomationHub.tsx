@@ -550,6 +550,7 @@ export default function AutomationHub() {
     setEvoQrState("qr");
     toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
     await reloadWaConfigs();
+    let lastQrRefresh = Date.now();
     const t = setInterval(async () => {
       const r = await supabase.functions.invoke("omniconect", {
         body: { action: "status", base_url: baseUrl, instance_token: instanceToken },
@@ -563,26 +564,27 @@ export default function AutomationHub() {
           body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         await reloadWaConfigs();
-        // Auto-fecha o modal de QR após 1.5s — fluxo padrão de plataformas profissionais (Z-API style)
         setTimeout(() => {
           setEvoQrOpen(false);
           setEvoQrImage(null);
           setEvoQrState("idle");
           setPairCode("");
-        }, 1500);
+        }, 2500);
         return;
       } else if (status) {
         setEvoQrState(status);
       }
-      // refresh QR if still pending and user is on QR tab
-      if (status !== "connected" && status !== "connecting" && pairMode === "qr") {
+      // QR da uazapi vive ~40s; só renova após 30s pra dar tempo do usuário escanear
+      // sem invalidar o QR ainda válido em outra requisição.
+      if (status !== "connected" && pairMode === "qr" && (Date.now() - lastQrRefresh) > 30000) {
+        lastQrRefresh = Date.now();
         const c3 = await supabase.functions.invoke("omniconect", {
           body: { action: "qr", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         const nq = c3.data?.qrcode;
         if (nq) setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`);
       }
-    }, 4000);
+    }, 3000);
     setEvoPollTimer(t);
   };
 
