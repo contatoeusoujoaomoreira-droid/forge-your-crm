@@ -1242,6 +1242,10 @@ Deno.serve(async (req) => {
   if (!msg || !msg.phone) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+  // Honra hide_group_messages: descarta totalmente mensagens vindas de grupos
+  if ((msg as any).is_group === true && matchedConfig?.hide_group_messages === true) {
+    return new Response(JSON.stringify({ ok: true, group_hidden: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
   const referral = extractReferral(raw);
 
   if (msg.external_message_id) {

@@ -2478,6 +2478,7 @@ export type Database = {
           default_pipeline_id: string | null
           default_stage_id: string | null
           extra_headers: Json | null
+          hide_group_messages: boolean
           id: string
           instance_id: string | null
           is_active: boolean
@@ -2497,6 +2498,7 @@ export type Database = {
           default_pipeline_id?: string | null
           default_stage_id?: string | null
           extra_headers?: Json | null
+          hide_group_messages?: boolean
           id?: string
           instance_id?: string | null
           is_active?: boolean
@@ -2516,6 +2518,7 @@ export type Database = {
           default_pipeline_id?: string | null
           default_stage_id?: string | null
           extra_headers?: Json | null
+          hide_group_messages?: boolean
           id?: string
           instance_id?: string | null
           is_active?: boolean
