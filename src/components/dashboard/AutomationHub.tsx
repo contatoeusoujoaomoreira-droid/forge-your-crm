@@ -888,6 +888,12 @@ export default function AutomationHub() {
                                 <Label className="text-xs">Criar lead automaticamente ao receber primeira mensagem</Label>
                               </div>
 
+                              <div className="col-span-2 flex items-center gap-2">
+                                <Switch checked={!!c.hide_group_messages} onCheckedChange={(v) => updateLocalConn(c.id, { hide_group_messages: v })} />
+                                <Label className="text-xs">Ocultar mensagens de grupos (não exibir no Inbox/CRM)</Label>
+                              </div>
+
+
                               <div className="col-span-2 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="flex flex-col">
