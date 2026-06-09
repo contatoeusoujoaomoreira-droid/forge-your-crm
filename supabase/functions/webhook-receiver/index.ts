@@ -1493,28 +1493,39 @@ Deno.serve(async (req) => {
     ? { data: matchedConfig }
     : { data: await resolveWhatsAppConfigForClient(admin, userId, client) };
 
-  if (client && !client.lead_id && waCfg?.auto_create_lead) {
-    let stageId = waCfg.default_stage_id;
-    if (!stageId) {
-      const { data: firstStage } = await admin.from('pipeline_stages').select('id').eq('user_id', userId).order('position').limit(1).maybeSingle();
-      stageId = firstStage?.id;
-    }
-    if (stageId) {
-      const { data: lead } = await admin.from('leads').insert({
-        user_id: userId, name: client.name || msg.phone, phone: msg.phone,
-        stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
-        notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
-      }).select().single();
-      if (lead) {
-        await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
-        client.lead_id = lead.id;
-        // Backfill lead_id on the most recent attribution touchpoint for this client
-        try {
-          await admin.from('attribution_touchpoints')
-            .update({ lead_id: lead.id })
-            .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
-        } catch {}
+  // Auto-create lead, but NEVER for group messages and NEVER duplicate (dedupe by phone)
+  const isGroupMsg = (msg as any).is_group === true;
+  if (client && !client.lead_id && waCfg?.auto_create_lead && !isGroupMsg && msg.phone) {
+    // Dedupe: any existing lead for this user+phone (regardless of pipeline)
+    const { data: existingLead } = await admin.from('leads')
+      .select('id, pipeline_id, stage_id')
+      .eq('user_id', userId).eq('phone', msg.phone)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    let leadId = existingLead?.id || null;
+    if (!leadId) {
+      let stageId = waCfg.default_stage_id;
+      if (!stageId) {
+        const { data: firstStage } = await admin.from('pipeline_stages').select('id').eq('user_id', userId).order('position').limit(1).maybeSingle();
+        stageId = firstStage?.id;
       }
+      if (stageId) {
+        const { data: lead } = await admin.from('leads').insert({
+          user_id: userId, name: client.name || msg.phone, phone: msg.phone,
+          stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
+          notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
+        }).select('id').single();
+        leadId = lead?.id || null;
+      }
+    }
+    if (leadId) {
+      await admin.from('chat_clients').update({ lead_id: leadId }).eq('id', client.id);
+      client.lead_id = leadId;
+      // Backfill lead_id on the most recent attribution touchpoint for this client
+      try {
+        await admin.from('attribution_touchpoints')
+          .update({ lead_id: leadId })
+          .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
+      } catch {}
     }
   }
 
