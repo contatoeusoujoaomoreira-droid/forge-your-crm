@@ -386,18 +386,35 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
 
 // Transcribe audio. Cascade: Groq Whisper → OpenAI Whisper → ElevenLabs Scribe → Lovable AI Gemini multimodal.
 // Lovable AI is universal fallback (no user key needed).
-async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = ''): Promise<string> {
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = '', waCfg: any = null): Promise<string> {
   try {
-    const audioResp = await fetch(audioUrl);
-    if (!audioResp.ok) return '';
+    // Some providers (UAZAPI/Evolution) require the instance token to download media
+    const headers: Record<string, string> = {};
+    if (waCfg?.api_token) {
+      headers['token'] = waCfg.api_token;
+      headers['apikey'] = waCfg.api_token;
+      headers['Authorization'] = `Bearer ${waCfg.api_token}`;
+    }
+    let audioResp = await fetch(audioUrl, { headers });
+    if (!audioResp.ok && Object.keys(headers).length) {
+      // Retry without headers in case provider serves a signed public URL
+      audioResp = await fetch(audioUrl);
+    }
+    if (!audioResp.ok) {
+      console.warn('audio download failed', audioResp.status, audioUrl.slice(0, 120));
+      return '';
+    }
     const buf = await audioResp.arrayBuffer();
+    if (buf.byteLength < 200) { console.warn('audio body too small', buf.byteLength); return ''; }
     const ct = audioResp.headers.get('content-type') || 'audio/ogg';
     const blob = new Blob([buf], { type: ct });
+    // Detect format for Lovable/Gemini input_audio (expects wav/mp3/ogg)
+    const fmt = /mp3|mpeg/i.test(ct) ? 'mp3' : /wav/i.test(ct) ? 'wav' : 'ogg';
 
     // 1) Groq Whisper (fast + cheap) when user selected Groq
     if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-large-v3-turbo');
       fd.append('language', 'pt');
       const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
@@ -411,7 +428,7 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     const oaKey = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
     if (oaKey) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-1');
       fd.append('language', 'pt');
       const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -424,7 +441,7 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     // 3) ElevenLabs Scribe
     if (elevenKey) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model_id', 'scribe_v1');
       fd.append('language_code', 'por');
       const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
@@ -443,22 +460,30 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       const chunkSz = 0x8000;
       for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
       const b64 = btoa(binary);
-      const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Transcreva o áudio abaixo em português, sem pontuação extra. Responda APENAS com o texto transcrito, nada mais.' },
-              { type: 'input_audio', input_audio: { data: b64, format: 'ogg' } },
-            ],
-          }],
-        }),
-      });
-      if (r.ok) { const j = await r.json(); const t = j.choices?.[0]?.message?.content || ''; if (t) return t.trim(); }
-      else console.error('lovable gemini stt failed', (await r.text()).slice(0, 300));
+      // Try gemini-2.5-pro (best multimodal) then 2.5-flash
+      for (const model of ['google/gemini-2.5-pro', 'google/gemini-2.5-flash']) {
+        const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Transcreva o áudio abaixo em português brasileiro. Responda APENAS com o texto transcrito, sem aspas, sem prefixo, nada mais.' },
+                { type: 'input_audio', input_audio: { data: b64, format: fmt } },
+              ],
+            }],
+          }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const t = j.choices?.[0]?.message?.content || '';
+          if (t && t.trim() && !/transcrição indisponível|cannot|unable/i.test(t)) return t.trim();
+        } else {
+          console.error(`lovable ${model} stt failed`, (await r.text()).slice(0, 300));
+        }
+      }
     }
 
     return '';
