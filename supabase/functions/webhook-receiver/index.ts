@@ -1821,7 +1821,7 @@ Deno.serve(async (req) => {
   // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
   // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
   const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
-  if (!flowHandled && !isOmniChatSnapshot && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  if (!flowHandled && !isOmniChatSnapshot && waCfg?.api_type !== 'omniconect' && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);
@@ -1844,13 +1844,16 @@ Deno.serve(async (req) => {
           buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
         });
       }
-      const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
-      const triggerKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-      fetch(triggerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` },
-        body: JSON.stringify({ source: 'debounce-immediate-check' }),
-      }).catch((e) => console.warn('debounce trigger failed', e));
+      try {
+        const triggerDelay = debounceMs + 500;
+        const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
+        const triggerKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        // @ts-ignore EdgeRuntime is available in Deno Deploy
+        (globalThis as any).EdgeRuntime?.waitUntil?.((async () => {
+          await new Promise((r) => setTimeout(r, triggerDelay));
+          await fetch(triggerUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` }, body: JSON.stringify({ source: 'debounce-trigger' }) }).catch(() => {});
+        })());
+      } catch (e) { console.warn('waitUntil unavailable', e); }
       return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id, debounced: true, process_after: processAfter }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (e) {
       console.error('debounce enqueue failed, falling back to direct AI', e);
