@@ -370,7 +370,41 @@ function normalizeOmniconect(raw: any): NormalizedMsg | null {
   return normalizeEvolution({ data });
 }
 
+function normalizeOmniChat(raw: any): NormalizedMsg | null {
+  const chat = raw.chat || raw.data?.chat || {};
+  const chatId = chat.wa_chatid || chat.chatid || chat.id || chat.phone || '';
+  const isGroup = chat.wa_isGroup === true || String(chatId).includes('@g.us');
+  const phoneSource = chat.phone || chat.wa_chatid || chat.wa_fastid?.split(':')?.pop() || chatId;
+  const phone = normalizePhone(String(phoneSource || '').split('@')[0]);
+  const text = chat.wa_lastMessageText || chat.wa_lastMessageTextVote || chat.lastMessageText || chat.last_message || '';
+  const msgType = chat.wa_lastMessageType || chat.lastMessageType || chat.type || '';
+  const mediaType = mediaTypeFromMime('', msgType);
+  const tsRaw = Number(chat.wa_lastMsgTimestamp || chat.lastMessageTimestamp || chat.timestamp || 0);
+  const timestamp = tsRaw ? new Date(tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000).toISOString() : undefined;
+  const externalId = chat.wa_lastMessageId || chat.lastMessageId || (tsRaw ? `omni-chat:${raw.instanceName || raw.owner || ''}:${chatId || phone}:${tsRaw}:${msgType}` : undefined);
+  const sender = String(chat.wa_lastMessageSender || chat.lastMessageSender || '');
+  const owner = normalizePhone(String(raw.owner || chat.owner || ''));
+  const fromMe = !!owner && normalizePhone(sender.split('@')[0]) === owner;
+  const content = String(text || '').trim() || (mediaType ? `[${mediaType}]` : '');
+
+  if (!phone || !content || phone === '0') return null;
+  return {
+    phone,
+    name: chat.wa_contactName || chat.wa_name || chat.name || phone,
+    content,
+    external_message_id: externalId,
+    media_type: mediaType,
+    avatar_url: chat.imagePreview || chat.image || chat.avatar || chat.profilePicUrl,
+    from_me: fromMe,
+    timestamp,
+    is_group: isGroup,
+  } as any;
+}
+
 function detectAndNormalize(raw: any): NormalizedMsg | null {
+  const eventType = String(raw.EventType || raw.event_type || '').toLowerCase();
+  if (raw.instanceName && ['groups', 'presence', 'connection', 'contacts'].includes(eventType)) return null;
+  if (raw.instanceName && eventType === 'chats' && raw.chat) return normalizeOmniChat(raw);
   // UAZAPI/OmniConect: event === 'messages' (singular 'messages' without dot suffix)
   if (typeof raw.event === 'string' && /^(messages|messages_upsert)$/i.test(raw.event) && (raw.data?.key || raw.data?.from || raw.data?.message)) return normalizeOmniconect(raw);
   // Wasender: event field with messages.received / data.messages structure
