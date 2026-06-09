@@ -1820,7 +1820,8 @@ Deno.serve(async (req) => {
   // A janela de debounce respeita o TEMPO DE RESPOSTA configurado no agente
   // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
   // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
-  if (!flowHandled && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
+  if (!flowHandled && !isOmniChatSnapshot && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);
