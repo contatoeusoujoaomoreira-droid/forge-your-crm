@@ -380,7 +380,9 @@ function normalizeOmniChat(raw: any): NormalizedMsg | null {
   const msgType = chat.wa_lastMessageType || chat.lastMessageType || chat.type || '';
   const mediaType = mediaTypeFromMime('', msgType);
   const tsRaw = Number(chat.wa_lastMsgTimestamp || chat.lastMessageTimestamp || chat.timestamp || 0);
-  const timestamp = tsRaw ? new Date(tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000).toISOString() : undefined;
+  const eventMs = tsRaw ? (tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000) : 0;
+  if (eventMs && Date.now() - eventMs > 30 * 60 * 1000) return null;
+  const timestamp = eventMs ? new Date(eventMs).toISOString() : undefined;
   const externalId = chat.wa_lastMessageId || chat.lastMessageId || (tsRaw ? `omni-chat:${raw.instanceName || raw.owner || ''}:${chatId || phone}:${tsRaw}:${msgType}` : undefined);
   const sender = String(chat.wa_lastMessageSender || chat.lastMessageSender || '');
   const owner = normalizePhone(String(raw.owner || chat.owner || ''));
