@@ -274,7 +274,7 @@ function extractReferral(raw: any): {
 
 function extractAvatarUrl(input: any): string | undefined {
   if (!input || typeof input !== 'object') return typeof input === 'string' && input.startsWith('http') ? input : undefined;
-  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'link', 'url'];
+  const directKeys = ['photo', 'senderPhoto', 'profilePicUrl', 'profilePicture', 'profile_pic_url', 'avatarUrl', 'avatar_url', 'picture', 'image', 'imagePreview', 'imageUrl', 'img', 'imgUrl', 'thumb', 'thumbnail', 'link', 'url'];
   for (const key of directKeys) {
     const value = input?.[key];
     if (typeof value === 'string' && value.startsWith('http')) return value;
@@ -386,18 +386,35 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
 
 // Transcribe audio. Cascade: Groq Whisper → OpenAI Whisper → ElevenLabs Scribe → Lovable AI Gemini multimodal.
 // Lovable AI is universal fallback (no user key needed).
-async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = ''): Promise<string> {
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = '', waCfg: any = null): Promise<string> {
   try {
-    const audioResp = await fetch(audioUrl);
-    if (!audioResp.ok) return '';
+    // Some providers (UAZAPI/Evolution) require the instance token to download media
+    const headers: Record<string, string> = {};
+    if (waCfg?.api_token) {
+      headers['token'] = waCfg.api_token;
+      headers['apikey'] = waCfg.api_token;
+      headers['Authorization'] = `Bearer ${waCfg.api_token}`;
+    }
+    let audioResp = await fetch(audioUrl, { headers });
+    if (!audioResp.ok && Object.keys(headers).length) {
+      // Retry without headers in case provider serves a signed public URL
+      audioResp = await fetch(audioUrl);
+    }
+    if (!audioResp.ok) {
+      console.warn('audio download failed', audioResp.status, audioUrl.slice(0, 120));
+      return '';
+    }
     const buf = await audioResp.arrayBuffer();
+    if (buf.byteLength < 200) { console.warn('audio body too small', buf.byteLength); return ''; }
     const ct = audioResp.headers.get('content-type') || 'audio/ogg';
     const blob = new Blob([buf], { type: ct });
+    // Detect format for Lovable/Gemini input_audio (expects wav/mp3/ogg)
+    const fmt = /mp3|mpeg/i.test(ct) ? 'mp3' : /wav/i.test(ct) ? 'wav' : 'ogg';
 
     // 1) Groq Whisper (fast + cheap) when user selected Groq
     if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-large-v3-turbo');
       fd.append('language', 'pt');
       const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
@@ -411,7 +428,7 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     const oaKey = (providerCfg?.provider === 'openai' && providerCfg?.api_key_encrypted) || openaiKey;
     if (oaKey) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-1');
       fd.append('language', 'pt');
       const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -424,7 +441,7 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     // 3) ElevenLabs Scribe
     if (elevenKey) {
       const fd = new FormData();
-      fd.append('file', blob, 'audio.ogg');
+      fd.append('file', blob, `audio.${fmt}`);
       fd.append('model_id', 'scribe_v1');
       fd.append('language_code', 'por');
       const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
@@ -443,22 +460,30 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       const chunkSz = 0x8000;
       for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
       const b64 = btoa(binary);
-      const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Transcreva o áudio abaixo em português, sem pontuação extra. Responda APENAS com o texto transcrito, nada mais.' },
-              { type: 'input_audio', input_audio: { data: b64, format: 'ogg' } },
-            ],
-          }],
-        }),
-      });
-      if (r.ok) { const j = await r.json(); const t = j.choices?.[0]?.message?.content || ''; if (t) return t.trim(); }
-      else console.error('lovable gemini stt failed', (await r.text()).slice(0, 300));
+      // Try gemini-2.5-pro (best multimodal) then 2.5-flash
+      for (const model of ['google/gemini-2.5-pro', 'google/gemini-2.5-flash']) {
+        const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Transcreva o áudio abaixo em português brasileiro. Responda APENAS com o texto transcrito, sem aspas, sem prefixo, nada mais.' },
+                { type: 'input_audio', input_audio: { data: b64, format: fmt } },
+              ],
+            }],
+          }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const t = j.choices?.[0]?.message?.content || '';
+          if (t && t.trim() && !/transcrição indisponível|cannot|unable/i.test(t)) return t.trim();
+        } else {
+          console.error(`lovable ${model} stt failed`, (await r.text()).slice(0, 300));
+        }
+      }
     }
 
     return '';
@@ -1468,28 +1493,39 @@ Deno.serve(async (req) => {
     ? { data: matchedConfig }
     : { data: await resolveWhatsAppConfigForClient(admin, userId, client) };
 
-  if (client && !client.lead_id && waCfg?.auto_create_lead) {
-    let stageId = waCfg.default_stage_id;
-    if (!stageId) {
-      const { data: firstStage } = await admin.from('pipeline_stages').select('id').eq('user_id', userId).order('position').limit(1).maybeSingle();
-      stageId = firstStage?.id;
-    }
-    if (stageId) {
-      const { data: lead } = await admin.from('leads').insert({
-        user_id: userId, name: client.name || msg.phone, phone: msg.phone,
-        stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
-        notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
-      }).select().single();
-      if (lead) {
-        await admin.from('chat_clients').update({ lead_id: lead.id }).eq('id', client.id);
-        client.lead_id = lead.id;
-        // Backfill lead_id on the most recent attribution touchpoint for this client
-        try {
-          await admin.from('attribution_touchpoints')
-            .update({ lead_id: lead.id })
-            .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
-        } catch {}
+  // Auto-create lead, but NEVER for group messages and NEVER duplicate (dedupe by phone)
+  const isGroupMsg = (msg as any).is_group === true;
+  if (client && !client.lead_id && waCfg?.auto_create_lead && !isGroupMsg && msg.phone) {
+    // Dedupe: any existing lead for this user+phone (regardless of pipeline)
+    const { data: existingLead } = await admin.from('leads')
+      .select('id, pipeline_id, stage_id')
+      .eq('user_id', userId).eq('phone', msg.phone)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    let leadId = existingLead?.id || null;
+    if (!leadId) {
+      let stageId = waCfg.default_stage_id;
+      if (!stageId) {
+        const { data: firstStage } = await admin.from('pipeline_stages').select('id').eq('user_id', userId).order('position').limit(1).maybeSingle();
+        stageId = firstStage?.id;
       }
+      if (stageId) {
+        const { data: lead } = await admin.from('leads').insert({
+          user_id: userId, name: client.name || msg.phone, phone: msg.phone,
+          stage_id: stageId, pipeline_id: waCfg.default_pipeline_id, source: 'whatsapp', status: 'new',
+          notes: `Primeira interação WhatsApp: ${(msg.content || '').slice(0, 240)}`,
+        }).select('id').single();
+        leadId = lead?.id || null;
+      }
+    }
+    if (leadId) {
+      await admin.from('chat_clients').update({ lead_id: leadId }).eq('id', client.id);
+      client.lead_id = leadId;
+      // Backfill lead_id on the most recent attribution touchpoint for this client
+      try {
+        await admin.from('attribution_touchpoints')
+          .update({ lead_id: leadId })
+          .eq('user_id', userId).eq('client_id', client.id).is('lead_id', null);
+      } catch {}
     }
   }
 
@@ -1553,7 +1589,7 @@ Deno.serve(async (req) => {
     !agent?.voice_enabled
   );
   if (mustTranscribe) {
-    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey);
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey, '', waCfg);
     if (transcript) {
       inboundContent = transcript;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
