@@ -1843,20 +1843,13 @@ Deno.serve(async (req) => {
           buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
         });
       }
-      // Self-trigger processing right after the debounce window elapses,
-      // instead of waiting for the next cron tick (which can add 20-60s of lag).
-      try {
-        const triggerDelay = debounceMs + 500;
-        const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
-        const triggerKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-        // @ts-ignore EdgeRuntime is available in Deno Deploy
-        (globalThis as any).EdgeRuntime?.waitUntil?.((async () => {
-          await new Promise((r) => setTimeout(r, triggerDelay));
-          try {
-            await fetch(triggerUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` }, body: JSON.stringify({ source: 'debounce-trigger' }) });
-          } catch (e) { console.warn('debounce self-trigger failed', e); }
-        })());
-      } catch (e) { console.warn('waitUntil unavailable', e); }
+      const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
+      const triggerKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+      fetch(triggerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` },
+        body: JSON.stringify({ source: 'debounce-immediate-check' }),
+      }).catch((e) => console.warn('debounce trigger failed', e));
       return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id, debounced: true, process_after: processAfter }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     } catch (e) {
       console.error('debounce enqueue failed, falling back to direct AI', e);
