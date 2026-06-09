@@ -13,7 +13,7 @@ const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/webhook-receiver`;
 
 const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
-const OMNI_EVENTS = ['messages', 'messages_update', 'connection', 'presence', 'chats', 'groups', 'contacts'];
+const OMNI_EVENTS = ['messages', 'messages_update', 'connection', 'chats', 'contacts'];
 const webhookUrlFor = (configId?: string | null) => configId ? `${WEBHOOK_URL}?config_id=${encodeURIComponent(configId)}` : WEBHOOK_URL;
 
 async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {

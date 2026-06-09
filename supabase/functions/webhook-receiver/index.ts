@@ -370,7 +370,43 @@ function normalizeOmniconect(raw: any): NormalizedMsg | null {
   return normalizeEvolution({ data });
 }
 
+function normalizeOmniChat(raw: any): NormalizedMsg | null {
+  const chat = raw.chat || raw.data?.chat || {};
+  const chatId = chat.wa_chatid || chat.chatid || chat.id || chat.phone || '';
+  const isGroup = chat.wa_isGroup === true || String(chatId).includes('@g.us');
+  const phoneSource = chat.phone || chat.wa_chatid || chat.wa_fastid?.split(':')?.pop() || chatId;
+  const phone = normalizePhone(String(phoneSource || '').split('@')[0]);
+  const text = chat.wa_lastMessageText || chat.wa_lastMessageTextVote || chat.lastMessageText || chat.last_message || '';
+  const msgType = chat.wa_lastMessageType || chat.lastMessageType || chat.type || '';
+  const mediaType = mediaTypeFromMime('', msgType);
+  const tsRaw = Number(chat.wa_lastMsgTimestamp || chat.lastMessageTimestamp || chat.timestamp || 0);
+  const eventMs = tsRaw ? (tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000) : 0;
+  if (eventMs && Date.now() - eventMs > 30 * 60 * 1000) return null;
+  const timestamp = eventMs ? new Date(eventMs).toISOString() : undefined;
+  const externalId = chat.wa_lastMessageId || chat.lastMessageId || (tsRaw ? `omni-chat:${raw.instanceName || raw.owner || ''}:${chatId || phone}:${tsRaw}:${msgType}` : undefined);
+  const sender = String(chat.wa_lastMessageSender || chat.lastMessageSender || '');
+  const owner = normalizePhone(String(raw.owner || chat.owner || ''));
+  const fromMe = !!owner && normalizePhone(sender.split('@')[0]) === owner;
+  const content = String(text || '').trim() || (mediaType ? `[${mediaType}]` : '');
+
+  if (!phone || !content || phone === '0') return null;
+  return {
+    phone,
+    name: chat.wa_contactName || chat.wa_name || chat.name || phone,
+    content,
+    external_message_id: externalId,
+    media_type: mediaType,
+    avatar_url: chat.imagePreview || chat.image || chat.avatar || chat.profilePicUrl,
+    from_me: fromMe,
+    timestamp,
+    is_group: isGroup,
+  } as any;
+}
+
 function detectAndNormalize(raw: any): NormalizedMsg | null {
+  const eventType = String(raw.EventType || raw.event_type || '').toLowerCase();
+  if (raw.instanceName && ['groups', 'presence', 'connection', 'contacts'].includes(eventType)) return null;
+  if (raw.instanceName && eventType === 'chats' && raw.chat) return normalizeOmniChat(raw);
   // UAZAPI/OmniConect: event === 'messages' (singular 'messages' without dot suffix)
   if (typeof raw.event === 'string' && /^(messages|messages_upsert)$/i.test(raw.event) && (raw.data?.key || raw.data?.from || raw.data?.message)) return normalizeOmniconect(raw);
   // Wasender: event field with messages.received / data.messages structure
@@ -1786,7 +1822,8 @@ Deno.serve(async (req) => {
   // A janela de debounce respeita o TEMPO DE RESPOSTA configurado no agente
   // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
   // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
-  if (!flowHandled && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
+  if (!flowHandled && !isOmniChatSnapshot && waCfg?.api_type !== 'omniconect' && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);
@@ -1809,8 +1846,6 @@ Deno.serve(async (req) => {
           buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
         });
       }
-      // Self-trigger processing right after the debounce window elapses,
-      // instead of waiting for the next cron tick (which can add 20-60s of lag).
       try {
         const triggerDelay = debounceMs + 500;
         const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
@@ -1818,9 +1853,7 @@ Deno.serve(async (req) => {
         // @ts-ignore EdgeRuntime is available in Deno Deploy
         (globalThis as any).EdgeRuntime?.waitUntil?.((async () => {
           await new Promise((r) => setTimeout(r, triggerDelay));
-          try {
-            await fetch(triggerUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` }, body: JSON.stringify({ source: 'debounce-trigger' }) });
-          } catch (e) { console.warn('debounce self-trigger failed', e); }
+          await fetch(triggerUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${triggerKey}` }, body: JSON.stringify({ source: 'debounce-trigger' }) }).catch(() => {});
         })());
       } catch (e) { console.warn('waitUntil unavailable', e); }
       return new Response(JSON.stringify({ ok: true, message_id: insertedMsg?.id, debounced: true, process_after: processAfter }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
