@@ -240,6 +240,7 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos por ação</TabsTrigger>
           <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
           <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
+          <TabsTrigger value="jobs"><Activity className="h-3 w-3 mr-1" /> Filas & DLQ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4 pt-4">
