@@ -1,103 +1,118 @@
-# Plano — Refatoração e novas features Omni Builder CRM
+# Plano — Refatoração Arquitetural SaaS (Event-Driven, Escalável, Multi-Tenant)
 
-Entrega em **3 fases sequenciais**, cada fase é um deploy independente e validável. Nada é começado sem a anterior estar estável.
+> **Regra mestra**: zero remoção de funcionalidade. Toda mudança é aditiva ou substitui internamente preservando contratos (UI, rotas, edge functions públicas, webhooks).
 
----
+## Restrições da plataforma (importante ler antes)
 
-## FASE 1 — Dashboard, Forms e Provedores IA
+O backend roda no Lovable Cloud (Supabase). Algumas exigências do briefing precisam ser adaptadas — **não** é falha, é a forma correta no ambiente:
 
-### 1.1 Dashboard focado em CRM/Chat
-- Remover `Pages` por completo: KPIs, gráficos, queries, rotas, componentes e tabelas órfãs (`pages`, `page_views`, etc.) após auditoria de dependências.
-- Refatorar `Analytics.tsx` / `DashboardAnalytics.tsx`:
-  - **Filtro global de período** (Hoje, Ontem, 7d, 30d, mês atual, mês anterior, custom) com estado compartilhado via context.
-  - **Grupo KPIs CRM**: negócios ativos, ganhos, perdidos, taxa conversão, ticket médio, tempo médio fechamento, valor pipeline, valor ponderado.
-  - **Grupo KPIs Leads**: total, hoje, semana, mês, por origem, convertidos, perdidos.
-  - **Grupo KPIs Chat**: conversas iniciadas, ativas, encerradas, tempo médio 1ª resposta, tempo médio atendimento, conversões originadas do chat (lead criado a partir de `messages`).
-- Todas as queries respeitam o filtro de período (parâmetros `from`/`to`).
-
-### 1.2 Forms — visualização profissional de leads
-- Novo `FormLeadsViewer` reaproveitando `LeadViewer` compartilhado:
-  - **3 modos**: Kanban, Lista, Quadros (toggle persistente).
-  - **Drawer detalhado** ao clicar no lead: dados completos, origem, UTM, criado em, status, observações, **timeline** (de `activities` + `messages` + mudanças de stage).
-- **Anti-duplicidade** no ingest público (`ContactFormRenderer` + edge de submissão):
-  - Match por telefone normalizado (E.164), email lowercase, fallback nome+canal.
-  - Em duplicata: atualiza lead existente, adiciona activity "novo contato via form X", não cria duplicado.
-- **Garantia de sync com CRM**: form deve ter `user_id`, `pipeline_id`, `stage_id` obrigatórios; lead cai na stage configurada; trigger valida.
-
-### 1.3 Provedores de IA — expansão de modelos
-- Atualizar catálogo em `AIProviderSettings.tsx` e `model_credit_costs` para incluir os modelos atuais do Lovable AI Gateway (Gemini 3.x, GPT-5.4/5.5 família).
-- Remover modelos depreciados/inativos.
-- Validar custo (`credits_per_message`) por modelo com super admin antes do seed.
+- **Filas/Workers**: não há Redis/SQS/RabbitMQ. Usamos tabelas Postgres como fila (`job_queue`) + `pg_cron` invocando `cron-worker` a cada minuto + `EdgeRuntime.waitUntil` para fan-out imediato. Concurrency lock via `SELECT ... FOR UPDATE SKIP LOCKED`.
+- **Rate limiting**: o backend não tem primitivo padrão. Implementamos *ad-hoc* por tenant em tabela `rate_limit_buckets` (token bucket), como exceção justificada por requisito explícito do usuário.
+- **WebSocket/Realtime**: usar Supabase Realtime (já disponível) — sem servidor WS próprio.
+- **Multi-tenant**: hoje o "tenant" é `user_id` (RLS por `auth.uid()`). Mantemos isso; adicionamos coluna `tenant_id` como **alias gerado** (=`user_id`) para clareza semântica, sem quebrar nada.
+- **Circuit breaker / cache / locks**: in-memory por instância é proibido pelo briefing → tudo persistido em tabelas (`provider_circuit_state`, `conversation_locks`).
 
 ---
 
-## FASE 2 — Super Admin (Saúde) + Segurança/Backup ✅
+## ONDA 1 — Fundação Event-Driven + Idempotência (deploy 1)
 
-### 2.1 Central de Saúde da Plataforma — entregue
-- `HealthPanel` em `SuperAdminPanel` consumindo RPC `platform_health_snapshot()`.
-- Infra: tamanho do banco, % de conexões, deadlocks, rollbacks.
-- Operacional 24h: usuários ativos, msgs in/out, leads, créditos consumidos.
-- Top 10 por mensagens e por créditos consumidos.
-- Tabela `platform_alerts` (super_admin only) listada nas últimas 24h.
-
-### 2.2 Segurança / Higiene — entregue
-- Linter rodado; warnings restantes são pré-existentes (RLS policies legadas e funções SECURITY DEFINER expostas a public role — não regressões desta fase).
-- `model_credit_costs` ampliado para cobrir Gemini 3.x e GPT-5.2/5.4/5.5 (cobrança real por modelo via `deduct_credits_by_action`).
-- `whatsapp_configs.hide_group_messages` adicionado — grupos são descartados antes de gravar mensagem quando ligado.
-- QR Code OmniConect: polling de status agora roda a cada 3s e só renova o QR a cada 30s (antes invalidava o QR em uso a cada 4s).
-
----
-
-## FASE 3 — Agenda + Rastreador Inteligente ✅ (MVP)
-
-### 3.1 Agenda
-- Mantida estrutura atual (já cobre Cal.com-style com views Month/Week/Day, capacidade, cancelamento via token, agendamento manual, analytics).
-- Polimento visual incremental virá conforme feedback de uso.
-
-### 3.2 Rastreador Inteligente (MVP UTM) — entregue
-- Tabela `attribution_touchpoints` (RLS por user, INSERT público para ingest).
-- Captura automática em `FormPublic`: lê `utm_*`, `fbclid`, `gclid`, `ctwa_clid` da URL + landing_url + referrer; grava no lead (utm_source/medium/campaign) e cria touchpoint vinculado.
-- Novo tab "Rastreador" em `Dashboard` com `TrackingDashboard`:
-  - Filtros de período (Hoje, 7d, 30d, Mês, Tudo).
-  - KPIs (toques, leads atribuídos, campanhas ativas, receita atribuída).
-  - Breakdown source/medium.
-  - Árvore Campanha → Conjunto (`utm_content`) → Anúncio (`utm_term`).
-  - Input manual de gasto por campanha → ROAS calculado.
-  - Tooltips `<InfoTip>` em cada métrica + bloco "Como configurar" com exemplo.
-- Componente reutilizável `InfoTip` para ajuda contextual.
-- **Pendente futura**: captura no checkout/quiz, parser de `referral` no `webhook-receiver`, integração Meta API oficial.
-
-
----
-
-## Detalhes técnicos
+**Objetivo**: webhook nunca mais chama IA dentro da request.
 
 ### Migrations
-- `DROP TABLE` Pages-related (após confirmar zero referências em código).
-- `CREATE TABLE attribution_touchpoints`, `attribution_conversions`, `platform_alerts` — todas com GRANTs + RLS (`user_id = auth.uid()` para attribution; super_admin only para platform_alerts).
-- Index em `messages(user_id, created_at)`, `leads(user_id, created_at, status)`.
+- `webhook_events` (id, tenant_id, provider, event_id UNIQUE, payload jsonb, status, attempts, error, created_at, processed_at) + índices.
+- `job_queue` (id, tenant_id, kind, payload, status [queued|running|done|failed|dlq], priority, run_at, attempts, max_attempts, last_error, locked_by, locked_at, created_at). Index `(status, run_at)` parcial.
+- `job_dead_letter` (espelho + motivo).
+- `conversation_locks` (conversation_id PK, locked_by, locked_at, expires_at).
+- `processed_messages` (provider, message_id) UNIQUE — idempotência.
+- GRANTs + RLS (`tenant_id = auth.uid()`; service_role full).
 
-### Edge functions novas
-- `platform-health` — agrega db_health + logs (super_admin only, JWT verify in-code).
-- `attribution-ingest` — opcional, para postback de conversões.
+### Refator `webhook-receiver`
+- Reescrito para: validar → `INSERT` em `webhook_events` (ON CONFLICT event_id DO NOTHING) → enfileirar job `process_webhook` → responder 200 em <100ms.
+- Toda lógica atual (parsers UAZAPI/Evolution/Z-API, dedupe lead, group filter, attribution, avatar, ai-agent call, áudio) **movida para worker** `process_webhook` sem alteração funcional.
 
-### Frontend
-- Novo context `DashboardFilterContext` com período global.
-- Componentes: `KpiGroup`, `PeriodFilter`, `InfoTip`, `TrackingTable`, `HealthPanel`, `FormLeadsViewer`.
-- Reaproveita shadcn (Tabs, Card, Dialog, Drawer, Calendar).
-
-### Não-objetivos / riscos
-- Não altera lógica core de `ai-agent`, `webhook-receiver` (apenas adiciona captura attribution).
-- Não introduz Meta Ads API agora.
-- Drop de Pages é irreversível — backup verificado antes.
+### `cron-worker` vira dispatcher
+- A cada tick: `SELECT ... FOR UPDATE SKIP LOCKED LIMIT N` em `job_queue` → executa handler por `kind` → marca done/failed → retry exponencial (30s, 2m, 10m, 30m) → DLQ após `max_attempts`.
+- Handlers registrados: `process_webhook`, `ai_reply`, `audio_pipeline`, `send_message`, `automation_run`, `followup_step`.
+- Lock de conversa: antes de `ai_reply`, tenta `INSERT` em `conversation_locks` com `expires_at = now()+2min`; se falhar, reenfileira com `run_at = now()+5s`.
 
 ---
 
-## Validação por fase
-Cada fase termina com:
-1. `supabase--linter` sem findings críticos.
-2. Smoke test manual dos fluxos afetados.
-3. Verificação de console/network sem erros.
-4. Confirmação do usuário antes da próxima fase.
+## ONDA 2 — Pipeline de Áudio em etapas (deploy 2)
 
-Confirme para começar a **Fase 1**.
+- Tabela `audio_jobs` (id, message_id, tenant_id, stage [download|transcribe|llm|tts|upload|send], status, audio_original_url, transcript, response_text, audio_response_url, duration_ms, attempts, error).
+- Cada etapa = job próprio na `job_queue`, encadeado pelo handler anterior.
+- Mantém cascata atual Groq → OpenAI → ElevenLabs → Gemini.
+
+---
+
+## ONDA 3 — AI Provider Layer + Fallback + Circuit Breaker (deploy 3)
+
+- Nova pasta `supabase/functions/_shared/ai/`:
+  - `provider.ts` — interface `AIProvider { generateResponse, embeddings, transcription, tts }`.
+  - `openai.ts`, `anthropic.ts`, `gemini.ts`, `groq.ts`, `lovable.ts`, `openrouter.ts` (reaproveitam código atual de `ai-agent`).
+  - `router.ts` — escolhe provider + aplica fallback chain configurável por agente.
+- Tabela `provider_circuit_state` (provider, model, state [closed|open|half_open], consecutive_failures, opened_at, next_retry_at). Lógica: 5 falhas → open por 60s → half_open → testa.
+- `ai-agent` edge function refatorada para usar o router (mantém payload/response atual — frontend não muda).
+
+---
+
+## ONDA 4 — Custos, Observabilidade, Rate Limit (deploy 4)
+
+- Tabela `llm_usage` (tenant_id, agent_id, provider, model, input_tokens, output_tokens, total_tokens, estimated_cost_usd, duration_ms, request_id, created_at). Index `(tenant_id, created_at)`.
+  - Tabela `provider_pricing` (provider, model, input_per_1k, output_per_1k) seed inicial.
+  - Painel novo em SuperAdmin: custos por dia/agente/tenant/modelo.
+- Tabela `structured_logs` (tenant_id, trace_id, level, category, message, meta jsonb). Helper `log()` em `_shared/log.ts` usado por todas as functions.
+- Tabela `rate_limit_buckets` (tenant_id, scope [minute|hour|day], window_start, count). Função `check_rate_limit(tenant, scope, limit)` em SQL. Aplicada em `webhook-receiver` ingest e `ai-agent`.
+
+---
+
+## ONDA 5 — Multi-tenant explícito + segurança (deploy 5)
+
+- Adicionar coluna `tenant_id uuid GENERATED ALWAYS AS (user_id) STORED` nas tabelas chave (`leads`, `messages`, `chat_clients`, `appointments`, `orders`, `ai_agents`, `whatsapp_configs`). Mantém RLS atual; novas queries podem usar `tenant_id` semanticamente.
+- Auditoria: tabela `audit_log` (tenant_id, actor_id, action, entity, entity_id, diff). Trigger genérico em tabelas sensíveis (`ai_agents`, `whatsapp_configs`, `user_roles`).
+- Confirmar que nenhum secret (OpenAI, Anthropic, Gemini, ElevenLabs, UAZAPI) chega ao frontend — auditar `src/` por leitura indevida.
+
+---
+
+## ONDA 6 — Frontend resiliente (deploy 6)
+
+- `InboxPage` + simulador WhatsApp: optimistic UI (mensagem aparece com status `sending` antes da confirmação do backend).
+- Realtime já existe — garantir subscriptions em `messages`, `job_queue` (para UI mostrar "processando"), `audio_jobs`.
+- Debounce de 400ms em `AgentBuilder` (prompt, temperatura, ferramentas) com `useDebouncedSave`.
+- Cache cliente-side via React Query com `staleTime` apropriado para `ai_agents`, `whatsapp_configs`, histórico de mensagens paginado.
+
+---
+
+## Critérios de aceite (mapeados ao briefing)
+
+| Requisito | Onda |
+|---|---|
+| Webhook desacoplado, responde <200ms | 1 |
+| Idempotência (event_id, message_id) | 1 |
+| Filas + retry exponencial + DLQ | 1 |
+| Lock por conversa | 1 |
+| Pipeline áudio em etapas | 2 |
+| AI Provider Layer único | 3 |
+| Fallback de modelos | 3 |
+| Circuit breaker persistido | 3 |
+| llm_usage + dashboard custos | 4 |
+| Logs estruturados + tracing | 4 |
+| Rate limit por tenant | 4 |
+| tenant_id explícito + auditoria | 5 |
+| Frontend optimistic + realtime + debounce + cache | 6 |
+| Zero remoção de feature | todas |
+
+---
+
+## Riscos e mitigações
+
+- **Migração de workers** — fazer feature flag `USE_QUEUE` no `webhook-receiver` para rollback rápido na onda 1.
+- **pg_cron** já em uso — adicionamos só novos jobs, sem mexer nos existentes.
+- **Tipos Supabase** regenerados após cada onda; pausar onda seguinte até types prontos.
+- **Volume de `webhook_events`/`structured_logs`** — política de retenção 30d via `pg_cron` cleanup.
+
+---
+
+## Próximo passo
+
+Confirme para eu iniciar pela **Onda 1** (fundação event-driven). Cada onda termina com smoke test e validação sua antes da próxima.

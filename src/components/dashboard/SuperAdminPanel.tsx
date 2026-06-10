@@ -17,6 +17,7 @@ import CreditCostsTab from "./superadmin/CreditCostsTab";
 import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
 import HealthPanel from "./superadmin/HealthPanel";
+import JobsPanel from "./superadmin/JobsPanel";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
@@ -240,6 +241,7 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="costs"><Settings className="h-3 w-3 mr-1" /> Custos por ação</TabsTrigger>
           <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
           <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
+          <TabsTrigger value="jobs"><Activity className="h-3 w-3 mr-1" /> Filas & DLQ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4 pt-4">
@@ -487,6 +489,9 @@ const SuperAdminPanel = () => {
         </TabsContent>
         <TabsContent value="history" className="pt-4">
           <UsageHistoryTab users={users.map(u => ({ user_id: u.user_id, email: u.email, full_name: u.full_name }))} />
+        </TabsContent>
+        <TabsContent value="jobs" className="pt-4">
+          <JobsPanel />
         </TabsContent>
       </Tabs>
     </div>

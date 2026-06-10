@@ -1140,6 +1140,35 @@ Deno.serve(async (req) => {
 
   const apiKey = req.headers.get('x-api-key') || url.searchParams.get('api_key') || raw.api_key;
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
+
+  // === ONDA 1: Idempotência + persistência bruta (best-effort) ===
+  if (!raw.__debounced__ && !raw.__test__) {
+    try {
+      const provider = String(raw.provider || raw.event || 'whatsapp').slice(0, 50);
+      const candidateMessageId = String(
+        raw?.message?.id || raw?.messageId || raw?.key?.id || raw?.data?.key?.id ||
+        raw?.message_id || raw?.id || ''
+      ).slice(0, 200);
+
+      if (candidateMessageId) {
+        const { data: already } = await admin
+          .from('processed_messages')
+          .select('provider').eq('provider', provider).eq('message_id', candidateMessageId).maybeSingle();
+        if (already) {
+          return new Response(JSON.stringify({ ok: true, duplicate: true, idempotent: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        await admin.from('processed_messages').insert({ provider, message_id: candidateMessageId }).then(() => null, () => null);
+      }
+
+      const eventHash = candidateMessageId || (await sha256(JSON.stringify(raw))).slice(0, 60);
+      await admin.from('webhook_events').insert({
+        provider, event_id: eventHash, payload: raw, status: 'received',
+      }).then(() => null, () => null);
+    } catch (_e) { /* never fail webhook on persistence */ }
+  }
+
   let userId = '';
   let matchedConfig: any = null;
 
