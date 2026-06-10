@@ -436,11 +436,40 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, event: body.event, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  const [resumed, debounced, reminders, followups] = await Promise.all([
+  const [resumed, debounced, reminders, followups, jobs] = await Promise.all([
     processHandoffResume(admin).catch(e => { console.error('handoff', e); return 0; }),
     processDebounceQueue(admin).catch(e => { console.error('debounce', e); return 0; }),
     processReminders(admin).catch(e => { console.error('reminders', e); return 0; }),
     processFollowUps(admin).catch(e => { console.error('followups', e); return 0; }),
+    drainJobQueue(admin).catch(e => { console.error('jobs', e); return 0; }),
   ]);
-  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  // Best-effort cleanup of event tables (retention)
+  admin.rpc('cleanup_event_tables').then(() => null, () => null);
+  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups, jobs }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
+
+// === ONDA 1: Job queue dispatcher ===
+// Registry of handlers per job kind. New handlers added incrementally in later ondas.
+const JOB_HANDLERS: Record<string, (admin: any, payload: any) => Promise<void>> = {
+  noop: async () => { /* placeholder for smoke tests */ },
+};
+
+async function drainJobQueue(admin: any): Promise<number> {
+  const worker = `cron-${crypto.randomUUID().slice(0, 8)}`;
+  const { data: claimed } = await admin.rpc('claim_jobs', { _worker: worker, _limit: 20 });
+  const jobs = Array.isArray(claimed) ? claimed : [];
+  if (!jobs.length) return 0;
+  let done = 0;
+  await Promise.all(jobs.map(async (j: any) => {
+    const handler = JOB_HANDLERS[j.kind];
+    try {
+      if (!handler) throw new Error(`unknown_kind:${j.kind}`);
+      await handler(admin, j.payload || {});
+      await admin.rpc('complete_job', { _id: j.id, _ok: true, _error: null });
+      done++;
+    } catch (e) {
+      await admin.rpc('complete_job', { _id: j.id, _ok: false, _error: String(e).slice(0, 500) });
+    }
+  }));
+  return done;
+}
