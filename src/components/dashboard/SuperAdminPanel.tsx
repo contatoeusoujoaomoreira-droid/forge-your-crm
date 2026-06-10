@@ -17,6 +17,7 @@ import CreditCostsTab from "./superadmin/CreditCostsTab";
 import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
 import HealthPanel from "./superadmin/HealthPanel";
+import JobsPanel from "./superadmin/JobsPanel";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
