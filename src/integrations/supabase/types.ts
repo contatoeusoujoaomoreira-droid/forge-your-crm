@@ -927,6 +927,30 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_locks: {
+        Row: {
+          conversation_id: string
+          expires_at: string
+          locked_at: string
+          locked_by: string
+          tenant_id: string | null
+        }
+        Insert: {
+          conversation_id: string
+          expires_at: string
+          locked_at?: string
+          locked_by: string
+          tenant_id?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          expires_at?: string
+          locked_at?: string
+          locked_by?: string
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
       conversation_state: {
         Row: {
           ai_active: boolean
@@ -1403,6 +1427,93 @@ export type Database = {
           total_contacts?: number
           total_converted?: number
           user_id?: string
+        }
+        Relationships: []
+      }
+      job_dead_letter: {
+        Row: {
+          attempts: number | null
+          failed_at: string
+          id: string
+          kind: string
+          last_error: string | null
+          original_job_id: string | null
+          payload: Json | null
+          reason: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          failed_at?: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          original_job_id?: string | null
+          payload?: Json | null
+          reason?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          failed_at?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          original_job_id?: string | null
+          payload?: Json | null
+          reason?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
+      job_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          kind: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          status: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1941,6 +2052,27 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_messages: {
+        Row: {
+          message_id: string
+          processed_at: string
+          provider: string
+          tenant_id: string | null
+        }
+        Insert: {
+          message_id: string
+          processed_at?: string
+          provider: string
+          tenant_id?: string | null
+        }
+        Update: {
+          message_id?: string
+          processed_at?: string
+          provider?: string
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2430,6 +2562,45 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          error: string | null
+          event_id: string | null
+          id: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+          status: string
+          tenant_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          provider: string
+          status?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          status?: string
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           created_at: string
@@ -2565,6 +2736,36 @@ export type Database = {
       }
       approve_credit_request: { Args: { _request_id: string }; Returns: Json }
       cancel_appointment: { Args: { _token: string }; Returns: Json }
+      claim_jobs: {
+        Args: { _limit?: number; _worker: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          kind: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          status: string
+          tenant_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "job_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      cleanup_event_tables: { Args: never; Returns: undefined }
+      complete_job: {
+        Args: { _error?: string; _id: string; _ok: boolean }
+        Returns: undefined
+      }
       deduct_credits: {
         Args: {
           _amount: number
@@ -2582,6 +2783,17 @@ export type Database = {
           _user_id: string
         }
         Returns: Json
+      }
+      enqueue_job: {
+        Args: {
+          _kind: string
+          _max_attempts?: number
+          _payload?: Json
+          _priority?: number
+          _run_at?: string
+          _tenant?: string
+        }
+        Returns: string
       }
       ensure_followup_template: { Args: { _user_id: string }; Returns: Json }
       has_role: {
@@ -2605,12 +2817,25 @@ export type Database = {
         Returns: undefined
       }
       platform_health_snapshot: { Args: never; Returns: Json }
+      release_conversation_lock: {
+        Args: { _conv: string; _worker: string }
+        Returns: undefined
+      }
       resume_expired_handoffs: { Args: never; Returns: number }
       schedule_handoff_resume: {
         Args: { _client_id: string }
         Returns: undefined
       }
       sync_super_admin_entitlements: { Args: never; Returns: undefined }
+      try_conversation_lock: {
+        Args: {
+          _conv: string
+          _tenant: string
+          _ttl_seconds?: number
+          _worker: string
+        }
+        Returns: boolean
+      }
       user_usage_stats: { Args: { _user_id: string }; Returns: Json }
       validate_coupon: {
         Args: { _checkout_id: string; _code: string }
