@@ -18,6 +18,7 @@ import ModelCostsTab from "./superadmin/ModelCostsTab";
 import UserUsageStats from "./superadmin/UserUsageStats";
 import HealthPanel from "./superadmin/HealthPanel";
 import JobsPanel from "./superadmin/JobsPanel";
+import LLMUsagePanel from "./superadmin/LLMUsagePanel";
 import AIProviderSettings from "./automation/AIProviderSettings";
 
 interface ManagedUser {
@@ -242,7 +243,9 @@ const SuperAdminPanel = () => {
           <TabsTrigger value="models"><Settings className="h-3 w-3 mr-1" /> Custos por modelo IA</TabsTrigger>
           <TabsTrigger value="history"><History className="h-3 w-3 mr-1" /> Histórico de uso</TabsTrigger>
           <TabsTrigger value="jobs"><Activity className="h-3 w-3 mr-1" /> Filas & DLQ</TabsTrigger>
+          <TabsTrigger value="llm"><BarChart3 className="h-3 w-3 mr-1" /> Custos IA</TabsTrigger>
         </TabsList>
+        <TabsContent value="llm" className="pt-4"><LLMUsagePanel /></TabsContent>
 
         <TabsContent value="users" className="space-y-4 pt-4">
           <div className="flex items-center justify-end gap-2">
