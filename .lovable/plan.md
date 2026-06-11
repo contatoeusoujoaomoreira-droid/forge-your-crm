@@ -13,3 +13,8 @@ Smoke test:
 1. Enviar mensagem WhatsApp → conferir aparecer em "Filas & DLQ" e "Custos IA" após resposta.
 2. Provocar erro intencional num provedor → ver `provider_circuit_state` abrir e fallback escolher próximo.
 3. Auditar criação/edição de agente em `audit_log`.
+
+## Onda 6 — Frontend resiliente ✅
+- Optimistic UI no `InboxPage.send()` — mensagem aparece com status `sending` antes do backend confirmar; muda para `sent`/`queued`/`failed`.
+- `useDebouncedSave` (400ms) aplicado no `AgentBuilder` para prompt/temperatura/regras/exemplos/objeções.
+- `QueryClient` global agora com `staleTime` 30s, `gcTime` 5min, `refetchOnWindowFocus` off, `retry` 1.

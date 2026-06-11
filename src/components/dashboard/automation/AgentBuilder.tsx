@@ -300,7 +300,7 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   };
 
   // Auto-save com debounce (400ms) — só para agentes já existentes
-  const { saving: autoSaving } = useDebouncedSave(
+  useDebouncedSave(
     { system_prompt: form.system_prompt, temperature: (form as any).temperature, rules: (form as any).rules, examples: (form as any).examples, objections: (form as any).objections },
     async (v) => {
       if (!agent?.id) return;
