@@ -16,6 +16,7 @@ import {
   Plus, Trash2, Link2, FileText, Image as ImageIcon, Globe, Send, Loader2, Mic, Play
 } from "lucide-react";
 import AgentRoutingAdvanced from "./AgentRoutingAdvanced";
+import { useDebouncedSave } from "@/hooks/useDebouncedSave";
 
 const VOICE_PROVIDERS: Record<string, { label: string; voices: { id: string; label: string }[]; help?: string }> = {
   omni: {
@@ -297,6 +298,17 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
     }
     onSaved();
   };
+
+  // Auto-save com debounce (400ms) — só para agentes já existentes
+  const { saving: autoSaving } = useDebouncedSave(
+    { system_prompt: form.system_prompt, temperature: (form as any).temperature, rules: (form as any).rules, examples: (form as any).examples, objections: (form as any).objections },
+    async (v) => {
+      if (!agent?.id) return;
+      await supabase.from("ai_agents").update(v as any).eq("id", agent.id);
+    },
+    400
+  );
+
 
   const addKnowledge = async () => {
     if (!agent?.id) { toast.error("Salve o agente primeiro"); return; }
