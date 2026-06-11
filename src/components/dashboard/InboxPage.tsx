@@ -164,7 +164,22 @@ export default function InboxPage() {
     if (!input.trim() || !selectedId) return;
     const text = input.trim();
     setInput("");
-    // Pausa granular conforme dropdown ("agent" = usa config do agente; "0" = não pausa; "perm" = permanente)
+    // Optimistic UI — mensagem aparece imediatamente com status "sending"
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: any = {
+      id: tempId,
+      user_id: user?.id,
+      client_id: selectedId,
+      lead_id: lead?.id || null,
+      content: text,
+      direction: "outbound",
+      channel: "whatsapp",
+      status: "sending",
+      created_at: new Date().toISOString(),
+      _optimistic: true,
+    };
+    setMessages(prev => [...prev, optimistic].sort(byCreatedAt));
+
     let payload: any = { client_id: selectedId, content: text };
     if (pauseMinutes === "0") {
       payload.manual_takeover = false;
@@ -174,12 +189,18 @@ export default function InboxPage() {
       else if (pauseMinutes !== "agent") payload.pause_minutes = Number(pauseMinutes);
     }
     const { data, error } = await supabase.functions.invoke("send-whatsapp", { body: payload });
-    if (error) toast.error(error.message);
-    else if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
-    // Recarrega conversation_state para atualizar UI de pausa
+    if (error) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
+      toast.error(error.message);
+    } else {
+      // Marca como sent; o realtime substituirá pelo registro real do banco
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: data?.external_sent ? "sent" : "queued" } : m));
+      if (!data?.external_sent && data?.external_error) toast.warning(`Salva localmente. WhatsApp: ${data.external_error}`);
+    }
     const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
     if (st) setConvState(st as any);
   };
+
 
   const reactivateAgent = async () => {
     if (!convState) return;

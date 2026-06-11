@@ -15,7 +15,16 @@ import CheckoutPublic from "./pages/CheckoutPublic";
 import NotFound from "./pages/NotFound";
 import UserThemeSync from "./components/UserThemeSync";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
