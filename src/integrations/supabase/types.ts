@@ -592,6 +592,96 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_jobs: {
+        Row: {
+          attempts: number
+          audio_original_url: string | null
+          audio_response_url: string | null
+          conversation_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          message_id: string | null
+          meta: Json
+          response_text: string | null
+          stage: string
+          status: string
+          tenant_id: string | null
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          audio_original_url?: string | null
+          audio_response_url?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          message_id?: string | null
+          meta?: Json
+          response_text?: string | null
+          stage?: string
+          status?: string
+          tenant_id?: string | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          audio_original_url?: string | null
+          audio_response_url?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          message_id?: string | null
+          meta?: Json
+          response_text?: string | null
+          stage?: string
+          status?: string
+          tenant_id?: string | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          diff: Json | null
+          entity: string
+          entity_id: string | null
+          id: number
+          tenant_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          diff?: Json | null
+          entity: string
+          entity_id?: string | null
+          id?: number
+          tenant_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          diff?: Json | null
+          entity?: string
+          entity_id?: string | null
+          id?: number
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string
@@ -1621,6 +1711,54 @@ export type Database = {
           },
         ]
       }
+      llm_usage: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          duration_ms: number | null
+          estimated_cost_usd: number
+          id: string
+          input_tokens: number
+          meta: Json
+          model: string
+          output_tokens: number
+          provider: string
+          request_id: string | null
+          tenant_id: string | null
+          total_tokens: number
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          estimated_cost_usd?: number
+          id?: string
+          input_tokens?: number
+          meta?: Json
+          model: string
+          output_tokens?: number
+          provider: string
+          request_id?: string | null
+          tenant_id?: string | null
+          total_tokens?: number
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          estimated_cost_usd?: number
+          id?: string
+          input_tokens?: number
+          meta?: Json
+          model?: string
+          output_tokens?: number
+          provider?: string
+          request_id?: string | null
+          tenant_id?: string | null
+          total_tokens?: number
+        }
+        Relationships: []
+      }
       managed_users: {
         Row: {
           ai_credits: number
@@ -2208,6 +2346,63 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_circuit_state: {
+        Row: {
+          consecutive_failures: number
+          last_error: string | null
+          model: string
+          next_retry_at: string | null
+          opened_at: string | null
+          provider: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          last_error?: string | null
+          model?: string
+          next_retry_at?: string | null
+          opened_at?: string | null
+          provider: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          consecutive_failures?: number
+          last_error?: string | null
+          model?: string
+          next_retry_at?: string | null
+          opened_at?: string | null
+          provider?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      provider_pricing: {
+        Row: {
+          input_per_1k: number
+          model: string
+          output_per_1k: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          input_per_1k?: number
+          model: string
+          output_per_1k?: number
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          input_per_1k?: number
+          model?: string
+          output_per_1k?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quick_replies: {
         Row: {
           content: string
@@ -2325,6 +2520,27 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_buckets: {
+        Row: {
+          count: number
+          scope: string
+          tenant_id: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          scope: string
+          tenant_id: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          scope?: string
+          tenant_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       schedules: {
         Row: {
           allow_cancellation: boolean
@@ -2430,6 +2646,39 @@ export type Database = {
           trigger_event?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      structured_logs: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: number
+          level: string
+          message: string | null
+          meta: Json
+          tenant_id: string | null
+          trace_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: number
+          level?: string
+          message?: string | null
+          meta?: Json
+          tenant_id?: string | null
+          trace_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: number
+          level?: string
+          message?: string | null
+          meta?: Json
+          tenant_id?: string | null
+          trace_id?: string | null
         }
         Relationships: []
       }
@@ -2736,6 +2985,28 @@ export type Database = {
       }
       approve_credit_request: { Args: { _request_id: string }; Returns: Json }
       cancel_appointment: { Args: { _token: string }; Returns: Json }
+      check_rate_limit: {
+        Args: {
+          _limit: number
+          _scope: string
+          _tenant: string
+          _window_seconds?: number
+        }
+        Returns: boolean
+      }
+      circuit_record_result: {
+        Args: {
+          _error?: string
+          _model: string
+          _ok: boolean
+          _provider: string
+        }
+        Returns: undefined
+      }
+      circuit_should_skip: {
+        Args: { _model?: string; _provider: string }
+        Returns: boolean
+      }
       claim_jobs: {
         Args: { _limit?: number; _worker: string }
         Returns: {
@@ -2817,6 +3088,20 @@ export type Database = {
         Returns: undefined
       }
       platform_health_snapshot: { Args: never; Returns: Json }
+      record_llm_usage: {
+        Args: {
+          _agent: string
+          _duration_ms?: number
+          _in_tok: number
+          _meta?: Json
+          _model: string
+          _out_tok: number
+          _provider: string
+          _request_id?: string
+          _tenant: string
+        }
+        Returns: string
+      }
       release_conversation_lock: {
         Args: { _conv: string; _worker: string }
         Returns: undefined
