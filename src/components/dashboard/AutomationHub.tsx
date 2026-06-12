@@ -20,6 +20,8 @@ import AIProviderSettings from "./automation/AIProviderSettings";
 import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
+import ProductsServicesPanel from "./automation/ProductsServicesPanel";
+import { Package } from "lucide-react";
 
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
