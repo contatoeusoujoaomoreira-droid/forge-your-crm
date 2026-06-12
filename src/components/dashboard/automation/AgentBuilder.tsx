@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import AgentRoutingAdvanced from "./AgentRoutingAdvanced";
 import { useDebouncedSave } from "@/hooks/useDebouncedSave";
+import AgentPresetsManager from "./AgentPresetsManager";
 
 const VOICE_PROVIDERS: Record<string, { label: string; voices: { id: string; label: string }[]; help?: string }> = {
   omni: {
@@ -443,6 +444,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             <span className="text-muted-foreground">· Cada resposta do agente consome créditos de IA automaticamente.</span>
           </p>
         </Card>
+
+        <AgentPresetsManager agent={form} onApply={(patch) => setForm({ ...form, ...patch })} />
+
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="grid grid-cols-6 w-full">

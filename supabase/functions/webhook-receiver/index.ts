@@ -62,7 +62,7 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   return { endpoint, apiKey, model, provider };
 }
 
-function buildSystemPrompt(agent: any, ctx: string) {
+function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: string; products?: string; clientInfo?: string }) {
   const tz = agent.timezone || 'America/Sao_Paulo';
   let nowStr = '';
   try {
@@ -80,8 +80,68 @@ function buildSystemPrompt(agent: any, ctx: string) {
     agent.rules ? `Regras e restrições:\n${agent.rules}` : '',
     agent.examples ? `Exemplos de conversa:\n${agent.examples}` : '',
     agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
+    extras?.adContext ? `\n=== CONTEXTO DE ANÚNCIO (lead veio de campanha) ===\n${extras.adContext}\nUse esse contexto para reconhecer imediatamente o interesse do lead. Quando ele disser "do anúncio", "o anunciado", "esse imóvel/produto", ELE está se referindo ao produto acima — passe informações detalhadas dele e NÃO peça que descreva.` : '',
+    extras?.products ? `\n=== PRODUTOS/SERVIÇOS DISPONÍVEIS ===\n${extras.products}` : '',
+    extras?.clientInfo ? `\n=== INFORMAÇÕES DO CLIENTE ===\n${extras.clientInfo}` : '',
     ctx ? `BASE DE CONHECIMENTO:\n${ctx}` : '',
   ].filter(Boolean).join('\n\n');
+}
+
+// === Match products to the current conversation ===
+async function findMatchingProducts(admin: any, userId: string, agentId: string | null, queryText: string, attribution: any) {
+  try {
+    const { data: all } = await admin.from('products_services')
+      .select('id,name,niche,segment,description,categories,keywords,price_label,ad_identifiers,ad_source,images,external_links')
+      .eq('user_id', userId).eq('is_active', true);
+    if (!all?.length) return [];
+    const q = (queryText || '').toLowerCase();
+    const adId = String(attribution?.content || attribution?.term || attribution?.campaign || attribution?.headline || '').toLowerCase();
+    const scored = all.map((p: any) => {
+      let score = 0;
+      // Restrict to agent if linked
+      if (p.agent_id && agentId && p.agent_id !== agentId) score -= 100;
+      // Ad identifier match (strongest signal)
+      if (adId && Array.isArray(p.ad_identifiers)) {
+        if (p.ad_identifiers.some((id: string) => adId.includes(String(id).toLowerCase()))) score += 50;
+      }
+      // Keyword/category match
+      if (q) {
+        for (const k of (p.keywords || [])) if (k && q.includes(String(k).toLowerCase())) score += 5;
+        for (const c of (p.categories || [])) if (c && q.includes(String(c).toLowerCase())) score += 3;
+        if (p.name && q.includes(String(p.name).toLowerCase())) score += 8;
+        if (p.niche && q.includes(String(p.niche).toLowerCase())) score += 4;
+      }
+      return { p, score };
+    }).filter((x: any) => x.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 4);
+    return scored.map((x: any) => x.p);
+  } catch (e) { console.warn('findMatchingProducts error', e); return []; }
+}
+
+function formatProductsForPrompt(prods: any[]) {
+  if (!prods?.length) return '';
+  return prods.map((p: any) => {
+    return [
+      `• ${p.name}${p.niche ? ` (${p.niche})` : ''}${p.price_label ? ` — ${p.price_label}` : ''}`,
+      p.description ? `  ${String(p.description).slice(0, 600)}` : '',
+      p.categories?.length ? `  Categorias: ${p.categories.join(', ')}` : '',
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
+}
+
+function formatAdContext(attribution: any, matchedProduct: any) {
+  if (!attribution && !matchedProduct) return '';
+  const lines: string[] = [];
+  if (attribution?.source) lines.push(`Origem do anúncio: ${attribution.source}${attribution.medium ? ` / ${attribution.medium}` : ''}`);
+  if (attribution?.campaign) lines.push(`Campanha: ${attribution.campaign}`);
+  if (attribution?.content) lines.push(`ID do criativo: ${attribution.content}`);
+  if (attribution?.headline) lines.push(`Título do anúncio: ${attribution.headline}`);
+  if (attribution?.source_url) lines.push(`URL: ${attribution.source_url}`);
+  if (matchedProduct) {
+    lines.push(`\nProduto/serviço do anúncio: ${matchedProduct.name}`);
+    if (matchedProduct.description) lines.push(`Descrição: ${String(matchedProduct.description).slice(0, 800)}`);
+    if (matchedProduct.price_label) lines.push(`Preço: ${matchedProduct.price_label}`);
+  }
+  return lines.join('\n');
 }
 
 interface NormalizedMsg {
@@ -1221,7 +1281,12 @@ Deno.serve(async (req) => {
         k.content ? String(k.content).slice(0, 1500) : '',
       ].filter(Boolean).join('\n')).join('\n\n---\n\n').slice(0, 8000);
 
-      const sys = buildSystemPrompt(agent, ctx);
+      const attribution = (client as any)?.metadata?.attribution || null;
+      const products = await findMatchingProducts(admin, dUserId, agent.id, merged, attribution);
+      const adContext = formatAdContext(attribution, products[0]);
+      const productsBlock = formatProductsForPrompt(products);
+      const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
@@ -1852,7 +1917,9 @@ Deno.serve(async (req) => {
   // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
   // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
   const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
-  if (!flowHandled && !isOmniChatSnapshot && waCfg?.api_type !== 'omniconect' && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  // === DEBOUNCE: agrupa rajadas curtas em vez de responder a cada mensagem.
+  // Aplica para TODOS os provedores (corrige duplicação no OmniConect/uazapi).
+  if (!flowHandled && !isOmniChatSnapshot && (agent?.group_messages !== false) && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);
@@ -1925,7 +1992,12 @@ Deno.serve(async (req) => {
       }).join('\n\n---\n\n').slice(0, 8000);
 
       const intent = detectIntent(lastUserText, agent);
-      const sys = buildSystemPrompt(agent, ctx);
+      const attribution = (client as any)?.metadata?.attribution || null;
+      const matchedProducts = await findMatchingProducts(admin, userId, agent.id, lastUserText, attribution);
+      const adContext = formatAdContext(attribution, matchedProducts[0]);
+      const productsBlock = formatProductsForPrompt(matchedProducts);
+      const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {

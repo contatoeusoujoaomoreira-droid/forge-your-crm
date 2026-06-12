@@ -148,6 +148,42 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_presets: {
+        Row: {
+          created_at: string
+          data: Json
+          description: string | null
+          id: string
+          is_template: boolean
+          name: string
+          scope: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name: string
+          scope?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name?: string
+          scope?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_agents: {
         Row: {
           ai_provider_config_id: string | null
@@ -2210,6 +2246,80 @@ export type Database = {
           tenant_id?: string | null
         }
         Relationships: []
+      }
+      products_services: {
+        Row: {
+          ad_identifiers: string[] | null
+          ad_source: string | null
+          agent_id: string | null
+          categories: string[] | null
+          created_at: string
+          description: string | null
+          external_links: Json | null
+          id: string
+          images: string[] | null
+          is_active: boolean
+          keywords: string[] | null
+          metadata: Json | null
+          name: string
+          niche: string | null
+          price: number | null
+          price_label: string | null
+          segment: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_identifiers?: string[] | null
+          ad_source?: string | null
+          agent_id?: string | null
+          categories?: string[] | null
+          created_at?: string
+          description?: string | null
+          external_links?: Json | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean
+          keywords?: string[] | null
+          metadata?: Json | null
+          name: string
+          niche?: string | null
+          price?: number | null
+          price_label?: string | null
+          segment?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_identifiers?: string[] | null
+          ad_source?: string | null
+          agent_id?: string | null
+          categories?: string[] | null
+          created_at?: string
+          description?: string | null
+          external_links?: Json | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean
+          keywords?: string[] | null
+          metadata?: Json | null
+          name?: string
+          niche?: string | null
+          price?: number | null
+          price_label?: string | null
+          segment?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_services_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
