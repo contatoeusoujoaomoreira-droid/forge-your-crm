@@ -1281,7 +1281,12 @@ Deno.serve(async (req) => {
         k.content ? String(k.content).slice(0, 1500) : '',
       ].filter(Boolean).join('\n')).join('\n\n---\n\n').slice(0, 8000);
 
-      const sys = buildSystemPrompt(agent, ctx);
+      const attribution = (client as any)?.metadata?.attribution || null;
+      const products = await findMatchingProducts(admin, dUserId, agent.id, merged, attribution);
+      const adContext = formatAdContext(attribution, products[0]);
+      const productsBlock = formatProductsForPrompt(products);
+      const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
