@@ -1912,7 +1912,9 @@ Deno.serve(async (req) => {
   // (response_delay_seconds). Se o usuário configurou 1s, espera 1s — não 8s.
   // debounce_seconds fica como teto máximo apenas quando response_delay_seconds = 0.
   const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
-  if (!flowHandled && !isOmniChatSnapshot && waCfg?.api_type !== 'omniconect' && agent?.group_messages && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  // === DEBOUNCE: agrupa rajadas curtas em vez de responder a cada mensagem.
+  // Aplica para TODOS os provedores (corrige duplicação no OmniConect/uazapi).
+  if (!flowHandled && !isOmniChatSnapshot && (agent?.group_messages !== false) && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);
