@@ -445,6 +445,9 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
           </p>
         </Card>
 
+        <AgentPresetsManager agent={form} onApply={(patch) => setForm({ ...form, ...patch })} />
+
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="grid grid-cols-6 w-full">
             <TabsTrigger value="identidade"><User className="h-4 w-4 mr-1" />Identidade</TabsTrigger>
