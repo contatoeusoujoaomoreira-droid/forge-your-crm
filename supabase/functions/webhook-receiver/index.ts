@@ -1992,7 +1992,12 @@ Deno.serve(async (req) => {
       }).join('\n\n---\n\n').slice(0, 8000);
 
       const intent = detectIntent(lastUserText, agent);
-      const sys = buildSystemPrompt(agent, ctx);
+      const attribution = (client as any)?.metadata?.attribution || null;
+      const matchedProducts = await findMatchingProducts(admin, userId, agent.id, lastUserText, attribution);
+      const adContext = formatAdContext(attribution, matchedProducts[0]);
+      const productsBlock = formatProductsForPrompt(matchedProducts);
+      const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {
