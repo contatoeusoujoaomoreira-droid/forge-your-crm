@@ -547,40 +547,7 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       else console.error('elevenlabs scribe failed', (await r.text()).slice(0, 300));
     }
 
-    // 4) Lovable AI Gemini multimodal (universal fallback, no user key needed)
-    const lk = lovableKey || Deno.env.get('LOVABLE_API_KEY') || '';
-    if (lk) {
-      // Convert to base64 in chunks to avoid stack overflow
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      const chunkSz = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSz) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSz));
-      const b64 = btoa(binary);
-      // Try gemini-2.5-pro (best multimodal) then 2.5-flash
-      for (const model of ['google/gemini-2.5-pro', 'google/gemini-2.5-flash']) {
-        const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${lk}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Transcreva o áudio abaixo em português brasileiro. Responda APENAS com o texto transcrito, sem aspas, sem prefixo, nada mais.' },
-                { type: 'input_audio', input_audio: { data: b64, format: fmt } },
-              ],
-            }],
-          }),
-        });
-        if (r.ok) {
-          const j = await r.json();
-          const t = j.choices?.[0]?.message?.content || '';
-          if (t && t.trim() && !/transcrição indisponível|cannot|unable/i.test(t)) return t.trim();
-        } else {
-          console.error(`lovable ${model} stt failed`, (await r.text()).slice(0, 300));
-        }
-      }
-    }
+    // Gemini/Lovable multimodal STT fallback removed — it hallucinated text on garbled WhatsApp audio.
 
     return '';
   } catch (e) {
