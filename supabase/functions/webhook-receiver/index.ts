@@ -482,30 +482,81 @@ function detectAndNormalize(raw: any): NormalizedMsg | null {
 
 // Transcribe audio. Cascade: Groq Whisper → OpenAI Whisper → ElevenLabs Scribe → Lovable AI Gemini multimodal.
 // Lovable AI is universal fallback (no user key needed).
-async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', lovableKey: string = '', waCfg: any = null): Promise<string> {
+async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: string, elevenKey: string = '', _lovableKey: string = '', waCfg: any = null, externalId: string = ''): Promise<string> {
   try {
-    // Some providers (UAZAPI/Evolution) require the instance token to download media
-    const headers: Record<string, string> = {};
-    if (waCfg?.api_token) {
-      headers['token'] = waCfg.api_token;
-      headers['apikey'] = waCfg.api_token;
-      headers['Authorization'] = `Bearer ${waCfg.api_token}`;
+    let buf: ArrayBuffer | null = null;
+    let ct = 'audio/ogg';
+
+    // 1) UAZAPI/OmniConect: prefer /message/download — returns decrypted media reliably.
+    //    The raw mediaUrl can serve a WhatsApp-encrypted .enc blob, which makes
+    //    Whisper hallucinate transcriptions. Using /message/download avoids that.
+    if (waCfg?.api_type === 'omniconect' && externalId && waCfg?.api_token && waCfg?.base_url) {
+      try {
+        const root = String(waCfg.base_url).replace(/\/+$/, '');
+        const dl = await fetch(`${root}/message/download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', token: waCfg.api_token },
+          body: JSON.stringify({ id: externalId, messageid: externalId }),
+        });
+        if (dl.ok) {
+          const j = await dl.json().catch(() => null);
+          const b64 = j?.fileBase64 || j?.base64 || j?.file || j?.data;
+          const mime = j?.mimetype || j?.mimeType || 'audio/ogg';
+          if (typeof b64 === 'string' && b64.length > 500) {
+            const clean = b64.includes(',') ? b64.split(',').pop()! : b64;
+            const bin = atob(clean);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            buf = bytes.buffer;
+            ct = mime;
+          }
+        }
+      } catch (_) { /* fall through */ }
     }
-    let audioResp = await fetch(audioUrl, { headers });
-    if (!audioResp.ok && Object.keys(headers).length) {
-      // Retry without headers in case provider serves a signed public URL
-      audioResp = await fetch(audioUrl);
+
+    // 2) Fallback: direct URL download (may need provider token).
+    if (!buf) {
+      const headers: Record<string, string> = {};
+      if (waCfg?.api_token) {
+        headers['token'] = waCfg.api_token;
+        headers['apikey'] = waCfg.api_token;
+        headers['Authorization'] = `Bearer ${waCfg.api_token}`;
+      }
+      let audioResp = await fetch(audioUrl, { headers });
+      if (!audioResp.ok && Object.keys(headers).length) audioResp = await fetch(audioUrl);
+      if (!audioResp.ok) {
+        console.warn('audio download failed', audioResp.status, audioUrl.slice(0, 120));
+        return '';
+      }
+      buf = await audioResp.arrayBuffer();
+      ct = audioResp.headers.get('content-type') || 'audio/ogg';
     }
-    if (!audioResp.ok) {
-      console.warn('audio download failed', audioResp.status, audioUrl.slice(0, 120));
+
+    if (!buf || buf.byteLength < 1500) {
+      console.warn('audio too small / invalid', buf?.byteLength);
       return '';
     }
-    const buf = await audioResp.arrayBuffer();
-    if (buf.byteLength < 200) { console.warn('audio body too small', buf.byteLength); return ''; }
-    const ct = audioResp.headers.get('content-type') || 'audio/ogg';
+
+    // Magic-bytes check — only proceed if the bytes look like a real audio container.
+    // This blocks encrypted .enc payloads and HTML error pages from being sent to
+    // Whisper, which is what was producing the random/hallucinated transcripts.
+    const head = new Uint8Array(buf.slice(0, 12));
+    const headStr = String.fromCharCode(...head);
+    const isOgg = headStr.startsWith('OggS');
+    const isMp3 = headStr.startsWith('ID3') || (head[0] === 0xFF && (head[1] & 0xE0) === 0xE0);
+    const isWav = headStr.startsWith('RIFF');
+    const isM4a = headStr.slice(4, 8) === 'ftyp';
+    if (!isOgg && !isMp3 && !isWav && !isM4a) {
+      console.warn('audio bytes not a known container, skipping transcription', Array.from(head).map((b) => b.toString(16)).join(' '));
+      return '';
+    }
+    if (isOgg) ct = 'audio/ogg';
+    else if (isMp3) ct = 'audio/mpeg';
+    else if (isWav) ct = 'audio/wav';
+    else if (isM4a) ct = 'audio/mp4';
+
     const blob = new Blob([buf], { type: ct });
-    // Detect format for Lovable/Gemini input_audio (expects wav/mp3/ogg)
-    const fmt = /mp3|mpeg/i.test(ct) ? 'mp3' : /wav/i.test(ct) ? 'wav' : 'ogg';
+    const fmt = isMp3 ? 'mp3' : isWav ? 'wav' : isM4a ? 'm4a' : 'ogg';
 
     // 1) Groq Whisper (fast + cheap) when user selected Groq
     if (providerCfg?.provider === 'groq' && providerCfg?.api_key_encrypted) {
@@ -513,6 +564,8 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-large-v3-turbo');
       fd.append('language', 'pt');
+      fd.append('temperature', '0');
+      fd.append('response_format', 'json');
       const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST', headers: { Authorization: `Bearer ${providerCfg.api_key_encrypted}` }, body: fd,
       });
@@ -527,6 +580,8 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       fd.append('file', blob, `audio.${fmt}`);
       fd.append('model', 'whisper-1');
       fd.append('language', 'pt');
+      fd.append('temperature', '0');
+      fd.append('response_format', 'json');
       const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST', headers: { Authorization: `Bearer ${oaKey}` }, body: fd,
       });
