@@ -1741,7 +1741,7 @@ Deno.serve(async (req) => {
     !agent?.voice_enabled
   );
   if (mustTranscribe) {
-    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey, '', waCfg);
+    transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey, '', waCfg, msg.external_message_id || '');
     if (transcript) {
       inboundContent = transcript;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
