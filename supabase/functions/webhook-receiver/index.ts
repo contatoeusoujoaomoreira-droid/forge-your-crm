@@ -487,20 +487,23 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     let buf: ArrayBuffer | null = null;
     let ct = 'audio/ogg';
 
-    // 1) UAZAPI/OmniConect: prefer /message/download — returns decrypted media reliably.
-    //    The raw mediaUrl can serve a WhatsApp-encrypted .enc blob, which makes
-    //    Whisper hallucinate transcriptions. Using /message/download avoids that.
-    if (waCfg?.api_type === 'omniconect' && externalId && waCfg?.api_token && waCfg?.base_url) {
+    // 1) UAZAPI/OmniConect-family: try /message/download — returns decrypted media.
+    //    The raw mediaUrl is often a WhatsApp-encrypted .enc blob (random bytes),
+    //    which makes Whisper hallucinate. /message/download returns the decrypted
+    //    file. We attempt this whenever the provider exposes base_url + api_token
+    //    (omniconect, free.uazapi.com, self-hosted UAZAPI all support it).
+    const isEncUrl = /\.enc(\?|$)/i.test(audioUrl || '');
+    if (externalId && waCfg?.api_token && waCfg?.base_url) {
       try {
-        const root = String(waCfg.base_url).replace(/\/+$/, '');
+        const root = String(waCfg.base_url).replace(/\/+$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture|chat).*$/, '');
         const dl = await fetch(`${root}/message/download`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', token: waCfg.api_token },
-          body: JSON.stringify({ id: externalId, messageid: externalId }),
+          headers: { 'Content-Type': 'application/json', token: waCfg.api_token, apikey: waCfg.api_token },
+          body: JSON.stringify({ id: externalId, messageid: externalId, messageId: externalId }),
         });
         if (dl.ok) {
           const j = await dl.json().catch(() => null);
-          const b64 = j?.fileBase64 || j?.base64 || j?.file || j?.data;
+          const b64 = j?.fileBase64 || j?.base64 || j?.file || j?.data || j?.audio;
           const mime = j?.mimetype || j?.mimeType || 'audio/ogg';
           if (typeof b64 === 'string' && b64.length > 500) {
             const clean = b64.includes(',') ? b64.split(',').pop()! : b64;
@@ -509,9 +512,18 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
             buf = bytes.buffer;
             ct = mime;
+            console.log(`[STT] /message/download ok bytes=${bytes.length} mime=${mime}`);
+          } else {
+            console.warn('[STT] /message/download no base64 keys=', Object.keys(j || {}).join(','));
           }
+        } else {
+          console.warn('[STT] /message/download http', dl.status);
         }
-      } catch (_) { /* fall through */ }
+      } catch (e) { console.warn('[STT] /message/download error', String(e).slice(0, 200)); }
+    }
+    if (!buf && isEncUrl) {
+      console.warn('[STT] encrypted .enc URL and no /message/download available — cannot transcribe', audioUrl.slice(0, 120));
+      return '';
     }
 
     // 2) Fallback: direct URL download (may need provider token).
@@ -1989,19 +2001,17 @@ Deno.serve(async (req) => {
       console.log(`[FLOW] debounce window=${effectiveSec}s (response_delay=${responseDelay}, debounce_cfg=${fallbackDebounce})`);
       const processAfter = new Date(Date.now() + debounceMs).toISOString();
       const newEntry = { content: inboundContent, ts: new Date().toISOString(), external_id: msg.external_message_id || null };
-      const { data: existingQ } = await admin.from('message_debounce_queue')
-        .select('*').eq('client_id', client.id).eq('status', 'pending').maybeSingle();
-      if (existingQ) {
-        const merged = [...(Array.isArray(existingQ.buffered_messages) ? existingQ.buffered_messages : []), newEntry];
-        await admin.from('message_debounce_queue').update({
-          buffered_messages: merged, process_after: processAfter, agent_id: agent.id, updated_at: new Date().toISOString(),
-        }).eq('id', existingQ.id);
-      } else {
-        await admin.from('message_debounce_queue').insert({
-          user_id: userId, client_id: client.id, agent_id: agent.id,
-          buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
-        });
-      }
+      // ATOMIC enqueue: a Postgres-side RPC guarantees only one pending row per
+      // client_id, so concurrent inbound messages always merge into the same
+      // batch (fixes "oi / bom dia / tenho interesse" duplicating AI replies).
+      const { error: enqErr } = await admin.rpc('enqueue_debounced_message', {
+        _user_id: userId,
+        _client_id: client.id,
+        _agent_id: agent.id,
+        _entry: newEntry,
+        _process_after: processAfter,
+      });
+      if (enqErr) throw enqErr;
       try {
         const triggerDelay = debounceMs + 500;
         const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;

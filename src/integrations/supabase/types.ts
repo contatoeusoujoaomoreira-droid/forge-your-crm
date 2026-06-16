@@ -3165,6 +3165,16 @@ export type Database = {
         }
         Returns: Json
       }
+      enqueue_debounced_message: {
+        Args: {
+          _agent_id: string
+          _client_id: string
+          _entry: Json
+          _process_after: string
+          _user_id: string
+        }
+        Returns: string
+      }
       enqueue_job: {
         Args: {
           _kind: string
