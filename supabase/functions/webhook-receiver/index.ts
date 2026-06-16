@@ -602,7 +602,45 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       else console.error('elevenlabs scribe failed', (await r.text()).slice(0, 300));
     }
 
-    // Gemini/Lovable multimodal STT fallback removed — it hallucinated text on garbled WhatsApp audio.
+    // 4) Lovable AI Gateway — Gemini 2.5 Flash multimodal (universal fallback, no user key needed).
+    //    Safe now that the magic-bytes check above rejects encrypted .enc blobs / HTML errors
+    //    that previously caused hallucinated transcripts.
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY') || '';
+    if (lovableKey) {
+      try {
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        const b64 = btoa(binary);
+        const audioFormat = isMp3 ? 'mp3' : isWav ? 'wav' : isM4a ? 'm4a' : 'webm';
+        const body = {
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'You are an accurate speech-to-text engine. Transcribe the audio verbatim in the original language (Brazilian Portuguese unless clearly another language). Output ONLY the transcription, with no commentary, no quotes, no prefixes. If the audio is silent or unintelligible, output exactly: [inaudível]' },
+            { role: 'user', content: [
+              { type: 'text', text: 'Transcreva este áudio literalmente.' },
+              { type: 'input_audio', input_audio: { data: b64, format: audioFormat } },
+            ]},
+          ],
+          temperature: 0,
+        };
+        const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${lovableKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const text = (j?.choices?.[0]?.message?.content || '').trim();
+          if (text && !/^\[?inaud[ií]vel\]?$/i.test(text)) return text;
+        } else {
+          console.error('lovable gemini stt failed', r.status, (await r.text()).slice(0, 300));
+        }
+      } catch (e) { console.error('lovable gemini stt error', e); }
+    }
 
     return '';
   } catch (e) {
