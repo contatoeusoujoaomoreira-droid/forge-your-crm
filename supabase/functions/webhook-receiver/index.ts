@@ -2001,19 +2001,17 @@ Deno.serve(async (req) => {
       console.log(`[FLOW] debounce window=${effectiveSec}s (response_delay=${responseDelay}, debounce_cfg=${fallbackDebounce})`);
       const processAfter = new Date(Date.now() + debounceMs).toISOString();
       const newEntry = { content: inboundContent, ts: new Date().toISOString(), external_id: msg.external_message_id || null };
-      const { data: existingQ } = await admin.from('message_debounce_queue')
-        .select('*').eq('client_id', client.id).eq('status', 'pending').maybeSingle();
-      if (existingQ) {
-        const merged = [...(Array.isArray(existingQ.buffered_messages) ? existingQ.buffered_messages : []), newEntry];
-        await admin.from('message_debounce_queue').update({
-          buffered_messages: merged, process_after: processAfter, agent_id: agent.id, updated_at: new Date().toISOString(),
-        }).eq('id', existingQ.id);
-      } else {
-        await admin.from('message_debounce_queue').insert({
-          user_id: userId, client_id: client.id, agent_id: agent.id,
-          buffered_messages: [newEntry], process_after: processAfter, status: 'pending',
-        });
-      }
+      // ATOMIC enqueue: a Postgres-side RPC guarantees only one pending row per
+      // client_id, so concurrent inbound messages always merge into the same
+      // batch (fixes "oi / bom dia / tenho interesse" duplicating AI replies).
+      const { error: enqErr } = await admin.rpc('enqueue_debounced_message', {
+        _user_id: userId,
+        _client_id: client.id,
+        _agent_id: agent.id,
+        _entry: newEntry,
+        _process_after: processAfter,
+      });
+      if (enqErr) throw enqErr;
       try {
         const triggerDelay = debounceMs + 500;
         const triggerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/cron-worker`;
