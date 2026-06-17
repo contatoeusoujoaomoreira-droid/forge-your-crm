@@ -496,15 +496,32 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     if (externalId && waCfg?.api_token && waCfg?.base_url) {
       try {
         const root = String(waCfg.base_url).replace(/\/+$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture|chat).*$/, '');
+        // UAZAPI native: ask for decrypted MP3 + automatic transcription using the instance/OpenAI key.
+        const dlBody: any = {
+          id: externalId,
+          messageid: externalId,
+          messageId: externalId,
+          generate_mp3: true,
+          return_link: true,
+          return_base64: true,
+          transcribe: true,
+        };
+        if (openaiKey) dlBody.openai_apikey = openaiKey;
         const dl = await fetch(`${root}/message/download`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', token: waCfg.api_token, apikey: waCfg.api_token },
-          body: JSON.stringify({ id: externalId, messageid: externalId, messageId: externalId }),
+          body: JSON.stringify(dlBody),
         });
         if (dl.ok) {
           const j = await dl.json().catch(() => null);
-          const b64 = j?.fileBase64 || j?.base64 || j?.file || j?.data || j?.audio;
-          const mime = j?.mimetype || j?.mimeType || 'audio/ogg';
+          // 1a) If UAZAPI already transcribed for us, use it directly (best path).
+          const nativeTxt = (j?.transcription || j?.transcript || '').toString().trim();
+          if (nativeTxt && nativeTxt.length > 1) {
+            console.log('[STT] uazapi native transcription len=', nativeTxt.length);
+            return nativeTxt;
+          }
+          const b64 = j?.fileBase64 || j?.base64 || j?.base64Data || j?.file || j?.data || j?.audio;
+          const mime = j?.mimetype || j?.mimeType || 'audio/mpeg';
           if (typeof b64 === 'string' && b64.length > 500) {
             const clean = b64.includes(',') ? b64.split(',').pop()! : b64;
             const bin = atob(clean);
@@ -513,11 +530,21 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
             buf = bytes.buffer;
             ct = mime;
             console.log(`[STT] /message/download ok bytes=${bytes.length} mime=${mime}`);
+          } else if (j?.fileURL) {
+            try {
+              const fr = await fetch(j.fileURL);
+              if (fr.ok) {
+                buf = await fr.arrayBuffer();
+                ct = fr.headers.get('content-type') || mime;
+                console.log(`[STT] fileURL fetched bytes=${buf.byteLength}`);
+              }
+            } catch (e) { console.warn('[STT] fileURL fetch error', String(e).slice(0, 200)); }
           } else {
-            console.warn('[STT] /message/download no base64 keys=', Object.keys(j || {}).join(','));
+            console.warn('[STT] /message/download no usable payload keys=', Object.keys(j || {}).join(','));
           }
         } else {
-          console.warn('[STT] /message/download http', dl.status);
+          const errTxt = await dl.text().catch(() => '');
+          console.warn('[STT] /message/download http', dl.status, errTxt.slice(0, 200));
         }
       } catch (e) { console.warn('[STT] /message/download error', String(e).slice(0, 200)); }
     }
