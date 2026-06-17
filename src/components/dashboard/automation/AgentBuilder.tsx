@@ -924,6 +924,33 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
 
           {/* CONHECIMENTO */}
           <TabsContent value="conhecimento" className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold text-sm">Inteligência de consulta</h4>
+              <p className="text-xs text-muted-foreground">
+                Antes de responder, o agente consulta nessa ordem: <strong>Produtos & Serviços</strong> → <strong>FAQ</strong> → <strong>Base de Conhecimento</strong> → histórico da conversa → CRM → conhecimento geral do LLM.
+              </p>
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Prioridade de consulta</Label>
+                  <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={(form as any).knowledge_priority || "default"}
+                    onChange={(e) => setForm({ ...form, knowledge_priority: e.target.value } as any)}>
+                    <option value="default">Padrão do sistema (Produtos → FAQ → Conhecimento)</option>
+                    <option value="faq_first">FAQ tem prioridade sobre Produtos</option>
+                    <option value="products_first">Produtos têm prioridade sobre FAQ</option>
+                    <option value="kb_first">Base de Conhecimento tem prioridade</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 pt-5">
+                  <Switch checked={(form as any).anti_hallucination !== false} onCheckedChange={(v) => setForm({ ...form, anti_hallucination: v } as any)} />
+                  <div>
+                    <Label className="text-xs">Anti-alucinação</Label>
+                    <p className="text-[10px] text-muted-foreground">Quando ativo, o agente avisa que não tem a informação em vez de inventar.</p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
             {!agent?.id ? (
               <Card className="p-4 bg-amber-500/10 border-amber-500/30">
                 <p className="text-sm">💡 Salve o agente primeiro para adicionar itens à base de conhecimento.</p>
