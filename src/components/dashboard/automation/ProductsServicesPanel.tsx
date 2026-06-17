@@ -175,7 +175,15 @@ export default function ProductsServicesPanel() {
             </div>
             <div>
               <Label>Descrição</Label>
-              <Textarea rows={4} value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="O que é, benefícios, diferenciais, condições…" />
+              <Textarea rows={3} value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="O que é, para quem é, visão geral…" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Benefícios</Label><Textarea rows={3} value={(editing as any).benefits || ""} onChange={(e) => setEditing({ ...editing, benefits: e.target.value } as any)} placeholder="Resultados, ganhos para o cliente" /></div>
+              <div><Label>Características</Label><Textarea rows={3} value={(editing as any).features || ""} onChange={(e) => setEditing({ ...editing, features: e.target.value } as any)} placeholder="Especificações, o que inclui" /></div>
+              <div><Label>Diferenciais</Label><Textarea rows={3} value={(editing as any).differentials || ""} onChange={(e) => setEditing({ ...editing, differentials: e.target.value } as any)} placeholder="Por que somos diferentes" /></div>
+              <div><Label>Condições</Label><Textarea rows={3} value={(editing as any).conditions || ""} onChange={(e) => setEditing({ ...editing, conditions: e.target.value } as any)} placeholder="Pagamento, prazos, requisitos" /></div>
+              <div><Label>Garantias</Label><Textarea rows={3} value={(editing as any).warranties || ""} onChange={(e) => setEditing({ ...editing, warranties: e.target.value } as any)} placeholder="Política de garantia / devolução" /></div>
+              <div><Label>Observações</Label><Textarea rows={3} value={(editing as any).notes || ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value } as any)} placeholder="Notas internas para a IA" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
