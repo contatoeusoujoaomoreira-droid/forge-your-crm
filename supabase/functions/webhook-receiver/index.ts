@@ -1439,10 +1439,19 @@ Deno.serve(async (req) => {
 
       const attribution = (client as any)?.metadata?.attribution || null;
       const products = await findMatchingProducts(admin, dUserId, agent.id, merged, attribution);
+      const faqs = await findMatchingFaqs(admin, dUserId, agent.id, merged);
       const adContext = formatAdContext(attribution, products[0]);
       const productsBlock = formatProductsForPrompt(products);
+      const faqBlock = formatFaqsForPrompt(faqs);
       const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
-      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, faq: faqBlock, clientInfo });
+      await logConsultation(admin, dUserId, agent.id, dClientId, merged, {
+        products: products.map((p: any) => ({ id: p.id, name: p.name })),
+        faqs: faqs.map((f: any) => ({ id: f.id, question: f.question })),
+        knowledge: baseItems.map((k: any) => ({ id: k.id, title: k.title })),
+        priority: agent.knowledge_priority || 'default',
+        path: 'debounced',
+      });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
