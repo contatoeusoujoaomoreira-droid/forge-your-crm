@@ -84,6 +84,7 @@ function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: strin
     extras?.products ? `\n=== PRODUTOS/SERVIÇOS DISPONÍVEIS ===\n${extras.products}` : '',
     extras?.clientInfo ? `\n=== INFORMAÇÕES DO CLIENTE ===\n${extras.clientInfo}` : '',
     ctx ? `BASE DE CONHECIMENTO:\n${ctx}` : '',
+    `\n=== POLÍTICA DE MÍDIA (OBRIGATÓRIO) ===\nVocê PODE receber e entender mensagens de áudio, imagens, vídeos, documentos, stickers e emojis enviados pelo lead.\n• Áudios são transcritos automaticamente e chegam até você como texto prefixado por "[ÁUDIO TRANSCRITO]". Trate exatamente como se o lead tivesse digitado o conteúdo da transcrição.\n• Imagens chegam com "[Descrição automática]" do conteúdo visual. Use-a como contexto real.\n• Documentos, vídeos e stickers chegam com a descrição/tipo do arquivo recebido.\n• NUNCA responda frases como "não consigo ouvir áudio", "não tenho acesso ao áudio", "não posso escutar mensagens de voz", "não consigo ver imagens" ou equivalentes. Essas respostas são PROIBIDAS.\n• Se um áudio chegou marcado com "[áudio recebido — transcrição indisponível]", peça gentilmente para o lead repetir por texto, mas NÃO afirme que você não consegue ouvir áudios — diga apenas que houve uma falha técnica momentânea na transcrição daquele áudio específico.`,
   ].filter(Boolean).join('\n\n');
 }
 
