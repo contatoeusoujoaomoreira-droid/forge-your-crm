@@ -143,7 +143,7 @@ async function logConsultation(admin: any, userId: string, agentId: string | nul
 async function findMatchingProducts(admin: any, userId: string, agentId: string | null, queryText: string, attribution: any) {
   try {
     const { data: all } = await admin.from('products_services')
-      .select('id,name,niche,segment,description,categories,keywords,price_label,ad_identifiers,ad_source,images,external_links')
+      .select('id,name,niche,segment,description,categories,keywords,price_label,ad_identifiers,ad_source,images,external_links,benefits,features,differentials,conditions,warranties,notes,agent_id')
       .eq('user_id', userId).eq('is_active', true);
     if (!all?.length) return [];
     const q = (queryText || '').toLowerCase();
