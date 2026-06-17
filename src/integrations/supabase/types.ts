@@ -82,6 +82,145 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_consultation_logs: {
+        Row: {
+          agent_id: string | null
+          client_id: string | null
+          created_at: string
+          id: string
+          query: string | null
+          sources: Json
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          query?: string | null
+          sources?: Json
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          query?: string | null
+          sources?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_consultation_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_faq_groups: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_faq_groups_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_faq_items: {
+        Row: {
+          agent_id: string | null
+          answer: string
+          created_at: string
+          group_id: string
+          id: string
+          is_active: boolean
+          keywords: string[] | null
+          position: number
+          question: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          answer: string
+          created_at?: string
+          group_id: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[] | null
+          position?: number
+          question: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          answer?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[] | null
+          position?: number
+          question?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_faq_items_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_faq_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "agent_faq_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_knowledge: {
         Row: {
           agent_id: string
@@ -187,6 +326,7 @@ export type Database = {
       ai_agents: {
         Row: {
           ai_provider_config_id: string | null
+          anti_hallucination: boolean
           auto_close_enabled: boolean
           auto_close_message: string | null
           business_hours: Json
@@ -214,6 +354,7 @@ export type Database = {
           inactivity_timeout_minutes: number | null
           intent_routing_rules: Json
           is_active: boolean
+          knowledge_priority: string
           linked_schedule_id: string | null
           max_message_chars: number
           max_tokens: number | null
@@ -254,6 +395,7 @@ export type Database = {
         }
         Insert: {
           ai_provider_config_id?: string | null
+          anti_hallucination?: boolean
           auto_close_enabled?: boolean
           auto_close_message?: string | null
           business_hours?: Json
@@ -281,6 +423,7 @@ export type Database = {
           inactivity_timeout_minutes?: number | null
           intent_routing_rules?: Json
           is_active?: boolean
+          knowledge_priority?: string
           linked_schedule_id?: string | null
           max_message_chars?: number
           max_tokens?: number | null
@@ -321,6 +464,7 @@ export type Database = {
         }
         Update: {
           ai_provider_config_id?: string | null
+          anti_hallucination?: boolean
           auto_close_enabled?: boolean
           auto_close_message?: string | null
           business_hours?: Json
@@ -348,6 +492,7 @@ export type Database = {
           inactivity_timeout_minutes?: number | null
           intent_routing_rules?: Json
           is_active?: boolean
+          knowledge_priority?: string
           linked_schedule_id?: string | null
           max_message_chars?: number
           max_tokens?: number | null
@@ -2252,10 +2397,14 @@ export type Database = {
           ad_identifiers: string[] | null
           ad_source: string | null
           agent_id: string | null
+          benefits: string | null
           categories: string[] | null
+          conditions: string | null
           created_at: string
           description: string | null
+          differentials: string | null
           external_links: Json | null
+          features: string | null
           id: string
           images: string[] | null
           is_active: boolean
@@ -2263,20 +2412,26 @@ export type Database = {
           metadata: Json | null
           name: string
           niche: string | null
+          notes: string | null
           price: number | null
           price_label: string | null
           segment: string | null
           updated_at: string
           user_id: string
+          warranties: string | null
         }
         Insert: {
           ad_identifiers?: string[] | null
           ad_source?: string | null
           agent_id?: string | null
+          benefits?: string | null
           categories?: string[] | null
+          conditions?: string | null
           created_at?: string
           description?: string | null
+          differentials?: string | null
           external_links?: Json | null
+          features?: string | null
           id?: string
           images?: string[] | null
           is_active?: boolean
@@ -2284,20 +2439,26 @@ export type Database = {
           metadata?: Json | null
           name: string
           niche?: string | null
+          notes?: string | null
           price?: number | null
           price_label?: string | null
           segment?: string | null
           updated_at?: string
           user_id: string
+          warranties?: string | null
         }
         Update: {
           ad_identifiers?: string[] | null
           ad_source?: string | null
           agent_id?: string | null
+          benefits?: string | null
           categories?: string[] | null
+          conditions?: string | null
           created_at?: string
           description?: string | null
+          differentials?: string | null
           external_links?: Json | null
+          features?: string | null
           id?: string
           images?: string[] | null
           is_active?: boolean
@@ -2305,11 +2466,13 @@ export type Database = {
           metadata?: Json | null
           name?: string
           niche?: string | null
+          notes?: string | null
           price?: number | null
           price_label?: string | null
           segment?: string | null
           updated_at?: string
           user_id?: string
+          warranties?: string | null
         }
         Relationships: [
           {
