@@ -62,7 +62,7 @@ function resolveAiRuntime(agent: any, cfg?: any) {
   return { endpoint, apiKey, model, provider };
 }
 
-function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: string; products?: string; clientInfo?: string }) {
+function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: string; products?: string; faq?: string; clientInfo?: string }) {
   const tz = agent.timezone || 'America/Sao_Paulo';
   let nowStr = '';
   try {
@@ -70,6 +70,14 @@ function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: strin
       timeZone: tz, dateStyle: 'full', timeStyle: 'short',
     }).format(new Date());
   } catch { nowStr = new Date().toISOString(); }
+  const priority = agent.knowledge_priority || 'default';
+  const priorityMap: Record<string, string> = {
+    default: '1) Produtos & Serviços, 2) FAQ, 3) Base de Conhecimento, 4) histórico, 5) CRM, 6) conhecimento geral do LLM.',
+    faq_first: '1) FAQ, 2) Produtos & Serviços, 3) Base de Conhecimento, 4) histórico, 5) CRM, 6) conhecimento geral do LLM.',
+    products_first: '1) Produtos & Serviços, 2) FAQ, 3) Base de Conhecimento, 4) histórico, 5) CRM, 6) conhecimento geral do LLM.',
+    kb_first: '1) Base de Conhecimento, 2) Produtos & Serviços, 3) FAQ, 4) histórico, 5) CRM, 6) conhecimento geral do LLM.',
+  };
+  const antiHall = agent.anti_hallucination !== false;
   return [
     agent.system_prompt || 'Você é um assistente profissional no WhatsApp.',
     `Nome de apresentação: ${agent.display_name || agent.name || 'Agente'}`,
@@ -82,10 +90,53 @@ function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: strin
     agent.objections ? `Objeções e respostas:\n${agent.objections}` : '',
     extras?.adContext ? `\n=== CONTEXTO DE ANÚNCIO (lead veio de campanha) ===\n${extras.adContext}\nUse esse contexto para reconhecer imediatamente o interesse do lead. Quando ele disser "do anúncio", "o anunciado", "esse imóvel/produto", ELE está se referindo ao produto acima — passe informações detalhadas dele e NÃO peça que descreva.` : '',
     extras?.products ? `\n=== PRODUTOS/SERVIÇOS DISPONÍVEIS ===\n${extras.products}` : '',
+    extras?.faq ? `\n=== FAQ (Perguntas Frequentes — base de respostas) ===\n${extras.faq}\nIMPORTANTE: Interprete a intenção do lead, NÃO copie a pergunta cadastrada literalmente. Adapte a resposta para o tom da conversa e responda de forma natural.` : '',
     extras?.clientInfo ? `\n=== INFORMAÇÕES DO CLIENTE ===\n${extras.clientInfo}` : '',
     ctx ? `BASE DE CONHECIMENTO:\n${ctx}` : '',
+    `\n=== ORDEM DE CONSULTA OBRIGATÓRIA ===\nAntes de responder, considere as fontes nesta ordem: ${priorityMap[priority] || priorityMap.default}\nSomente use seu conhecimento geral DEPOIS de verificar que a informação não existe nas fontes acima.`,
+    antiHall ? `\n=== ANTI-ALUCINAÇÃO (OBRIGATÓRIO) ===\nSe a informação solicitada NÃO existir em Produtos & Serviços, FAQ, Base de Conhecimento ou no contexto da conversa, você NÃO deve inventar. Responda de forma segura, exemplo: "Não encontrei essa informação nas minhas referências atuais. Posso encaminhar sua dúvida para um atendente ou solicitar mais detalhes?"` : '',
     `\n=== POLÍTICA DE MÍDIA (OBRIGATÓRIO) ===\nVocê PODE receber e entender mensagens de áudio, imagens, vídeos, documentos, stickers e emojis enviados pelo lead.\n• Áudios são transcritos automaticamente e chegam até você como texto prefixado por "[ÁUDIO TRANSCRITO]". Trate exatamente como se o lead tivesse digitado o conteúdo da transcrição.\n• Imagens chegam com "[Descrição automática]" do conteúdo visual. Use-a como contexto real.\n• Documentos, vídeos e stickers chegam com a descrição/tipo do arquivo recebido.\n• NUNCA responda frases como "não consigo ouvir áudio", "não tenho acesso ao áudio", "não posso escutar mensagens de voz", "não consigo ver imagens" ou equivalentes. Essas respostas são PROIBIDAS.\n• Se um áudio chegou marcado com "[áudio recebido — transcrição indisponível]", peça gentilmente para o lead repetir por texto, mas NÃO afirme que você não consegue ouvir áudios — diga apenas que houve uma falha técnica momentânea na transcrição daquele áudio específico.`,
   ].filter(Boolean).join('\n\n');
+}
+
+// === Match FAQs to the current conversation ===
+async function findMatchingFaqs(admin: any, userId: string, agentId: string | null, queryText: string) {
+  try {
+    let q = admin.from('agent_faq_items').select('id, question, answer, keywords, group_id, agent_id, is_active').eq('user_id', userId).eq('is_active', true);
+    const { data: all } = await q;
+    if (!all?.length) return [];
+    const text = (queryText || '').toLowerCase();
+    const words = text.split(/\W+/).filter((w: string) => w.length > 3);
+    const scored = (all as any[]).map((it: any) => {
+      let score = 0;
+      if (it.agent_id && agentId && it.agent_id !== agentId) score -= 100;
+      const q = String(it.question || '').toLowerCase();
+      const kw: string[] = Array.isArray(it.keywords) ? it.keywords : [];
+      for (const k of kw) if (k && text.includes(String(k).toLowerCase())) score += 6;
+      for (const w of words) if (q.includes(w)) score += 2;
+      // bigram overlap
+      const qWords = q.split(/\W+/).filter((w: string) => w.length > 3);
+      const inter = qWords.filter((w: string) => words.includes(w)).length;
+      score += inter * 3;
+      return { it, score };
+    }).filter((x: any) => x.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 5);
+    return scored.map((x: any) => x.it);
+  } catch (e) { console.warn('findMatchingFaqs error', e); return []; }
+}
+
+function formatFaqsForPrompt(faqs: any[]) {
+  if (!faqs?.length) return '';
+  return faqs.map((f: any) => `P: ${f.question}\nR: ${f.answer}`).join('\n\n---\n\n');
+}
+
+async function logConsultation(admin: any, userId: string, agentId: string | null, clientId: string | null, query: string, sources: any) {
+  try {
+    await admin.from('agent_consultation_logs').insert({
+      user_id: userId, agent_id: agentId, client_id: clientId,
+      query: String(query || '').slice(0, 2000),
+      sources,
+    });
+  } catch (e) { console.warn('logConsultation failed', e); }
 }
 
 // === Match products to the current conversation ===
