@@ -21,7 +21,8 @@ import AgentBuilder from "./automation/AgentBuilder";
 import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
 import ProductsServicesPanel from "./automation/ProductsServicesPanel";
-import { Package } from "lucide-react";
+import FAQPanel from "./automation/FAQPanel";
+import { Package, HelpCircle } from "lucide-react";
 
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
@@ -675,6 +676,7 @@ export default function AutomationHub() {
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />Produtos & Serviços</TabsTrigger>
+          <TabsTrigger value="faq"><HelpCircle className="h-4 w-4 mr-1" />FAQ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -1242,7 +1244,8 @@ export default function AutomationHub() {
         </TabsContent>
         )}
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
-       <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
+      <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
+      <TabsContent value="faq"><FAQPanel /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção
