@@ -1244,7 +1244,8 @@ export default function AutomationHub() {
         </TabsContent>
         )}
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
-       <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
+      <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
+      <TabsContent value="faq"><FAQPanel /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção
