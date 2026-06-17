@@ -2169,10 +2169,19 @@ Deno.serve(async (req) => {
       const intent = detectIntent(lastUserText, agent);
       const attribution = (client as any)?.metadata?.attribution || null;
       const matchedProducts = await findMatchingProducts(admin, userId, agent.id, lastUserText, attribution);
+      const matchedFaqs = await findMatchingFaqs(admin, userId, agent.id, lastUserText);
       const adContext = formatAdContext(attribution, matchedProducts[0]);
       const productsBlock = formatProductsForPrompt(matchedProducts);
+      const faqBlock = formatFaqsForPrompt(matchedFaqs);
       const clientInfo = client?.name ? `Nome do contato: ${client.name}` : '';
-      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, clientInfo });
+      const sys = buildSystemPrompt(agent, ctx, { adContext, products: productsBlock, faq: faqBlock, clientInfo });
+      await logConsultation(admin, userId, agent.id, client.id, lastUserText, {
+        products: matchedProducts.map((p: any) => ({ id: p.id, name: p.name })),
+        faqs: matchedFaqs.map((f: any) => ({ id: f.id, question: f.question })),
+        knowledge: baseItems.map((k: any) => ({ id: k.id, title: k.title })),
+        priority: agent.knowledge_priority || 'default',
+        path: 'immediate',
+      });
       const runtime = resolveAiRuntime(agent, providerCfg);
       const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {
