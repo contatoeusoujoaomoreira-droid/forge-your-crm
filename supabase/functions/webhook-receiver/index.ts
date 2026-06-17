@@ -1821,19 +1821,31 @@ Deno.serve(async (req) => {
   if (mustTranscribe) {
     transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey, '', waCfg, msg.external_message_id || '');
     if (transcript) {
-      inboundContent = transcript;
+      inboundContent = `[ÁUDIO TRANSCRITO] ${transcript}`;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
     } else {
       console.warn('Audio transcription returned empty for', msg.media_url);
-      inboundContent = msg.content || '[áudio recebido — transcrição indisponível]';
+      inboundContent = '[áudio recebido — transcrição indisponível]';
     }
   }
   if (msg.media_type === 'image' && msg.media_url && (agent?.understand_images !== false)) {
     imageDescription = await describeImage(msg.media_url, providerCfg, openaiKey);
     if (imageDescription) {
-      inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+      inboundContent = `[IMAGEM RECEBIDA]${msg.content ? ` Legenda: ${msg.content}` : ''}\n[Descrição automática]: ${imageDescription}`;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'image_vision', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    } else {
+      inboundContent = `[IMAGEM RECEBIDA]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
     }
+  }
+  if (msg.media_type === 'video' && msg.media_url) {
+    inboundContent = `[VÍDEO RECEBIDO]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
+  }
+  if (msg.media_type === 'document' && msg.media_url) {
+    const fn = (msg as any).document_filename || 'arquivo';
+    inboundContent = `[DOCUMENTO RECEBIDO: ${fn}]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
+  }
+  if (msg.media_type === 'sticker' && msg.media_url) {
+    inboundContent = `[STICKER RECEBIDO]`;
   }
 
   const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
