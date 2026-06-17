@@ -174,7 +174,12 @@ function formatProductsForPrompt(prods: any[]) {
   return prods.map((p: any) => {
     return [
       `• ${p.name}${p.niche ? ` (${p.niche})` : ''}${p.price_label ? ` — ${p.price_label}` : ''}`,
-      p.description ? `  ${String(p.description).slice(0, 600)}` : '',
+      p.description ? `  Descrição: ${String(p.description).slice(0, 500)}` : '',
+      p.benefits ? `  Benefícios: ${String(p.benefits).slice(0, 400)}` : '',
+      p.features ? `  Características: ${String(p.features).slice(0, 400)}` : '',
+      p.differentials ? `  Diferenciais: ${String(p.differentials).slice(0, 300)}` : '',
+      p.conditions ? `  Condições: ${String(p.conditions).slice(0, 300)}` : '',
+      p.warranties ? `  Garantias: ${String(p.warranties).slice(0, 200)}` : '',
       p.categories?.length ? `  Categorias: ${p.categories.join(', ')}` : '',
     ].filter(Boolean).join('\n');
   }).join('\n\n');
