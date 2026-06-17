@@ -84,6 +84,7 @@ function buildSystemPrompt(agent: any, ctx: string, extras?: { adContext?: strin
     extras?.products ? `\n=== PRODUTOS/SERVIÇOS DISPONÍVEIS ===\n${extras.products}` : '',
     extras?.clientInfo ? `\n=== INFORMAÇÕES DO CLIENTE ===\n${extras.clientInfo}` : '',
     ctx ? `BASE DE CONHECIMENTO:\n${ctx}` : '',
+    `\n=== POLÍTICA DE MÍDIA (OBRIGATÓRIO) ===\nVocê PODE receber e entender mensagens de áudio, imagens, vídeos, documentos, stickers e emojis enviados pelo lead.\n• Áudios são transcritos automaticamente e chegam até você como texto prefixado por "[ÁUDIO TRANSCRITO]". Trate exatamente como se o lead tivesse digitado o conteúdo da transcrição.\n• Imagens chegam com "[Descrição automática]" do conteúdo visual. Use-a como contexto real.\n• Documentos, vídeos e stickers chegam com a descrição/tipo do arquivo recebido.\n• NUNCA responda frases como "não consigo ouvir áudio", "não tenho acesso ao áudio", "não posso escutar mensagens de voz", "não consigo ver imagens" ou equivalentes. Essas respostas são PROIBIDAS.\n• Se um áudio chegou marcado com "[áudio recebido — transcrição indisponível]", peça gentilmente para o lead repetir por texto, mas NÃO afirme que você não consegue ouvir áudios — diga apenas que houve uma falha técnica momentânea na transcrição daquele áudio específico.`,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -496,15 +497,32 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
     if (externalId && waCfg?.api_token && waCfg?.base_url) {
       try {
         const root = String(waCfg.base_url).replace(/\/+$/, '').replace(/\/(send-text|send-image|send-document|status|profile-picture|chat).*$/, '');
+        // UAZAPI native: ask for decrypted MP3 + automatic transcription using the instance/OpenAI key.
+        const dlBody: any = {
+          id: externalId,
+          messageid: externalId,
+          messageId: externalId,
+          generate_mp3: true,
+          return_link: true,
+          return_base64: true,
+          transcribe: true,
+        };
+        if (openaiKey) dlBody.openai_apikey = openaiKey;
         const dl = await fetch(`${root}/message/download`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', token: waCfg.api_token, apikey: waCfg.api_token },
-          body: JSON.stringify({ id: externalId, messageid: externalId, messageId: externalId }),
+          body: JSON.stringify(dlBody),
         });
         if (dl.ok) {
           const j = await dl.json().catch(() => null);
-          const b64 = j?.fileBase64 || j?.base64 || j?.file || j?.data || j?.audio;
-          const mime = j?.mimetype || j?.mimeType || 'audio/ogg';
+          // 1a) If UAZAPI already transcribed for us, use it directly (best path).
+          const nativeTxt = (j?.transcription || j?.transcript || '').toString().trim();
+          if (nativeTxt && nativeTxt.length > 1) {
+            console.log('[STT] uazapi native transcription len=', nativeTxt.length);
+            return nativeTxt;
+          }
+          const b64 = j?.fileBase64 || j?.base64 || j?.base64Data || j?.file || j?.data || j?.audio;
+          const mime = j?.mimetype || j?.mimeType || 'audio/mpeg';
           if (typeof b64 === 'string' && b64.length > 500) {
             const clean = b64.includes(',') ? b64.split(',').pop()! : b64;
             const bin = atob(clean);
@@ -513,11 +531,21 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
             buf = bytes.buffer;
             ct = mime;
             console.log(`[STT] /message/download ok bytes=${bytes.length} mime=${mime}`);
+          } else if (j?.fileURL) {
+            try {
+              const fr = await fetch(j.fileURL);
+              if (fr.ok) {
+                buf = await fr.arrayBuffer();
+                ct = fr.headers.get('content-type') || mime;
+                console.log(`[STT] fileURL fetched bytes=${buf.byteLength}`);
+              }
+            } catch (e) { console.warn('[STT] fileURL fetch error', String(e).slice(0, 200)); }
           } else {
-            console.warn('[STT] /message/download no base64 keys=', Object.keys(j || {}).join(','));
+            console.warn('[STT] /message/download no usable payload keys=', Object.keys(j || {}).join(','));
           }
         } else {
-          console.warn('[STT] /message/download http', dl.status);
+          const errTxt = await dl.text().catch(() => '');
+          console.warn('[STT] /message/download http', dl.status, errTxt.slice(0, 200));
         }
       } catch (e) { console.warn('[STT] /message/download error', String(e).slice(0, 200)); }
     }
@@ -1793,19 +1821,31 @@ Deno.serve(async (req) => {
   if (mustTranscribe) {
     transcript = await transcribeAudio(msg.media_url, providerCfg, openaiKey, elevenKey, '', waCfg, msg.external_message_id || '');
     if (transcript) {
-      inboundContent = transcript;
+      inboundContent = `[ÁUDIO TRANSCRITO] ${transcript}`;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'audio_transcription', _metadata: { provider: providerCfg?.provider || 'cascade' } });
     } else {
       console.warn('Audio transcription returned empty for', msg.media_url);
-      inboundContent = msg.content || '[áudio recebido — transcrição indisponível]';
+      inboundContent = '[áudio recebido — transcrição indisponível]';
     }
   }
   if (msg.media_type === 'image' && msg.media_url && (agent?.understand_images !== false)) {
     imageDescription = await describeImage(msg.media_url, providerCfg, openaiKey);
     if (imageDescription) {
-      inboundContent = `${msg.content || '[imagem]'}\n[Descrição automática]: ${imageDescription}`;
+      inboundContent = `[IMAGEM RECEBIDA]${msg.content ? ` Legenda: ${msg.content}` : ''}\n[Descrição automática]: ${imageDescription}`;
       await admin.rpc('deduct_credits', { _user_id: userId, _amount: 1, _kind: 'image_vision', _metadata: { provider: providerCfg?.provider || 'openai' } });
+    } else {
+      inboundContent = `[IMAGEM RECEBIDA]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
     }
+  }
+  if (msg.media_type === 'video' && msg.media_url) {
+    inboundContent = `[VÍDEO RECEBIDO]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
+  }
+  if (msg.media_type === 'document' && msg.media_url) {
+    const fn = (msg as any).document_filename || 'arquivo';
+    inboundContent = `[DOCUMENTO RECEBIDO: ${fn}]${msg.content ? ` Legenda: ${msg.content}` : ''}`;
+  }
+  if (msg.media_type === 'sticker' && msg.media_url) {
+    inboundContent = `[STICKER RECEBIDO]`;
   }
 
   const { data: insertedMsg, error: insertMsgErr } = await admin.from('messages').insert({
