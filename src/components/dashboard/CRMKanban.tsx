@@ -757,12 +757,12 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
       {/* Kanban View */}
       {view === "kanban" && (
-        <div className="flex gap-6 overflow-x-auto pb-6 custom-scrollbar min-h-[600px]">
+        <div className="flex gap-6 overflow-x-auto pb-2 custom-scrollbar h-[calc(100vh-260px)]">
           {pipelineStages.map((stage, sIdx) => {
             const stageLeads = filteredLeads.filter(l => l.stage_id === stage.id);
             const stageValue = stageLeads.reduce((s, l) => s + (l.value || 0), 0);
             return (
-              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
+              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4 h-full min-h-0" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
                 <div className="flex flex-col gap-2 p-4 rounded-xl bg-secondary/10 border-t-4" style={{ borderTopColor: stage.color }}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -777,7 +777,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3 p-2 rounded-xl bg-secondary/5 border border-border/50 min-h-[400px]">
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3 p-2 rounded-xl bg-secondary/5 border border-border/50">
                   {stageLeads.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40 italic text-xs">
                       Nenhum lead neste estágio

@@ -22,7 +22,9 @@ import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
 import ProductsServicesPanel from "./automation/ProductsServicesPanel";
 import FAQPanel from "./automation/FAQPanel";
-import { Package, HelpCircle } from "lucide-react";
+import TagsPanel from "./automation/TagsPanel";
+import AgentOrchestratorPanel from "./automation/AgentOrchestratorPanel";
+import { Package, HelpCircle, Tag as TagIcon } from "lucide-react";
 
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
@@ -677,6 +679,8 @@ export default function AutomationHub() {
           <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />Produtos & Serviços</TabsTrigger>
           <TabsTrigger value="faq"><HelpCircle className="h-4 w-4 mr-1" />FAQ</TabsTrigger>
+          <TabsTrigger value="tags"><TagIcon className="h-4 w-4 mr-1" />Tags</TabsTrigger>
+          <TabsTrigger value="orchestrator"><GitBranch className="h-4 w-4 mr-1" />Orquestrador</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -1246,6 +1250,8 @@ export default function AutomationHub() {
        <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
       <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
       <TabsContent value="faq"><FAQPanel /></TabsContent>
+      <TabsContent value="tags"><TagsPanel /></TabsContent>
+      <TabsContent value="orchestrator"><AgentOrchestratorPanel /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção
