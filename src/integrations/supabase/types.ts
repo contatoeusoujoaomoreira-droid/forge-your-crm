@@ -323,6 +323,74 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_routing_rules: {
+        Row: {
+          agent_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          keywords: string[]
+          match_type: string
+          meta_adset: string | null
+          meta_campaign: string | null
+          meta_creative: string | null
+          name: string
+          pipeline_id: string | null
+          priority: number
+          stage_id: string | null
+          tag_names: string[]
+          updated_at: string
+          user_id: string
+          utm_filters: Json
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          match_type?: string
+          meta_adset?: string | null
+          meta_campaign?: string | null
+          meta_creative?: string | null
+          name: string
+          pipeline_id?: string | null
+          priority?: number
+          stage_id?: string | null
+          tag_names?: string[]
+          updated_at?: string
+          user_id: string
+          utm_filters?: Json
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          match_type?: string
+          meta_adset?: string | null
+          meta_campaign?: string | null
+          meta_creative?: string | null
+          name?: string
+          pipeline_id?: string | null
+          priority?: number
+          stage_id?: string | null
+          tag_names?: string[]
+          updated_at?: string
+          user_id?: string
+          utm_filters?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_routing_rules_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
           ai_provider_config_id: string | null
@@ -354,6 +422,7 @@ export type Database = {
           inactivity_timeout_minutes: number | null
           intent_routing_rules: Json
           is_active: boolean
+          is_default: boolean
           knowledge_priority: string
           linked_schedule_id: string | null
           max_message_chars: number
@@ -389,6 +458,7 @@ export type Database = {
           understand_images: boolean
           updated_at: string
           user_id: string
+          vision_model: string | null
           voice_enabled: boolean
           voice_id: string | null
           voice_provider: string
@@ -423,6 +493,7 @@ export type Database = {
           inactivity_timeout_minutes?: number | null
           intent_routing_rules?: Json
           is_active?: boolean
+          is_default?: boolean
           knowledge_priority?: string
           linked_schedule_id?: string | null
           max_message_chars?: number
@@ -458,6 +529,7 @@ export type Database = {
           understand_images?: boolean
           updated_at?: string
           user_id?: string
+          vision_model?: string | null
           voice_enabled?: boolean
           voice_id?: string | null
           voice_provider?: string
@@ -492,6 +564,7 @@ export type Database = {
           inactivity_timeout_minutes?: number | null
           intent_routing_rules?: Json
           is_active?: boolean
+          is_default?: boolean
           knowledge_priority?: string
           linked_schedule_id?: string | null
           max_message_chars?: number
@@ -527,6 +600,7 @@ export type Database = {
           understand_images?: boolean
           updated_at?: string
           user_id?: string
+          vision_model?: string | null
           voice_enabled?: boolean
           voice_id?: string | null
           voice_provider?: string
@@ -1788,6 +1862,39 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_tags: {
+        Row: {
+          color: string
+          created_at: string
+          emoji: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           company: string | null
@@ -1798,6 +1905,9 @@ export type Database = {
           id: string
           instagram: string | null
           linkedin: string | null
+          meta_adset: string | null
+          meta_campaign: string | null
+          meta_creative: string | null
           monthly_value: number | null
           name: string
           notes: string | null
@@ -1815,8 +1925,10 @@ export type Database = {
           urgency: string | null
           user_id: string
           utm_campaign: string | null
+          utm_content: string | null
           utm_medium: string | null
           utm_source: string | null
+          utm_term: string | null
           value: number | null
           website: string | null
         }
@@ -1829,6 +1941,9 @@ export type Database = {
           id?: string
           instagram?: string | null
           linkedin?: string | null
+          meta_adset?: string | null
+          meta_campaign?: string | null
+          meta_creative?: string | null
           monthly_value?: number | null
           name: string
           notes?: string | null
@@ -1846,8 +1961,10 @@ export type Database = {
           urgency?: string | null
           user_id: string
           utm_campaign?: string | null
+          utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
           value?: number | null
           website?: string | null
         }
@@ -1860,6 +1977,9 @@ export type Database = {
           id?: string
           instagram?: string | null
           linkedin?: string | null
+          meta_adset?: string | null
+          meta_campaign?: string | null
+          meta_creative?: string | null
           monthly_value?: number | null
           name?: string
           notes?: string | null
@@ -1877,8 +1997,10 @@ export type Database = {
           urgency?: string | null
           user_id?: string
           utm_campaign?: string | null
+          utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
           value?: number | null
           website?: string | null
         }
@@ -2952,6 +3074,42 @@ export type Database = {
           meta?: Json
           tenant_id?: string | null
           trace_id?: string | null
+        }
+        Relationships: []
+      }
+      tag_triggers: {
+        Row: {
+          action_config: Json
+          action_type: string
+          created_at: string
+          event: string
+          id: string
+          is_active: boolean
+          tag_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type: string
+          created_at?: string
+          event?: string
+          id?: string
+          is_active?: boolean
+          tag_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          event?: string
+          id?: string
+          is_active?: boolean
+          tag_name?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
