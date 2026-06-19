@@ -22,7 +22,9 @@ import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
 import ProductsServicesPanel from "./automation/ProductsServicesPanel";
 import FAQPanel from "./automation/FAQPanel";
-import { Package, HelpCircle } from "lucide-react";
+import TagsPanel from "./automation/TagsPanel";
+import AgentOrchestratorPanel from "./automation/AgentOrchestratorPanel";
+import { Package, HelpCircle, Tag as TagIcon, Workflow } from "lucide-react";
 
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
