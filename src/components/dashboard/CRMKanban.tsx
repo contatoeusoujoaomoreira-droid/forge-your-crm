@@ -757,7 +757,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
       {/* Kanban View */}
       {view === "kanban" && (
-        <div className="flex gap-6 overflow-x-auto pb-6 custom-scrollbar min-h-[600px]">
+        <div className="flex gap-6 overflow-x-auto pb-2 custom-scrollbar h-[calc(100vh-260px)]">
           {pipelineStages.map((stage, sIdx) => {
             const stageLeads = filteredLeads.filter(l => l.stage_id === stage.id);
             const stageValue = stageLeads.reduce((s, l) => s + (l.value || 0), 0);
