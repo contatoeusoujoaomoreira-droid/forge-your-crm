@@ -679,6 +679,8 @@ export default function AutomationHub() {
           <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
           <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />Produtos & Serviços</TabsTrigger>
           <TabsTrigger value="faq"><HelpCircle className="h-4 w-4 mr-1" />FAQ</TabsTrigger>
+          <TabsTrigger value="tags"><TagIcon className="h-4 w-4 mr-1" />Tags</TabsTrigger>
+          <TabsTrigger value="orchestrator"><GitBranch className="h-4 w-4 mr-1" />Orquestrador</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
