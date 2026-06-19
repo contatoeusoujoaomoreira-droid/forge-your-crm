@@ -1295,10 +1295,60 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
 }
 
 async function resolveAgent(admin: any, userId: string, client: any, lead: any, waCfg: any, convState: any, inboundText: string) {
+  // 1) Agent already assigned in this conversation — keep it
   if (convState?.assigned_agent_id) return convState.assigned_agent_id;
+
+  // 2) Active flow session takes precedence (its agent is implicit per node)
+  try {
+    const { data: flowSession } = await admin.from('conversation_flow_sessions')
+      .select('id, variables').eq('client_id', client.id).eq('status', 'active').maybeSingle();
+    const flowAgent = flowSession?.variables?.agent_id;
+    if (flowAgent) return flowAgent;
+  } catch (_e) { /* ignore */ }
+
   const { data: agents } = await admin.from('ai_agents').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
   const active = agents || [];
   const text = (inboundText || '').toLowerCase();
+  const tags = Array.isArray(lead?.tags) ? lead.tags.map((t: string) => String(t).toLowerCase()) : [];
+
+  // 3) Orchestrator routing rules (new table, ordered by priority)
+  try {
+    const { data: rules } = await admin.from('agent_routing_rules')
+      .select('*').eq('user_id', userId).eq('enabled', true).order('priority', { ascending: true });
+    for (const r of (rules || [])) {
+      const checks: boolean[] = [];
+      // UTM filters
+      const utm = r.utm_filters || {};
+      const utmKeys = Object.keys(utm);
+      if (utmKeys.length) {
+        const utmOk = utmKeys.every((k) => String(lead?.[k] || '').toLowerCase() === String(utm[k] || '').toLowerCase());
+        checks.push(utmOk);
+      }
+      // Keywords
+      if (Array.isArray(r.keywords) && r.keywords.length) {
+        checks.push(r.keywords.some((kw: string) => kw && text.includes(String(kw).toLowerCase())));
+      }
+      // Tags
+      if (Array.isArray(r.tag_names) && r.tag_names.length) {
+        checks.push(r.tag_names.some((t: string) => tags.includes(String(t).toLowerCase())));
+      }
+      // Pipeline / Stage
+      if (r.pipeline_id) checks.push(r.pipeline_id === lead?.pipeline_id);
+      if (r.stage_id) checks.push(r.stage_id === lead?.stage_id);
+      // Meta Ads
+      if (r.meta_campaign) checks.push(String(lead?.meta_campaign || '').toLowerCase() === String(r.meta_campaign).toLowerCase());
+      if (r.meta_adset) checks.push(String(lead?.meta_adset || '').toLowerCase() === String(r.meta_adset).toLowerCase());
+      if (r.meta_creative) checks.push(String(lead?.meta_creative || '').toLowerCase() === String(r.meta_creative).toLowerCase());
+
+      if (!checks.length) continue;
+      const matched = (r.match_type === 'all') ? checks.every(Boolean) : checks.some(Boolean);
+      if (matched && r.agent_id) {
+        return r.agent_id;
+      }
+    }
+  } catch (e) { console.warn('[orchestrator] routing rules failed', e); }
+
+  // 4) Legacy per-agent routing_rules (back-compat)
   for (const ag of active) {
     const rules = Array.isArray(ag.routing_rules) ? ag.routing_rules : [];
     const matched = rules.some((r: any) => {
@@ -1308,16 +1358,21 @@ async function resolveAgent(admin: any, userId: string, client: any, lead: any, 
       const stageOk = !r.stage_id || r.stage_id === lead?.stage_id;
       return kwOk && pipelineOk && stageOk;
     });
-    if (matched) {
-      await admin.from('conversation_state').update({ assigned_agent_id: ag.id, updated_at: new Date().toISOString() }).eq('client_id', client.id);
-      return ag.id;
-    }
+    if (matched) return ag.id;
   }
+
+  // 5) Pipeline / Stage on agent record
   const byStage = active.find((ag: any) =>
     (!!ag.stage_id && ag.stage_id === lead?.stage_id) ||
     (!!ag.pipeline_id && ag.pipeline_id === lead?.pipeline_id)
   );
   if (byStage) return byStage.id;
+
+  // 6) Default agent flag
+  const defaultAgent = active.find((ag: any) => ag.is_default === true);
+  if (defaultAgent) return defaultAgent.id;
+
+  // 7) WhatsApp config default → first active
   return waCfg?.default_agent_id || active[0]?.id || null;
 }
 
