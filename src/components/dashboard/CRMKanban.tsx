@@ -777,7 +777,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-3 p-2 rounded-xl bg-secondary/5 border border-border/50 min-h-[400px]">
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3 p-2 rounded-xl bg-secondary/5 border border-border/50">
                   {stageLeads.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40 italic text-xs">
                       Nenhum lead neste estágio
