@@ -24,7 +24,7 @@ import ProductsServicesPanel from "./automation/ProductsServicesPanel";
 import FAQPanel from "./automation/FAQPanel";
 import TagsPanel from "./automation/TagsPanel";
 import AgentOrchestratorPanel from "./automation/AgentOrchestratorPanel";
-import { Package, HelpCircle, Tag as TagIcon, Workflow } from "lucide-react";
+import { Package, HelpCircle, Tag as TagIcon } from "lucide-react";
 
 
 // Reusable info tooltip with step-by-step content (hover or focus to view)
