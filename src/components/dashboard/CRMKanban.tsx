@@ -762,7 +762,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
             const stageLeads = filteredLeads.filter(l => l.stage_id === stage.id);
             const stageValue = stageLeads.reduce((s, l) => s + (l.value || 0), 0);
             return (
-              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
+              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4 h-full min-h-0" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
                 <div className="flex flex-col gap-2 p-4 rounded-xl bg-secondary/10 border-t-4" style={{ borderTopColor: stage.color }}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
