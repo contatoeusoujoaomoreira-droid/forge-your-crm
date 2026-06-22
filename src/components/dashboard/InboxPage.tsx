@@ -596,13 +596,15 @@ export default function InboxPage() {
                         <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
                       )}
                       {m.media_type === "image" && m.media_url && (
-                        <img src={m.media_url} alt="" className="rounded mb-1 max-h-64 object-contain" loading="lazy" />
+                        <img src={m.media_url} alt="" onClick={() => openLightboxByUrl(m.media_url!)}
+                          className="rounded mb-1 max-h-64 object-contain cursor-zoom-in hover:opacity-90 transition" loading="lazy" />
                       )}
                       {m.media_type === "video" && m.media_url && (
                         <video controls src={m.media_url} className="rounded mb-1 max-h-64" preload="none" />
                       )}
                       {isSticker && m.media_url && (
-                        <img src={m.media_url} alt="sticker" className="h-32 w-32 object-contain mb-1" loading="lazy" />
+                        <img src={m.media_url} alt="sticker" onClick={() => openLightboxByUrl(m.media_url!)}
+                          className="h-32 w-32 object-contain mb-1 cursor-zoom-in" loading="lazy" />
                       )}
                       {m.media_type === "document" && m.media_url && (
                         <a href={m.media_url} target="_blank" rel="noreferrer"
