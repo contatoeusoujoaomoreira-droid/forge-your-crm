@@ -856,9 +856,14 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                       {/* Tags Section */}
                       {lead.tags && lead.tags.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-1">
-                          {lead.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="text-[9px] bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full font-bold">{tag}</span>
-                          ))}
+                          {lead.tags.slice(0, 3).map(tag => {
+                            const meta = tagMetaByName.get(tag.toLowerCase());
+                            return (
+                              <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full font-bold border" style={tagChipStyle(tag)}>
+                                {meta?.emoji ? `${meta.emoji} ` : ""}{tag}
+                              </span>
+                            );
+                          })}
                           {lead.tags.length > 3 && <span className="text-[9px] text-muted-foreground px-2 py-0.5">+{lead.tags.length - 3}</span>}
                         </div>
                       )}
