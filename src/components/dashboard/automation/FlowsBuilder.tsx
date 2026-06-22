@@ -123,6 +123,9 @@ export default function FlowsBuilder() {
       case "filter": return { utm: "source", value: "" };
       case "media": return { url: "", caption: "" };
       case "crm": return { action: "move_stage", stage_id: "" };
+      case "switch_agent": return { agent_id: "", reason: "" };
+      case "move_stage": return { stage_id: "", note: "" };
+      case "handoff_human": return { mode: "temporary", pause_minutes: 30, message: "Vou chamar um especialista. Aguarde um instante." };
       case "end": return {};
       default: return {};
     }
