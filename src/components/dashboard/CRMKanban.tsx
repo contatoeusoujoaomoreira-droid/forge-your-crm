@@ -167,14 +167,16 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     const pips = pipeData || [];
     setPipelines(pips);
 
-    const [stagesRes, leadsRes, activitiesRes] = await Promise.all([
+    const [stagesRes, leadsRes, activitiesRes, tagsRes] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       supabase.from("leads").select("*").eq("user_id", user.id).order("position"),
       supabase.from("activities").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("lead_tags").select("id, name, color, emoji").eq("user_id", user.id).eq("is_active", true),
     ]);
     if (stagesRes.data) setStages(stagesRes.data);
     if (leadsRes.data) setLeads(leadsRes.data.map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
     if (activitiesRes.data) setActivities(activitiesRes.data as Activity[]);
+    if (tagsRes.data) setTagCatalog(tagsRes.data as any);
     
     const { data: templatesData } = await supabase.from("whatsapp_templates").select("*").eq("user_id", user.id).order("name");
     if (templatesData && templatesData.length > 0) {
