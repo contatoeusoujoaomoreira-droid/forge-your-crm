@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, GitBranch, MessageSquare, Menu as MenuIcon, MousePointerClick,
   Database, Sparkles, Clock, Hourglass, GitFork, Filter, Image as ImgIcon, X, Save, FileText,
+  Bot, ArrowRightLeft, UserCheck,
 } from "lucide-react";
 import FlowTemplatesModal, { FlowTemplate } from "./FlowTemplatesModal";
 
@@ -27,6 +28,9 @@ const NODE_TYPES = [
   { id: "filter", label: "Filtro UTM", icon: Filter, color: "#ef4444" },
   { id: "media", label: "Mídia", icon: ImgIcon, color: "#f97316" },
   { id: "crm", label: "Ação CRM", icon: GitBranch, color: "#22c55e" },
+  { id: "switch_agent", label: "Trocar Agente", icon: Bot, color: "#7c3aed" },
+  { id: "move_stage", label: "Mover Etapa", icon: ArrowRightLeft, color: "#0ea5e9" },
+  { id: "handoff_human", label: "Handoff Humano", icon: UserCheck, color: "#dc2626" },
   { id: "end", label: "Fim", icon: X, color: "#6b7280" },
 ];
 
