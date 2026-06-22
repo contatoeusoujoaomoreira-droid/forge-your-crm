@@ -90,6 +90,18 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [filterPriority, setFilterPriority] = useState("Todos");
+  const [tagCatalog, setTagCatalog] = useState<Array<{ id: string; name: string; color: string | null; emoji: string | null }>>([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const tagMetaByName = useMemo(() => {
+    const m = new Map<string, { color: string | null; emoji: string | null }>();
+    for (const t of tagCatalog) m.set(t.name.toLowerCase(), { color: t.color, emoji: t.emoji });
+    return m;
+  }, [tagCatalog]);
+  const tagChipStyle = (name: string) => {
+    const meta = tagMetaByName.get(name.toLowerCase());
+    const c = meta?.color || "#84cc16";
+    return { backgroundColor: `${c}22`, color: c, borderColor: `${c}55` };
+  };
   
   // Bulk actions
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
