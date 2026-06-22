@@ -185,7 +185,7 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
               </div>
               <div className="flex flex-wrap gap-1">
                 {l.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{l.source}</span>}
-                {(l.tags || []).slice(0, 3).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
+                {(l.tags || []).slice(0, 3).map(t => renderTagChip(t))}
               </div>
             </div>
           ))}
