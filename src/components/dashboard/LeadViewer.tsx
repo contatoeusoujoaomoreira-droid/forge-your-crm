@@ -158,6 +158,26 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
         </div>
       </div>
 
+      {tagCatalog.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] text-muted-foreground uppercase font-bold mr-1">Filtrar por tag:</span>
+          {tagCatalog.map(t => {
+            const active = filterTags.includes(t.name);
+            return (
+              <button key={t.id} onClick={() => toggleFilterTag(t.name)}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-opacity ${active ? "opacity-100" : "opacity-60 hover:opacity-100"}`}
+                style={tagBgStyle(t.color)}>
+                {t.emoji ? `${t.emoji} ` : ""}{t.name}
+              </button>
+            );
+          })}
+          {filterTags.length > 0 && (
+            <button onClick={() => setFilterTags([])} className="text-[10px] text-muted-foreground hover:text-foreground underline ml-1">limpar</button>
+          )}
+        </div>
+      )}
+
+
       {filtered.length === 0 ? (
         <div className="surface-card rounded-lg p-8 text-center"><p className="text-xs text-muted-foreground">Nenhum lead encontrado</p></div>
       ) : view === "list" ? (
