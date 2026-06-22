@@ -739,7 +739,28 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
             </button>
           ))}
         </div>
+
+        {tagCatalog.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Tags:</span>
+            {tagCatalog.map(t => {
+              const active = filterTags.includes(t.name);
+              return (
+                <button key={t.id}
+                  onClick={() => setFilterTags(p => p.includes(t.name) ? p.filter(x => x !== t.name) : [...p, t.name])}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-opacity ${active ? "opacity-100 ring-1 ring-primary" : "opacity-65 hover:opacity-100"}`}
+                  style={tagChipStyle(t.name)}>
+                  {t.emoji ? `${t.emoji} ` : ""}{t.name}
+                </button>
+              );
+            })}
+            {filterTags.length > 0 && (
+              <button onClick={() => setFilterTags([])} className="text-[10px] text-muted-foreground hover:text-foreground underline">limpar</button>
+            )}
+          </div>
+        )}
       </div>
+
 
       {/* Bulk Actions Bar */}
       {selectedLeads.size > 0 && (
