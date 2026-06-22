@@ -1069,7 +1069,7 @@ async function execSchedulingTool(admin: any, userId: string, clientId: string, 
 
 async function callAiWithTools(
   admin: any, userId: string, clientId: string, client: any, agent: any,
-  systemPrompt: string, history: { role: string; content: string }[],
+  systemPrompt: string, history: MmMessage[],
   runtime: { endpoint: string; apiKey: string; model: string; provider?: string }
 ): Promise<string> {
   const enableTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book) && (runtime.provider !== 'anthropic');
