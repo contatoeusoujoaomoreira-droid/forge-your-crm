@@ -2265,6 +2265,26 @@ Deno.serve(async (req) => {
         path: 'immediate',
       });
       const runtime = resolveAiRuntime(agent, providerCfg);
+      // === VISÃO COMPUTACIONAL: passa a imagem direto pro modelo quando suportado ===
+      // Substitui o conteúdo da última msg do usuário por blocos multimodais
+      // [{text}, {image_url}] quando: msg atual é imagem, o agente permite
+      // entender imagens, há media_url, e o modelo selecionado tem visão.
+      if (
+        msg.media_type === 'image' && msg.media_url &&
+        agent?.understand_images !== false &&
+        modelSupportsVision(runtime.provider || 'lovable', runtime.model) &&
+        aiHistory.length > 0
+      ) {
+        const lastIdx = aiHistory.length - 1;
+        const last = aiHistory[lastIdx];
+        if (last.role === 'user') {
+          const caption = msg.content && !String(msg.content).startsWith('[IMAGEM') ? String(msg.content) : '';
+          (aiHistory[lastIdx] as any).content = [
+            { type: 'text', text: caption ? `Imagem enviada pelo cliente. Legenda: ${caption}` : 'Imagem enviada pelo cliente. Analise e responda contextualmente.' },
+            { type: 'image_url', image_url: { url: msg.media_url } },
+          ];
+        }
+      }
       const reply = await callAiWithTools(admin, userId, client.id, client, agent, sys, aiHistory, runtime);
       if (reply) {
         let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
