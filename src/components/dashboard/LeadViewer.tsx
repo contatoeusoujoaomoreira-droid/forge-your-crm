@@ -52,8 +52,36 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [newTag, setNewTag] = useState("");
+  const [tagCatalog, setTagCatalog] = useState<LeadTag[]>([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("lead_tags").select("id, name, color, emoji").eq("user_id", user.id).eq("is_active", true)
+      .then(({ data }) => setTagCatalog((data as any) || []));
+  }, [user]);
+
+  const catalogByName = useMemo(() => {
+    const m = new Map<string, LeadTag>();
+    for (const t of tagCatalog) m.set(t.name.toLowerCase(), t);
+    return m;
+  }, [tagCatalog]);
+
+  const renderTagChip = (name: string) => {
+    const meta = catalogByName.get(name.toLowerCase());
+    return (
+      <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border font-medium" style={tagBgStyle(meta?.color)}>
+        {meta?.emoji ? `${meta.emoji} ` : ""}{name}
+      </span>
+    );
+  };
+
+  const toggleFilterTag = (name: string) => {
+    setFilterTags(p => p.includes(name) ? p.filter(t => t !== name) : [...p, name]);
+  };
 
   const filtered = leads.filter(l => {
+    if (filterTags.length && !filterTags.every(t => (l.tags || []).includes(t))) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return l.name.toLowerCase().includes(s) || l.email?.toLowerCase().includes(s) || l.company?.toLowerCase().includes(s);
