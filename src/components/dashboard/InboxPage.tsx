@@ -556,6 +556,11 @@ export default function InboxPage() {
                 <Badge variant={convState?.ai_active ? "default" : "secondary"}>
                   {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA</> : <><User className="h-3 w-3 mr-1" />Humano</>}
                 </Badge>
+                {mediaItems.length > 0 && (
+                  <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => setGalleryOpen(true)} title="Galeria de mídias">
+                    <ImageIcon className="h-3 w-3" /> {mediaItems.length}
+                  </Button>
+                )}
               </div>
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
