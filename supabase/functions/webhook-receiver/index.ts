@@ -866,15 +866,42 @@ async function generateTtsBase64(text: string, voice: string, openaiKey: string,
   return await tryEleven(elevenKey ? '21m00Tcm4TlvDq8ikWAM' : '');
 }
 
-async function callAi(systemPrompt: string, history: { role: string; content: string }[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }, tools?: any[]) {
+// Returns true when the (provider,model) pair accepts OpenAI-style multimodal
+// content arrays with `image_url` blocks. Used to decide whether to forward
+// the original image to the LLM instead of (or in addition to) a textual
+// description fallback.
+function modelSupportsVision(provider: string, model: string): boolean {
+  const m = (model || '').toLowerCase();
+  if (provider === 'anthropic') return /claude-3|claude-3\.5|claude-3\.7|claude-4/.test(m);
+  if (provider === 'openai') return /gpt-4o|gpt-4\.1|gpt-5|o1|o3|o4/.test(m) && !/mini-realtime|tts|whisper/.test(m);
+  if (provider === 'gemini' || provider === 'google') return /gemini-(1\.5|2|2\.5|3)/.test(m);
+  if (provider === 'groq') return /llama-3\.2-.*vision|llava|llama-4|llama-3\.3-70b-versatile-vision/.test(m);
+  if (provider === 'openrouter') return /vision|gpt-4o|gemini|claude-3|llava/.test(m);
+  // Lovable Gateway: gemini-* and gpt-4o/5 are multimodal
+  if (provider === 'lovable') return /gemini-(2|2\.5|3)|gpt-4o|gpt-5/.test(m);
+  return false;
+}
+
+type MmContent = string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+type MmMessage = { role: string; content: MmContent };
+
+async function callAi(systemPrompt: string, history: MmMessage[], runtime: { endpoint: string; apiKey: string; model: string; provider?: string }, tools?: any[]) {
   const provider = runtime.provider || 'lovable';
   if (provider === 'anthropic') {
+    // Anthropic uses a different body shape; flatten multimodal entries to text + image blocks.
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': runtime.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: runtime.model, max_tokens: 800, system: systemPrompt,
-        messages: history.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+        messages: history.map((m) => {
+          const role = m.role === 'assistant' ? 'assistant' : 'user';
+          if (typeof m.content === 'string') return { role, content: m.content };
+          const parts = m.content.map((p) => p.type === 'image_url' && p.image_url?.url
+            ? { type: 'image', source: { type: 'url', url: p.image_url.url } }
+            : { type: 'text', text: p.text || '' });
+          return { role, content: parts };
+        }),
       }),
     });
     if (!r.ok) throw new Error(`AI ${r.status}: ${await r.text()}`);
