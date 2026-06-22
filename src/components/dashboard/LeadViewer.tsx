@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,12 @@ import {
   Users, Mail, Phone, Building, DollarSign, Pencil, Trash2,
   MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar, Target,
 } from "lucide-react";
+
+interface LeadTag { id: string; name: string; color: string | null; emoji: string | null; }
+const tagBgStyle = (color?: string | null) => {
+  const c = color || "#84cc16";
+  return { backgroundColor: `${c}22`, color: c, borderColor: `${c}55` };
+};
 
 interface Lead {
   id: string; name: string; email: string | null; phone: string | null;
@@ -46,8 +52,36 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [newTag, setNewTag] = useState("");
+  const [tagCatalog, setTagCatalog] = useState<LeadTag[]>([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("lead_tags").select("id, name, color, emoji").eq("user_id", user.id).eq("is_active", true)
+      .then(({ data }) => setTagCatalog((data as any) || []));
+  }, [user]);
+
+  const catalogByName = useMemo(() => {
+    const m = new Map<string, LeadTag>();
+    for (const t of tagCatalog) m.set(t.name.toLowerCase(), t);
+    return m;
+  }, [tagCatalog]);
+
+  const renderTagChip = (name: string) => {
+    const meta = catalogByName.get(name.toLowerCase());
+    return (
+      <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border font-medium" style={tagBgStyle(meta?.color)}>
+        {meta?.emoji ? `${meta.emoji} ` : ""}{name}
+      </span>
+    );
+  };
+
+  const toggleFilterTag = (name: string) => {
+    setFilterTags(p => p.includes(name) ? p.filter(t => t !== name) : [...p, name]);
+  };
 
   const filtered = leads.filter(l => {
+    if (filterTags.length && !filterTags.every(t => (l.tags || []).includes(t))) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return l.name.toLowerCase().includes(s) || l.email?.toLowerCase().includes(s) || l.company?.toLowerCase().includes(s);
@@ -103,7 +137,7 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
         {lead.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{lead.source}</span>}
         {lead.utm_campaign && <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded flex items-center gap-1" title={`Campanha: ${lead.utm_campaign}${lead.utm_source ? ` • ${lead.utm_source}` : ""}`}><Target className="h-2.5 w-2.5" />{lead.utm_campaign}</span>}
         {lead.value > 0 && <span className="text-[10px] text-primary font-medium">R$ {lead.value.toLocaleString("pt-BR")}</span>}
-        {(lead.tags || []).slice(0, 2).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
+        {(lead.tags || []).slice(0, 3).map(t => renderTagChip(t))}
         <span className="text-[10px] text-muted-foreground ml-auto">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</span>
       </div>
     </div>
@@ -123,6 +157,26 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
           <Button variant={view === "boards" ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => setViewPersist("boards")} title="Quadros"><LayoutGrid className="h-3 w-3" /></Button>
         </div>
       </div>
+
+      {tagCatalog.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] text-muted-foreground uppercase font-bold mr-1">Filtrar por tag:</span>
+          {tagCatalog.map(t => {
+            const active = filterTags.includes(t.name);
+            return (
+              <button key={t.id} onClick={() => toggleFilterTag(t.name)}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-opacity ${active ? "opacity-100" : "opacity-60 hover:opacity-100"}`}
+                style={tagBgStyle(t.color)}>
+                {t.emoji ? `${t.emoji} ` : ""}{t.name}
+              </button>
+            );
+          })}
+          {filterTags.length > 0 && (
+            <button onClick={() => setFilterTags([])} className="text-[10px] text-muted-foreground hover:text-foreground underline ml-1">limpar</button>
+          )}
+        </div>
+      )}
+
 
       {filtered.length === 0 ? (
         <div className="surface-card rounded-lg p-8 text-center"><p className="text-xs text-muted-foreground">Nenhum lead encontrado</p></div>
@@ -151,7 +205,7 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
               </div>
               <div className="flex flex-wrap gap-1">
                 {l.source && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{l.source}</span>}
-                {(l.tags || []).slice(0, 3).map(tag => <span key={tag} className="text-[10px] bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded">{tag}</span>)}
+                {(l.tags || []).slice(0, 3).map(t => renderTagChip(t))}
               </div>
             </div>
           ))}
@@ -227,11 +281,28 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
               <div><Label className="text-xs">Observações</Label><Textarea value={editLead.notes || ""} onChange={e => setEditLead({ ...editLead, notes: e.target.value })} className="mt-1 bg-secondary/50 border-border" rows={2} /></div>
               <div className="space-y-2">
                 <Label className="text-xs">Tags</Label>
-                <div className="flex flex-wrap gap-1">{(editLead.tags || []).map(tag => (
-                  <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">{tag} <button onClick={() => setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) })}><X className="h-2.5 w-2.5" /></button></span>
-                ))}</div>
+                <div className="flex flex-wrap gap-1">{(editLead.tags || []).map(tag => {
+                  const meta = catalogByName.get(tag.toLowerCase());
+                  return (
+                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border" style={tagBgStyle(meta?.color)}>
+                      {meta?.emoji ? `${meta.emoji} ` : ""}{tag}
+                      <button onClick={() => setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) })}><X className="h-2.5 w-2.5" /></button>
+                    </span>
+                  );
+                })}</div>
+                {tagCatalog.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-[10px] text-muted-foreground mr-1 self-center">Catálogo:</span>
+                    {tagCatalog.filter(t => !editLead.tags.includes(t.name)).map(t => (
+                      <button key={t.id} onClick={() => setEditLead({ ...editLead, tags: [...editLead.tags, t.name] })}
+                        className="text-[10px] px-2 py-0.5 rounded-full border opacity-70 hover:opacity-100" style={tagBgStyle(t.color)}>
+                        + {t.emoji ? `${t.emoji} ` : ""}{t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nova tag..." className="h-7 text-xs bg-secondary/50 border-border" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())} />
+                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nova tag livre..." className="h-7 text-xs bg-secondary/50 border-border" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())} />
                   <Button variant="outline" size="sm" onClick={addTag} className="h-7"><Tag className="h-3 w-3" /></Button>
                 </div>
               </div>

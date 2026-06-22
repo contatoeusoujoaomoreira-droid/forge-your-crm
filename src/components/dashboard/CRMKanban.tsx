@@ -90,6 +90,18 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [filterPriority, setFilterPriority] = useState("Todos");
+  const [tagCatalog, setTagCatalog] = useState<Array<{ id: string; name: string; color: string | null; emoji: string | null }>>([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const tagMetaByName = useMemo(() => {
+    const m = new Map<string, { color: string | null; emoji: string | null }>();
+    for (const t of tagCatalog) m.set(t.name.toLowerCase(), { color: t.color, emoji: t.emoji });
+    return m;
+  }, [tagCatalog]);
+  const tagChipStyle = (name: string) => {
+    const meta = tagMetaByName.get(name.toLowerCase());
+    const c = meta?.color || "#84cc16";
+    return { backgroundColor: `${c}22`, color: c, borderColor: `${c}55` };
+  };
   
   // Bulk actions
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
@@ -155,14 +167,16 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     const pips = pipeData || [];
     setPipelines(pips);
 
-    const [stagesRes, leadsRes, activitiesRes] = await Promise.all([
+    const [stagesRes, leadsRes, activitiesRes, tagsRes] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       supabase.from("leads").select("*").eq("user_id", user.id).order("position"),
       supabase.from("activities").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("lead_tags").select("id, name, color, emoji").eq("user_id", user.id).eq("is_active", true),
     ]);
     if (stagesRes.data) setStages(stagesRes.data);
     if (leadsRes.data) setLeads(leadsRes.data.map((l: any) => ({ ...l, tags: Array.isArray(l.tags) ? l.tags : [] })));
     if (activitiesRes.data) setActivities(activitiesRes.data as Activity[]);
+    if (tagsRes.data) setTagCatalog(tagsRes.data as any);
     
     const { data: templatesData } = await supabase.from("whatsapp_templates").select("*").eq("user_id", user.id).order("name");
     if (templatesData && templatesData.length > 0) {
@@ -203,9 +217,10 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
         const pMap: any = { "Quente": "high", "Morno": "medium", "Frio": "low" };
         if (l.priority !== pMap[filterPriority]) return false;
       }
+      if (filterTags.length && !filterTags.every(t => (l.tags || []).includes(t))) return false;
       return true;
     });
-  }, [leads, searchTerm, filterStatus, filterSource, filterPriority, pipelineStages]);
+  }, [leads, searchTerm, filterStatus, filterSource, filterPriority, pipelineStages, filterTags]);
 
   const sources = useMemo(() => [...new Set(leads.map(l => l.source).filter(Boolean))], [leads]);
 
@@ -724,7 +739,28 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
             </button>
           ))}
         </div>
+
+        {tagCatalog.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Tags:</span>
+            {tagCatalog.map(t => {
+              const active = filterTags.includes(t.name);
+              return (
+                <button key={t.id}
+                  onClick={() => setFilterTags(p => p.includes(t.name) ? p.filter(x => x !== t.name) : [...p, t.name])}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-opacity ${active ? "opacity-100 ring-1 ring-primary" : "opacity-65 hover:opacity-100"}`}
+                  style={tagChipStyle(t.name)}>
+                  {t.emoji ? `${t.emoji} ` : ""}{t.name}
+                </button>
+              );
+            })}
+            {filterTags.length > 0 && (
+              <button onClick={() => setFilterTags([])} className="text-[10px] text-muted-foreground hover:text-foreground underline">limpar</button>
+            )}
+          </div>
+        )}
       </div>
+
 
       {/* Bulk Actions Bar */}
       {selectedLeads.size > 0 && (
@@ -841,9 +877,14 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                       {/* Tags Section */}
                       {lead.tags && lead.tags.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-1">
-                          {lead.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="text-[9px] bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full font-bold">{tag}</span>
-                          ))}
+                          {lead.tags.slice(0, 3).map(tag => {
+                            const meta = tagMetaByName.get(tag.toLowerCase());
+                            return (
+                              <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full font-bold border" style={tagChipStyle(tag)}>
+                                {meta?.emoji ? `${meta.emoji} ` : ""}{tag}
+                              </span>
+                            );
+                          })}
                           {lead.tags.length > 3 && <span className="text-[9px] text-muted-foreground px-2 py-0.5">+{lead.tags.length - 3}</span>}
                         </div>
                       )}
