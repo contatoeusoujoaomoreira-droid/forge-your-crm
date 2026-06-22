@@ -511,6 +511,69 @@ export default function FlowsBuilder() {
                   )}
                 </>
               )}
+              {selected.type === "switch_agent" && (
+                <>
+                  <div>
+                    <Label className="text-xs">Trocar para o agente</Label>
+                    <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                      value={selected.data?.agent_id || ""}
+                      onChange={(e) => updateNodeData(selected.id, { agent_id: e.target.value })}>
+                      <option value="">Selecione um agente</option>
+                      {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Motivo (interno)</Label>
+                    <Input value={selected.data?.reason || ""} placeholder="Ex: cliente pediu suporte técnico"
+                      onChange={(e) => updateNodeData(selected.id, { reason: e.target.value })} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">O agente atribuído à conversa será substituído. Próximas respostas usam o novo agente.</p>
+                </>
+              )}
+              {selected.type === "move_stage" && (
+                <>
+                  <div>
+                    <Label className="text-xs">Mover lead para a etapa</Label>
+                    <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                      value={selected.data?.stage_id || ""}
+                      onChange={(e) => updateNodeData(selected.id, { stage_id: e.target.value })}>
+                      <option value="">Selecione a etapa</option>
+                      {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Anotação (opcional)</Label>
+                    <Textarea rows={2} value={selected.data?.note || ""}
+                      onChange={(e) => updateNodeData(selected.id, { note: e.target.value })} />
+                  </div>
+                </>
+              )}
+              {selected.type === "handoff_human" && (
+                <>
+                  <div>
+                    <Label className="text-xs">Modo</Label>
+                    <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                      value={selected.data?.mode || "temporary"}
+                      onChange={(e) => updateNodeData(selected.id, { mode: e.target.value })}>
+                      <option value="temporary">Pausar IA por tempo determinado</option>
+                      <option value="permanent">Pausar IA até reativação manual</option>
+                    </select>
+                  </div>
+                  {(selected.data?.mode || "temporary") === "temporary" && (
+                    <div>
+                      <Label className="text-xs">Pausar por (minutos)</Label>
+                      <Input type="number" min={1} value={selected.data?.pause_minutes ?? 30}
+                        onChange={(e) => updateNodeData(selected.id, { pause_minutes: Number(e.target.value) })} />
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs">Mensagem ao cliente</Label>
+                    <Textarea rows={2} value={selected.data?.message || ""}
+                      onChange={(e) => updateNodeData(selected.id, { message: e.target.value })} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Notifica a equipe e desativa respostas automáticas da IA nesta conversa.</p>
+                </>
+              )}
             </div>
           )}
         </Card>
