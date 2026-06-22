@@ -281,11 +281,28 @@ const LeadViewer = ({ leads, stages, onRefresh, title = "Leads" }: LeadViewerPro
               <div><Label className="text-xs">Observações</Label><Textarea value={editLead.notes || ""} onChange={e => setEditLead({ ...editLead, notes: e.target.value })} className="mt-1 bg-secondary/50 border-border" rows={2} /></div>
               <div className="space-y-2">
                 <Label className="text-xs">Tags</Label>
-                <div className="flex flex-wrap gap-1">{(editLead.tags || []).map(tag => (
-                  <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">{tag} <button onClick={() => setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) })}><X className="h-2.5 w-2.5" /></button></span>
-                ))}</div>
+                <div className="flex flex-wrap gap-1">{(editLead.tags || []).map(tag => {
+                  const meta = catalogByName.get(tag.toLowerCase());
+                  return (
+                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border" style={tagBgStyle(meta?.color)}>
+                      {meta?.emoji ? `${meta.emoji} ` : ""}{tag}
+                      <button onClick={() => setEditLead({ ...editLead, tags: editLead.tags.filter(t => t !== tag) })}><X className="h-2.5 w-2.5" /></button>
+                    </span>
+                  );
+                })}</div>
+                {tagCatalog.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-[10px] text-muted-foreground mr-1 self-center">Catálogo:</span>
+                    {tagCatalog.filter(t => !editLead.tags.includes(t.name)).map(t => (
+                      <button key={t.id} onClick={() => setEditLead({ ...editLead, tags: [...editLead.tags, t.name] })}
+                        className="text-[10px] px-2 py-0.5 rounded-full border opacity-70 hover:opacity-100" style={tagBgStyle(t.color)}>
+                        + {t.emoji ? `${t.emoji} ` : ""}{t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nova tag..." className="h-7 text-xs bg-secondary/50 border-border" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())} />
+                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nova tag livre..." className="h-7 text-xs bg-secondary/50 border-border" onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())} />
                   <Button variant="outline" size="sm" onClick={addTag} className="h-7"><Tag className="h-3 w-3" /></Button>
                 </div>
               </div>
