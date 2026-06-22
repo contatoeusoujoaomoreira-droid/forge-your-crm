@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,12 @@ import {
   Users, Mail, Phone, Building, DollarSign, Pencil, Trash2,
   MessageCircle, List, LayoutDashboard, LayoutGrid, Search, X, Tag, Calendar, Target,
 } from "lucide-react";
+
+interface LeadTag { id: string; name: string; color: string | null; emoji: string | null; }
+const tagBgStyle = (color?: string | null) => {
+  const c = color || "#84cc16";
+  return { backgroundColor: `${c}22`, color: c, borderColor: `${c}55` };
+};
 
 interface Lead {
   id: string; name: string; email: string | null; phone: string | null;
