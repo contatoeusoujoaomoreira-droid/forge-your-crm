@@ -63,6 +63,16 @@ export default function InboxPage() {
   const [unreadByClient, setUnreadByClient] = useState<Record<string, number>>({});
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
   const [hasActiveWhatsApp, setHasActiveWhatsApp] = useState(false);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  // Visual media items derived from current messages (images/videos/stickers)
+  const mediaItems = (messages || []).filter(m => m.media_url && ["image", "video", "sticker"].includes(m.media_type || "")).map(m => ({
+    id: m.id, url: m.media_url as string, type: m.media_type as string, caption: m.content || "", createdAt: m.created_at,
+  }));
+  const openLightboxByUrl = (url: string) => {
+    const idx = mediaItems.findIndex(i => i.url === url);
+    if (idx >= 0) setLightboxIdx(idx);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
