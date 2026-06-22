@@ -26,7 +26,13 @@ const FormPublic = () => {
 
   useEffect(() => {
     const f = async () => {
-      const { data } = await supabase.from("forms").select("*").eq("slug", slug).eq("is_active", true).eq("is_published", true).maybeSingle();
+      const { data } = await supabase
+        .from("forms")
+        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, created_at, updated_at")
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .eq("is_published", true)
+        .maybeSingle();
       if (data) {
         setForm(data);
         setFields(Array.isArray(data.fields) ? (data.fields as unknown as FormField[]) : []);
