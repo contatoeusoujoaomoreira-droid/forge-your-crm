@@ -933,6 +933,78 @@ export default function InboxPage() {
           </p>
         </Card>
       )}
+
+      {/* Gallery dialog: grid of media thumbnails */}
+      <Dialog open={galleryOpen} onOpenChange={setGalleryOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Galeria de mídias ({mediaItems.length})</DialogTitle>
+          </DialogHeader>
+          {mediaItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhuma mídia nesta conversa.</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto">
+              {mediaItems.map((mi, idx) => (
+                <button key={mi.id} onClick={() => { setGalleryOpen(false); setLightboxIdx(idx); }}
+                  className="relative aspect-square rounded overflow-hidden border border-border bg-secondary hover:ring-2 hover:ring-primary transition">
+                  {mi.type === "video" ? (
+                    <video src={mi.url} className="h-full w-full object-cover" muted />
+                  ) : (
+                    <img src={mi.url} alt={mi.caption || ""} className="h-full w-full object-cover" loading="lazy" />
+                  )}
+                  <span className="absolute bottom-0 left-0 right-0 text-[9px] bg-black/60 text-white px-1 py-0.5 truncate">
+                    {new Date(mi.createdAt).toLocaleDateString("pt-BR")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox: fullscreen single image with prev/next */}
+      <Dialog open={lightboxIdx !== null} onOpenChange={(o) => { if (!o) setLightboxIdx(null); }}>
+        <DialogContent className="max-w-5xl bg-black/95 border-none p-0">
+          {lightboxIdx !== null && mediaItems[lightboxIdx] && (() => {
+            const cur = mediaItems[lightboxIdx];
+            const prev = () => setLightboxIdx(i => (i! > 0 ? i! - 1 : mediaItems.length - 1));
+            const next = () => setLightboxIdx(i => (i! < mediaItems.length - 1 ? i! + 1 : 0));
+            return (
+              <div className="relative flex items-center justify-center min-h-[60vh]">
+                {mediaItems.length > 1 && (
+                  <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                )}
+                {cur.type === "video" ? (
+                  <video src={cur.url} controls className="max-h-[80vh] max-w-full" />
+                ) : (
+                  <img src={cur.url} alt={cur.caption} className="max-h-[80vh] max-w-full object-contain" />
+                )}
+                {mediaItems.length > 1 && (
+                  <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                )}
+                <div className="absolute top-2 right-2 flex items-center gap-2">
+                  <a href={cur.url} download target="_blank" rel="noreferrer" className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white" title="Baixar">
+                    <Download className="h-4 w-4" />
+                  </a>
+                  <button onClick={() => setLightboxIdx(null)} className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white" title="Fechar">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {(cur.caption || mediaItems.length > 1) && (
+                  <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-gradient-to-t from-black to-transparent text-white text-xs flex items-center justify-between">
+                    <span className="truncate">{cur.caption || ""}</span>
+                    {mediaItems.length > 1 && <span className="opacity-70 shrink-0 ml-2">{lightboxIdx + 1} / {mediaItems.length}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
