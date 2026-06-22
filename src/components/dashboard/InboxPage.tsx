@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft, Pin, RefreshCw } from "lucide-react";
+import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, ExternalLink, UserCheck, StickyNote, Users as UsersIcon, DollarSign, X, Paperclip, Mic, Check, CheckCheck, FileText, Smile, ArrowLeft, Pin, RefreshCw, Image as ImageIcon, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
