@@ -215,9 +215,10 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
         const pMap: any = { "Quente": "high", "Morno": "medium", "Frio": "low" };
         if (l.priority !== pMap[filterPriority]) return false;
       }
+      if (filterTags.length && !filterTags.every(t => (l.tags || []).includes(t))) return false;
       return true;
     });
-  }, [leads, searchTerm, filterStatus, filterSource, filterPriority, pipelineStages]);
+  }, [leads, searchTerm, filterStatus, filterSource, filterPriority, pipelineStages, filterTags]);
 
   const sources = useMemo(() => [...new Set(leads.map(l => l.source).filter(Boolean))], [leads]);
 
