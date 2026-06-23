@@ -26,12 +26,15 @@ const FormPublic = () => {
   const [currentStep, setCurrentStep] = useState(-1); // -1 = welcome screen
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const trackingRef = useRef<TrackingPayload | null>(null);
+  const startedRef = useRef(false);
+  const lastStepRef = useRef<number>(-1);
 
   useEffect(() => {
     const f = async () => {
       const { data } = await supabase
         .from("forms")
-        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, created_at, updated_at")
+        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, created_at, updated_at")
         .eq("slug", slug)
         .eq("is_active", true)
         .eq("is_published", true)
@@ -41,19 +44,40 @@ const FormPublic = () => {
         setFields(Array.isArray(data.fields) ? (data.fields as unknown as FormField[]) : []);
         const settings = (data.settings || {}) as any;
         const ws = settings.welcomeScreen;
-        if (ws?.enabled) {
-          setCurrentStep(-1);
-        } else {
-          setCurrentStep(0);
-        }
-        if (settings.countdown?.enabled) {
-          setCountdown((settings.countdown.minutes || 10) * 60);
-        }
+        setCurrentStep(ws?.enabled ? -1 : 0);
+        if (settings.countdown?.enabled) setCountdown((settings.countdown.minutes || 10) * 60);
+
+        // Tracking + funnel view + Pixel injection
+        const tracking = captureTracking();
+        trackingRef.current = tracking;
+        logFunnelEvent({ user_id: data.user_id, source_type: "form", source_id: data.id, event_type: "view", tracking });
+
+        // Pixel: fetch user's pixel_id and inject
+        const { data: meta } = await supabase
+          .from("meta_ads_configs")
+          .select("pixel_id, pixel_enabled")
+          .eq("user_id", data.user_id)
+          .maybeSingle();
+        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
+  // Track funnel `start` on first answer + `step` on step change
+  useEffect(() => {
+    if (!form || currentStep < 0 || !trackingRef.current) return;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "start", tracking: trackingRef.current });
+    }
+    if (currentStep !== lastStepRef.current) {
+      lastStepRef.current = currentStep;
+      logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "step", step_index: currentStep, step_label: fields[currentStep]?.label || null as any, tracking: trackingRef.current });
+    }
+  }, [form, currentStep, fields]);
+
 
   // Countdown timer
   useEffect(() => {
