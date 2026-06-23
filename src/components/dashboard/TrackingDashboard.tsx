@@ -294,6 +294,14 @@ const TrackingDashboard = () => {
         </Card>
       </div>
 
+      {/* Funnel Analytics for forms & quizzes */}
+      <FunnelAnalytics />
+
+      {/* Meta Pixel + Conversions API settings */}
+      <MetaPixelSettings />
+
+
+
       <Card className="surface-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
