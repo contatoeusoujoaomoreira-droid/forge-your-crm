@@ -793,9 +793,12 @@ export type Database = {
           content: string | null
           conversion_value: number
           ctwa_clid: string | null
+          fbc: string | null
           fbclid: string | null
+          fbp: string | null
           gclid: string | null
           id: string
+          ip_address: string | null
           landing_url: string | null
           lead_id: string | null
           medium: string | null
@@ -803,6 +806,8 @@ export type Database = {
           referrer: string | null
           source: string | null
           term: string | null
+          ttclid: string | null
+          user_agent: string | null
           user_id: string
         }
         Insert: {
@@ -813,9 +818,12 @@ export type Database = {
           content?: string | null
           conversion_value?: number
           ctwa_clid?: string | null
+          fbc?: string | null
           fbclid?: string | null
+          fbp?: string | null
           gclid?: string | null
           id?: string
+          ip_address?: string | null
           landing_url?: string | null
           lead_id?: string | null
           medium?: string | null
@@ -823,6 +831,8 @@ export type Database = {
           referrer?: string | null
           source?: string | null
           term?: string | null
+          ttclid?: string | null
+          user_agent?: string | null
           user_id: string
         }
         Update: {
@@ -833,9 +843,12 @@ export type Database = {
           content?: string | null
           conversion_value?: number
           ctwa_clid?: string | null
+          fbc?: string | null
           fbclid?: string | null
+          fbp?: string | null
           gclid?: string | null
           id?: string
+          ip_address?: string | null
           landing_url?: string | null
           lead_id?: string | null
           medium?: string | null
@@ -843,6 +856,8 @@ export type Database = {
           referrer?: string | null
           source?: string | null
           term?: string | null
+          ttclid?: string | null
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1648,6 +1663,9 @@ export type Database = {
           id: string
           is_active: boolean
           is_published: boolean
+          meta_event_currency: string | null
+          meta_event_name: string | null
+          meta_event_value: number | null
           notification_email: string | null
           pipeline_id: string | null
           settings: Json
@@ -1658,6 +1676,9 @@ export type Database = {
           updated_at: string
           user_id: string
           webhook_url: string | null
+          whatsapp_auto_delay_seconds: number
+          whatsapp_auto_message: string | null
+          whatsapp_auto_send: boolean
           whatsapp_message: string | null
           whatsapp_redirect: string | null
         }
@@ -1668,6 +1689,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean
+          meta_event_currency?: string | null
+          meta_event_name?: string | null
+          meta_event_value?: number | null
           notification_email?: string | null
           pipeline_id?: string | null
           settings?: Json
@@ -1678,6 +1702,9 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webhook_url?: string | null
+          whatsapp_auto_delay_seconds?: number
+          whatsapp_auto_message?: string | null
+          whatsapp_auto_send?: boolean
           whatsapp_message?: string | null
           whatsapp_redirect?: string | null
         }
@@ -1688,6 +1715,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean
+          meta_event_currency?: string | null
+          meta_event_name?: string | null
+          meta_event_value?: number | null
           notification_email?: string | null
           pipeline_id?: string | null
           settings?: Json
@@ -1698,8 +1728,80 @@ export type Database = {
           updated_at?: string
           user_id?: string
           webhook_url?: string | null
+          whatsapp_auto_delay_seconds?: number
+          whatsapp_auto_message?: string | null
+          whatsapp_auto_send?: boolean
           whatsapp_message?: string | null
           whatsapp_redirect?: string | null
+        }
+        Relationships: []
+      }
+      funnel_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          landing_url: string | null
+          meta: Json
+          referrer: string | null
+          session_id: string
+          source_id: string
+          source_type: string
+          step_index: number | null
+          step_label: string | null
+          ttclid: string | null
+          user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          meta?: Json
+          referrer?: string | null
+          session_id: string
+          source_id: string
+          source_type: string
+          step_index?: number | null
+          step_label?: string | null
+          ttclid?: string | null
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          landing_url?: string | null
+          meta?: Json
+          referrer?: string | null
+          session_id?: string
+          source_id?: string
+          source_type?: string
+          step_index?: number | null
+          step_label?: string | null
+          ttclid?: string | null
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: []
       }
@@ -1902,8 +2004,12 @@ export type Database = {
           created_at: string
           email: string | null
           facebook: string | null
+          fbc: string | null
+          fbp: string | null
           id: string
           instagram: string | null
+          ip_address: string | null
+          landing_url: string | null
           linkedin: string | null
           meta_adset: string | null
           meta_campaign: string | null
@@ -1916,13 +2022,16 @@ export type Database = {
           position: number
           priority: string | null
           probability: number | null
+          referrer: string | null
           revenue_type: string | null
           source: string | null
           stage_id: string | null
           status: string
           tags: string[] | null
+          ttclid: string | null
           updated_at: string
           urgency: string | null
+          user_agent: string | null
           user_id: string
           utm_campaign: string | null
           utm_content: string | null
@@ -1938,8 +2047,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook?: string | null
+          fbc?: string | null
+          fbp?: string | null
           id?: string
           instagram?: string | null
+          ip_address?: string | null
+          landing_url?: string | null
           linkedin?: string | null
           meta_adset?: string | null
           meta_campaign?: string | null
@@ -1952,13 +2065,16 @@ export type Database = {
           position?: number
           priority?: string | null
           probability?: number | null
+          referrer?: string | null
           revenue_type?: string | null
           source?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
+          ttclid?: string | null
           updated_at?: string
           urgency?: string | null
+          user_agent?: string | null
           user_id: string
           utm_campaign?: string | null
           utm_content?: string | null
@@ -1974,8 +2090,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook?: string | null
+          fbc?: string | null
+          fbp?: string | null
           id?: string
           instagram?: string | null
+          ip_address?: string | null
+          landing_url?: string | null
           linkedin?: string | null
           meta_adset?: string | null
           meta_campaign?: string | null
@@ -1988,13 +2108,16 @@ export type Database = {
           position?: number
           priority?: string | null
           probability?: number | null
+          referrer?: string | null
           revenue_type?: string | null
           source?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
+          ttclid?: string | null
           updated_at?: string
           urgency?: string | null
+          user_agent?: string | null
           user_id?: string
           utm_campaign?: string | null
           utm_content?: string | null
@@ -2225,37 +2348,103 @@ export type Database = {
         Row: {
           access_token: string | null
           ad_account_id: string | null
+          capi_access_token: string | null
+          capi_enabled: boolean
           created_at: string
           id: string
           is_active: boolean
           last_sync_error: string | null
           last_sync_status: string | null
           last_synced_at: string | null
+          pixel_enabled: boolean
+          pixel_id: string | null
+          test_event_code: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           access_token?: string | null
           ad_account_id?: string | null
+          capi_access_token?: string | null
+          capi_enabled?: boolean
           created_at?: string
           id?: string
           is_active?: boolean
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null
+          pixel_enabled?: boolean
+          pixel_id?: string | null
+          test_event_code?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           access_token?: string | null
           ad_account_id?: string | null
+          capi_access_token?: string | null
+          capi_enabled?: boolean
           created_at?: string
           id?: string
           is_active?: boolean
           last_sync_error?: string | null
           last_sync_status?: string | null
           last_synced_at?: string | null
+          pixel_enabled?: boolean
+          pixel_id?: string | null
+          test_event_code?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_event_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_id: string | null
+          event_name: string
+          http_status: number | null
+          id: string
+          lead_id: string | null
+          payload: Json | null
+          pixel_id: string | null
+          response: Json | null
+          source_id: string | null
+          source_type: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_name: string
+          http_status?: number | null
+          id?: string
+          lead_id?: string | null
+          payload?: Json | null
+          pixel_id?: string | null
+          response?: Json | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_name?: string
+          http_status?: number | null
+          id?: string
+          lead_id?: string | null
+          payload?: Json | null
+          pixel_id?: string | null
+          response?: Json | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: []
@@ -2868,6 +3057,9 @@ export type Database = {
           id: string
           is_active: boolean
           is_published: boolean | null
+          meta_event_currency: string | null
+          meta_event_name: string | null
+          meta_event_value: number | null
           pipeline_id: string | null
           questions: Json
           settings: Json | null
@@ -2876,6 +3068,9 @@ export type Database = {
           style: Json | null
           title: string
           user_id: string
+          whatsapp_auto_delay_seconds: number
+          whatsapp_auto_message: string | null
+          whatsapp_auto_send: boolean
           whatsapp_message: string | null
           whatsapp_redirect: string | null
         }
@@ -2885,6 +3080,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean | null
+          meta_event_currency?: string | null
+          meta_event_name?: string | null
+          meta_event_value?: number | null
           pipeline_id?: string | null
           questions?: Json
           settings?: Json | null
@@ -2893,6 +3091,9 @@ export type Database = {
           style?: Json | null
           title: string
           user_id?: string
+          whatsapp_auto_delay_seconds?: number
+          whatsapp_auto_message?: string | null
+          whatsapp_auto_send?: boolean
           whatsapp_message?: string | null
           whatsapp_redirect?: string | null
         }
@@ -2902,6 +3103,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_published?: boolean | null
+          meta_event_currency?: string | null
+          meta_event_name?: string | null
+          meta_event_value?: number | null
           pipeline_id?: string | null
           questions?: Json
           settings?: Json | null
@@ -2910,6 +3114,9 @@ export type Database = {
           style?: Json | null
           title?: string
           user_id?: string
+          whatsapp_auto_delay_seconds?: number
+          whatsapp_auto_message?: string | null
+          whatsapp_auto_send?: boolean
           whatsapp_message?: string | null
           whatsapp_redirect?: string | null
         }

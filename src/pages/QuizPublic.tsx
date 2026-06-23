@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Share2, Copy, Check, MessageCircle } from "lucide-react";
-import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
+import { captureTracking, type TrackingPayload } from "@/lib/tracking";
+import { logFunnelEvent } from "@/lib/funnel";
+import { injectMetaPixel, trackPixelEvent, sendConversionsApi, newEventId } from "@/lib/metaPixel";
 
 interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; imageUrls?: string[]; }
 interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; stageId?: string; whatsappMessage?: string; }
@@ -18,16 +20,41 @@ const QuizPublic = () => {
   const [totalScore, setTotalScore] = useState(0);
   const [matchedResult, setMatchedResult] = useState<QuizResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const trackingRef = useRef<TrackingPayload | null>(null);
+  const startedRef = useRef(false);
+  const lastStepRef = useRef<string | number>("");
 
   useEffect(() => {
     const f = async () => {
       if (!slug) { setLoading(false); return; }
       const { data } = await supabase.from("quizzes").select("*").eq("slug", slug).eq("is_active", true).maybeSingle();
-      if (data) setQuiz({ ...data, questions: Array.isArray(data.questions) ? data.questions : [], style: data.style || {}, settings: data.settings || {} });
+      if (data) {
+        setQuiz({ ...data, questions: Array.isArray(data.questions) ? data.questions : [], style: data.style || {}, settings: data.settings || {} });
+        const tracking = captureTracking();
+        trackingRef.current = tracking;
+        logFunnelEvent({ user_id: data.user_id, source_type: "quiz", source_id: data.id, event_type: "view", tracking });
+        const { data: meta } = await supabase.from("meta_ads_configs").select("pixel_id, pixel_enabled").eq("user_id", data.user_id).maybeSingle();
+        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+      }
       setLoading(false);
     };
     f();
   }, [slug]);
+
+  // Funnel start + step tracking
+  useEffect(() => {
+    if (!quiz || !trackingRef.current) return;
+    if (currentStep === "lead") return;
+    if (currentStep === "done") return;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      logFunnelEvent({ user_id: quiz.user_id, source_type: "quiz", source_id: quiz.id, event_type: "start", tracking: trackingRef.current });
+    }
+    if (currentStep !== lastStepRef.current) {
+      lastStepRef.current = currentStep;
+      logFunnelEvent({ user_id: quiz.user_id, source_type: "quiz", source_id: quiz.id, event_type: "step", step_index: Number(currentStep), step_label: quiz.questions?.[Number(currentStep)]?.text || null as any, tracking: trackingRef.current });
+    }
+  }, [quiz, currentStep]);
 
   const buildWhatsAppUrl = (phone: string, message: string) => {
     let msg = message || `Olá! Fiz o quiz "${quiz.title}".`;
@@ -57,49 +84,107 @@ const QuizPublic = () => {
 
     await supabase.from("quiz_responses").insert({ quiz_id: quiz.id, responses: { ...answers, _score: score, _name: leadInfo.name, _email: leadInfo.email } });
 
-    // Notification for quiz owner
     await supabase.from("notifications").insert({
-      user_id: quiz.user_id,
-      type: "quiz_response",
+      user_id: quiz.user_id, type: "quiz_response",
       title: `Nova resposta: ${quiz.title}`,
       message: `${leadInfo.name} completou o quiz (Score: ${score})`,
       metadata: { quiz_id: quiz.id, score, name: leadInfo.name },
     } as any);
 
-    // Create lead with CRM integration
-    const stageId = matched?.stageId || quiz.stage_id || quiz.settings?.stageId;
+    const tracking = trackingRef.current || captureTracking();
     const settings = quiz.settings || {};
-    const utm = readUtmFromUrl();
+    const phoneClean = (leadInfo.phone || "").replace(/\D/g, "") || null;
+    const emailClean = (leadInfo.email || "").toLowerCase().trim() || null;
     let createdLeadId: string | null = null;
+    const stageId = matched?.stageId || quiz.stage_id || settings.stageId;
+
     if (stageId && leadInfo.name) {
       const qualificationLabel = matched ? matched.title : `Score: ${score}`;
       const priority = score >= (results.length > 0 ? results[results.length - 1]?.minScore || 0 : 999) ? "hot" : score >= (results.length > 1 ? results[Math.floor(results.length / 2)]?.minScore || 0 : 999) ? "warm" : "cold";
 
-      const { data: inserted } = await supabase.from("leads").insert({
-        name: leadInfo.name, email: leadInfo.email || null, phone: leadInfo.phone || null,
-        source: settings.leadSource ? `${settings.leadSource}:${slug}` : `quiz:${slug}`,
-        status: "new", stage_id: stageId,
-        user_id: quiz.user_id, value: 0,
-        pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
-        notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
-        tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
-        priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
-        utm_source: utm.source, utm_medium: utm.medium, utm_campaign: utm.campaign,
-      } as any).select("id").maybeSingle();
-      createdLeadId = inserted?.id || null;
+      // Anti-duplicate by phone/email scoped to user
+      let existing: { id: string } | null = null;
+      if (phoneClean) {
+        const { data } = await supabase.from("leads").select("id").eq("user_id", quiz.user_id).eq("phone", phoneClean).limit(1).maybeSingle();
+        if (data) existing = data;
+      }
+      if (!existing && emailClean) {
+        const { data } = await supabase.from("leads").select("id").eq("user_id", quiz.user_id).eq("email", emailClean).limit(1).maybeSingle();
+        if (data) existing = data;
+      }
+      if (existing) {
+        createdLeadId = existing.id;
+        await supabase.from("leads").update({ updated_at: new Date().toISOString(), notes: `Resultado: ${qualificationLabel} (Score: ${score})` } as any).eq("id", existing.id);
+      } else {
+        const { data: inserted } = await supabase.from("leads").insert({
+          name: leadInfo.name, email: emailClean, phone: phoneClean,
+          source: settings.leadSource ? `${settings.leadSource}:${slug}` : `quiz:${slug}`,
+          status: "new", stage_id: stageId, user_id: quiz.user_id, value: 0,
+          pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
+          notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
+          tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
+          priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
+          utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+          utm_content: tracking.content, utm_term: tracking.term,
+          ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
+          landing_url: tracking.landing_url, referrer: tracking.referrer, user_agent: tracking.user_agent,
+        } as any).select("id").maybeSingle();
+        createdLeadId = inserted?.id || null;
+      }
     }
 
-    // Attribution touchpoint (quiz)
-    await insertTouchpoint(utm, {
-      user_id: quiz.user_id,
-      lead_id: createdLeadId,
-      channel: "quiz",
-      meta: { quiz_id: quiz.id, slug, score, result: matched?.title || null },
-    });
+    // Attribution touchpoint
+    await supabase.from("attribution_touchpoints").insert({
+      user_id: quiz.user_id, lead_id: createdLeadId,
+      source: tracking.source, medium: tracking.medium, campaign: tracking.campaign,
+      content: tracking.content, term: tracking.term,
+      fbclid: tracking.fbclid, gclid: tracking.gclid, ctwa_clid: tracking.ctwa_clid,
+      ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp, user_agent: tracking.user_agent,
+      landing_url: tracking.landing_url, referrer: tracking.referrer,
+      channel: "quiz", meta: { quiz_id: quiz.id, slug, score, result: matched?.title || null, session_id: tracking.session_id },
+    } as any);
+
+    // Funnel complete
+    logFunnelEvent({ user_id: quiz.user_id, source_type: "quiz", source_id: quiz.id, event_type: "complete", tracking, meta: { lead_id: createdLeadId, score, result: matched?.title } });
+
+    // Meta Pixel + CAPI
+    if (quiz.meta_event_name) {
+      const eventId = newEventId();
+      const value = Number(quiz.meta_event_value || 0);
+      const currency = quiz.meta_event_currency || "BRL";
+      trackPixelEvent(quiz.meta_event_name, { value, currency, content_name: quiz.title }, eventId);
+      sendConversionsApi({
+        user_id: quiz.user_id, source_type: "quiz", source_id: quiz.id,
+        event_name: quiz.meta_event_name, event_id: eventId, lead_id: createdLeadId,
+        value, currency,
+        user_data: { email: emailClean, phone: phoneClean, name: leadInfo.name, fbc: tracking.fbc, fbp: tracking.fbp, client_user_agent: tracking.user_agent },
+        custom_data: { quiz_id: quiz.id, score, result: matched?.title || null },
+        event_source_url: window.location.href,
+      });
+    }
+
+    // WhatsApp Auto (delayed)
+    if (quiz.whatsapp_auto_send && phoneClean && quiz.whatsapp_auto_message) {
+      const msg = (quiz.whatsapp_auto_message as string)
+        .replace(/\{\{nome\}\}|\{nome\}/g, leadInfo.name)
+        .replace(/\{\{telefone\}\}|\{telefone\}/g, phoneClean)
+        .replace(/\{\{email\}\}|\{email\}/g, emailClean || "")
+        .replace(/\{\{score\}\}|\{score\}/g, String(score))
+        .replace(/\{\{resultado_quiz\}\}|\{resultado_quiz\}|\{resultado\}/g, matched?.title || "")
+        .replace(/\{\{origem\}\}|\{origem\}/g, tracking.source || "");
+      const delay = Math.max(0, Number(quiz.whatsapp_auto_delay_seconds || 0));
+      const runAt = new Date(Date.now() + delay * 1000).toISOString();
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_whatsapp_auto",
+        _payload: { user_id: quiz.user_id, phone: phoneClean, message: msg, source_type: "quiz", source_id: quiz.id, lead_id: createdLeadId },
+        _tenant: quiz.user_id, _run_at: runAt, _priority: 3, _max_attempts: 3,
+      } as any);
+    }
 
     setCurrentStep("done");
     setSubmitting(false);
   };
+
 
   const handleShare = () => {
     const text = matchedResult

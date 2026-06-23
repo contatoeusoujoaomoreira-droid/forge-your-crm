@@ -28,6 +28,8 @@ interface Quiz {
   is_active: boolean; is_published: boolean; questions: Question[];
   style: any; settings: any; created_at: string; _responseCount?: number;
   whatsapp_redirect?: string | null; whatsapp_message?: string | null;
+  whatsapp_auto_send?: boolean; whatsapp_auto_delay_seconds?: number; whatsapp_auto_message?: string | null;
+  meta_event_name?: string | null; meta_event_value?: number; meta_event_currency?: string;
 }
 
 interface Pipeline { id: string; name: string; }
@@ -163,6 +165,12 @@ const QuizList = () => {
       questions: editing.questions as any, style: editing.style as any, settings: editing.settings as any,
       pipeline_id: editing.settings?.pipelineId || null, stage_id: editing.settings?.stageId || null,
       whatsapp_redirect: editing.whatsapp_redirect, whatsapp_message: editing.whatsapp_message,
+      whatsapp_auto_send: editing.whatsapp_auto_send || false,
+      whatsapp_auto_delay_seconds: editing.whatsapp_auto_delay_seconds ?? 60,
+      whatsapp_auto_message: editing.whatsapp_auto_message || null,
+      meta_event_name: editing.meta_event_name || null,
+      meta_event_value: editing.meta_event_value ?? 0,
+      meta_event_currency: editing.meta_event_currency || "BRL",
     };
     if (editing.id) {
       const { error } = await supabase.from("quizzes").update(payload as any).eq("id", editing.id);
@@ -440,6 +448,66 @@ const QuizList = () => {
                   )}
 
                   <p className="text-xs text-muted-foreground">💡 Cada resultado também pode ter sua própria mensagem WhatsApp personalizada. Configure na aba "Resultados".</p>
+                </div>
+
+                {/* WhatsApp automático (envio servidor) */}
+                <div className="surface-card rounded-lg p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground">WhatsApp Automático (envio servidor)</h3>
+                        <p className="text-xs text-muted-foreground">Dispara mensagem para o lead via fila com delay opcional. Requer WhatsApp ativo em Automações.</p>
+                      </div>
+                    </div>
+                    <Switch checked={editing.whatsapp_auto_send || false} onCheckedChange={v => setEditing({ ...editing, whatsapp_auto_send: v })} />
+                  </div>
+                  {editing.whatsapp_auto_send && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-bold">Atraso</Label>
+                        <select value={String(editing.whatsapp_auto_delay_seconds ?? 60)} onChange={e => setEditing({ ...editing, whatsapp_auto_delay_seconds: Number(e.target.value) })} className="w-full h-9 text-sm bg-secondary/50 border border-border rounded-md px-3 mt-1 text-foreground">
+                          <option value="0">Imediatamente</option>
+                          <option value="30">30 segundos</option>
+                          <option value="60">1 minuto</option>
+                          <option value="300">5 minutos</option>
+                          <option value="900">15 minutos</option>
+                          <option value="3600">1 hora</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-bold">Mensagem</Label>
+                        <p className="text-[10px] text-muted-foreground mb-1">Variáveis: {"{{nome}}"}, {"{{telefone}}"}, {"{{score}}"}, {"{{resultado_quiz}}"}, {"{{origem}}"}</p>
+                        <Textarea value={editing.whatsapp_auto_message || ""} onChange={e => setEditing({ ...editing, whatsapp_auto_message: e.target.value })} placeholder="Olá {{nome}}! Recebemos seu quiz, seu perfil ficou: {{resultado_quiz}}." className="bg-secondary/50 border-border" rows={3} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meta Pixel + CAPI */}
+                <div className="surface-card rounded-lg p-5 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">📊 Meta Ads (Pixel + Conversions API)</h3>
+                    <p className="text-xs text-muted-foreground">Dispara evento para o Facebook ao completar o quiz. Pixel ID e Access Token são configurados em Configurações → Meta Ads.</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <Label className="text-xs font-bold">Evento</Label>
+                      <select value={editing.meta_event_name || ""} onChange={e => setEditing({ ...editing, meta_event_name: e.target.value || null })} className="w-full h-9 text-sm bg-secondary/50 border border-border rounded-md px-3 mt-1 text-foreground">
+                        <option value="">(desativado)</option>
+                        <option value="Lead">Lead</option>
+                        <option value="CompleteRegistration">CompleteRegistration</option>
+                        <option value="QualifiedLead">QualifiedLead</option>
+                        <option value="Contact">Contact</option>
+                        <option value="Schedule">Schedule</option>
+                        <option value="Purchase">Purchase</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold">Valor</Label>
+                      <Input type="number" value={editing.meta_event_value ?? 0} onChange={e => setEditing({ ...editing, meta_event_value: Number(e.target.value) || 0 })} className="h-9 text-sm bg-secondary/50 border-border mt-1" />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

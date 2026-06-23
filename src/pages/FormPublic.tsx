@@ -1,7 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageCircle, Timer, Users as UsersIcon } from "lucide-react";
+import { captureTracking, type TrackingPayload } from "@/lib/tracking";
+import { logFunnelEvent } from "@/lib/funnel";
+import { injectMetaPixel, trackPixelEvent, sendConversionsApi, newEventId } from "@/lib/metaPixel";
 
 interface FormField {
   id: string; type: string; label: string; placeholder?: string; required?: boolean;
@@ -23,12 +26,15 @@ const FormPublic = () => {
   const [currentStep, setCurrentStep] = useState(-1); // -1 = welcome screen
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const trackingRef = useRef<TrackingPayload | null>(null);
+  const startedRef = useRef(false);
+  const lastStepRef = useRef<number>(-1);
 
   useEffect(() => {
     const f = async () => {
       const { data } = await supabase
         .from("forms")
-        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, created_at, updated_at")
+        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, created_at, updated_at")
         .eq("slug", slug)
         .eq("is_active", true)
         .eq("is_published", true)
@@ -38,19 +44,40 @@ const FormPublic = () => {
         setFields(Array.isArray(data.fields) ? (data.fields as unknown as FormField[]) : []);
         const settings = (data.settings || {}) as any;
         const ws = settings.welcomeScreen;
-        if (ws?.enabled) {
-          setCurrentStep(-1);
-        } else {
-          setCurrentStep(0);
-        }
-        if (settings.countdown?.enabled) {
-          setCountdown((settings.countdown.minutes || 10) * 60);
-        }
+        setCurrentStep(ws?.enabled ? -1 : 0);
+        if (settings.countdown?.enabled) setCountdown((settings.countdown.minutes || 10) * 60);
+
+        // Tracking + funnel view + Pixel injection
+        const tracking = captureTracking();
+        trackingRef.current = tracking;
+        logFunnelEvent({ user_id: data.user_id, source_type: "form", source_id: data.id, event_type: "view", tracking });
+
+        // Pixel: fetch user's pixel_id and inject
+        const { data: meta } = await supabase
+          .from("meta_ads_configs")
+          .select("pixel_id, pixel_enabled")
+          .eq("user_id", data.user_id)
+          .maybeSingle();
+        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
+  // Track funnel `start` on first answer + `step` on step change
+  useEffect(() => {
+    if (!form || currentStep < 0 || !trackingRef.current) return;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "start", tracking: trackingRef.current });
+    }
+    if (currentStep !== lastStepRef.current) {
+      lastStepRef.current = currentStep;
+      logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "step", step_index: currentStep, step_label: fields[currentStep]?.label || null as any, tracking: trackingRef.current });
+    }
+  }, [form, currentStep, fields]);
+
 
   // Countdown timer
   useEffect(() => {
@@ -121,138 +148,119 @@ const FormPublic = () => {
     visibleFields.forEach(f => { responses[f.label] = answers[f.id] || ""; });
     await supabase.from("form_responses").insert({ form_id: form.id, responses });
 
-    // Create lead if CRM integration configured
+    const tracking = trackingRef.current || captureTracking();
+    const nameField = fields.find(f => f.type === "text" && f.label.toLowerCase().includes("nome"));
+    const emailField = fields.find(f => f.type === "email");
+    const phoneField = fields.find(f => f.type === "phone");
+    const leadName = answers[nameField?.id || ""] || "Form Lead";
+    const leadEmail = emailField ? (answers[emailField.id] || "").toLowerCase().trim() || null : null;
+    const leadPhoneRaw = phoneField ? answers[phoneField.id] || null : null;
+    const leadPhone = leadPhoneRaw ? leadPhoneRaw.replace(/\D/g, "") || null : null;
+    const settings = form.settings || {};
+
+    // ===== CRM lead creation =====
+    let leadIdForTouchpoint: string | null = null;
     const pipelineId = form.pipeline_id;
     const stageId = form.stage_id;
     if (pipelineId || stageId) {
-      const nameField = fields.find(f => f.type === "text" && f.label.toLowerCase().includes("nome"));
-      const emailField = fields.find(f => f.type === "email");
-      const phoneField = fields.find(f => f.type === "phone");
-      const settings = form.settings || {};
-
       let finalStageId = stageId;
-      // If only pipeline, get first stage
       if (pipelineId && !stageId) {
-        const { data: stagesData } = await supabase
-          .from("pipeline_stages")
-          .select("id")
-          .eq("pipeline_id", pipelineId)
-          .order("position", { ascending: true })
-          .limit(1);
+        const { data: stagesData } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipelineId).order("position", { ascending: true }).limit(1);
         if (stagesData?.length) finalStageId = stagesData[0].id;
       }
-
       if ((nameField || emailField) && finalStageId) {
-        const leadName = answers[nameField?.id || ""] || "Form Lead";
-        const leadEmail = emailField ? (answers[emailField.id] || "").toLowerCase().trim() || null : null;
-        const leadPhoneRaw = phoneField ? answers[phoneField.id] || null : null;
-        const leadPhone = leadPhoneRaw ? leadPhoneRaw.replace(/\D/g, "") || null : null;
-
-        // Capture UTM / ad-click params from URL for attribution
-        const urlParams = new URLSearchParams(window.location.search);
-        const pick = (k: string) => urlParams.get(k) || null;
-        const utm = {
-          source: pick("utm_source"),
-          medium: pick("utm_medium"),
-          campaign: pick("utm_campaign"),
-          content: pick("utm_content"),
-          term: pick("utm_term"),
-          fbclid: pick("fbclid"),
-          gclid: pick("gclid"),
-          ctwa_clid: pick("ctwa_clid"),
-        };
-
-        // Anti-duplicate: match by phone first, then email, scoped to this user_id
+        // Anti-duplicate
         let existing: { id: string } | null = null;
         if (leadPhone) {
-          const { data } = await supabase
-            .from("leads")
-            .select("id")
-            .eq("user_id", form.user_id)
-            .eq("phone", leadPhone)
-            .limit(1)
-            .maybeSingle();
+          const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("phone", leadPhone).limit(1).maybeSingle();
           if (data) existing = data;
         }
         if (!existing && leadEmail) {
-          const { data } = await supabase
-            .from("leads")
-            .select("id")
-            .eq("user_id", form.user_id)
-            .eq("email", leadEmail)
-            .limit(1)
-            .maybeSingle();
+          const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("email", leadEmail).limit(1).maybeSingle();
           if (data) existing = data;
         }
 
-        let leadIdForTouchpoint: string | null = null;
         if (existing) {
           leadIdForTouchpoint = existing.id;
-          await supabase.from("leads").update({
-            updated_at: new Date().toISOString(),
-            name: leadName,
-          } as any).eq("id", existing.id);
-          await supabase.from("activities").insert({
-            user_id: form.user_id,
-            lead_id: existing.id,
-            type: "note",
-            description: `Nova submissão do formulário "${form.title}" (${slug})`,
-          } as any);
+          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName } as any).eq("id", existing.id);
+          await supabase.from("activities").insert({ user_id: form.user_id, lead_id: existing.id, type: "note", description: `Nova submissão do formulário "${form.title}" (${slug})` } as any);
         } else {
           const { data: inserted } = await supabase.from("leads").insert({
-            name: leadName,
-            email: leadEmail,
-            phone: leadPhone,
+            name: leadName, email: leadEmail, phone: leadPhone,
             source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
             status: "new", stage_id: finalStageId, user_id: form.user_id,
-            pipeline_id: pipelineId || null,
-            tags: settings.autoTags || [],
-            utm_source: utm.source,
-            utm_medium: utm.medium,
-            utm_campaign: utm.campaign,
+            pipeline_id: pipelineId || null, tags: settings.autoTags || [],
+            utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+            utm_content: tracking.content, utm_term: tracking.term,
+            ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
+            landing_url: tracking.landing_url, referrer: tracking.referrer, user_agent: tracking.user_agent,
           } as any).select("id").maybeSingle();
           leadIdForTouchpoint = inserted?.id || null;
         }
 
-        // Attribution touchpoint (always, even without UTM — useful to track direct submissions)
+        // Attribution touchpoint
         await supabase.from("attribution_touchpoints").insert({
-          user_id: form.user_id,
-          lead_id: leadIdForTouchpoint,
-          source: utm.source,
-          medium: utm.medium,
-          campaign: utm.campaign,
-          content: utm.content,
-          term: utm.term,
-          fbclid: utm.fbclid,
-          gclid: utm.gclid,
-          ctwa_clid: utm.ctwa_clid,
-          landing_url: window.location.href,
-          referrer: document.referrer || null,
-          channel: "form",
-          meta: { form_id: form.id, slug },
+          user_id: form.user_id, lead_id: leadIdForTouchpoint,
+          source: tracking.source, medium: tracking.medium, campaign: tracking.campaign,
+          content: tracking.content, term: tracking.term,
+          fbclid: tracking.fbclid, gclid: tracking.gclid, ctwa_clid: tracking.ctwa_clid,
+          ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
+          user_agent: tracking.user_agent,
+          landing_url: tracking.landing_url, referrer: tracking.referrer,
+          channel: "form", meta: { form_id: form.id, slug, session_id: tracking.session_id },
         } as any);
       }
     }
 
-    // Create notification for form owner
+    // ===== Funnel complete =====
+    logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "complete", tracking, meta: { lead_id: leadIdForTouchpoint } });
+
+    // ===== Notification for form owner =====
     await supabase.from("notifications").insert({
-      user_id: form.user_id,
-      type: "form_response",
+      user_id: form.user_id, type: "form_response",
       title: `Nova resposta: ${form.title}`,
       message: `Um lead preencheu o formulário "${form.title}"`,
-      metadata: { form_id: form.id, slug },
+      metadata: { form_id: form.id, slug, lead_id: leadIdForTouchpoint },
     } as any);
+
+    // ===== Meta Pixel + CAPI =====
+    if (form.meta_event_name) {
+      const eventId = newEventId();
+      const value = Number(form.meta_event_value || 0);
+      const currency = form.meta_event_currency || "BRL";
+      trackPixelEvent(form.meta_event_name, { value, currency, content_name: form.title }, eventId);
+      sendConversionsApi({
+        user_id: form.user_id, source_type: "form", source_id: form.id,
+        event_name: form.meta_event_name, event_id: eventId, lead_id: leadIdForTouchpoint,
+        value, currency,
+        user_data: { email: leadEmail, phone: leadPhone, name: leadName, fbc: tracking.fbc, fbp: tracking.fbp, client_user_agent: tracking.user_agent },
+        custom_data: { content_name: form.title, form_id: form.id },
+        event_source_url: window.location.href,
+      });
+    }
+
+    // ===== WhatsApp Auto (delayed) =====
+    if (form.whatsapp_auto_send && leadPhone && form.whatsapp_auto_message) {
+      const msg = (form.whatsapp_auto_message as string)
+        .replace(/\{\{nome\}\}|\{nome\}/g, leadName)
+        .replace(/\{\{telefone\}\}|\{telefone\}/g, leadPhone)
+        .replace(/\{\{email\}\}|\{email\}/g, leadEmail || "")
+        .replace(/\{\{origem\}\}|\{origem\}/g, tracking.source || "");
+      const delay = Math.max(0, Number(form.whatsapp_auto_delay_seconds || 0));
+      const runAt = new Date(Date.now() + delay * 1000).toISOString();
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_whatsapp_auto",
+        _payload: { user_id: form.user_id, phone: leadPhone, message: msg, source_type: "form", source_id: form.id, lead_id: leadIdForTouchpoint },
+        _tenant: form.user_id, _run_at: runAt, _priority: 3, _max_attempts: 3,
+      } as any);
+    }
 
     // Webhook
     if (form.webhook_url) {
-      try {
-        fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {});
-      } catch {}
+      try { fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {}); } catch {}
     }
 
-    const settings = form.settings || {};
-
-    // WhatsApp redirect
+    // WhatsApp redirect (manual click-through)
     if (form.whatsapp_redirect) {
       const waUrl = buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers);
       setSubmitted(true);
@@ -263,6 +271,7 @@ const FormPublic = () => {
     if (settings.redirectUrl) { window.location.href = settings.redirectUrl; return; }
     setSubmitted(true);
   };
+
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><div className="h-8 w-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" /></div>;
   if (!form) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><p>Formulário não encontrado</p></div>;
