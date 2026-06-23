@@ -452,6 +452,23 @@ Deno.serve(async (req) => {
 // Registry of handlers per job kind. New handlers added incrementally in later ondas.
 const JOB_HANDLERS: Record<string, (admin: any, payload: any) => Promise<void>> = {
   noop: async () => { /* placeholder for smoke tests */ },
+  // Auto-send WhatsApp after a form/quiz submission (delayed)
+  form_whatsapp_auto: async (admin: any, payload: any) => {
+    const { user_id, phone, message, source_type, source_id, lead_id } = payload || {};
+    if (!user_id || !phone || !message) return;
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    if (!cleanPhone) return;
+    const { data: cfg } = await admin.from('whatsapp_configs').select('*').eq('user_id', user_id).eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (!cfg) return;
+    const r = await sendWhatsAppText(cfg, cleanPhone, message);
+    await admin.from('messages').insert({
+      user_id,
+      direction: 'outbound', channel: 'whatsapp',
+      content: message, status: r.ok ? 'sent' : 'failed',
+      sender_phone: cleanPhone,
+      metadata: { form_whatsapp_auto: true, source_type, source_id, lead_id, external_status: r.status, external_body: r.body },
+    });
+  },
 };
 
 async function drainJobQueue(admin: any): Promise<number> {
