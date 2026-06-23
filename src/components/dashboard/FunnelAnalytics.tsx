@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Funnel, ArrowDown, FileText, HelpCircle } from "lucide-react";
+import { Filter, ArrowDown, FileText, HelpCircle } from "lucide-react";
 
 interface Source { id: string; title: string; type: "form" | "quiz"; }
 interface FE { source_id: string; source_type: string; event_type: string; step_index: number | null; session_id: string; utm_source: string | null; }
