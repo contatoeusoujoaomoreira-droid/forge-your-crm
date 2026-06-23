@@ -1,7 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageCircle, Timer, Users as UsersIcon } from "lucide-react";
+import { captureTracking, type TrackingPayload } from "@/lib/tracking";
+import { logFunnelEvent } from "@/lib/funnel";
+import { injectMetaPixel, trackPixelEvent, sendConversionsApi, newEventId } from "@/lib/metaPixel";
 
 interface FormField {
   id: string; type: string; label: string; placeholder?: string; required?: boolean;
