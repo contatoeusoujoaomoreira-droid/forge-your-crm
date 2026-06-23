@@ -76,7 +76,7 @@ const FunnelAnalytics = () => {
   return (
     <Card className="surface-card border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2"><Funnel className="h-4 w-4 text-primary" /> Funil de Conversão (últimos 30 dias)</CardTitle>
+        <CardTitle className="text-sm flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /> Funil de Conversão (últimos 30 dias)</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
