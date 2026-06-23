@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, MousePointerClick, Users, DollarSign, ChevronDown, ChevronRight, Target } from "lucide-react";
 import InfoTip from "@/components/InfoTip";
+import FunnelAnalytics from "./FunnelAnalytics";
+import MetaPixelSettings from "./MetaPixelSettings";
 
 type Period = "today" | "7d" | "30d" | "month" | "all";
 
