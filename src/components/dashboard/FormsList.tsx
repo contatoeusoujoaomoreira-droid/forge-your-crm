@@ -524,6 +524,62 @@ const FormsList = () => {
                   )}
                 </div>
 
+                {/* WhatsApp Automático (envio servidor) */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 text-primary" /> WhatsApp Automático (envio servidor)</p>
+                    <Switch checked={editing.whatsapp_auto_send} onCheckedChange={v => setEditing({ ...editing, whatsapp_auto_send: v })} />
+                  </div>
+                  {editing.whatsapp_auto_send && (
+                    <div className="space-y-2 pl-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px]">Atraso (segundos)</Label>
+                          <select value={String(editing.whatsapp_auto_delay_seconds)} onChange={e => setEditing({ ...editing, whatsapp_auto_delay_seconds: Number(e.target.value) })} className="w-full h-8 text-xs bg-secondary/50 border border-border rounded-md px-2 mt-1 text-foreground">
+                            <option value="0">Imediatamente</option>
+                            <option value="30">30 segundos</option>
+                            <option value="60">1 minuto</option>
+                            <option value="300">5 minutos</option>
+                            <option value="900">15 minutos</option>
+                            <option value="3600">1 hora</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Mensagem (use {"{{nome}}"}, {"{{telefone}}"}, {"{{origem}}"})</Label>
+                        <Textarea value={editing.whatsapp_auto_message || ""} onChange={e => setEditing({ ...editing, whatsapp_auto_message: e.target.value })} placeholder="Olá {{nome}}! Recebemos seu cadastro e em breve entraremos em contato." className="text-xs bg-secondary/50 border-border mt-1" rows={3} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">⚙️ Requer WhatsApp ativo em Automações. O sistema dispara via fila (precisão ~1 min).</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Meta Pixel / Conversions API */}
+                <div className="border-t border-border pt-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">📊 Meta Ads (Pixel + Conversions API)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                      <Label className="text-[10px]">Evento (deixe vazio para desativar)</Label>
+                      <select value={editing.meta_event_name || ""} onChange={e => setEditing({ ...editing, meta_event_name: e.target.value || null })} className="w-full h-8 text-xs bg-secondary/50 border border-border rounded-md px-2 mt-1 text-foreground">
+                        <option value="">(desativado)</option>
+                        <option value="Lead">Lead</option>
+                        <option value="CompleteRegistration">CompleteRegistration</option>
+                        <option value="Schedule">Schedule</option>
+                        <option value="Contact">Contact</option>
+                        <option value="SubmitApplication">SubmitApplication</option>
+                        <option value="Purchase">Purchase</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Valor</Label>
+                      <Input type="number" value={editing.meta_event_value} onChange={e => setEditing({ ...editing, meta_event_value: Number(e.target.value) || 0 })} className="h-8 text-xs bg-secondary/50 border-border mt-1" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Configure Pixel ID + Access Token em Configurações → Meta Ads.</p>
+                </div>
+
+
+
                 {/* Settings */}
                 <div className="border-t border-border pt-3 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
