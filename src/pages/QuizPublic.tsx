@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Share2, Copy, Check, MessageCircle } from "lucide-react";
-import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
+import { captureTracking, type TrackingPayload } from "@/lib/tracking";
+import { logFunnelEvent } from "@/lib/funnel";
+import { injectMetaPixel, trackPixelEvent, sendConversionsApi, newEventId } from "@/lib/metaPixel";
 
 interface Question { id: string; text: string; type: "text" | "multiple_choice"; options?: string[]; scores?: number[]; imageUrls?: string[]; }
 interface QuizResult { id: string; title: string; description: string; minScore: number; maxScore: number; stageId?: string; whatsappMessage?: string; }
