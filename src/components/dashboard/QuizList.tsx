@@ -547,7 +547,22 @@ const QuizList = () => {
                 <label className="flex items-center gap-2 text-xs"><Switch checked={editing.settings?.showProgressBar ?? true} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, showProgressBar: v } })} /> Barra de progresso</label>
               </div>
             )}
+
+            {editorTab === "integrations" && (
+              <PixelConfigPanel value={(editing as any).pixel_config || {}} onChange={v => setEditing({ ...editing, pixel_config: v } as any)} sourceType="quiz" sourceId={editing.id} userId={user?.id} />
+            )}
+            {editorTab === "automations" && (
+              <PostSubmitAndAlertPanel
+                postSubmit={(editing as any).post_submit || {}}
+                onPostSubmitChange={v => setEditing({ ...editing, post_submit: v } as any)}
+                ownerAlert={(editing as any).owner_alert || {}}
+                onOwnerAlertChange={v => setEditing({ ...editing, owner_alert: v } as any)}
+                userId={user?.id}
+                sourceTitle={editing.title}
+              />
+            )}
           </div>
+
 
           {/* Preview */}
           {showPreview && (
