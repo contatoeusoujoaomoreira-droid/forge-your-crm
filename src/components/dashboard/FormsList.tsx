@@ -836,7 +836,9 @@ const FormsList = () => {
               </div>
               {form.description && <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>}
               <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{form.fields.length} campos</span><span>{form._responseCount} respostas</span></div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setKanbanFor({ id: form.id, title: form.title })}><Users className="h-3 w-3 mr-1" /> Ver leads</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsFor({ id: form.id, title: form.title })}><BarChart3 className="h-3 w-3 mr-1" /> Métricas</Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...form }); setEditorTab("editor"); }}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCopyLink(form.slug)}><Copy className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => fetchResponses(form.id)}><Eye className="h-3 w-3" /></Button>
@@ -845,6 +847,7 @@ const FormsList = () => {
                 )}
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(form.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
               </div>
+
             </div>
           ))}
         </div>
