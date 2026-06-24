@@ -358,11 +358,14 @@ const FormPublic = () => {
   );
 
   if (submitted) {
+    const psSub = (form as any).post_submit || {};
+    const ty = psSub.mode === "thankyou" ? psSub.thankyou || {} : null;
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: bgColor, color: textColor, fontFamily }}>
-        <div className="text-center space-y-4 p-8" style={{ animation: "fadeUp .4s ease" }}>
+        <div className="text-center space-y-4 p-8 max-w-lg" style={{ animation: "fadeUp .4s ease" }}>
           <div className="text-5xl">✅</div>
-          <h2 className="text-2xl font-bold">{settings.successMessage || "Obrigado!"}</h2>
+          <h2 className="text-2xl font-bold">{ty?.title || settings.successMessage || "Obrigado!"}</h2>
+          {ty?.message && <p style={{ color: `${textColor}99`, whiteSpace: "pre-wrap" }}>{ty.message}</p>}
           {form.whatsapp_redirect && (
             <button onClick={() => window.open(buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers), "_blank")}
               style={{ padding: "14px 28px", background: "#25D366", color: "#fff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8, marginTop: 16 }}>
@@ -374,6 +377,7 @@ const FormPublic = () => {
       </div>
     );
   }
+
 
   // Welcome Screen
   if (currentStep === -1 && welcomeScreen?.enabled) {
