@@ -302,6 +302,9 @@ const QuizList = () => {
             { id: "crm" as const, label: "CRM", icon: "👥" },
             { id: "whatsapp" as const, label: "WhatsApp", icon: "💬" },
             { id: "style" as const, label: "Estilo", icon: "🎨" },
+            { id: "integrations" as const, label: "Integrações", icon: "🔌" },
+            { id: "automations" as const, label: "Automações", icon: "⚡" },
+
           ].map(tab => (
             <button key={tab.id} onClick={() => setEditorTab(tab.id)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${editorTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               <span>{tab.icon}</span> {tab.label}
