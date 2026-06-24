@@ -780,9 +780,24 @@ const FormsList = () => {
             </div>
           </div>
         )}
+
+        {editorTab === "integrations" && (
+          <PixelConfigPanel value={(editing as any).pixel_config || {}} onChange={v => setEditing({ ...editing, pixel_config: v } as any)} sourceType="form" sourceId={editing.id} userId={user?.id} />
+        )}
+        {editorTab === "automations" && (
+          <PostSubmitAndAlertPanel
+            postSubmit={(editing as any).post_submit || {}}
+            onPostSubmitChange={v => setEditing({ ...editing, post_submit: v } as any)}
+            ownerAlert={(editing as any).owner_alert || {}}
+            onOwnerAlertChange={v => setEditing({ ...editing, owner_alert: v } as any)}
+            userId={user?.id}
+            sourceTitle={editing.title}
+          />
+        )}
       </div>
     );
   }
+
 
   // Templates modal
   if (showTemplates) {
