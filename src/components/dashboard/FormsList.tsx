@@ -312,7 +312,11 @@ const FormsList = () => {
       whatsapp_auto_send: editing.whatsapp_auto_send, whatsapp_auto_delay_seconds: editing.whatsapp_auto_delay_seconds,
       whatsapp_auto_message: editing.whatsapp_auto_message,
       meta_event_name: editing.meta_event_name, meta_event_value: editing.meta_event_value, meta_event_currency: editing.meta_event_currency,
+      pixel_config: (editing as any).pixel_config || {},
+      post_submit: (editing as any).post_submit || {},
+      owner_alert: (editing as any).owner_alert || {},
     };
+
     if (editing.id) {
       const { error } = await supabase.from("forms").update(payload as any).eq("id", editing.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
