@@ -219,9 +219,19 @@ const FormPublic = () => {
         } as any);
       }
     }
+    // ===== Submission timeline (always insert, isolated per form) =====
+    await (supabase as any).from("form_submissions").insert({
+      user_id: form.user_id, form_id: form.id, lead_id: leadIdForTouchpoint,
+      payload: responses,
+      utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+      utm_content: tracking.content, utm_term: tracking.term,
+      referrer: tracking.referrer, landing_url: tracking.landing_url, user_agent: tracking.user_agent,
+      device_type: /Mobi|Android|iPhone/i.test(tracking.user_agent || "") ? "mobile" : "desktop",
+    });
 
     // ===== Funnel complete =====
     logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "complete", tracking, meta: { lead_id: leadIdForTouchpoint } });
+
 
     // ===== Notification for form owner =====
     await supabase.from("notifications").insert({
