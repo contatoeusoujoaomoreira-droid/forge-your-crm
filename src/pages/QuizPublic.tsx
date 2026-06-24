@@ -120,7 +120,7 @@ const QuizPublic = () => {
       }
       if (existing) {
         createdLeadId = existing.id;
-        await supabase.from("leads").update({ updated_at: new Date().toISOString(), notes: `Resultado: ${qualificationLabel} (Score: ${score})` } as any).eq("id", existing.id);
+        await supabase.from("leads").update({ updated_at: new Date().toISOString(), notes: `Resultado: ${qualificationLabel} (Score: ${score})`, source_quiz_id: quiz.id } as any).eq("id", existing.id);
       } else {
         const { data: inserted } = await supabase.from("leads").insert({
           name: leadInfo.name, email: emailClean, phone: phoneClean,
@@ -128,6 +128,7 @@ const QuizPublic = () => {
           status: "new", stage_id: stageId, user_id: quiz.user_id, value: 0,
           pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
           notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
+          source_quiz_id: quiz.id,
           tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
           priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
           utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
@@ -138,6 +139,18 @@ const QuizPublic = () => {
         createdLeadId = inserted?.id || null;
       }
     }
+
+    // ===== Submission timeline (isolated per quiz) =====
+    await (supabase as any).from("quiz_submissions").insert({
+      user_id: quiz.user_id, quiz_id: quiz.id, lead_id: createdLeadId,
+      payload: { ...answers, _name: leadInfo.name, _email: leadInfo.email, _phone: leadInfo.phone },
+      score, result_label: matched?.title || null,
+      utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+      utm_content: tracking.content, utm_term: tracking.term,
+      referrer: tracking.referrer, landing_url: tracking.landing_url, user_agent: tracking.user_agent,
+      device_type: /Mobi|Android|iPhone/i.test(tracking.user_agent || "") ? "mobile" : "desktop",
+    });
+
 
     // Attribution touchpoint
     await supabase.from("attribution_touchpoints").insert({
