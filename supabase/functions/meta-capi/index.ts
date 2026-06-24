@@ -50,14 +50,39 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: false, error: "missing_fields" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
-  // Pull pixel + access token from meta_ads_configs
-  const { data: cfg } = await supabase
-    .from("meta_ads_configs")
-    .select("pixel_id, capi_access_token, test_event_code, capi_enabled")
-    .eq("user_id", body.user_id)
-    .maybeSingle();
+  // Per-form/quiz pixel_config takes precedence; fall back to global meta_ads_configs
+  let pixelId: string | null = null;
+  let accessToken: string | null = null;
+  let testEventCode: string | null = (body as any).test_event_code || null;
 
-  if (!cfg?.pixel_id || !cfg?.capi_access_token || cfg?.capi_enabled === false) {
+  if (body.source_type === "form" && body.source_id) {
+    const { data: f } = await supabase.from("forms").select("pixel_config").eq("id", body.source_id).maybeSingle();
+    const meta = (f as any)?.pixel_config?.meta;
+    if (meta?.pixel_id) pixelId = meta.pixel_id;
+    if (meta?.access_token) accessToken = meta.access_token;
+  } else if (body.source_type === "quiz" && body.source_id) {
+    const { data: q } = await supabase.from("quizzes").select("pixel_config").eq("id", body.source_id).maybeSingle();
+    const meta = (q as any)?.pixel_config?.meta;
+    if (meta?.pixel_id) pixelId = meta.pixel_id;
+    if (meta?.access_token) accessToken = meta.access_token;
+  }
+
+  if (!pixelId || !accessToken) {
+    const { data: cfg } = await supabase
+      .from("meta_ads_configs")
+      .select("pixel_id, capi_access_token, test_event_code, capi_enabled")
+      .eq("user_id", body.user_id)
+      .maybeSingle();
+    if (cfg?.capi_enabled !== false) {
+      pixelId = pixelId || cfg?.pixel_id || null;
+      accessToken = accessToken || cfg?.capi_access_token || null;
+      testEventCode = testEventCode || cfg?.test_event_code || null;
+    }
+  }
+
+  const cfg = { pixel_id: pixelId, capi_access_token: accessToken, test_event_code: testEventCode };
+
+  if (!cfg.pixel_id || !cfg.capi_access_token) {
     await supabase.from("meta_event_log").insert({
       user_id: body.user_id, source_type: body.source_type, source_id: body.source_id || null,
       event_name: body.event_name, event_id: body.event_id, lead_id: body.lead_id || null,
@@ -65,6 +90,7 @@ Deno.serve(async (req) => {
     });
     return new Response(JSON.stringify({ ok: false, error: "capi_not_configured" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
+
 
   // Build user_data with hashed PII per Meta spec
   const ud: any = {};
