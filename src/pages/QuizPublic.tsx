@@ -200,9 +200,44 @@ const QuizPublic = () => {
       } as any);
     }
 
+    // ===== Owner Alert WhatsApp =====
+    const ownerAlert = (quiz as any).owner_alert || {};
+    if (ownerAlert.enabled && ownerAlert.phone && ownerAlert.message) {
+      const msg = String(ownerAlert.message)
+        .replace(/\{\{nome\}\}/g, leadInfo.name)
+        .replace(/\{\{email\}\}/g, emailClean || "")
+        .replace(/\{\{telefone\}\}/g, phoneClean || "")
+        .replace(/\{\{nome_do_forms\}\}/g, quiz.title)
+        .replace(/\{\{score\}\}/g, String(score))
+        .replace(/\{\{resultado_quiz\}\}|\{\{resultado\}\}/g, matched?.title || "")
+        .replace(/\{\{data\}\}/g, new Date().toLocaleString("pt-BR"))
+        .replace(/\{\{utm_source\}\}/g, tracking.source || "direct");
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_owner_alert",
+        _payload: { user_id: quiz.user_id, phone: ownerAlert.phone, message: msg, source_type: "quiz", source_id: quiz.id, lead_id: createdLeadId },
+        _tenant: quiz.user_id, _priority: 2, _max_attempts: 3,
+      } as any);
+    }
+
+    // ===== Post-submit redirect =====
+    const ps = (quiz as any).post_submit || {};
+    if (ps.mode === "url" && ps.url) {
+      if (ps.new_tab) window.open(ps.url, "_blank"); else window.location.href = ps.url;
+      setCurrentStep("done"); setSubmitting(false); return;
+    }
+    if (ps.mode === "form" && ps.target_form_id) {
+      const { data: tgt } = await supabase.from("forms").select("slug").eq("id", ps.target_form_id).maybeSingle();
+      if (tgt?.slug) {
+        const url = `/form/${tgt.slug}`;
+        if (ps.new_tab) window.open(url, "_blank"); else window.location.href = url;
+        setCurrentStep("done"); setSubmitting(false); return;
+      }
+    }
+
     setCurrentStep("done");
     setSubmitting(false);
   };
+
 
 
   const handleShare = () => {
