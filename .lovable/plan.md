@@ -1,106 +1,111 @@
-# Plano de Evolução — Omni Builder CRM
+# Refatoração Forms & Quiz — Omni Builder CRM
 
-Vou dividir em 5 entregas independentes (10 a 14). Cada uma é autocontida e pode ser revisada separadamente. Todas preservam a arquitetura atual (webhook-receiver + ai-agent + tabelas existentes).
-
----
-
-## 10. Visão Computacional e Processamento de Imagens
-
-**Backend (`webhook-receiver`)**
-- Quando chega mídia tipo `image` do Uazapi:
-  1. Baixar via `/message/download` (já temos a função).
-  2. Fazer upload no bucket `chat-media` em `{user_id}/conversations/{client_id}/{message_id}.{ext}` (storage já existe).
-  3. Salvar URL pública/assinada em `messages.media_url` (coluna nova se não existir) e em `messages.metadata.image_url`.
-  4. Associar `client_id`, `lead_id` e `conversation_id` (já fazemos).
-- Se o agente tiver `vision_enabled = true` (flag nova em `ai_agents`) **e** o modelo suportar visão (`gpt-4o*`, `gemini-*`, `claude-3.5*`):
-  - Anexar bloco `image_url` no payload multimodal do `ai-agent` (formato OpenAI-compatible).
-  - Caso contrário: gerar `[IMAGEM RECEBIDA — modelo sem visão, não interpretada]` e bloquear qualquer descrição inventada via prompt.
-
-**Frontend (`InboxPage` / chat ao vivo)**
-- Renderizar miniatura clicável → modal com imagem ampliada + botão download.
-- Setinhas pra navegar entre as imagens da conversa (`prev/next`).
-
-**Migration**
-- `ALTER TABLE ai_agents ADD COLUMN vision_enabled boolean DEFAULT true, ADD COLUMN vision_model text;`
-- `ALTER TABLE messages ADD COLUMN media_url text, ADD COLUMN media_type text;` (se ainda não existir — checar antes).
+Escopo restrito aos módulos **Forms** e **Quiz**. Nenhum outro módulo será alterado. Dados existentes preservados (sem DELETE), apenas migrations aditivas e deduplicação lógica na UI.
 
 ---
 
-## 11. Orquestrador de Agentes
+## PROMPT 1 — Limpeza e Isolamento
 
-**Nova função TS**: `supabase/functions/_shared/agent-orchestrator.ts`
+**Migration aditiva:**
+- `form_submissions` e `quiz_submissions` (timeline) — cada submissão tem `lead_id`, `form_id`/`quiz_id`, `payload jsonb`, UTMs, `submitted_at`. Backfill a partir de `form_responses`/`quiz_responses` existentes (preserva dados).
+- Índice único `(user_id, form_id, lead_id_dedupe_key)` em `leads` onde `dedupe_key` = phone OR email (lógica no insert, não constraint).
+- Coluna `source_form_id` / `source_quiz_id` em `leads` para isolar atribuição.
 
-Ordem de decisão (curto-circuito no primeiro match):
-1. `conversation_state.assigned_agent_id` existente e não expirado → mantém.
-2. `conversation_flow_sessions` ativa → respeita o agente do fluxo.
-3. Match em `agent_routing_rules` (tabela nova) por `utm_source/medium/campaign/content/term`, `meta_campaign`, `meta_adset`, `meta_creative` do lead.
-4. Match por palavra-chave (`agent_routing_rules.keywords[]`).
-5. Intenção detectada via classificador leve (Lovable AI — 1 chamada barata, gemini-flash).
-6. Match por `pipeline_id` + `stage_id`.
-7. Agente padrão (`ai_agents.is_default = true`).
-
-**Tabela nova `agent_routing_rules`** com colunas:
-`agent_id, priority, utm_filters jsonb, keywords text[], pipeline_id, stage_id, enabled, name`.
-
-**Integração**: `webhook-receiver` chama `pickAgent(client, lead, message)` antes de processar resposta. Resultado é persistido em `conversation_state.assigned_agent_id` para evitar reavaliar a cada mensagem.
-
-**UI**: novo painel "Orquestrador" no `AutomationHub` listando regras com drag-to-reorder priority.
+**UI — LeadViewer:**
+- Detecta múltiplas submissões do mesmo lead no mesmo forms → renderiza **timeline** dentro do perfil (data/hora, payload, UTM por submissão) em vez de duplicar card.
+- Refatorar `FormsList` e `QuizList` para que cada item carregue suas próprias métricas via query escopada por `form_id`/`quiz_id`.
 
 ---
 
-## 12. Fluxos (módulo opcional)
+## PROMPT 2 — Analytics por Formulário
 
-Já existe `conversation_flows` e `conversation_flow_sessions`. Vou:
-- Adicionar tipos de nós: `switch_agent`, `move_stage`, `wait_for_reply`, `trigger_followup`, `handoff_human`, `end`.
-- Estender `FlowsBuilder.tsx` com esses nós.
-- `webhook-receiver` consulta sessão ativa antes do orquestrador (passo 2 acima).
+**Novo componente:** `src/components/dashboard/FormAnalyticsPage.tsx` e `QuizAnalyticsPage.tsx`, abertos via botão **"Ver métricas"** na listagem.
 
----
-
-## 13. CRM com rolagem interna por etapa
-
-**Arquivo**: `src/components/dashboard/CRMKanban.tsx`
-- Remover `overflow-x` do container externo; manter colunas em `flex` com largura fixa.
-- Cada coluna vira `flex flex-col` com header fixo e área `overflow-y-auto max-h-[calc(100vh-280px)]`.
-- Lista inicial: render todos, mas a coluna naturalmente vai scrollar interno após ~5 cards.
-- Garantir que `@hello-pangea/dnd` (ou lib em uso) continue funcionando — o scroll interno é compatível por padrão.
+Conteúdo (consultando `funnel_events` + `form_submissions` filtrado pelo ID):
+- **Cards KPI:** total leads, taxa conversão, tempo médio preenchimento, top UTM source, leads hoje/semana/mês.
+- **Funil:** views → starts → steps → completes (já temos `funnel_events`).
+- **Gráficos** (recharts): linha 30d, barras por UTM source, funil visual, pizza dispositivos (parse user_agent).
+- **Tabela UTM:** combinação source/medium/campaign × contagem.
+- **Export CSV:** botão que gera CSV dos leads + UTMs daquele forms/quiz.
 
 ---
 
-## 14. Tags destacadas nos leads
+## PROMPT 3 — Pixels Independentes
 
-**Schema** (`leads.tags` já existe como `text[]`):
-- Nova tabela `lead_tags` (definições reutilizáveis): `user_id, name, color, emoji, is_active`.
-- Tags livres continuam funcionando (string em `leads.tags`), mas se baterem com `lead_tags.name`, herdam cor/emoji.
+**Migration:** mover config de pixel **de `meta_ads_configs` (por user)** para colunas/JSON **por forms/quiz**:
+- `forms.pixel_config jsonb` e `quizzes.pixel_config jsonb` com shape:
+```json
+{
+  "meta": { "pixel_id", "access_token", "events": { "PageView": true, "Lead": true, "InitiateCheckout": false, "Custom": {"enabled": false, "name": ""} } },
+  "google": { "measurement_id", "api_secret", "events": { "page_view": true, "generate_lead": true, "begin_checkout": false } }
+}
+```
+- Manter `meta_ads_configs` como **fallback global** (não quebra setup atual).
 
-**UI**
-- `LeadViewer`: editor de tags com chips coloridos + autocomplete das predefinidas.
-- `CRMKanban` cards: chips visuais no topo.
-- `InboxPage` cabeçalho do chat: mostra tags do lead vinculado.
-- Filtro de tags no CRM (multi-select).
+**UI:** nova aba **"Integrações"** no editor de cada forms/quiz com:
+- Painel Meta Pixel (ID, token, toggles por evento, custom event name, **Testar pixel** → invoca `meta-capi` em modo test).
+- Painel Google GA4 (Measurement ID, API Secret, toggles, **Testar conexão** via Measurement Protocol).
 
-**Automações**
-- Estender `stage_triggers` (ou nova `tag_triggers`) com condição `when tag added/removed`.
-- Orquestrador (item 11) lê `lead.tags` como sinal adicional de prioridade.
+**Edge function:** estender `meta-capi` para aceitar `form_id`/`quiz_id` e ler config local; criar `google-ga4` edge function paralela.
 
----
-
-## Ordem de execução
-
-Vou implementar em 4 PRs lógicos (executados sequencialmente nesta conversa):
-
-1. **PR-A — Backend de visão + storage de imagens** (item 10 backend + migration).
-2. **PR-B — Orquestrador + tabela de regras + integração webhook** (item 11) e nós de fluxo novos (item 12).
-3. **PR-C — UI: chat com imagens, painel Orquestrador, builder de fluxos** (item 10 UI + 11 UI + 12 UI).
-4. **PR-D — CRM scroll interno + sistema de tags + filtros + automações por tag** (itens 13 e 14).
+**Public pages (`FormPublic`/`QuizPublic`):** carregar pixel_config do próprio forms (não mais global) e disparar eventos conforme toggles.
 
 ---
 
-## Pontos que preciso confirmar antes de codar
+## PROMPT 4 — Preview, Redirect, Automações
 
-1. **Modelo de visão padrão**: posso usar `google/gemini-2.5-flash` (multimodal, barato, já no gateway) como default quando `vision_enabled = true` e o modelo principal do agente não tiver visão? Ou prefere forçar o usuário a escolher um modelo com visão?
-2. **Orquestrador — classificação de intenção (passo 5)**: ok cobrar 1 crédito por classificação via Lovable AI? Posso pular se as regras 3/4 já casaram.
-3. **Tags pré-definidas**: começo com os 8 exemplos do seu brief (🔥 Quente, 🏠 Alto Padrão, 💰 Investidor, 📞 Retornar, ⚠️ Documentação, ⭐ VIP, 🟢 Novo, 🔴 Urgente) seedadas por usuário, ou só crio a tabela vazia?
-4. **CRM scroll**: confirma que pode remover totalmente a scroll horizontal externa? Em telas estreitas (~1280px) com 6+ etapas, o usuário ainda vai precisar scrollar horizontal — só que o scroll vai ficar dentro do container do Kanban, não na página inteira. Ok?
+**Preview ao vivo:**
+- No editor (`FormsList` edit mode / `QuizList` edit mode), split layout: editor à esquerda + `<iframe>` ou render inline à direita.
+- Toggle mobile/desktop (altera width). Atualização instantânea via state compartilhado.
 
-Responde essas 4 perguntas (ou só "vai") e começo pelo PR-A.
+**Redirect pós-envio (`forms.post_submit` jsonb):**
+```json
+{ "mode": "url" | "thankyou" | "form", "url": "", "thankyou": {"title","message"}, "target_form_id": "", "new_tab": false }
+```
+- UI na aba "Configurações". `FormPublic`/`QuizPublic` honram a config.
+
+**Mensagem para o lead (já existe `whatsapp_auto_*`)** — expandir editor com chip de variáveis dinâmicas e suporte a campos customizados do forms.
+
+**Alerta para o dono (`forms.owner_alert` jsonb):**
+```json
+{ "enabled": true, "phone": "5511...", "message": "🔔 Novo lead..." }
+```
+- Enqueue job `form_owner_alert` no submit → `cron-worker` envia via `send-whatsapp`.
+- Botão **"Testar disparo"** invoca `send-whatsapp` direto.
+
+---
+
+## PROMPT 5 — Kanban por Formulário
+
+**Novo componente:** `src/components/dashboard/FormLeadsKanban.tsx` (compartilhado com Quiz via prop `sourceType`).
+
+- Botão **"Ver leads"** em cada item da listagem abre Kanban filtrado por `source_form_id = X` (nunca mistura).
+- **Colunas customizáveis por forms:** nova tabela `form_kanban_columns(form_id, name, position, color)` com seed padrão (Novo/Em contato/Qualificado/Convertido/Descartado). Drag-reorder, renomear, cor.
+- **Card:** nome, email, telefone (clique → wa.me), data, UTM badge, tags, indicador "novo".
+- **Modal lateral (Sheet):** abas Informações (timeline submissões), Atividades (notas + log), Automações (enviar WhatsApp / reenviar / agendar follow-up).
+- **Filtros:** período, UTM, tag, status. **Busca:** nome/email/telefone live.
+- **Ações em lote:** checkbox seleção → mover coluna / add tag / export CSV / arquivar.
+
+Reusa `lead_tags`, `notifications`, infra de jobs já existente.
+
+---
+
+## Ordem de execução / commits
+
+1. **Migration única** cobrindo: `form_submissions`, `quiz_submissions`, `forms.pixel_config`, `forms.post_submit`, `forms.owner_alert`, `form_kanban_columns` + espelho para quiz, backfill de `form_responses`→`form_submissions`.
+2. PROMPT 1 (dedupe LeadViewer + isolamento de queries).
+3. PROMPT 2 (Analytics pages + export CSV).
+4. PROMPT 3 (Pixels por forms + edge function GA4).
+5. PROMPT 4 (Preview + redirect + alerta dono).
+6. PROMPT 5 (Kanban por forms).
+
+## Premissas
+- Pixel global existente (`meta_ads_configs`) permanece como fallback opcional, não removido.
+- WhatsApp usa infra atual (`send-whatsapp` + `cron-worker`).
+- Preview ao vivo via render React inline (não iframe sandbox, mais leve).
+- Sem mudanças em CRM principal, Inbox, Automation Hub, etc.
+
+## Estimativa
+~1 migration grande + ~12 arquivos novos + ~8 edições. Total alto mas escopo confinado a Forms/Quiz.
+
+Pronto para executar na ordem acima assim que aprovado.

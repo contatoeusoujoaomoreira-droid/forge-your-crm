@@ -33,13 +33,19 @@ const QuizPublic = () => {
         const tracking = captureTracking();
         trackingRef.current = tracking;
         logFunnelEvent({ user_id: data.user_id, source_type: "quiz", source_id: data.id, event_type: "view", tracking });
-        const { data: meta } = await supabase.from("meta_ads_configs").select("pixel_id, pixel_enabled").eq("user_id", data.user_id).maybeSingle();
-        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        const localPixel = (data as any).pixel_config?.meta;
+        if (localPixel?.pixel_id && localPixel?.events?.PageView !== false) {
+          injectMetaPixel(localPixel.pixel_id);
+        } else {
+          const { data: meta } = await supabase.from("meta_ads_configs").select("pixel_id, pixel_enabled").eq("user_id", data.user_id).maybeSingle();
+          if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        }
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
 
   // Funnel start + step tracking
   useEffect(() => {
@@ -114,7 +120,7 @@ const QuizPublic = () => {
       }
       if (existing) {
         createdLeadId = existing.id;
-        await supabase.from("leads").update({ updated_at: new Date().toISOString(), notes: `Resultado: ${qualificationLabel} (Score: ${score})` } as any).eq("id", existing.id);
+        await supabase.from("leads").update({ updated_at: new Date().toISOString(), notes: `Resultado: ${qualificationLabel} (Score: ${score})`, source_quiz_id: quiz.id } as any).eq("id", existing.id);
       } else {
         const { data: inserted } = await supabase.from("leads").insert({
           name: leadInfo.name, email: emailClean, phone: phoneClean,
@@ -122,6 +128,7 @@ const QuizPublic = () => {
           status: "new", stage_id: stageId, user_id: quiz.user_id, value: 0,
           pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
           notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
+          source_quiz_id: quiz.id,
           tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
           priority: priority === "hot" ? "high" : priority === "warm" ? "medium" : "low",
           utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
@@ -132,6 +139,18 @@ const QuizPublic = () => {
         createdLeadId = inserted?.id || null;
       }
     }
+
+    // ===== Submission timeline (isolated per quiz) =====
+    await (supabase as any).from("quiz_submissions").insert({
+      user_id: quiz.user_id, quiz_id: quiz.id, lead_id: createdLeadId,
+      payload: { ...answers, _name: leadInfo.name, _email: leadInfo.email, _phone: leadInfo.phone },
+      score, result_label: matched?.title || null,
+      utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+      utm_content: tracking.content, utm_term: tracking.term,
+      referrer: tracking.referrer, landing_url: tracking.landing_url, user_agent: tracking.user_agent,
+      device_type: /Mobi|Android|iPhone/i.test(tracking.user_agent || "") ? "mobile" : "desktop",
+    });
+
 
     // Attribution touchpoint
     await supabase.from("attribution_touchpoints").insert({
@@ -181,9 +200,44 @@ const QuizPublic = () => {
       } as any);
     }
 
+    // ===== Owner Alert WhatsApp =====
+    const ownerAlert = (quiz as any).owner_alert || {};
+    if (ownerAlert.enabled && ownerAlert.phone && ownerAlert.message) {
+      const msg = String(ownerAlert.message)
+        .replace(/\{\{nome\}\}/g, leadInfo.name)
+        .replace(/\{\{email\}\}/g, emailClean || "")
+        .replace(/\{\{telefone\}\}/g, phoneClean || "")
+        .replace(/\{\{nome_do_forms\}\}/g, quiz.title)
+        .replace(/\{\{score\}\}/g, String(score))
+        .replace(/\{\{resultado_quiz\}\}|\{\{resultado\}\}/g, matched?.title || "")
+        .replace(/\{\{data\}\}/g, new Date().toLocaleString("pt-BR"))
+        .replace(/\{\{utm_source\}\}/g, tracking.source || "direct");
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_owner_alert",
+        _payload: { user_id: quiz.user_id, phone: ownerAlert.phone, message: msg, source_type: "quiz", source_id: quiz.id, lead_id: createdLeadId },
+        _tenant: quiz.user_id, _priority: 2, _max_attempts: 3,
+      } as any);
+    }
+
+    // ===== Post-submit redirect =====
+    const ps = (quiz as any).post_submit || {};
+    if (ps.mode === "url" && ps.url) {
+      if (ps.new_tab) window.open(ps.url, "_blank"); else window.location.href = ps.url;
+      setCurrentStep("done"); setSubmitting(false); return;
+    }
+    if (ps.mode === "form" && ps.target_form_id) {
+      const { data: tgt } = await supabase.from("forms").select("slug").eq("id", ps.target_form_id).maybeSingle();
+      if (tgt?.slug) {
+        const url = `/form/${tgt.slug}`;
+        if (ps.new_tab) window.open(url, "_blank"); else window.location.href = url;
+        setCurrentStep("done"); setSubmitting(false); return;
+      }
+    }
+
     setCurrentStep("done");
     setSubmitting(false);
   };
+
 
 
   const handleShare = () => {

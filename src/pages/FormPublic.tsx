@@ -34,7 +34,7 @@ const FormPublic = () => {
     const f = async () => {
       const { data } = await supabase
         .from("forms")
-        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, created_at, updated_at")
+        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, pixel_config, post_submit, owner_alert, webhook_url, created_at, updated_at")
         .eq("slug", slug)
         .eq("is_active", true)
         .eq("is_published", true)
@@ -52,18 +52,24 @@ const FormPublic = () => {
         trackingRef.current = tracking;
         logFunnelEvent({ user_id: data.user_id, source_type: "form", source_id: data.id, event_type: "view", tracking });
 
-        // Pixel: fetch user's pixel_id and inject
-        const { data: meta } = await supabase
-          .from("meta_ads_configs")
-          .select("pixel_id, pixel_enabled")
-          .eq("user_id", data.user_id)
-          .maybeSingle();
-        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        // Per-form pixel takes precedence, falls back to global meta_ads_configs
+        const localPixel = (data as any).pixel_config?.meta;
+        if (localPixel?.pixel_id && localPixel?.events?.PageView !== false) {
+          injectMetaPixel(localPixel.pixel_id);
+        } else {
+          const { data: meta } = await supabase
+            .from("meta_ads_configs")
+            .select("pixel_id, pixel_enabled")
+            .eq("user_id", data.user_id)
+            .maybeSingle();
+          if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        }
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
 
   // Track funnel `start` on first answer + `step` on step change
   useEffect(() => {
@@ -182,7 +188,7 @@ const FormPublic = () => {
 
         if (existing) {
           leadIdForTouchpoint = existing.id;
-          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName } as any).eq("id", existing.id);
+          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName, source_form_id: form.id } as any).eq("id", existing.id);
           await supabase.from("activities").insert({ user_id: form.user_id, lead_id: existing.id, type: "note", description: `Nova submissão do formulário "${form.title}" (${slug})` } as any);
         } else {
           const { data: inserted } = await supabase.from("leads").insert({
@@ -190,6 +196,7 @@ const FormPublic = () => {
             source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
             status: "new", stage_id: finalStageId, user_id: form.user_id,
             pipeline_id: pipelineId || null, tags: settings.autoTags || [],
+            source_form_id: form.id,
             utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
             utm_content: tracking.content, utm_term: tracking.term,
             ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
@@ -197,6 +204,7 @@ const FormPublic = () => {
           } as any).select("id").maybeSingle();
           leadIdForTouchpoint = inserted?.id || null;
         }
+
 
         // Attribution touchpoint
         await supabase.from("attribution_touchpoints").insert({
@@ -211,9 +219,19 @@ const FormPublic = () => {
         } as any);
       }
     }
+    // ===== Submission timeline (always insert, isolated per form) =====
+    await (supabase as any).from("form_submissions").insert({
+      user_id: form.user_id, form_id: form.id, lead_id: leadIdForTouchpoint,
+      payload: responses,
+      utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+      utm_content: tracking.content, utm_term: tracking.term,
+      referrer: tracking.referrer, landing_url: tracking.landing_url, user_agent: tracking.user_agent,
+      device_type: /Mobi|Android|iPhone/i.test(tracking.user_agent || "") ? "mobile" : "desktop",
+    });
 
     // ===== Funnel complete =====
     logFunnelEvent({ user_id: form.user_id, source_type: "form", source_id: form.id, event_type: "complete", tracking, meta: { lead_id: leadIdForTouchpoint } });
+
 
     // ===== Notification for form owner =====
     await supabase.from("notifications").insert({
@@ -260,6 +278,41 @@ const FormPublic = () => {
       try { fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {}); } catch {}
     }
 
+    // ===== Owner Alert WhatsApp =====
+    const ownerAlert = (form as any).owner_alert || {};
+    if (ownerAlert.enabled && ownerAlert.phone && ownerAlert.message) {
+      const msg = String(ownerAlert.message)
+        .replace(/\{\{nome\}\}/g, leadName)
+        .replace(/\{\{email\}\}/g, leadEmail || "")
+        .replace(/\{\{telefone\}\}/g, leadPhone || "")
+        .replace(/\{\{nome_do_forms\}\}/g, form.title)
+        .replace(/\{\{data\}\}/g, new Date().toLocaleString("pt-BR"))
+        .replace(/\{\{utm_source\}\}/g, tracking.source || "direct");
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_owner_alert",
+        _payload: { user_id: form.user_id, phone: ownerAlert.phone, message: msg, source_type: "form", source_id: form.id, lead_id: leadIdForTouchpoint },
+        _tenant: form.user_id, _priority: 2, _max_attempts: 3,
+      } as any);
+    }
+
+    // ===== Post-submit redirect =====
+    const ps = (form as any).post_submit || {};
+    if (ps.mode === "url" && ps.url) {
+      if (ps.new_tab) window.open(ps.url, "_blank"); else window.location.href = ps.url;
+      setSubmitted(true);
+      return;
+    }
+    if (ps.mode === "form" && ps.target_form_id) {
+      // resolve slug
+      const { data: tgt } = await supabase.from("forms").select("slug").eq("id", ps.target_form_id).maybeSingle();
+      if (tgt?.slug) {
+        const url = `/form/${tgt.slug}`;
+        if (ps.new_tab) window.open(url, "_blank"); else window.location.href = url;
+        setSubmitted(true);
+        return;
+      }
+    }
+
     // WhatsApp redirect (manual click-through)
     if (form.whatsapp_redirect) {
       const waUrl = buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers);
@@ -271,6 +324,7 @@ const FormPublic = () => {
     if (settings.redirectUrl) { window.location.href = settings.redirectUrl; return; }
     setSubmitted(true);
   };
+
 
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><div className="h-8 w-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" /></div>;
@@ -304,11 +358,14 @@ const FormPublic = () => {
   );
 
   if (submitted) {
+    const psSub = (form as any).post_submit || {};
+    const ty = psSub.mode === "thankyou" ? psSub.thankyou || {} : null;
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: bgColor, color: textColor, fontFamily }}>
-        <div className="text-center space-y-4 p-8" style={{ animation: "fadeUp .4s ease" }}>
+        <div className="text-center space-y-4 p-8 max-w-lg" style={{ animation: "fadeUp .4s ease" }}>
           <div className="text-5xl">✅</div>
-          <h2 className="text-2xl font-bold">{settings.successMessage || "Obrigado!"}</h2>
+          <h2 className="text-2xl font-bold">{ty?.title || settings.successMessage || "Obrigado!"}</h2>
+          {ty?.message && <p style={{ color: `${textColor}99`, whiteSpace: "pre-wrap" }}>{ty.message}</p>}
           {form.whatsapp_redirect && (
             <button onClick={() => window.open(buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers), "_blank")}
               style={{ padding: "14px 28px", background: "#25D366", color: "#fff", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 8, marginTop: 16 }}>
@@ -320,6 +377,7 @@ const FormPublic = () => {
       </div>
     );
   }
+
 
   // Welcome Screen
   if (currentStep === -1 && welcomeScreen?.enabled) {

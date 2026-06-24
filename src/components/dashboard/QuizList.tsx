@@ -10,6 +10,11 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, FileQuestion, Copy, Pencil, Trash2, Eye, Sparkles, BarChart3, ExternalLink, Users, TrendingUp, MessageCircle, Link2, Image } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import FormLeadsKanban from "./FormLeadsKanban";
+import FormAnalyticsPage from "./FormAnalyticsPage";
+import PixelConfigPanel from "./PixelConfigPanel";
+import PostSubmitAndAlertPanel from "./PostSubmitAndAlertPanel";
+
 
 interface Question {
   id: string; text: string; type: "text" | "multiple_choice";
@@ -109,7 +114,10 @@ const QuizList = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [editorTab, setEditorTab] = useState<"questions" | "results" | "crm" | "style" | "whatsapp">("questions");
+  const [editorTab, setEditorTab] = useState<"questions" | "results" | "crm" | "style" | "whatsapp" | "integrations" | "automations">("questions");
+  const [kanbanFor, setKanbanFor] = useState<{ id: string; title: string } | null>(null);
+  const [analyticsFor, setAnalyticsFor] = useState<{ id: string; title: string } | null>(null);
+
   const { toast } = useToast();
 
   const fetchQuizzes = async () => {
@@ -171,7 +179,11 @@ const QuizList = () => {
       meta_event_name: editing.meta_event_name || null,
       meta_event_value: editing.meta_event_value ?? 0,
       meta_event_currency: editing.meta_event_currency || "BRL",
+      pixel_config: (editing as any).pixel_config || {},
+      post_submit: (editing as any).post_submit || {},
+      owner_alert: (editing as any).owner_alert || {},
     };
+
     if (editing.id) {
       const { error } = await supabase.from("quizzes").update(payload as any).eq("id", editing.id);
       if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
@@ -202,7 +214,11 @@ const QuizList = () => {
   const selectedPipelineStages = editing?.settings?.pipelineId ? stages.filter(s => s.pipeline_id === editing.settings.pipelineId) : stages;
 
   // Analytics
+  if (kanbanFor) return <FormLeadsKanban sourceType="quiz" sourceId={kanbanFor.id} sourceTitle={kanbanFor.title} onBack={() => setKanbanFor(null)} />;
+  if (analyticsFor) return <FormAnalyticsPage sourceType="quiz" sourceId={analyticsFor.id} sourceTitle={analyticsFor.title} onBack={() => setAnalyticsFor(null)} />;
+
   if (showAnalytics) {
+
     const totalResp = quizzes.reduce((s, q) => s + (q._responseCount || 0), 0);
     const topQ = [...quizzes].sort((a, b) => (b._responseCount || 0) - (a._responseCount || 0)).slice(0, 6);
     const chartData = topQ.map(q => ({ name: q.title.substring(0, 15), respostas: q._responseCount || 0 }));
@@ -286,6 +302,9 @@ const QuizList = () => {
             { id: "crm" as const, label: "CRM", icon: "👥" },
             { id: "whatsapp" as const, label: "WhatsApp", icon: "💬" },
             { id: "style" as const, label: "Estilo", icon: "🎨" },
+            { id: "integrations" as const, label: "Integrações", icon: "🔌" },
+            { id: "automations" as const, label: "Automações", icon: "⚡" },
+
           ].map(tab => (
             <button key={tab.id} onClick={() => setEditorTab(tab.id)} className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${editorTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               <span>{tab.icon}</span> {tab.label}
@@ -528,7 +547,22 @@ const QuizList = () => {
                 <label className="flex items-center gap-2 text-xs"><Switch checked={editing.settings?.showProgressBar ?? true} onCheckedChange={v => setEditing({ ...editing, settings: { ...editing.settings, showProgressBar: v } })} /> Barra de progresso</label>
               </div>
             )}
+
+            {editorTab === "integrations" && (
+              <PixelConfigPanel value={(editing as any).pixel_config || {}} onChange={v => setEditing({ ...editing, pixel_config: v } as any)} sourceType="quiz" sourceId={editing.id} userId={user?.id} />
+            )}
+            {editorTab === "automations" && (
+              <PostSubmitAndAlertPanel
+                postSubmit={(editing as any).post_submit || {}}
+                onPostSubmitChange={v => setEditing({ ...editing, post_submit: v } as any)}
+                ownerAlert={(editing as any).owner_alert || {}}
+                onOwnerAlertChange={v => setEditing({ ...editing, owner_alert: v } as any)}
+                userId={user?.id}
+                sourceTitle={editing.title}
+              />
+            )}
           </div>
+
 
           {/* Preview */}
           {showPreview && (
@@ -608,7 +642,9 @@ const QuizList = () => {
               </div>
               {quiz.description && <p className="text-xs text-muted-foreground line-clamp-2">{quiz.description}</p>}
               <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{quiz.questions.length} perguntas</span><span>{quiz._responseCount} respostas</span></div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setKanbanFor({ id: quiz.id, title: quiz.title })}><Users className="h-3 w-3 mr-1" /> Ver leads</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsFor({ id: quiz.id, title: quiz.title })}><BarChart3 className="h-3 w-3 mr-1" /> Métricas</Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...quiz }); setEditorTab("questions"); }}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCopyLink(quiz.slug)}><Copy className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => fetchResponses(quiz.id)}><Eye className="h-3 w-3" /></Button>
@@ -617,6 +653,7 @@ const QuizList = () => {
                 )}
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(quiz.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
               </div>
+
             </div>
           ))}
         </div>

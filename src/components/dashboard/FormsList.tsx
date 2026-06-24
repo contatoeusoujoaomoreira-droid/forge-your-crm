@@ -11,6 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, FileText, Copy, Pencil, Trash2, Eye, Sparkles, ChevronUp, ChevronDown, BarChart3, ExternalLink, Users, TrendingUp, Target, MessageCircle, Link2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import LeadViewer from "./LeadViewer";
+import FormLeadsKanban from "./FormLeadsKanban";
+import FormAnalyticsPage from "./FormAnalyticsPage";
+import PixelConfigPanel from "./PixelConfigPanel";
+import PostSubmitAndAlertPanel from "./PostSubmitAndAlertPanel";
+
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 
@@ -229,10 +234,13 @@ const FormsList = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [kanbanFor, setKanbanFor] = useState<{ id: string; title: string } | null>(null);
+  const [analyticsFor, setAnalyticsFor] = useState<{ id: string; title: string } | null>(null);
+
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
-  const [editorTab, setEditorTab] = useState<"editor" | "crm" | "appearance" | "templates" | "forms">("editor");
+  const [editorTab, setEditorTab] = useState<"editor" | "crm" | "appearance" | "templates" | "forms" | "integrations" | "automations">("editor");
   const { toast } = useToast();
 
   const fetchLeads = async () => {
@@ -304,7 +312,11 @@ const FormsList = () => {
       whatsapp_auto_send: editing.whatsapp_auto_send, whatsapp_auto_delay_seconds: editing.whatsapp_auto_delay_seconds,
       whatsapp_auto_message: editing.whatsapp_auto_message,
       meta_event_name: editing.meta_event_name, meta_event_value: editing.meta_event_value, meta_event_currency: editing.meta_event_currency,
+      pixel_config: (editing as any).pixel_config || {},
+      post_submit: (editing as any).post_submit || {},
+      owner_alert: (editing as any).owner_alert || {},
     };
+
     if (editing.id) {
       const { error } = await supabase.from("forms").update(payload as any).eq("id", editing.id);
       if (error) { toast({ title: "Erro ao salvar", variant: "destructive" }); return; }
@@ -336,7 +348,12 @@ const FormsList = () => {
     setEditing({ ...editing, fields: f });
   };
 
+  // Per-form Kanban / Analytics
+  if (kanbanFor) return <FormLeadsKanban sourceType="form" sourceId={kanbanFor.id} sourceTitle={kanbanFor.title} onBack={() => setKanbanFor(null)} />;
+  if (analyticsFor) return <FormAnalyticsPage sourceType="form" sourceId={analyticsFor.id} sourceTitle={analyticsFor.title} onBack={() => setAnalyticsFor(null)} />;
+
   // Analytics View
+
   if (showAnalytics) {
     const totalResponses = forms.reduce((s, f) => s + (f._responseCount || 0), 0);
     const topForms = [...forms].sort((a, b) => (b._responseCount || 0) - (a._responseCount || 0)).slice(0, 6);
@@ -419,8 +436,11 @@ const FormsList = () => {
       { id: "editor" as const, label: "Editor", icon: "⚙️" },
       { id: "crm" as const, label: "CRM", icon: "👥" },
       { id: "appearance" as const, label: "Aparência", icon: "🎨" },
+      { id: "integrations" as const, label: "Integrações", icon: "🔌" },
+      { id: "automations" as const, label: "Automações", icon: "⚡" },
       { id: "forms" as const, label: `Meus Forms (${forms.length})`, icon: "👁️" },
     ];
+
 
     return (
       <div className="space-y-4">
@@ -764,9 +784,24 @@ const FormsList = () => {
             </div>
           </div>
         )}
+
+        {editorTab === "integrations" && (
+          <PixelConfigPanel value={(editing as any).pixel_config || {}} onChange={v => setEditing({ ...editing, pixel_config: v } as any)} sourceType="form" sourceId={editing.id} userId={user?.id} />
+        )}
+        {editorTab === "automations" && (
+          <PostSubmitAndAlertPanel
+            postSubmit={(editing as any).post_submit || {}}
+            onPostSubmitChange={v => setEditing({ ...editing, post_submit: v } as any)}
+            ownerAlert={(editing as any).owner_alert || {}}
+            onOwnerAlertChange={v => setEditing({ ...editing, owner_alert: v } as any)}
+            userId={user?.id}
+            sourceTitle={editing.title}
+          />
+        )}
       </div>
     );
   }
+
 
   // Templates modal
   if (showTemplates) {
@@ -823,7 +858,9 @@ const FormsList = () => {
               </div>
               {form.description && <p className="text-xs text-muted-foreground line-clamp-2">{form.description}</p>}
               <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{form.fields.length} campos</span><span>{form._responseCount} respostas</span></div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setKanbanFor({ id: form.id, title: form.title })}><Users className="h-3 w-3 mr-1" /> Ver leads</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsFor({ id: form.id, title: form.title })}><BarChart3 className="h-3 w-3 mr-1" /> Métricas</Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...form }); setEditorTab("editor"); }}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCopyLink(form.slug)}><Copy className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => fetchResponses(form.id)}><Eye className="h-3 w-3" /></Button>
@@ -832,6 +869,7 @@ const FormsList = () => {
                 )}
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(form.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
               </div>
+
             </div>
           ))}
         </div>

@@ -33,3 +33,7 @@ verify_jwt = false
 [functions.meta-capi]
 verify_jwt = false
 
+[functions.google-ga4]
+verify_jwt = false
+
+

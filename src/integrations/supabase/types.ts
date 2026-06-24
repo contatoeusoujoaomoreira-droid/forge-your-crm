@@ -1616,6 +1616,47 @@ export type Database = {
         }
         Relationships: []
       }
+      form_kanban_columns: {
+        Row: {
+          color: string
+          created_at: string
+          form_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          form_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          form_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_kanban_columns_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_responses: {
         Row: {
           completed_at: string
@@ -1655,6 +1696,81 @@ export type Database = {
           },
         ]
       }
+      form_submissions: {
+        Row: {
+          created_at: string
+          device_type: string | null
+          form_id: string
+          id: string
+          ip_address: string | null
+          landing_url: string | null
+          lead_id: string | null
+          payload: Json
+          referrer: string | null
+          submitted_at: string
+          user_agent: string | null
+          user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string | null
+          form_id: string
+          id?: string
+          ip_address?: string | null
+          landing_url?: string | null
+          lead_id?: string | null
+          payload?: Json
+          referrer?: string | null
+          submitted_at?: string
+          user_agent?: string | null
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_type?: string | null
+          form_id?: string
+          id?: string
+          ip_address?: string | null
+          landing_url?: string | null
+          lead_id?: string | null
+          payload?: Json
+          referrer?: string | null
+          submitted_at?: string
+          user_agent?: string | null
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forms: {
         Row: {
           created_at: string
@@ -1667,7 +1783,10 @@ export type Database = {
           meta_event_name: string | null
           meta_event_value: number | null
           notification_email: string | null
+          owner_alert: Json
           pipeline_id: string | null
+          pixel_config: Json
+          post_submit: Json
           settings: Json
           slug: string
           stage_id: string | null
@@ -1693,7 +1812,10 @@ export type Database = {
           meta_event_name?: string | null
           meta_event_value?: number | null
           notification_email?: string | null
+          owner_alert?: Json
           pipeline_id?: string | null
+          pixel_config?: Json
+          post_submit?: Json
           settings?: Json
           slug: string
           stage_id?: string | null
@@ -1719,7 +1841,10 @@ export type Database = {
           meta_event_name?: string | null
           meta_event_value?: number | null
           notification_email?: string | null
+          owner_alert?: Json
           pipeline_id?: string | null
+          pixel_config?: Json
+          post_submit?: Json
           settings?: Json
           slug?: string
           stage_id?: string | null
@@ -1999,6 +2124,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          archived: boolean
           company: string | null
           contract_months: number | null
           created_at: string
@@ -2025,6 +2151,8 @@ export type Database = {
           referrer: string | null
           revenue_type: string | null
           source: string | null
+          source_form_id: string | null
+          source_quiz_id: string | null
           stage_id: string | null
           status: string
           tags: string[] | null
@@ -2042,6 +2170,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          archived?: boolean
           company?: string | null
           contract_months?: number | null
           created_at?: string
@@ -2068,6 +2197,8 @@ export type Database = {
           referrer?: string | null
           revenue_type?: string | null
           source?: string | null
+          source_form_id?: string | null
+          source_quiz_id?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
@@ -2085,6 +2216,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          archived?: boolean
           company?: string | null
           contract_months?: number | null
           created_at?: string
@@ -2111,6 +2243,8 @@ export type Database = {
           referrer?: string | null
           revenue_type?: string | null
           source?: string | null
+          source_form_id?: string | null
+          source_quiz_id?: string | null
           stage_id?: string | null
           status?: string
           tags?: string[] | null
@@ -2128,6 +2262,20 @@ export type Database = {
           website?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_source_form_id_fkey"
+            columns: ["source_form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_source_quiz_id_fkey"
+            columns: ["source_quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "leads_stage_id_fkey"
             columns: ["stage_id"]
@@ -3011,6 +3159,47 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_kanban_columns: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          quiz_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          quiz_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          quiz_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_kanban_columns_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quiz_responses: {
         Row: {
           completed_at: string
@@ -3050,6 +3239,87 @@ export type Database = {
           },
         ]
       }
+      quiz_submissions: {
+        Row: {
+          created_at: string
+          device_type: string | null
+          id: string
+          ip_address: string | null
+          landing_url: string | null
+          lead_id: string | null
+          payload: Json
+          quiz_id: string
+          referrer: string | null
+          result_label: string | null
+          score: number | null
+          submitted_at: string
+          user_agent: string | null
+          user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_url?: string | null
+          lead_id?: string | null
+          payload?: Json
+          quiz_id: string
+          referrer?: string | null
+          result_label?: string | null
+          score?: number | null
+          submitted_at?: string
+          user_agent?: string | null
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_url?: string | null
+          lead_id?: string | null
+          payload?: Json
+          quiz_id?: string
+          referrer?: string | null
+          result_label?: string | null
+          score?: number | null
+          submitted_at?: string
+          user_agent?: string | null
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_submissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_submissions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quizzes: {
         Row: {
           created_at: string
@@ -3060,7 +3330,10 @@ export type Database = {
           meta_event_currency: string | null
           meta_event_name: string | null
           meta_event_value: number | null
+          owner_alert: Json
           pipeline_id: string | null
+          pixel_config: Json
+          post_submit: Json
           questions: Json
           settings: Json | null
           slug: string
@@ -3083,7 +3356,10 @@ export type Database = {
           meta_event_currency?: string | null
           meta_event_name?: string | null
           meta_event_value?: number | null
+          owner_alert?: Json
           pipeline_id?: string | null
+          pixel_config?: Json
+          post_submit?: Json
           questions?: Json
           settings?: Json | null
           slug: string
@@ -3106,7 +3382,10 @@ export type Database = {
           meta_event_currency?: string | null
           meta_event_name?: string | null
           meta_event_value?: number | null
+          owner_alert?: Json
           pipeline_id?: string | null
+          pixel_config?: Json
+          post_submit?: Json
           questions?: Json
           settings?: Json | null
           slug?: string
