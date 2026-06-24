@@ -642,7 +642,9 @@ const QuizList = () => {
               </div>
               {quiz.description && <p className="text-xs text-muted-foreground line-clamp-2">{quiz.description}</p>}
               <div className="flex items-center gap-3 text-xs text-muted-foreground"><span>{quiz.questions.length} perguntas</span><span>{quiz._responseCount} respostas</span></div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setKanbanFor({ id: quiz.id, title: quiz.title })}><Users className="h-3 w-3 mr-1" /> Ver leads</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsFor({ id: quiz.id, title: quiz.title })}><BarChart3 className="h-3 w-3 mr-1" /> Métricas</Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...quiz }); setEditorTab("questions"); }}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCopyLink(quiz.slug)}><Copy className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => fetchResponses(quiz.id)}><Eye className="h-3 w-3" /></Button>
@@ -651,6 +653,7 @@ const QuizList = () => {
                 )}
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(quiz.id)} className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
               </div>
+
             </div>
           ))}
         </div>
