@@ -188,7 +188,7 @@ const FormPublic = () => {
 
         if (existing) {
           leadIdForTouchpoint = existing.id;
-          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName } as any).eq("id", existing.id);
+          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName, source_form_id: form.id } as any).eq("id", existing.id);
           await supabase.from("activities").insert({ user_id: form.user_id, lead_id: existing.id, type: "note", description: `Nova submissão do formulário "${form.title}" (${slug})` } as any);
         } else {
           const { data: inserted } = await supabase.from("leads").insert({
@@ -196,6 +196,7 @@ const FormPublic = () => {
             source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
             status: "new", stage_id: finalStageId, user_id: form.user_id,
             pipeline_id: pipelineId || null, tags: settings.autoTags || [],
+            source_form_id: form.id,
             utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
             utm_content: tracking.content, utm_term: tracking.term,
             ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
@@ -203,6 +204,7 @@ const FormPublic = () => {
           } as any).select("id").maybeSingle();
           leadIdForTouchpoint = inserted?.id || null;
         }
+
 
         // Attribution touchpoint
         await supabase.from("attribution_touchpoints").insert({
