@@ -34,7 +34,7 @@ const FormPublic = () => {
     const f = async () => {
       const { data } = await supabase
         .from("forms")
-        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, created_at, updated_at")
+        .select("id, user_id, title, description, slug, is_active, is_published, fields, settings, style, pipeline_id, stage_id, whatsapp_redirect, whatsapp_message, whatsapp_auto_send, whatsapp_auto_delay_seconds, whatsapp_auto_message, meta_event_name, meta_event_value, meta_event_currency, pixel_config, post_submit, owner_alert, webhook_url, created_at, updated_at")
         .eq("slug", slug)
         .eq("is_active", true)
         .eq("is_published", true)
@@ -52,18 +52,24 @@ const FormPublic = () => {
         trackingRef.current = tracking;
         logFunnelEvent({ user_id: data.user_id, source_type: "form", source_id: data.id, event_type: "view", tracking });
 
-        // Pixel: fetch user's pixel_id and inject
-        const { data: meta } = await supabase
-          .from("meta_ads_configs")
-          .select("pixel_id, pixel_enabled")
-          .eq("user_id", data.user_id)
-          .maybeSingle();
-        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        // Per-form pixel takes precedence, falls back to global meta_ads_configs
+        const localPixel = (data as any).pixel_config?.meta;
+        if (localPixel?.pixel_id && localPixel?.events?.PageView !== false) {
+          injectMetaPixel(localPixel.pixel_id);
+        } else {
+          const { data: meta } = await supabase
+            .from("meta_ads_configs")
+            .select("pixel_id, pixel_enabled")
+            .eq("user_id", data.user_id)
+            .maybeSingle();
+          if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        }
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
 
   // Track funnel `start` on first answer + `step` on step change
   useEffect(() => {
