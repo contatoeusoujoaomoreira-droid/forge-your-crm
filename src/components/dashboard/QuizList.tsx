@@ -214,7 +214,11 @@ const QuizList = () => {
   const selectedPipelineStages = editing?.settings?.pipelineId ? stages.filter(s => s.pipeline_id === editing.settings.pipelineId) : stages;
 
   // Analytics
+  if (kanbanFor) return <FormLeadsKanban sourceType="quiz" sourceId={kanbanFor.id} sourceTitle={kanbanFor.title} onBack={() => setKanbanFor(null)} />;
+  if (analyticsFor) return <FormAnalyticsPage sourceType="quiz" sourceId={analyticsFor.id} sourceTitle={analyticsFor.title} onBack={() => setAnalyticsFor(null)} />;
+
   if (showAnalytics) {
+
     const totalResp = quizzes.reduce((s, q) => s + (q._responseCount || 0), 0);
     const topQ = [...quizzes].sort((a, b) => (b._responseCount || 0) - (a._responseCount || 0)).slice(0, 6);
     const chartData = topQ.map(q => ({ name: q.title.substring(0, 15), respostas: q._responseCount || 0 }));
