@@ -234,6 +234,9 @@ const FormsList = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [kanbanFor, setKanbanFor] = useState<{ id: string; title: string } | null>(null);
+  const [analyticsFor, setAnalyticsFor] = useState<{ id: string; title: string } | null>(null);
+
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
