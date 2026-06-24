@@ -33,13 +33,19 @@ const QuizPublic = () => {
         const tracking = captureTracking();
         trackingRef.current = tracking;
         logFunnelEvent({ user_id: data.user_id, source_type: "quiz", source_id: data.id, event_type: "view", tracking });
-        const { data: meta } = await supabase.from("meta_ads_configs").select("pixel_id, pixel_enabled").eq("user_id", data.user_id).maybeSingle();
-        if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        const localPixel = (data as any).pixel_config?.meta;
+        if (localPixel?.pixel_id && localPixel?.events?.PageView !== false) {
+          injectMetaPixel(localPixel.pixel_id);
+        } else {
+          const { data: meta } = await supabase.from("meta_ads_configs").select("pixel_id, pixel_enabled").eq("user_id", data.user_id).maybeSingle();
+          if (meta?.pixel_enabled && meta.pixel_id) injectMetaPixel(meta.pixel_id);
+        }
       }
       setLoading(false);
     };
     f();
   }, [slug]);
+
 
   // Funnel start + step tracking
   useEffect(() => {
