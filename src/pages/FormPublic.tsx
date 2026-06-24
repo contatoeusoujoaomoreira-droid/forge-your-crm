@@ -278,6 +278,41 @@ const FormPublic = () => {
       try { fetch(form.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form_id: form.id, form_title: form.title, responses, submitted_at: new Date().toISOString() }) }).catch(() => {}); } catch {}
     }
 
+    // ===== Owner Alert WhatsApp =====
+    const ownerAlert = (form as any).owner_alert || {};
+    if (ownerAlert.enabled && ownerAlert.phone && ownerAlert.message) {
+      const msg = String(ownerAlert.message)
+        .replace(/\{\{nome\}\}/g, leadName)
+        .replace(/\{\{email\}\}/g, leadEmail || "")
+        .replace(/\{\{telefone\}\}/g, leadPhone || "")
+        .replace(/\{\{nome_do_forms\}\}/g, form.title)
+        .replace(/\{\{data\}\}/g, new Date().toLocaleString("pt-BR"))
+        .replace(/\{\{utm_source\}\}/g, tracking.source || "direct");
+      await supabase.rpc("enqueue_job", {
+        _kind: "form_owner_alert",
+        _payload: { user_id: form.user_id, phone: ownerAlert.phone, message: msg, source_type: "form", source_id: form.id, lead_id: leadIdForTouchpoint },
+        _tenant: form.user_id, _priority: 2, _max_attempts: 3,
+      } as any);
+    }
+
+    // ===== Post-submit redirect =====
+    const ps = (form as any).post_submit || {};
+    if (ps.mode === "url" && ps.url) {
+      if (ps.new_tab) window.open(ps.url, "_blank"); else window.location.href = ps.url;
+      setSubmitted(true);
+      return;
+    }
+    if (ps.mode === "form" && ps.target_form_id) {
+      // resolve slug
+      const { data: tgt } = await supabase.from("forms").select("slug").eq("id", ps.target_form_id).maybeSingle();
+      if (tgt?.slug) {
+        const url = `/form/${tgt.slug}`;
+        if (ps.new_tab) window.open(url, "_blank"); else window.location.href = url;
+        setSubmitted(true);
+        return;
+      }
+    }
+
     // WhatsApp redirect (manual click-through)
     if (form.whatsapp_redirect) {
       const waUrl = buildWhatsAppUrl(form.whatsapp_redirect, form.whatsapp_message || "", answers);
@@ -289,6 +324,7 @@ const FormPublic = () => {
     if (settings.redirectUrl) { window.location.href = settings.redirectUrl; return; }
     setSubmitted(true);
   };
+
 
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-white"><div className="h-8 w-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" /></div>;
