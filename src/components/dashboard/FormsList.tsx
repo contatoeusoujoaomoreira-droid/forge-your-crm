@@ -11,6 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, FileText, Copy, Pencil, Trash2, Eye, Sparkles, ChevronUp, ChevronDown, BarChart3, ExternalLink, Users, TrendingUp, Target, MessageCircle, Link2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import LeadViewer from "./LeadViewer";
+import FormLeadsKanban from "./FormLeadsKanban";
+import FormAnalyticsPage from "./FormAnalyticsPage";
+import PixelConfigPanel from "./PixelConfigPanel";
+import PostSubmitAndAlertPanel from "./PostSubmitAndAlertPanel";
+
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 
