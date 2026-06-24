@@ -432,8 +432,11 @@ const FormsList = () => {
       { id: "editor" as const, label: "Editor", icon: "⚙️" },
       { id: "crm" as const, label: "CRM", icon: "👥" },
       { id: "appearance" as const, label: "Aparência", icon: "🎨" },
+      { id: "integrations" as const, label: "Integrações", icon: "🔌" },
+      { id: "automations" as const, label: "Automações", icon: "⚡" },
       { id: "forms" as const, label: `Meus Forms (${forms.length})`, icon: "👁️" },
     ];
+
 
     return (
       <div className="space-y-4">
