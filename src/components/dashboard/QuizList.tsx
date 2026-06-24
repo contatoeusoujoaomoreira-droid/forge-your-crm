@@ -179,7 +179,11 @@ const QuizList = () => {
       meta_event_name: editing.meta_event_name || null,
       meta_event_value: editing.meta_event_value ?? 0,
       meta_event_currency: editing.meta_event_currency || "BRL",
+      pixel_config: (editing as any).pixel_config || {},
+      post_submit: (editing as any).post_submit || {},
+      owner_alert: (editing as any).owner_alert || {},
     };
+
     if (editing.id) {
       const { error } = await supabase.from("quizzes").update(payload as any).eq("id", editing.id);
       if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
