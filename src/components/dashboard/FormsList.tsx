@@ -240,7 +240,7 @@ const FormsList = () => {
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
-  const [editorTab, setEditorTab] = useState<"editor" | "crm" | "appearance" | "templates" | "forms">("editor");
+  const [editorTab, setEditorTab] = useState<"editor" | "crm" | "appearance" | "templates" | "forms" | "integrations" | "automations">("editor");
   const { toast } = useToast();
 
   const fetchLeads = async () => {
