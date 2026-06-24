@@ -10,6 +10,11 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, FileQuestion, Copy, Pencil, Trash2, Eye, Sparkles, BarChart3, ExternalLink, Users, TrendingUp, MessageCircle, Link2, Image } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import FormLeadsKanban from "./FormLeadsKanban";
+import FormAnalyticsPage from "./FormAnalyticsPage";
+import PixelConfigPanel from "./PixelConfigPanel";
+import PostSubmitAndAlertPanel from "./PostSubmitAndAlertPanel";
+
 
 interface Question {
   id: string; text: string; type: "text" | "multiple_choice";
