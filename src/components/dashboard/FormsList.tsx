@@ -344,7 +344,12 @@ const FormsList = () => {
     setEditing({ ...editing, fields: f });
   };
 
+  // Per-form Kanban / Analytics
+  if (kanbanFor) return <FormLeadsKanban sourceType="form" sourceId={kanbanFor.id} sourceTitle={kanbanFor.title} onBack={() => setKanbanFor(null)} />;
+  if (analyticsFor) return <FormAnalyticsPage sourceType="form" sourceId={analyticsFor.id} sourceTitle={analyticsFor.title} onBack={() => setAnalyticsFor(null)} />;
+
   // Analytics View
+
   if (showAnalytics) {
     const totalResponses = forms.reduce((s, f) => s + (f._responseCount || 0), 0);
     const topForms = [...forms].sort((a, b) => (b._responseCount || 0) - (a._responseCount || 0)).slice(0, 6);
