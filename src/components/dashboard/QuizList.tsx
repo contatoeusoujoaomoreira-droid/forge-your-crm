@@ -114,7 +114,10 @@ const QuizList = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id?: string | null }[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [editorTab, setEditorTab] = useState<"questions" | "results" | "crm" | "style" | "whatsapp">("questions");
+  const [editorTab, setEditorTab] = useState<"questions" | "results" | "crm" | "style" | "whatsapp" | "integrations" | "automations">("questions");
+  const [kanbanFor, setKanbanFor] = useState<{ id: string; title: string } | null>(null);
+  const [analyticsFor, setAnalyticsFor] = useState<{ id: string; title: string } | null>(null);
+
   const { toast } = useToast();
 
   const fetchQuizzes = async () => {
