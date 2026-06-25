@@ -286,20 +286,31 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {openLead && (
             <>
-              <SheetHeader><SheetTitle>{openLead.name}</SheetTitle></SheetHeader>
+              <SheetHeader>
+                <SheetTitle className="flex items-center justify-between gap-2">
+                  <span className="truncate">{openLead.name}</span>
+                  <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={deleteLead}><Trash2 className="h-3.5 w-3.5 mr-1" />Excluir</Button>
+                </SheetTitle>
+              </SheetHeader>
               <Tabs defaultValue="info" className="mt-4">
                 <TabsList className="grid grid-cols-3"><TabsTrigger value="info">Informações</TabsTrigger><TabsTrigger value="activities">Atividades</TabsTrigger><TabsTrigger value="automations">Automações</TabsTrigger></TabsList>
                 <TabsContent value="info" className="space-y-3 mt-3">
-                  <div className="text-xs space-y-1">
-                    <p><b>Email:</b> {openLead.email || "-"}</p>
-                    <p><b>Telefone:</b> {openLead.phone || "-"}</p>
+                  <div className="space-y-2 text-xs">
+                    <div><label className="text-muted-foreground">Nome</label><Input value={editForm.name || ""} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Email</label><Input value={editForm.email || ""} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Telefone</label><Input value={editForm.phone || ""} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Tags (separadas por vírgula)</label><Input value={(editForm.tags || []).join(", ")} onChange={e => setEditForm({ ...editForm, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Notas</label><Textarea value={editForm.notes || ""} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={3} className="text-xs" /></div>
+                    <Button size="sm" onClick={saveLeadEdits} className="w-full"><Save className="h-3 w-3 mr-1" />Salvar alterações</Button>
+                  </div>
+                  <div className="border-t border-border pt-2 text-[11px] text-muted-foreground space-y-0.5">
                     <p><b>Origem UTM:</b> {openLead.utm_source || "-"} / {openLead.utm_medium || "-"} / {openLead.utm_campaign || "-"}</p>
                     <p><b>Criado em:</b> {new Date(openLead.created_at).toLocaleString("pt-BR")}</p>
-                    <p><b>Tags:</b> {(openLead.tags || []).join(", ") || "-"}</p>
+                    <p><b>Etapa atual:</b> {columns.find(c => c.id === openLead.stage_id)?.name || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold mb-2">Timeline de submissões ({submissions.length})</p>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
                       {submissions.map(s => (
                         <div key={s.id} className="border border-border rounded-md p-2 text-[11px]">
                           <p className="text-muted-foreground">{new Date(s.submitted_at).toLocaleString("pt-BR")} · {s.utm_source || "direct"}</p>
