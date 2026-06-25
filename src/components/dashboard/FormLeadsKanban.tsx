@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, Pencil, MessageCircle, Search, Download, Archive, Tag as TagIcon, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, MessageCircle, Search, Download, Archive, Tag as TagIcon, Trash2, LayoutGrid, List, Save } from "lucide-react";
 
 interface Column { id: string; name: string; color: string; position: number; }
 interface Lead {
@@ -37,9 +37,11 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
   const [period, setPeriod] = useState<"all" | "today" | "week" | "month">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openLead, setOpenLead] = useState<Lead | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Lead>>({});
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [newColName, setNewColName] = useState("");
   const [editingCol, setEditingCol] = useState<string | null>(null);
+  const [view, setView] = useState<"kanban" | "list">("kanban");
 
   const colTable = sourceType === "form" ? "form_kanban_columns" : "quiz_kanban_columns";
   const subTable = sourceType === "form" ? "form_submissions" : "quiz_submissions";
@@ -60,8 +62,27 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
 
   const openLeadDetails = async (lead: Lead) => {
     setOpenLead(lead);
+    setEditForm({ name: lead.name, email: lead.email, phone: lead.phone, notes: lead.notes, tags: lead.tags });
     const { data } = await (supabase as any).from(subTable).select("*").eq(sourceFk, sourceId).eq("lead_id", lead.id).order("submitted_at", { ascending: false });
     setSubmissions((data || []) as Submission[]);
+  };
+
+  const saveLeadEdits = async () => {
+    if (!openLead) return;
+    const payload: any = { name: editForm.name, email: editForm.email, phone: editForm.phone, notes: editForm.notes, tags: editForm.tags };
+    await (supabase as any).from("leads").update(payload).eq("id", openLead.id);
+    setLeads(prev => prev.map(l => l.id === openLead.id ? { ...l, ...payload } : l));
+    setOpenLead({ ...openLead, ...payload } as Lead);
+    toast({ title: "Lead atualizado" });
+  };
+
+  const deleteLead = async () => {
+    if (!openLead) return;
+    if (!confirm(`Excluir o lead "${openLead.name}"? Esta ação não pode ser desfeita.`)) return;
+    await (supabase as any).from("leads").delete().eq("id", openLead.id);
+    setLeads(prev => prev.filter(l => l.id !== openLead.id));
+    setOpenLead(null);
+    toast({ title: "Lead excluído" });
   };
 
   const filtered = useMemo(() => {
@@ -138,7 +159,11 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
           <h2 className="text-xl font-bold text-foreground">Leads · {sourceTitle}</h2>
           <p className="text-xs text-muted-foreground">{leads.length} leads · {filtered.length} visíveis</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center bg-secondary/40 rounded border border-border overflow-hidden">
+            <button onClick={() => setView("kanban")} className={`px-2 py-1 text-xs flex items-center gap-1 ${view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><LayoutGrid className="h-3 w-3" />Quadro</button>
+            <button onClick={() => setView("list")} className={`px-2 py-1 text-xs flex items-center gap-1 ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><List className="h-3 w-3" />Lista</button>
+          </div>
           <Button variant="outline" size="sm" onClick={() => exportCsv(filtered)}><Download className="h-3.5 w-3.5 mr-1" /> CSV</Button>
           <Button variant="ghost" size="sm" onClick={onBack}>← Voltar</Button>
         </div>
@@ -159,6 +184,7 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
         )}
       </div>
 
+      {view === "kanban" ? (
       <div className="flex gap-3 overflow-x-auto pb-3" style={{ minHeight: 400 }}>
         {columns.map(col => {
           const colLeads = filtered.filter(l => l.stage_id === col.id);
@@ -216,25 +242,75 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
           <Button size="sm" onClick={addColumn} disabled={!newColName} className="w-full h-7"><Plus className="h-3 w-3 mr-1" />Adicionar</Button>
         </div>
       </div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-secondary/40 text-muted-foreground">
+              <tr>
+                <th className="text-left p-2 w-8"></th>
+                <th className="text-left p-2">Nome</th>
+                <th className="text-left p-2">Contato</th>
+                <th className="text-left p-2">Etapa</th>
+                <th className="text-left p-2">Origem</th>
+                <th className="text-left p-2">Tags</th>
+                <th className="text-left p-2">Criado</th>
+                <th className="text-left p-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(l => {
+                const col = columns.find(c => c.id === l.stage_id);
+                return (
+                  <tr key={l.id} className="border-t border-border hover:bg-secondary/20 cursor-pointer" onClick={() => openLeadDetails(l)}>
+                    <td className="p-2" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleSelect(l.id)} /></td>
+                    <td className="p-2 font-semibold text-foreground">{l.name}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {l.email && <div>{l.email}</div>}
+                      {l.phone && <div className="text-emerald-500">{l.phone}</div>}
+                    </td>
+                    <td className="p-2">{col && <span className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: `${col.color}22`, color: col.color }}>{col.name}</span>}</td>
+                    <td className="p-2 text-muted-foreground">{l.utm_source || "-"}</td>
+                    <td className="p-2"><div className="flex flex-wrap gap-1">{(l.tags || []).slice(0, 3).map(t => <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-secondary">{t}</span>)}</div></td>
+                    <td className="p-2 text-muted-foreground">{new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
+                    <td className="p-2" onClick={e => e.stopPropagation()}><Button size="sm" variant="ghost" onClick={() => openLeadDetails(l)}><Pencil className="h-3 w-3" /></Button></td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Nenhum lead encontrado</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Sheet open={!!openLead} onOpenChange={o => !o && setOpenLead(null)}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           {openLead && (
             <>
-              <SheetHeader><SheetTitle>{openLead.name}</SheetTitle></SheetHeader>
+              <SheetHeader>
+                <SheetTitle className="flex items-center justify-between gap-2">
+                  <span className="truncate">{openLead.name}</span>
+                  <Button size="sm" variant="ghost" className="text-destructive h-7" onClick={deleteLead}><Trash2 className="h-3.5 w-3.5 mr-1" />Excluir</Button>
+                </SheetTitle>
+              </SheetHeader>
               <Tabs defaultValue="info" className="mt-4">
                 <TabsList className="grid grid-cols-3"><TabsTrigger value="info">Informações</TabsTrigger><TabsTrigger value="activities">Atividades</TabsTrigger><TabsTrigger value="automations">Automações</TabsTrigger></TabsList>
                 <TabsContent value="info" className="space-y-3 mt-3">
-                  <div className="text-xs space-y-1">
-                    <p><b>Email:</b> {openLead.email || "-"}</p>
-                    <p><b>Telefone:</b> {openLead.phone || "-"}</p>
+                  <div className="space-y-2 text-xs">
+                    <div><label className="text-muted-foreground">Nome</label><Input value={editForm.name || ""} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Email</label><Input value={editForm.email || ""} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Telefone</label><Input value={editForm.phone || ""} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Tags (separadas por vírgula)</label><Input value={(editForm.tags || []).join(", ")} onChange={e => setEditForm({ ...editForm, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })} className="h-8 text-xs" /></div>
+                    <div><label className="text-muted-foreground">Notas</label><Textarea value={editForm.notes || ""} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} rows={3} className="text-xs" /></div>
+                    <Button size="sm" onClick={saveLeadEdits} className="w-full"><Save className="h-3 w-3 mr-1" />Salvar alterações</Button>
+                  </div>
+                  <div className="border-t border-border pt-2 text-[11px] text-muted-foreground space-y-0.5">
                     <p><b>Origem UTM:</b> {openLead.utm_source || "-"} / {openLead.utm_medium || "-"} / {openLead.utm_campaign || "-"}</p>
                     <p><b>Criado em:</b> {new Date(openLead.created_at).toLocaleString("pt-BR")}</p>
-                    <p><b>Tags:</b> {(openLead.tags || []).join(", ") || "-"}</p>
+                    <p><b>Etapa atual:</b> {columns.find(c => c.id === openLead.stage_id)?.name || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold mb-2">Timeline de submissões ({submissions.length})</p>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
                       {submissions.map(s => (
                         <div key={s.id} className="border border-border rounded-md p-2 text-[11px]">
                           <p className="text-muted-foreground">{new Date(s.submitted_at).toLocaleString("pt-BR")} · {s.utm_source || "direct"}</p>
