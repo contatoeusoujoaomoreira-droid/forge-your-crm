@@ -159,7 +159,11 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
           <h2 className="text-xl font-bold text-foreground">Leads · {sourceTitle}</h2>
           <p className="text-xs text-muted-foreground">{leads.length} leads · {filtered.length} visíveis</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center bg-secondary/40 rounded border border-border overflow-hidden">
+            <button onClick={() => setView("kanban")} className={`px-2 py-1 text-xs flex items-center gap-1 ${view === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><LayoutGrid className="h-3 w-3" />Quadro</button>
+            <button onClick={() => setView("list")} className={`px-2 py-1 text-xs flex items-center gap-1 ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><List className="h-3 w-3" />Lista</button>
+          </div>
           <Button variant="outline" size="sm" onClick={() => exportCsv(filtered)}><Download className="h-3.5 w-3.5 mr-1" /> CSV</Button>
           <Button variant="ghost" size="sm" onClick={onBack}>← Voltar</Button>
         </div>
