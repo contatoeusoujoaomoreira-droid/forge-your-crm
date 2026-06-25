@@ -863,7 +863,7 @@ const FormsList = () => {
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsFor({ id: form.id, title: form.title })}><BarChart3 className="h-3 w-3 mr-1" /> Métricas</Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditing({ ...form }); setEditorTab("editor"); }}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCopyLink(form.slug)}><Copy className="h-3 w-3" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => fetchResponses(form.id)}><Eye className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => setKanbanFor({ id: form.id, title: form.title })} title="Ver leads"><Eye className="h-3 w-3" /></Button>
                 {form.is_published && (
                   <Button variant="ghost" size="sm" asChild><a href={`/form/${form.slug}`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3 w-3" /></a></Button>
                 )}
