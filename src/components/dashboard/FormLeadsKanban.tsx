@@ -37,9 +37,11 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
   const [period, setPeriod] = useState<"all" | "today" | "week" | "month">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openLead, setOpenLead] = useState<Lead | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Lead>>({});
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [newColName, setNewColName] = useState("");
   const [editingCol, setEditingCol] = useState<string | null>(null);
+  const [view, setView] = useState<"kanban" | "list">("kanban");
 
   const colTable = sourceType === "form" ? "form_kanban_columns" : "quiz_kanban_columns";
   const subTable = sourceType === "form" ? "form_submissions" : "quiz_submissions";
