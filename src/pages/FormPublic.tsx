@@ -164,60 +164,67 @@ const FormPublic = () => {
     const leadPhone = leadPhoneRaw ? leadPhoneRaw.replace(/\D/g, "") || null : null;
     const settings = form.settings || {};
 
-    // ===== CRM lead creation =====
+    // ===== CRM lead creation (always create, with fallback) =====
     let leadIdForTouchpoint: string | null = null;
-    const pipelineId = form.pipeline_id;
-    const stageId = form.stage_id;
-    if (pipelineId || stageId) {
-      let finalStageId = stageId;
-      if (pipelineId && !stageId) {
+    let pipelineId = form.pipeline_id;
+    let finalStageId = form.stage_id;
+    // Fallback: pick first stage of selected pipeline
+    if (pipelineId && !finalStageId) {
+      const { data: stagesData } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipelineId).order("position", { ascending: true }).limit(1);
+      if (stagesData?.length) finalStageId = stagesData[0].id;
+    }
+    // Fallback: pick user's first pipeline + first stage
+    if (!pipelineId && !finalStageId) {
+      const { data: pipes } = await supabase.from("pipelines").select("id").eq("user_id", form.user_id).order("created_at", { ascending: true }).limit(1);
+      if (pipes?.length) {
+        pipelineId = pipes[0].id;
         const { data: stagesData } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipelineId).order("position", { ascending: true }).limit(1);
         if (stagesData?.length) finalStageId = stagesData[0].id;
       }
-      if ((nameField || emailField) && finalStageId) {
-        // Anti-duplicate
-        let existing: { id: string } | null = null;
-        if (leadPhone) {
-          const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("phone", leadPhone).limit(1).maybeSingle();
-          if (data) existing = data;
-        }
-        if (!existing && leadEmail) {
-          const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("email", leadEmail).limit(1).maybeSingle();
-          if (data) existing = data;
-        }
+    }
 
-        if (existing) {
-          leadIdForTouchpoint = existing.id;
-          await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName, source_form_id: form.id } as any).eq("id", existing.id);
-          await supabase.from("activities").insert({ user_id: form.user_id, lead_id: existing.id, type: "note", description: `Nova submissão do formulário "${form.title}" (${slug})` } as any);
-        } else {
-          const { data: inserted } = await supabase.from("leads").insert({
-            name: leadName, email: leadEmail, phone: leadPhone,
-            source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
-            status: "new", stage_id: finalStageId, user_id: form.user_id,
-            pipeline_id: pipelineId || null, tags: settings.autoTags || [],
-            source_form_id: form.id,
-            utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
-            utm_content: tracking.content, utm_term: tracking.term,
-            ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
-            landing_url: tracking.landing_url, referrer: tracking.referrer, user_agent: tracking.user_agent,
-          } as any).select("id").maybeSingle();
-          leadIdForTouchpoint = inserted?.id || null;
-        }
+    // Anti-duplicate
+    let existing: { id: string } | null = null;
+    if (leadPhone) {
+      const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("phone", leadPhone).limit(1).maybeSingle();
+      if (data) existing = data;
+    }
+    if (!existing && leadEmail) {
+      const { data } = await supabase.from("leads").select("id").eq("user_id", form.user_id).eq("email", leadEmail).limit(1).maybeSingle();
+      if (data) existing = data;
+    }
 
+    if (existing) {
+      leadIdForTouchpoint = existing.id;
+      await supabase.from("leads").update({ updated_at: new Date().toISOString(), name: leadName, source_form_id: form.id } as any).eq("id", existing.id);
+      await supabase.from("activities").insert({ user_id: form.user_id, lead_id: existing.id, type: "note", description: `Nova submissão do formulário "${form.title}" (${slug})` } as any);
+    } else {
+      const { data: inserted } = await supabase.from("leads").insert({
+        name: leadName, email: leadEmail, phone: leadPhone,
+        source: settings.leadSource ? `${settings.leadSource}:${slug}` : `form:${slug}`,
+        status: "new", stage_id: finalStageId, user_id: form.user_id,
+        pipeline_id: pipelineId || null, tags: settings.autoTags || [],
+        source_form_id: form.id,
+        utm_source: tracking.source, utm_medium: tracking.medium, utm_campaign: tracking.campaign,
+        utm_content: tracking.content, utm_term: tracking.term,
+        ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
+        landing_url: tracking.landing_url, referrer: tracking.referrer, user_agent: tracking.user_agent,
+      } as any).select("id").maybeSingle();
+      leadIdForTouchpoint = inserted?.id || null;
+    }
 
-        // Attribution touchpoint
-        await supabase.from("attribution_touchpoints").insert({
-          user_id: form.user_id, lead_id: leadIdForTouchpoint,
-          source: tracking.source, medium: tracking.medium, campaign: tracking.campaign,
-          content: tracking.content, term: tracking.term,
-          fbclid: tracking.fbclid, gclid: tracking.gclid, ctwa_clid: tracking.ctwa_clid,
-          ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
-          user_agent: tracking.user_agent,
-          landing_url: tracking.landing_url, referrer: tracking.referrer,
-          channel: "form", meta: { form_id: form.id, slug, session_id: tracking.session_id },
-        } as any);
-      }
+    // Attribution touchpoint
+    if (leadIdForTouchpoint) {
+      await supabase.from("attribution_touchpoints").insert({
+        user_id: form.user_id, lead_id: leadIdForTouchpoint,
+        source: tracking.source, medium: tracking.medium, campaign: tracking.campaign,
+        content: tracking.content, term: tracking.term,
+        fbclid: tracking.fbclid, gclid: tracking.gclid, ctwa_clid: tracking.ctwa_clid,
+        ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
+        user_agent: tracking.user_agent,
+        landing_url: tracking.landing_url, referrer: tracking.referrer,
+        channel: "form", meta: { form_id: form.id, slug, session_id: tracking.session_id },
+      } as any);
     }
     // ===== Submission timeline (always insert, isolated per form) =====
     await (supabase as any).from("form_submissions").insert({
