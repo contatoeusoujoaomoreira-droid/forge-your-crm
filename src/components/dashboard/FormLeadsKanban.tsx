@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, Pencil, MessageCircle, Search, Download, Archive, Tag as TagIcon, Trash2 } from "lucide-react";
+import { Plus, X, Pencil, MessageCircle, Search, Download, Archive, Tag as TagIcon, Trash2, LayoutGrid, List, Save } from "lucide-react";
 
 interface Column { id: string; name: string; color: string; position: number; }
 interface Lead {
