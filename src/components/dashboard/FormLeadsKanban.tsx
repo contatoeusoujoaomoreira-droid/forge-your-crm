@@ -184,6 +184,7 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
         )}
       </div>
 
+      {view === "kanban" ? (
       <div className="flex gap-3 overflow-x-auto pb-3" style={{ minHeight: 400 }}>
         {columns.map(col => {
           const colLeads = filtered.filter(l => l.stage_id === col.id);
