@@ -62,8 +62,27 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
 
   const openLeadDetails = async (lead: Lead) => {
     setOpenLead(lead);
+    setEditForm({ name: lead.name, email: lead.email, phone: lead.phone, notes: lead.notes, tags: lead.tags });
     const { data } = await (supabase as any).from(subTable).select("*").eq(sourceFk, sourceId).eq("lead_id", lead.id).order("submitted_at", { ascending: false });
     setSubmissions((data || []) as Submission[]);
+  };
+
+  const saveLeadEdits = async () => {
+    if (!openLead) return;
+    const payload: any = { name: editForm.name, email: editForm.email, phone: editForm.phone, notes: editForm.notes, tags: editForm.tags };
+    await (supabase as any).from("leads").update(payload).eq("id", openLead.id);
+    setLeads(prev => prev.map(l => l.id === openLead.id ? { ...l, ...payload } : l));
+    setOpenLead({ ...openLead, ...payload } as Lead);
+    toast({ title: "Lead atualizado" });
+  };
+
+  const deleteLead = async () => {
+    if (!openLead) return;
+    if (!confirm(`Excluir o lead "${openLead.name}"? Esta ação não pode ser desfeita.`)) return;
+    await (supabase as any).from("leads").delete().eq("id", openLead.id);
+    setLeads(prev => prev.filter(l => l.id !== openLead.id));
+    setOpenLead(null);
+    toast({ title: "Lead excluído" });
   };
 
   const filtered = useMemo(() => {
