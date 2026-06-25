@@ -102,9 +102,24 @@ const QuizPublic = () => {
     const phoneClean = (leadInfo.phone || "").replace(/\D/g, "") || null;
     const emailClean = (leadInfo.email || "").toLowerCase().trim() || null;
     let createdLeadId: string | null = null;
-    const stageId = matched?.stageId || quiz.stage_id || settings.stageId;
+    let stageId = matched?.stageId || quiz.stage_id || settings.stageId;
+    let pipelineId = quiz.pipeline_id || settings.pipelineId || null;
+    // Fallback: pick first stage of selected pipeline
+    if (pipelineId && !stageId) {
+      const { data: stagesData } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipelineId).order("position", { ascending: true }).limit(1);
+      if (stagesData?.length) stageId = stagesData[0].id;
+    }
+    // Fallback: user's first pipeline + first stage
+    if (!pipelineId && !stageId) {
+      const { data: pipes } = await supabase.from("pipelines").select("id").eq("user_id", quiz.user_id).order("created_at", { ascending: true }).limit(1);
+      if (pipes?.length) {
+        pipelineId = pipes[0].id;
+        const { data: stagesData } = await supabase.from("pipeline_stages").select("id").eq("pipeline_id", pipelineId).order("position", { ascending: true }).limit(1);
+        if (stagesData?.length) stageId = stagesData[0].id;
+      }
+    }
 
-    if (stageId && leadInfo.name) {
+    if (leadInfo.name) {
       const qualificationLabel = matched ? matched.title : `Score: ${score}`;
       const priority = score >= (results.length > 0 ? results[results.length - 1]?.minScore || 0 : 999) ? "hot" : score >= (results.length > 1 ? results[Math.floor(results.length / 2)]?.minScore || 0 : 999) ? "warm" : "cold";
 
@@ -126,7 +141,7 @@ const QuizPublic = () => {
           name: leadInfo.name, email: emailClean, phone: phoneClean,
           source: settings.leadSource ? `${settings.leadSource}:${slug}` : `quiz:${slug}`,
           status: "new", stage_id: stageId, user_id: quiz.user_id, value: 0,
-          pipeline_id: quiz.pipeline_id || settings.pipelineId || null,
+          pipeline_id: pipelineId,
           notes: `Resultado: ${qualificationLabel} (Score: ${score})`,
           source_quiz_id: quiz.id,
           tags: [...(settings.autoTags || []), priority === "hot" ? "quente" : priority === "warm" ? "morno" : "frio"],
