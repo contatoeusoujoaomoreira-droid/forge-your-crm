@@ -240,8 +240,46 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
           <p className="text-xs font-semibold text-muted-foreground mb-2">+ Nova coluna</p>
           <Input value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="Nome" className="h-7 text-xs mb-2 bg-background" />
           <Button size="sm" onClick={addColumn} disabled={!newColName} className="w-full h-7"><Plus className="h-3 w-3 mr-1" />Adicionar</Button>
-        </div>
       </div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-secondary/40 text-muted-foreground">
+              <tr>
+                <th className="text-left p-2 w-8"></th>
+                <th className="text-left p-2">Nome</th>
+                <th className="text-left p-2">Contato</th>
+                <th className="text-left p-2">Etapa</th>
+                <th className="text-left p-2">Origem</th>
+                <th className="text-left p-2">Tags</th>
+                <th className="text-left p-2">Criado</th>
+                <th className="text-left p-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(l => {
+                const col = columns.find(c => c.id === l.stage_id);
+                return (
+                  <tr key={l.id} className="border-t border-border hover:bg-secondary/20 cursor-pointer" onClick={() => openLeadDetails(l)}>
+                    <td className="p-2" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleSelect(l.id)} /></td>
+                    <td className="p-2 font-semibold text-foreground">{l.name}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {l.email && <div>{l.email}</div>}
+                      {l.phone && <div className="text-emerald-500">{l.phone}</div>}
+                    </td>
+                    <td className="p-2">{col && <span className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: `${col.color}22`, color: col.color }}>{col.name}</span>}</td>
+                    <td className="p-2 text-muted-foreground">{l.utm_source || "-"}</td>
+                    <td className="p-2"><div className="flex flex-wrap gap-1">{(l.tags || []).slice(0, 3).map(t => <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-secondary">{t}</span>)}</div></td>
+                    <td className="p-2 text-muted-foreground">{new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
+                    <td className="p-2" onClick={e => e.stopPropagation()}><Button size="sm" variant="ghost" onClick={() => openLeadDetails(l)}><Pencil className="h-3 w-3" /></Button></td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Nenhum lead encontrado</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Sheet open={!!openLead} onOpenChange={o => !o && setOpenLead(null)}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
