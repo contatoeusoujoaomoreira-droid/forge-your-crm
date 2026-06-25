@@ -240,6 +240,7 @@ const FormLeadsKanban = ({ sourceType, sourceId, sourceTitle, onBack }: Props) =
           <p className="text-xs font-semibold text-muted-foreground mb-2">+ Nova coluna</p>
           <Input value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="Nome" className="h-7 text-xs mb-2 bg-background" />
           <Button size="sm" onClick={addColumn} disabled={!newColName} className="w-full h-7"><Plus className="h-3 w-3 mr-1" />Adicionar</Button>
+        </div>
       </div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
