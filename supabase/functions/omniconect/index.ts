@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({
             ok: true, reused: true, config_id: configId, instance_name: reuseName, instance_token: reuseToken,
             qrcode: inst?.qrcode || null, paircode: inst?.paircode || null,
-            webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+            webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) },
             raw: conn.json,
           }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken,
         qrcode, paircode,
-        webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+        webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) },
         raw: r.json,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
         }
       }
       const wh = await setOmniWebhook(baseUrl, instanceToken, configId);
-      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) }, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) }, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'status') {
