@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,9 +92,12 @@ Deno.serve(async (req) => {
       .select('id, phone, avatar_url, metadata').eq('user_id', user.id).limit(300);
 
     let updated = 0;
+    let persisted = 0;
     for (const c of clients || []) {
       if (!c.phone) continue;
       try {
+        // Já nativizado no nosso storage — nada a fazer
+        if (isStoredAvatar(c.avatar_url)) continue;
         const phone = normalizePhone(c.phone);
         const current = c.avatar_url || extractAvatarUrl((c as any).metadata);
         const fromLogs = avatarByPhone.get(phone);
@@ -104,15 +108,21 @@ Deno.serve(async (req) => {
             if (link) break;
           }
         }
-        if (link && link !== c.avatar_url) {
-          const metadata = { ...((c as any).metadata || {}), profile_pic_url: link, avatar_source: fromLogs ? 'webhook_payload' : 'provider_lookup' };
-          await admin.from('chat_clients').update({ avatar_url: link, metadata, updated_at: new Date().toISOString() }).eq('id', c.id);
+        if (!link) continue;
+        // Baixa da API e salva no nosso storage (URL permanente)
+        const stored = await persistAvatar(admin, { userId: user.id, clientKey: phone, remoteUrl: link });
+        const finalUrl = stored || link;
+        if (stored) persisted++;
+        if (finalUrl !== c.avatar_url) {
+          const metadata = { ...((c as any).metadata || {}), profile_pic_url: finalUrl, avatar_source: stored ? 'crm_storage' : (fromLogs ? 'webhook_payload' : 'provider_lookup') };
+          await admin.from('chat_clients').update({ avatar_url: finalUrl, metadata, updated_at: new Date().toISOString() }).eq('id', c.id);
           updated++;
         }
       } catch (_) { /* skip */ }
     }
 
-    return new Response(JSON.stringify({ ok: true, scanned: clients?.length || 0, updated, configs: configs?.length || 0, webhook_photos: avatarByPhone.size }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    return new Response(JSON.stringify({ ok: true, scanned: clients?.length || 0, updated, persisted, configs: configs?.length || 0, webhook_photos: avatarByPhone.size }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }

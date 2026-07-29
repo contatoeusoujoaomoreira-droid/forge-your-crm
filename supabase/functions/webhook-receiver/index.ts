@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1725,21 +1726,30 @@ Deno.serve(async (req) => {
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
   // Proactive sync: fetch avatar on every inbound if we don't have one yet (covers new contacts immediately)
-  if (!avatarUrl && !existingPre?.avatar_url) {
-    avatarUrl = await fetchZapiProfilePic();
+  const storedExisting = isStoredAvatar(existingPre?.avatar_url) ? existingPre!.avatar_url : undefined;
+  if (!avatarUrl && !storedExisting) {
+    avatarUrl = existingPre?.avatar_url || await fetchZapiProfilePic();
   }
+
+  // Nativiza a foto: baixa da API e sobe para o nosso storage (URL permanente)
+  let persistedAvatar: string | undefined = storedExisting || undefined;
+  if (!persistedAvatar && avatarUrl) {
+    persistedAvatar = await persistAvatar(admin, { userId, clientKey: msg.phone, remoteUrl: avatarUrl });
+  }
+  const finalAvatar = persistedAvatar || storedExisting;
 
   const upsertPayload: any = {
     user_id: userId,
     phone: msg.phone,
     name: msg.name || existingPre?.['name' as any] || msg.phone,
     source: 'whatsapp',
-    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(avatarUrl ? { profile_pic_url: avatarUrl } : {}), ...(referral ? { attribution: { ...(existingPre?.metadata?.attribution || {}), source: referral.source, medium: referral.medium, campaign: referral.campaign, content: referral.content, term: referral.term, ctwa_clid: referral.ctwa_clid, source_url: referral.source_url, headline: referral.headline, captured_at: new Date().toISOString() } } : {}) },
+    metadata: { ...(existingPre?.metadata || {}), is_group: (msg as any).is_group === true, provider: matchedConfig?.api_type || raw.provider || 'whatsapp', entry_instance: matchedConfig?.instance_id || raw.instanceName || raw.owner || null, first_context: (existingPre?.metadata || {})?.first_context || msg.content || null, ...(finalAvatar ? { profile_pic_url: finalAvatar, avatar_source: 'crm_storage' } : {}), ...(referral ? { attribution: { ...(existingPre?.metadata?.attribution || {}), source: referral.source, medium: referral.medium, campaign: referral.campaign, content: referral.content, term: referral.term, ctwa_clid: referral.ctwa_clid, source_url: referral.source_url, headline: referral.headline, captured_at: new Date().toISOString() } } : {}) },
     updated_at: new Date().toISOString(),
   };
-  // Only set avatar if we have a fresh one — never wipe existing
-  if (avatarUrl) upsertPayload.avatar_url = avatarUrl;
+  // Só grava avatar quando temos uma cópia nossa — nunca apaga o existente
+  if (finalAvatar) upsertPayload.avatar_url = finalAvatar;
   else if (existingPre?.avatar_url) upsertPayload.avatar_url = existingPre.avatar_url;
+
 
   const { data: upserted } = await admin.from('chat_clients').upsert(
     upsertPayload,

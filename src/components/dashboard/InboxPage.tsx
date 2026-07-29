@@ -21,21 +21,41 @@ type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups" | "hot";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
+// Avatares são consumidos exclusivamente do nosso storage (chat-media).
+// URLs temporárias da API do WhatsApp são ignoradas para não quebrar quando a
+// conexão cai ou a sessão expira.
+const isStoredAvatar = (url?: string | null) =>
+  !!url && url.includes("/storage/v1/object/public/chat-media/");
+
 const getClientAvatar = (client?: Client | null) => {
   const meta = client?.metadata || {};
-  return client?.avatar_url || meta.profile_pic_url || meta.profile_picture || meta.photo || meta.avatar_url || meta.picture || null;
+  const candidates = [client?.avatar_url, meta.profile_pic_url, meta.avatar_url];
+  return candidates.find((u) => isStoredAvatar(u)) || null;
 };
 
 const initialsForClient = (client?: Client | null) => (client?.name || client?.phone || "?").trim().slice(0, 1).toUpperCase();
 
 const ClientAvatar = ({ client, className = "h-10 w-10" }: { client?: Client | null; className?: string }) => {
   const avatar = getClientAvatar(client);
+  const [failed, setFailed] = useState(false);
+  const showImg = !!avatar && !failed;
   return (
     <div className={`${className} shrink-0 overflow-hidden rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-muted-foreground`}>
-      {avatar ? <img src={avatar} alt={client?.name || "Contato"} className="h-full w-full object-cover" loading="lazy" /> : initialsForClient(client)}
+      {showImg ? (
+        <img
+          src={avatar as string}
+          alt={client?.name || "Contato"}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        initialsForClient(client)
+      )}
     </div>
   );
 };
+
 
 export default function InboxPage() {
   const { user } = useAuth();
