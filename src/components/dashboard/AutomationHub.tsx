@@ -149,8 +149,17 @@ export default function AutomationHub() {
   const [omniStatuses, setOmniStatuses] = useState<Record<string, string>>({});
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
-  const OMNI_DEFAULT_BASE = "https://omnibuildercrm.uazapi.com";
-  const OMNI_DEFAULT_ADMIN_TOKEN = "x26znUTwindOpKzpT1eaZQOVg6vtbI582EdrTZsZuJCqttgr05";
+  // Servidor UAZAPI configurável (persistido localmente + por conexão em whatsapp_configs)
+  const OMNI_FALLBACK_BASE = "https://omnibuildercrm.uazapi.com";
+  const [omniDefaultBase, setOmniDefaultBase] = useState<string>(() => localStorage.getItem("omni_base_url") || OMNI_FALLBACK_BASE);
+  const [omniDefaultAdminToken, setOmniDefaultAdminToken] = useState<string>(() => localStorage.getItem("omni_admin_token") || "");
+  const OMNI_DEFAULT_BASE = omniDefaultBase;
+  const OMNI_DEFAULT_ADMIN_TOKEN = omniDefaultAdminToken;
+  const persistOmniDefaults = (base: string, token: string) => {
+    setOmniDefaultBase(base); setOmniDefaultAdminToken(token);
+    localStorage.setItem("omni_base_url", base);
+    localStorage.setItem("omni_admin_token", token);
+  };
 
   useEffect(() => {
     if (!user) return;
