@@ -96,19 +96,28 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    if (action === 'list') {
+    if (action === 'list' || action === 'ping') {
       if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const r = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+      if (!r.ok) {
+        return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const instances = Array.isArray(r.json) ? r.json : (r.json?.instances || []);
-      return new Response(JSON.stringify({ ok: r.ok, instances, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true, instances, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'create') {
       if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Health-check antes de criar: evita mensagens de erro em HTML de proxy
+      const health = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+      if (!health.ok) {
+        return new Response(JSON.stringify({ ok: false, status: health.status, ...explain(health, baseUrl) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       let r = await uaz(baseUrl, '/instance/init', { admintoken: adminToken }, 'POST', { name: instanceName });
       if (!r.ok && (r.status === 404 || r.status === 405)) {
         r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
       }
+
 
       // Handle "Maximum number of instances reached" → reuse an existing instance
       if (!r.ok && /maximum number of instances|limit/i.test(r.text)) {
