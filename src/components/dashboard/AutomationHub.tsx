@@ -614,7 +614,30 @@ export default function AutomationHub() {
     setEvoPollTimer(t);
   };
 
+  // Testa se o servidor UAZAPI está no ar e se o admin token é válido
+  const testOmniServer = async (cfg: any) => {
+    const baseUrl = (cfg?.base_url || omniDefaultBase || "").trim().replace(/\/+$/, "");
+    const adminToken = (cfg?.extra_headers?.admin_token || omniDefaultAdminToken || "").trim();
+    if (!/^https?:\/\//i.test(baseUrl)) { toast.error("Informe uma URL válida (https://...)."); return; }
+    if (!adminToken) { toast.error("Informe o Admin Token."); return; }
+    setTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("omniconect", {
+        body: { action: "list", base_url: baseUrl, admin_token: adminToken },
+      });
+      if (error || !data?.ok) {
+        toast.error(`Servidor indisponível: ${data?.error || error?.message || "erro"}`, { description: data?.hint });
+      } else {
+        persistOmniDefaults(baseUrl, adminToken);
+        toast.success(`Servidor OK — ${(data.instances || []).length} instância(s) encontradas.`);
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
   // One-click: cria nova conexão OmniConect sem preencher nada
+
   const startOmniQuickConnect = async () => {
     setPairMode("qr");
     setPairPhone("");
