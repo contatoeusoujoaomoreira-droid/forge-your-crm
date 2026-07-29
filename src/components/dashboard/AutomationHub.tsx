@@ -506,8 +506,17 @@ export default function AutomationHub() {
 
   // ===== OmniConect QR connect =====
   const startOmniQr = async (cfg: any) => {
-    const baseUrl = cfg.base_url || OMNI_DEFAULT_BASE;
-    const adminToken = cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN;
+    const baseUrl = (cfg.base_url || OMNI_DEFAULT_BASE || "").trim().replace(/\/+$/, "");
+    const adminToken = (cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN || "").trim();
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      toast.error("Informe a URL do servidor UAZAPI (ex.: https://seuservidor.uazapi.com).");
+      return;
+    }
+    if (!adminToken) {
+      toast.error("Informe o Admin Token do servidor UAZAPI para criar a instância.");
+      return;
+    }
+    persistOmniDefaults(baseUrl, adminToken);
     setEvoQrCfg({ ...cfg, base_url: baseUrl, extra_headers: { ...(cfg.extra_headers || {}), admin_token: adminToken }, api_type: "omniconect" });
     setEvoQrOpen(true);
     setEvoQrLoading(true);
@@ -540,10 +549,13 @@ export default function AutomationHub() {
       });
       if (error || !data?.ok) {
         setEvoQrLoading(false);
-        toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
+        toast.error(`Falha ao criar instância: ${data?.error || error?.message || "erro"}`, {
+          description: data?.hint || "Confira a URL do servidor e o Admin Token na aba OmniConect.",
+        });
         setEvoQrState("close");
         return;
       }
+
       instanceToken = data.instance_token;
       instanceName = data.instance_name;
       qr = data.qrcode;
