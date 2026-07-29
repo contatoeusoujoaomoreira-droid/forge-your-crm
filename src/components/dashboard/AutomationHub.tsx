@@ -245,7 +245,7 @@ export default function AutomationHub() {
     else {
       toast.success("Conexão salva!");
       await reloadWaConfigs();
-      if (payload.api_type === "z-api" && payload.is_active) configureWebhook(payload, false);
+      if ((payload.api_type === "z-api" || payload.api_type === "omniconect") && payload.is_active) configureWebhook(payload, false);
     }
   };
 
