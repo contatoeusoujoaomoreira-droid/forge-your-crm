@@ -585,11 +585,20 @@ export default function AutomationHub() {
       if (status === "connected") {
         setEvoQrState("open");
         clearInterval(t); setEvoPollTimer(null);
-        toast.success("✅ WhatsApp conectado e operacional!");
-        await supabase.functions.invoke("omniconect", {
-          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
-        });
+        toast.success("✅ WhatsApp conectado!");
+        // Configura e ATIVA o webhook da instância automaticamente (com verificação e retry)
+        let hookOk = false;
+        for (let i = 0; i < 3 && !hookOk; i++) {
+          const wh = await supabase.functions.invoke("omniconect", {
+            body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
+          });
+          hookOk = !!wh.data?.verified && wh.data?.enabled !== false;
+          if (!hookOk) await new Promise((r) => setTimeout(r, 1200));
+        }
+        if (hookOk) toast.success("🔗 Webhook configurado e ativo — eventos chegando ao CRM.");
+        else toast.error("WhatsApp conectado, mas o webhook não foi confirmado.", { description: "Use 'Sincronizar webhook' na conexão para tentar novamente." });
         await reloadWaConfigs();
+
         setTimeout(() => {
           setEvoQrOpen(false);
           setEvoQrImage(null);
