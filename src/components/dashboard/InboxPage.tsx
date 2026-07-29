@@ -645,7 +645,7 @@ export default function InboxPage() {
                           <span className="truncate">{m.metadata?.document_filename || m.content || "Abrir documento"}</span>
                         </a>
                       )}
-                      {transcript && (
+                      {transcript && m.media_type !== "audio" && (
                         <p className="text-[11px] italic opacity-80 mb-1">📝 "{transcript}"</p>
                       )}
                       {imgDesc && (
