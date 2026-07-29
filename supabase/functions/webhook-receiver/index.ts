@@ -1775,7 +1775,10 @@ Deno.serve(async (req) => {
   // === DEDUP POR CONTEÚDO (mesma mensagem chegando em 2 eventos: 'messages' + 'chats') ===
   // UAZAPI dispara o evento 'chats' com o resumo da última mensagem, cujo id sintético
   // difere do id real do evento 'messages' -> gerava mensagem duplicada no chat.
-  if (!msg.from_me) {
+  // Placeholders de mídia ("[audio]", "[image]"...) NÃO podem ser deduplicados por
+  // conteúdo: dois áudios distintos teriam o mesmo texto e o segundo seria descartado.
+  const isMediaPlaceholder = /^\[(audio|image|video|document|sticker|ptt)\]$/i.test((msg.content || '').trim());
+  if (!msg.from_me && !isMediaPlaceholder) {
     const dupContent = (msg.content || '').trim();
     if (dupContent) {
       const sinceDup = new Date(Date.now() - 5 * 60 * 1000).toISOString();
