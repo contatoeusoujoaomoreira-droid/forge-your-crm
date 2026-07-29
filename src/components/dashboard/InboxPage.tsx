@@ -12,6 +12,7 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
+import AudioMessage from "./chat/AudioMessage";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
