@@ -248,8 +248,25 @@ Deno.serve(async (req) => {
     if (action === 'set_webhook') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const r = await setOmniWebhook(baseUrl, instanceToken, body.config_id || null, body.webhook_url);
-      return new Response(JSON.stringify({ ok: r.ok, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({
+        ok: r.ok && r.verified, http_ok: r.ok, status: r.status, url: r.url,
+        verified: r.verified, enabled: r.enabled, events: r.events, current: r.current,
+        error: r.verified ? undefined : 'Webhook não confirmado no servidor UAZAPI.',
+        body: (r.text || '').slice(0, 600),
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    if (action === 'webhook_status') {
+      if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const expected = body.webhook_url || webhookUrlFor(body.config_id || null);
+      const chk = await getOmniWebhook(baseUrl, instanceToken);
+      const found = chk.list.find((w: any) => (w?.url || '') === expected);
+      return new Response(JSON.stringify({
+        ok: chk.ok, expected_url: expected, verified: !!found,
+        enabled: !!found && found.enabled !== false, events: found?.events || [], current: chk.list,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
 
     if (action === 'disconnect') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
