@@ -16,12 +16,42 @@ const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
 const OMNI_EVENTS = ['messages', 'messages_update', 'connection', 'chats', 'contacts'];
 const webhookUrlFor = (configId?: string | null) => configId ? `${WEBHOOK_URL}?config_id=${encodeURIComponent(configId)}` : WEBHOOK_URL;
 
-async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {
-  return await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', {
-    url: customUrl || webhookUrlFor(configId),
-    events: OMNI_EVENTS,
-  });
+// Lê a configuração de webhook atual da instância (aceita objeto ou array)
+async function getOmniWebhook(baseUrl: string, instanceToken: string) {
+  const r = await uaz(baseUrl, '/webhook', { token: instanceToken }, 'GET');
+  const j = r.json;
+  const list = Array.isArray(j) ? j : (Array.isArray(j?.webhooks) ? j.webhooks : (j ? [j] : []));
+  return { ok: r.ok, status: r.status, list, raw: j };
 }
+
+// Configura E ativa o webhook da instância. Tenta variações de payload aceitas
+// pelas diferentes versões da UAZAPI e valida lendo a config de volta.
+async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {
+  const url = customUrl || webhookUrlFor(configId);
+  const payloads: any[] = [
+    { enabled: true, url, events: OMNI_EVENTS, excludeMessages: [], addUrlEvents: false, addUrlTypesMessages: false, action: 'add' },
+    { enabled: true, url, events: OMNI_EVENTS },
+    { url, events: OMNI_EVENTS },
+  ];
+  let last: any = { ok: false, status: 0, text: 'no_attempt', json: null };
+  for (const body of payloads) {
+    last = await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', body);
+    if (last.ok) break;
+    if (last.status === 404 || last.status === 405) {
+      last = await uaz(baseUrl, '/instance/updateWebhook', { token: instanceToken }, 'POST', body);
+      if (last.ok) break;
+    }
+  }
+  // Verificação: confirma que a URL está registrada e habilitada
+  const check = await getOmniWebhook(baseUrl, instanceToken);
+  const found = check.list.find((w: any) => (w?.url || '') === url);
+  const enabled = !!found && (found.enabled !== false);
+  return {
+    ok: last.ok, status: last.status, text: last.text, json: last.json,
+    url, verified: !!found, enabled, events: found?.events || OMNI_EVENTS, current: check.list,
+  };
+}
+
 
 async function uaz(baseUrl: string, path: string, headers: Record<string, string>, method = 'GET', body?: any) {
   const url = `${sanitize(baseUrl)}${path}`;
