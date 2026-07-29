@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Remova uma conexão antiga para liberar espaço.', body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl), body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const instToken = r.json?.token || r.json?.instance?.token || '';
       const qrcode = r.json?.instance?.qrcode || r.json?.qrcode || null;
       const paircode = r.json?.instance?.paircode || r.json?.paircode || null;
