@@ -149,8 +149,17 @@ export default function AutomationHub() {
   const [omniStatuses, setOmniStatuses] = useState<Record<string, string>>({});
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
-  const OMNI_DEFAULT_BASE = "https://omnibuildercrm.uazapi.com";
-  const OMNI_DEFAULT_ADMIN_TOKEN = "x26znUTwindOpKzpT1eaZQOVg6vtbI582EdrTZsZuJCqttgr05";
+  // Servidor UAZAPI configurável (persistido localmente + por conexão em whatsapp_configs)
+  const OMNI_FALLBACK_BASE = "https://omnibuildercrm.uazapi.com";
+  const [omniDefaultBase, setOmniDefaultBase] = useState<string>(() => localStorage.getItem("omni_base_url") || OMNI_FALLBACK_BASE);
+  const [omniDefaultAdminToken, setOmniDefaultAdminToken] = useState<string>(() => localStorage.getItem("omni_admin_token") || "");
+  const OMNI_DEFAULT_BASE = omniDefaultBase;
+  const OMNI_DEFAULT_ADMIN_TOKEN = omniDefaultAdminToken;
+  const persistOmniDefaults = (base: string, token: string) => {
+    setOmniDefaultBase(base); setOmniDefaultAdminToken(token);
+    localStorage.setItem("omni_base_url", base);
+    localStorage.setItem("omni_admin_token", token);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -497,8 +506,17 @@ export default function AutomationHub() {
 
   // ===== OmniConect QR connect =====
   const startOmniQr = async (cfg: any) => {
-    const baseUrl = cfg.base_url || OMNI_DEFAULT_BASE;
-    const adminToken = cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN;
+    const baseUrl = (cfg.base_url || OMNI_DEFAULT_BASE || "").trim().replace(/\/+$/, "");
+    const adminToken = (cfg.extra_headers?.admin_token || OMNI_DEFAULT_ADMIN_TOKEN || "").trim();
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      toast.error("Informe a URL do servidor UAZAPI (ex.: https://seuservidor.uazapi.com).");
+      return;
+    }
+    if (!adminToken) {
+      toast.error("Informe o Admin Token do servidor UAZAPI para criar a instância.");
+      return;
+    }
+    persistOmniDefaults(baseUrl, adminToken);
     setEvoQrCfg({ ...cfg, base_url: baseUrl, extra_headers: { ...(cfg.extra_headers || {}), admin_token: adminToken }, api_type: "omniconect" });
     setEvoQrOpen(true);
     setEvoQrLoading(true);
@@ -531,10 +549,13 @@ export default function AutomationHub() {
       });
       if (error || !data?.ok) {
         setEvoQrLoading(false);
-        toast.error(`Falha ao criar instância: ${data?.error || data?.body || error?.message || "erro"}`);
+        toast.error(`Falha ao criar instância: ${data?.error || error?.message || "erro"}`, {
+          description: data?.hint || "Confira a URL do servidor e o Admin Token na aba OmniConect.",
+        });
         setEvoQrState("close");
         return;
       }
+
       instanceToken = data.instance_token;
       instanceName = data.instance_name;
       qr = data.qrcode;
@@ -593,7 +614,30 @@ export default function AutomationHub() {
     setEvoPollTimer(t);
   };
 
+  // Testa se o servidor UAZAPI está no ar e se o admin token é válido
+  const testOmniServer = async (cfg: any) => {
+    const baseUrl = (cfg?.base_url || omniDefaultBase || "").trim().replace(/\/+$/, "");
+    const adminToken = (cfg?.extra_headers?.admin_token || omniDefaultAdminToken || "").trim();
+    if (!/^https?:\/\//i.test(baseUrl)) { toast.error("Informe uma URL válida (https://...)."); return; }
+    if (!adminToken) { toast.error("Informe o Admin Token."); return; }
+    setTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("omniconect", {
+        body: { action: "list", base_url: baseUrl, admin_token: adminToken },
+      });
+      if (error || !data?.ok) {
+        toast.error(`Servidor indisponível: ${data?.error || error?.message || "erro"}`, { description: data?.hint });
+      } else {
+        persistOmniDefaults(baseUrl, adminToken);
+        toast.success(`Servidor OK — ${(data.instances || []).length} instância(s) encontradas.`);
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
   // One-click: cria nova conexão OmniConect sem preencher nada
+
   const startOmniQuickConnect = async () => {
     setPairMode("qr");
     setPairPhone("");
@@ -803,11 +847,35 @@ export default function AutomationHub() {
                                     <TabsContent value="omniconect" className="space-y-2 pt-3">
                                       <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
                                         <p className="text-xs font-medium">WhatsApp via QR Code ou Código de Pareamento</p>
-                                        <p className="text-[11px] text-muted-foreground mt-1">URL base, webhook e instância são configurados automaticamente. Clique em "Gerar QR Code" abaixo para conectar.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-1">Informe a URL do seu servidor UAZAPI e o Admin Token. Esses valores podem mudar a qualquer momento — são configuráveis aqui, sem alterar código.</p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">URL do servidor (UAZAPI)</Label>
+                                        <Input
+                                          value={c.base_url ?? omniDefaultBase}
+                                          onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })}
+                                          onBlur={(e) => persistOmniDefaults(e.target.value.trim().replace(/\/+$/, ""), omniDefaultAdminToken)}
+                                          placeholder="https://seuservidor.uazapi.com"
+                                          className="font-mono text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">Admin Token</Label>
+                                        <SecretInput
+                                          value={c.extra_headers?.admin_token ?? omniDefaultAdminToken}
+                                          onChange={(v: string) => updateLocalConn(c.id, { extra_headers: { ...(c.extra_headers || {}), admin_token: v } })}
+                                          placeholder="Admin token do painel UAZAPI"
+                                        />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => testOmniServer(c)} disabled={testing}>
+                                          <FlaskConical className="h-4 w-4 mr-1" />Testar servidor
+                                        </Button>
                                       </div>
                                       <Label className="text-xs">Instance Token (gerado automaticamente)</Label>
                                       <SecretInput value={c.api_token || ""} onChange={() => {}} placeholder="Será gerado ao clicar em Gerar QR Code" />
                                     </TabsContent>
+
 
                                     <TabsContent value="outras" className="space-y-3 pt-3">
                                       <div>

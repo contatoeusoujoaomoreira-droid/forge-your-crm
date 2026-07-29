@@ -50,6 +50,26 @@ async function uaz(baseUrl: string, path: string, headers: Record<string, string
   return { ok: false, status: 0, text: String(lastErr?.message || lastErr || 'network_error'), json: null };
 }
 
+// Converte respostas de erro (HTML de proxy, 401, 5xx) numa mensagem legível
+function explain(r: { ok: boolean; status: number; text: string; json: any }, baseUrl: string) {
+  const raw = (r.text || '').trim();
+  const isHtml = raw.startsWith('<');
+  if (r.status === 0) {
+    return { error: `Não foi possível alcançar ${baseUrl}. Verifique a URL do servidor.`, hint: 'O servidor não respondeu (timeout/DNS). Confirme o endereço na aba OmniConect.' };
+  }
+  if (r.status === 502 || r.status === 503 || r.status === 504) {
+    return { error: `Servidor UAZAPI (${baseUrl}) indisponível no momento (HTTP ${r.status}).`, hint: 'O servidor está fora do ar ou o subdomínio mudou. Atualize a URL do servidor na aba OmniConect e tente novamente.' };
+  }
+  if (r.status === 401 || r.status === 403) {
+    return { error: 'Admin Token inválido ou sem permissão neste servidor.', hint: 'Copie novamente o Admin Token no painel UAZAPI e salve na aba OmniConect.' };
+  }
+  if (r.status === 404) {
+    return { error: `Endpoint não encontrado em ${baseUrl} (404).`, hint: 'A URL do servidor pode estar incorreta.' };
+  }
+  const detail = r.json?.error || r.json?.message || (isHtml ? '' : raw.slice(0, 300));
+  return { error: detail || `Erro HTTP ${r.status} no servidor UAZAPI.`, hint: isHtml ? 'O servidor respondeu com uma página de erro (proxy). Verifique a URL do servidor.' : undefined };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
@@ -76,19 +96,28 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    if (action === 'list') {
+    if (action === 'list' || action === 'ping') {
       if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const r = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+      if (!r.ok) {
+        return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       const instances = Array.isArray(r.json) ? r.json : (r.json?.instances || []);
-      return new Response(JSON.stringify({ ok: r.ok, instances, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true, instances, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'create') {
       if (!adminToken) return new Response(JSON.stringify({ ok: false, error: 'admin_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Health-check antes de criar: evita mensagens de erro em HTML de proxy
+      const health = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
+      if (!health.ok) {
+        return new Response(JSON.stringify({ ok: false, status: health.status, ...explain(health, baseUrl) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
       let r = await uaz(baseUrl, '/instance/init', { admintoken: adminToken }, 'POST', { name: instanceName });
       if (!r.ok && (r.status === 404 || r.status === 405)) {
         r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
       }
+
 
       // Handle "Maximum number of instances reached" → reuse an existing instance
       if (!r.ok && /maximum number of instances|limit/i.test(r.text)) {
@@ -126,7 +155,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Remova uma conexão antiga para liberar espaço.', body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl), body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const instToken = r.json?.token || r.json?.instance?.token || '';
       const qrcode = r.json?.instance?.qrcode || r.json?.qrcode || null;
       const paircode = r.json?.instance?.paircode || r.json?.paircode || null;
