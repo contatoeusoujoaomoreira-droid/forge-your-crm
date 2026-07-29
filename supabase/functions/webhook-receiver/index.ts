@@ -518,6 +518,7 @@ function normalizeOmniChat(raw: any): NormalizedMsg | null {
     from_me: fromMe,
     timestamp,
     is_group: isGroup,
+    from_chat_event: true,
   } as any;
 }
 
@@ -1764,6 +1765,36 @@ Deno.serve(async (req) => {
 
   if (!client) {
     return new Response(JSON.stringify({ error: 'Could not resolve chat client' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // === DEDUP POR CONTEÚDO (mesma mensagem chegando em 2 eventos: 'messages' + 'chats') ===
+  // UAZAPI dispara o evento 'chats' com o resumo da última mensagem, cujo id sintético
+  // difere do id real do evento 'messages' -> gerava mensagem duplicada no chat.
+  if (!msg.from_me) {
+    const dupContent = (msg.content || '').trim();
+    if (dupContent) {
+      const sinceDup = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: recentSame } = await admin.from('messages')
+        .select('id, content, external_message_id, metadata')
+        .eq('user_id', userId).eq('client_id', client.id).eq('direction', 'inbound')
+        .gte('created_at', sinceDup).order('created_at', { ascending: false }).limit(10);
+      const twin = (recentSame || []).find((r: any) => {
+        const rc = String(r.content || '').trim();
+        return rc === dupContent || rc.startsWith(dupContent) || dupContent.startsWith(rc);
+      });
+      if (twin) {
+        const twinIsSynthetic = String(twin.external_message_id || '').startsWith('omni-chat:');
+        // Se o registro salvo veio do evento 'chats' (id sintético) e agora chegou o id real,
+        // apenas enriquece o registro existente — sem inserir nova mensagem nem acionar a IA de novo.
+        if (twinIsSynthetic && msg.external_message_id && !(msg as any).from_chat_event) {
+          const patch: any = { external_message_id: msg.external_message_id };
+          if (msg.media_url) patch.media_url = msg.media_url;
+          if (msg.media_type) patch.media_type = msg.media_type;
+          await admin.from('messages').update(patch).eq('id', twin.id);
+        }
+        return new Response(JSON.stringify({ ok: true, duplicate: true, dedup: 'content' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
   }
 
   // Attribution: register a touchpoint for new WhatsApp leads or click-to-WA ads
