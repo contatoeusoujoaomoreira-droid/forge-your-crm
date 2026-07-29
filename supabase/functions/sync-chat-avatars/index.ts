@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     }
 
 
-    return new Response(JSON.stringify({ ok: true, scanned: clients?.length || 0, updated, configs: configs?.length || 0, webhook_photos: avatarByPhone.size }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: true, scanned: clients?.length || 0, updated, persisted, configs: configs?.length || 0, webhook_photos: avatarByPhone.size }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
