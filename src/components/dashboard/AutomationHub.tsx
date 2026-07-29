@@ -245,23 +245,43 @@ export default function AutomationHub() {
     else {
       toast.success("Conexão salva!");
       await reloadWaConfigs();
-      if (payload.api_type === "z-api" && payload.is_active) configureWebhook(payload, false);
+      if ((payload.api_type === "z-api" || payload.api_type === "omniconect") && payload.is_active) configureWebhook(payload, false);
     }
   };
 
   const configureWebhook = async (config = waCfg, showSuccess = true) => {
     setConfiguringWebhook(true);
+    // OmniConect (UAZAPI): configura + ativa + verifica o webhook da instância pela própria API
+    if (config?.api_type === "omniconect") {
+      const { data, error } = await supabase.functions.invoke("omniconect", {
+        body: {
+          action: "set_webhook",
+          base_url: config.base_url,
+          instance_token: config.api_token,
+          config_id: config.id || undefined,
+        },
+      });
+      setConfiguringWebhook(false);
+      if (error) { toast.error(error.message); return; }
+      if (data?.verified) {
+        if (showSuccess) toast.success("Webhook ativo na instância UAZAPI.", { description: `Eventos: ${(data.events || []).join(", ")}` });
+      } else {
+        toast.error(`Webhook não confirmado: ${data?.error || data?.body || "erro"}`);
+      }
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("test-whatsapp", {
       body: { mode: "configure_webhook", config, webhook_url: webhookUrl },
     });
     setConfiguringWebhook(false);
     if (error) { toast.error(error.message); return; }
     if (data?.ok) {
-      if (showSuccess) toast.success("Webhook de recebimento configurado na Z-API!");
+      if (showSuccess) toast.success("Webhook de recebimento configurado!");
     } else {
       toast.error(`Webhook não configurado: ${data?.body || data?.error || "erro"}`);
     }
   };
+
 
   const testWa = async () => {
     setTesting(true);
@@ -585,11 +605,20 @@ export default function AutomationHub() {
       if (status === "connected") {
         setEvoQrState("open");
         clearInterval(t); setEvoPollTimer(null);
-        toast.success("✅ WhatsApp conectado e operacional!");
-        await supabase.functions.invoke("omniconect", {
-          body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
-        });
+        toast.success("✅ WhatsApp conectado!");
+        // Configura e ATIVA o webhook da instância automaticamente (com verificação e retry)
+        let hookOk = false;
+        for (let i = 0; i < 3 && !hookOk; i++) {
+          const wh = await supabase.functions.invoke("omniconect", {
+            body: { action: "set_webhook", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
+          });
+          hookOk = !!wh.data?.verified && wh.data?.enabled !== false;
+          if (!hookOk) await new Promise((r) => setTimeout(r, 1200));
+        }
+        if (hookOk) toast.success("🔗 Webhook configurado e ativo — eventos chegando ao CRM.");
+        else toast.error("WhatsApp conectado, mas o webhook não foi confirmado.", { description: "Use 'Sincronizar webhook' na conexão para tentar novamente." });
         await reloadWaConfigs();
+
         setTimeout(() => {
           setEvoQrOpen(false);
           setEvoQrImage(null);

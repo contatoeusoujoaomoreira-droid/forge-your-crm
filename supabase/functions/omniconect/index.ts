@@ -16,12 +16,42 @@ const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
 const OMNI_EVENTS = ['messages', 'messages_update', 'connection', 'chats', 'contacts'];
 const webhookUrlFor = (configId?: string | null) => configId ? `${WEBHOOK_URL}?config_id=${encodeURIComponent(configId)}` : WEBHOOK_URL;
 
-async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {
-  return await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', {
-    url: customUrl || webhookUrlFor(configId),
-    events: OMNI_EVENTS,
-  });
+// Lê a configuração de webhook atual da instância (aceita objeto ou array)
+async function getOmniWebhook(baseUrl: string, instanceToken: string) {
+  const r = await uaz(baseUrl, '/webhook', { token: instanceToken }, 'GET');
+  const j = r.json;
+  const list = Array.isArray(j) ? j : (Array.isArray(j?.webhooks) ? j.webhooks : (j ? [j] : []));
+  return { ok: r.ok, status: r.status, list, raw: j };
 }
+
+// Configura E ativa o webhook da instância. Tenta variações de payload aceitas
+// pelas diferentes versões da UAZAPI e valida lendo a config de volta.
+async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?: string | null, customUrl?: string) {
+  const url = customUrl || webhookUrlFor(configId);
+  const payloads: any[] = [
+    { enabled: true, url, events: OMNI_EVENTS, excludeMessages: [], addUrlEvents: false, addUrlTypesMessages: false, action: 'add' },
+    { enabled: true, url, events: OMNI_EVENTS },
+    { url, events: OMNI_EVENTS },
+  ];
+  let last: any = { ok: false, status: 0, text: 'no_attempt', json: null };
+  for (const body of payloads) {
+    last = await uaz(baseUrl, '/webhook', { token: instanceToken }, 'POST', body);
+    if (last.ok) break;
+    if (last.status === 404 || last.status === 405) {
+      last = await uaz(baseUrl, '/instance/updateWebhook', { token: instanceToken }, 'POST', body);
+      if (last.ok) break;
+    }
+  }
+  // Verificação: confirma que a URL está registrada e habilitada
+  const check = await getOmniWebhook(baseUrl, instanceToken);
+  const found = check.list.find((w: any) => (w?.url || '') === url);
+  const enabled = !!found && (found.enabled !== false);
+  return {
+    ok: last.ok, status: last.status, text: last.text, json: last.json,
+    url, verified: !!found, enabled, events: found?.events || OMNI_EVENTS, current: check.list,
+  };
+}
+
 
 async function uaz(baseUrl: string, path: string, headers: Record<string, string>, method = 'GET', body?: any) {
   const url = `${sanitize(baseUrl)}${path}`;
@@ -148,7 +178,7 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({
             ok: true, reused: true, config_id: configId, instance_name: reuseName, instance_token: reuseToken,
             qrcode: inst?.qrcode || null, paircode: inst?.paircode || null,
-            webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+            webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) },
             raw: conn.json,
           }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
@@ -180,7 +210,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         ok: true, config_id: configId, instance_name: instanceName, instance_token: instToken,
         qrcode, paircode,
-        webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) },
+        webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) },
         raw: r.json,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -204,7 +234,7 @@ Deno.serve(async (req) => {
         }
       }
       const wh = await setOmniWebhook(baseUrl, instanceToken, configId);
-      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, webhook: { ok: wh.ok, status: wh.status, body: (wh.text || '').slice(0, 300) }, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: r.ok, qrcode, paircode, status, webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) }, raw: r.json }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (action === 'status') {
@@ -218,8 +248,25 @@ Deno.serve(async (req) => {
     if (action === 'set_webhook') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const r = await setOmniWebhook(baseUrl, instanceToken, body.config_id || null, body.webhook_url);
-      return new Response(JSON.stringify({ ok: r.ok, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({
+        ok: r.ok && r.verified, http_ok: r.ok, status: r.status, url: r.url,
+        verified: r.verified, enabled: r.enabled, events: r.events, current: r.current,
+        error: r.verified ? undefined : 'Webhook não confirmado no servidor UAZAPI.',
+        body: (r.text || '').slice(0, 600),
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    if (action === 'webhook_status') {
+      if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const expected = body.webhook_url || webhookUrlFor(body.config_id || null);
+      const chk = await getOmniWebhook(baseUrl, instanceToken);
+      const found = chk.list.find((w: any) => (w?.url || '') === expected);
+      return new Response(JSON.stringify({
+        ok: chk.ok, expected_url: expected, verified: !!found,
+        enabled: !!found && found.enabled !== false, events: found?.events || [], current: chk.list,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
 
     if (action === 'disconnect') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
