@@ -824,11 +824,35 @@ export default function AutomationHub() {
                                     <TabsContent value="omniconect" className="space-y-2 pt-3">
                                       <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
                                         <p className="text-xs font-medium">WhatsApp via QR Code ou Código de Pareamento</p>
-                                        <p className="text-[11px] text-muted-foreground mt-1">URL base, webhook e instância são configurados automaticamente. Clique em "Gerar QR Code" abaixo para conectar.</p>
+                                        <p className="text-[11px] text-muted-foreground mt-1">Informe a URL do seu servidor UAZAPI e o Admin Token. Esses valores podem mudar a qualquer momento — são configuráveis aqui, sem alterar código.</p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">URL do servidor (UAZAPI)</Label>
+                                        <Input
+                                          value={c.base_url ?? omniDefaultBase}
+                                          onChange={(e) => updateLocalConn(c.id, { base_url: e.target.value })}
+                                          onBlur={(e) => persistOmniDefaults(e.target.value.trim().replace(/\/+$/, ""), omniDefaultAdminToken)}
+                                          placeholder="https://seuservidor.uazapi.com"
+                                          className="font-mono text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">Admin Token</Label>
+                                        <SecretInput
+                                          value={c.extra_headers?.admin_token ?? omniDefaultAdminToken}
+                                          onChange={(v: string) => updateLocalConn(c.id, { extra_headers: { ...(c.extra_headers || {}), admin_token: v } })}
+                                          placeholder="Admin token do painel UAZAPI"
+                                        />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => testOmniServer(c)} disabled={testing}>
+                                          <FlaskConical className="h-4 w-4 mr-1" />Testar servidor
+                                        </Button>
                                       </div>
                                       <Label className="text-xs">Instance Token (gerado automaticamente)</Label>
                                       <SecretInput value={c.api_token || ""} onChange={() => {}} placeholder="Será gerado ao clicar em Gerar QR Code" />
                                     </TabsContent>
+
 
                                     <TabsContent value="outras" className="space-y-3 pt-3">
                                       <div>
