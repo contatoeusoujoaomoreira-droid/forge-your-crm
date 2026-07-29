@@ -251,17 +251,37 @@ export default function AutomationHub() {
 
   const configureWebhook = async (config = waCfg, showSuccess = true) => {
     setConfiguringWebhook(true);
+    // OmniConect (UAZAPI): configura + ativa + verifica o webhook da instância pela própria API
+    if (config?.api_type === "omniconect") {
+      const { data, error } = await supabase.functions.invoke("omniconect", {
+        body: {
+          action: "set_webhook",
+          base_url: config.base_url,
+          instance_token: config.api_token,
+          config_id: config.id || undefined,
+        },
+      });
+      setConfiguringWebhook(false);
+      if (error) { toast.error(error.message); return; }
+      if (data?.verified) {
+        if (showSuccess) toast.success("Webhook ativo na instância UAZAPI.", { description: `Eventos: ${(data.events || []).join(", ")}` });
+      } else {
+        toast.error(`Webhook não confirmado: ${data?.error || data?.body || "erro"}`);
+      }
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("test-whatsapp", {
       body: { mode: "configure_webhook", config, webhook_url: webhookUrl },
     });
     setConfiguringWebhook(false);
     if (error) { toast.error(error.message); return; }
     if (data?.ok) {
-      if (showSuccess) toast.success("Webhook de recebimento configurado na Z-API!");
+      if (showSuccess) toast.success("Webhook de recebimento configurado!");
     } else {
       toast.error(`Webhook não configurado: ${data?.body || data?.error || "erro"}`);
     }
   };
+
 
   const testWa = async () => {
     setTesting(true);
