@@ -705,6 +705,28 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       else console.error('elevenlabs scribe failed', (await r.text()).slice(0, 300));
     }
 
+    // 3.5) Lovable AI Gateway — Whisper dedicado (gpt-4o-transcribe). Universal, sem chave do usuário.
+    {
+      const lk = Deno.env.get('LOVABLE_API_KEY') || '';
+      if (lk) {
+        try {
+          const fd = new FormData();
+          fd.append('file', blob, `audio.${fmt}`);
+          fd.append('model', 'openai/gpt-4o-transcribe');
+          const r = await fetch('https://ai.gateway.lovable.dev/v1/audio/transcriptions', {
+            method: 'POST', headers: { Authorization: `Bearer ${lk}` }, body: fd,
+          });
+          if (r.ok) {
+            const j = await r.json().catch(() => null);
+            const t = (j?.text || '').toString().trim();
+            if (t) { console.log('[STT] lovable gateway transcribe ok len=', t.length); return t; }
+          } else {
+            console.error('[STT] lovable transcribe failed', r.status, (await r.text()).slice(0, 300));
+          }
+        } catch (e) { console.error('[STT] lovable transcribe error', String(e).slice(0, 200)); }
+      }
+    }
+
     // 4) Lovable AI Gateway — Gemini 2.5 Flash multimodal (universal fallback, no user key needed).
     //    Safe now that the magic-bytes check above rejects encrypted .enc blobs / HTML errors
     //    that previously caused hallucinated transcripts.
