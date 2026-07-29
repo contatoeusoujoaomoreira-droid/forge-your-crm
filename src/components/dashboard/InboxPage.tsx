@@ -618,7 +618,13 @@ export default function InboxPage() {
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                       {m.media_type === "audio" && m.media_url && (
-                        <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
+                        <AudioMessage
+                          messageId={m.id}
+                          mediaUrl={m.media_url}
+                          playableUrl={m.metadata?.playable_url}
+                          transcript={transcript}
+                          isOut={isOut}
+                        />
                       )}
                       {m.media_type === "image" && m.media_url && (
                         <img src={m.media_url} alt="" onClick={() => openLightboxByUrl(m.media_url!)}
