@@ -497,6 +497,11 @@ function normalizeOmniChat(raw: any): NormalizedMsg | null {
   const text = chat.wa_lastMessageText || chat.wa_lastMessageTextVote || chat.lastMessageText || chat.last_message || '';
   const msgType = chat.wa_lastMessageType || chat.lastMessageType || chat.type || '';
   const mediaType = mediaTypeFromMime('', msgType);
+  // O evento 'chats' é apenas um resumo e NÃO traz a URL da mídia nem o id real.
+  // Processá-lo criava uma mensagem "[audio]" sem media_url que bloqueava (por dedup
+  // de conteúdo) o evento 'messages' real — impedindo transcrição e resposta.
+  // Mídias são tratadas exclusivamente pelo evento 'messages'.
+  if (mediaType && !String(text || '').trim()) return null;
   const tsRaw = Number(chat.wa_lastMsgTimestamp || chat.lastMessageTimestamp || chat.timestamp || 0);
   const eventMs = tsRaw ? (tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000) : 0;
   if (eventMs && Date.now() - eventMs > 30 * 60 * 1000) return null;
@@ -698,6 +703,28 @@ async function transcribeAudio(audioUrl: string, providerCfg: any, openaiKey: st
       });
       if (r.ok) { const j = await r.json(); if (j.text) return j.text; }
       else console.error('elevenlabs scribe failed', (await r.text()).slice(0, 300));
+    }
+
+    // 3.5) Lovable AI Gateway — Whisper dedicado (gpt-4o-transcribe). Universal, sem chave do usuário.
+    {
+      const lk = Deno.env.get('LOVABLE_API_KEY') || '';
+      if (lk) {
+        try {
+          const fd = new FormData();
+          fd.append('file', blob, `audio.${fmt}`);
+          fd.append('model', 'openai/gpt-4o-transcribe');
+          const r = await fetch('https://ai.gateway.lovable.dev/v1/audio/transcriptions', {
+            method: 'POST', headers: { Authorization: `Bearer ${lk}` }, body: fd,
+          });
+          if (r.ok) {
+            const j = await r.json().catch(() => null);
+            const t = (j?.text || '').toString().trim();
+            if (t) { console.log('[STT] lovable gateway transcribe ok len=', t.length); return t; }
+          } else {
+            console.error('[STT] lovable transcribe failed', r.status, (await r.text()).slice(0, 300));
+          }
+        } catch (e) { console.error('[STT] lovable transcribe error', String(e).slice(0, 200)); }
+      }
     }
 
     // 4) Lovable AI Gateway — Gemini 2.5 Flash multimodal (universal fallback, no user key needed).
@@ -1770,7 +1797,10 @@ Deno.serve(async (req) => {
   // === DEDUP POR CONTEÚDO (mesma mensagem chegando em 2 eventos: 'messages' + 'chats') ===
   // UAZAPI dispara o evento 'chats' com o resumo da última mensagem, cujo id sintético
   // difere do id real do evento 'messages' -> gerava mensagem duplicada no chat.
-  if (!msg.from_me) {
+  // Placeholders de mídia ("[audio]", "[image]"...) NÃO podem ser deduplicados por
+  // conteúdo: dois áudios distintos teriam o mesmo texto e o segundo seria descartado.
+  const isMediaPlaceholder = /^\[(audio|image|video|document|sticker|ptt)\]$/i.test((msg.content || '').trim());
+  if (!msg.from_me && !isMediaPlaceholder) {
     const dupContent = (msg.content || '').trim();
     if (dupContent) {
       const sinceDup = new Date(Date.now() - 5 * 60 * 1000).toISOString();
