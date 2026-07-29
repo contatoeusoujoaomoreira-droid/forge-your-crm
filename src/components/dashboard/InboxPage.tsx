@@ -12,6 +12,7 @@ import { Send, Bot, User, Search, MessageCircle, Sparkles, GitBranch, Tag, Exter
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
+import AudioMessage from "./chat/AudioMessage";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
@@ -618,7 +619,13 @@ export default function InboxPage() {
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
                       {m.media_type === "audio" && m.media_url && (
-                        <audio controls src={m.media_url} className="max-w-full mb-1" preload="none" />
+                        <AudioMessage
+                          messageId={m.id}
+                          mediaUrl={m.media_url}
+                          playableUrl={m.metadata?.playable_url}
+                          transcript={transcript}
+                          isOut={isOut}
+                        />
                       )}
                       {m.media_type === "image" && m.media_url && (
                         <img src={m.media_url} alt="" onClick={() => openLightboxByUrl(m.media_url!)}
@@ -638,7 +645,7 @@ export default function InboxPage() {
                           <span className="truncate">{m.metadata?.document_filename || m.content || "Abrir documento"}</span>
                         </a>
                       )}
-                      {transcript && (
+                      {transcript && m.media_type !== "audio" && (
                         <p className="text-[11px] italic opacity-80 mb-1">📝 "{transcript}"</p>
                       )}
                       {imgDesc && (
