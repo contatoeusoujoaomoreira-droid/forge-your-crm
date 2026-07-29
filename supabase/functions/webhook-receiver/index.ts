@@ -497,6 +497,11 @@ function normalizeOmniChat(raw: any): NormalizedMsg | null {
   const text = chat.wa_lastMessageText || chat.wa_lastMessageTextVote || chat.lastMessageText || chat.last_message || '';
   const msgType = chat.wa_lastMessageType || chat.lastMessageType || chat.type || '';
   const mediaType = mediaTypeFromMime('', msgType);
+  // O evento 'chats' é apenas um resumo e NÃO traz a URL da mídia nem o id real.
+  // Processá-lo criava uma mensagem "[audio]" sem media_url que bloqueava (por dedup
+  // de conteúdo) o evento 'messages' real — impedindo transcrição e resposta.
+  // Mídias são tratadas exclusivamente pelo evento 'messages'.
+  if (mediaType && !String(text || '').trim()) return null;
   const tsRaw = Number(chat.wa_lastMsgTimestamp || chat.lastMessageTimestamp || chat.timestamp || 0);
   const eventMs = tsRaw ? (tsRaw > 10_000_000_000 ? tsRaw : tsRaw * 1000) : 0;
   if (eventMs && Date.now() - eventMs > 30 * 60 * 1000) return null;
