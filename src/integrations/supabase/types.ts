@@ -2554,12 +2554,14 @@ export type Database = {
           event_name: string
           http_status: number | null
           id: string
+          is_test: boolean
           lead_id: string | null
           payload: Json | null
           pixel_id: string | null
           response: Json | null
           source_id: string | null
           source_type: string | null
+          stage_id: string | null
           status: string
           user_id: string
         }
@@ -2570,12 +2572,14 @@ export type Database = {
           event_name: string
           http_status?: number | null
           id?: string
+          is_test?: boolean
           lead_id?: string | null
           payload?: Json | null
           pixel_id?: string | null
           response?: Json | null
           source_id?: string | null
           source_type?: string | null
+          stage_id?: string | null
           status?: string
           user_id: string
         }
@@ -2586,12 +2590,14 @@ export type Database = {
           event_name?: string
           http_status?: number | null
           id?: string
+          is_test?: boolean
           lead_id?: string | null
           payload?: Json | null
           pixel_id?: string | null
           response?: Json | null
           source_id?: string | null
           source_type?: string | null
+          stage_id?: string | null
           status?: string
           user_id?: string
         }
@@ -2734,30 +2740,45 @@ export type Database = {
       }
       pipeline_stages: {
         Row: {
+          capi_currency: string
+          capi_event_active: boolean
+          capi_event_name: string | null
+          capi_event_value: number | null
           color: string | null
           created_at: string
           id: string
           name: string
           pipeline_id: string | null
           position: number
+          send_advanced_emq: boolean
           user_id: string
         }
         Insert: {
+          capi_currency?: string
+          capi_event_active?: boolean
+          capi_event_name?: string | null
+          capi_event_value?: number | null
           color?: string | null
           created_at?: string
           id?: string
           name: string
           pipeline_id?: string | null
           position?: number
+          send_advanced_emq?: boolean
           user_id: string
         }
         Update: {
+          capi_currency?: string
+          capi_event_active?: boolean
+          capi_event_name?: string | null
+          capi_event_value?: number | null
           color?: string | null
           created_at?: string
           id?: string
           name?: string
           pipeline_id?: string | null
           position?: number
+          send_advanced_emq?: boolean
           user_id?: string
         }
         Relationships: [

@@ -19,6 +19,8 @@ import {
   Flame, Snowflake, Thermometer, AlertCircle, Zap, TrendingDown, RefreshCw, Hourglass
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import StageCapiDialog, { CapiStage } from "@/components/dashboard/crm/StageCapiDialog";
+import CapiTestConsole from "@/components/dashboard/crm/CapiTestConsole";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
@@ -32,7 +34,11 @@ const LEAD_SCORE_WEIGHTS = {
   hasRedes: 10, hasUTM: 10, hasNotes: 5
 };
 
-interface Stage { id: string; name: string; position: number; color: string; pipeline_id?: string | null; }
+interface Stage {
+  id: string; name: string; position: number; color: string; pipeline_id?: string | null;
+  capi_event_active?: boolean | null; capi_event_name?: string | null;
+  capi_event_value?: number | null; capi_currency?: string | null; send_advanced_emq?: boolean | null;
+}
 interface Lead {
   id: string; name: string; email: string | null; phone: string | null;
   company: string | null; value: number; stage_id: string | null;
@@ -139,6 +145,9 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: "", content: "" });
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [capiStage, setCapiStage] = useState<CapiStage | null>(null);
+  const [capiDialogOpen, setCapiDialogOpen] = useState(false);
+  const [showCapiTests, setShowCapiTests] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState("#84cc16");
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
@@ -582,6 +591,22 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     </div>
   );
 
+  // Central de Testes CAPI em tela cheia (dentro do módulo CRM)
+  if (showCapiTests) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Testes CAPI — Meta Ads</h1>
+            <p className="text-sm text-muted-foreground">Simule movimentações de leads e acompanhe os eventos enviados em tempo real</p>
+          </div>
+          <Button variant="outline" size="sm" className="h-10 gap-2" onClick={() => setShowCapiTests(false)}><X className="h-4 w-4" /> Voltar ao CRM</Button>
+        </div>
+        <CapiTestConsole />
+      </div>
+    );
+  }
+
   // Se o Dashboard está ativo, mostrar apenas ele em tela cheia
   if (showDashboard) {
     return (
@@ -711,6 +736,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-10 border-primary/30 text-primary hover:bg-primary/5 gap-2" onClick={() => setStageDialogOpen(true)}><Settings2 className="h-4 w-4" /> Gerenciar Etapas</Button>
+            <Button variant="outline" size="sm" className="h-10 border-blue-500/30 text-blue-500 hover:bg-blue-500/5 gap-2" onClick={() => setShowCapiTests(true)}><Zap className="h-4 w-4" /> Testes CAPI</Button>
             <Button variant="outline" size="sm" className="h-10 border-green-500/30 text-green-500 hover:bg-green-500/5 gap-2" onClick={() => setShowTemplateDialog(true)}><MessageSquare className="h-4 w-4" /> Templates WhatsApp</Button>
             <Button size="sm" className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-bold px-4" onClick={() => setGlobalAddOpen(true)}><Plus className="h-5 w-5" /> Novo Lead</Button>
           </div>
@@ -801,11 +827,20 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
               <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4 h-full min-h-0" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
                 <div className="flex flex-col gap-2 p-4 rounded-xl bg-secondary/10 border-t-4" style={{ borderTopColor: stage.color }}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                      <h3 className="text-sm font-bold text-foreground">{stage.name}</h3>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                      <h3 className="text-sm font-bold text-foreground truncate">{stage.name}</h3>
                     </div>
-                    <span className="text-xs font-bold bg-secondary/50 px-2 py-0.5 rounded-full text-muted-foreground">{stageLeads.length}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => { setCapiStage(stage); setCapiDialogOpen(true); }}
+                        title="Integração Meta (CAPI)"
+                        className={`p-1.5 rounded-lg hover:bg-secondary transition-colors ${stage.capi_event_active ? "text-primary" : "text-muted-foreground"}`}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-xs font-bold bg-secondary/50 px-2 py-0.5 rounded-full text-muted-foreground">{stageLeads.length}</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <TrendingUp className="h-3 w-3" />
@@ -1338,6 +1373,9 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Meta CAPI Stage Dialog */}
+      <StageCapiDialog stage={capiStage} open={capiDialogOpen} onOpenChange={setCapiDialogOpen} onSaved={fetchData} />
 
       {/* New Pipeline Dialog */}
       <Dialog open={showNewPipelineDialog} onOpenChange={setShowNewPipelineDialog}>
