@@ -720,6 +720,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-10 border-primary/30 text-primary hover:bg-primary/5 gap-2" onClick={() => setStageDialogOpen(true)}><Settings2 className="h-4 w-4" /> Gerenciar Etapas</Button>
+            <Button variant="outline" size="sm" className="h-10 border-blue-500/30 text-blue-500 hover:bg-blue-500/5 gap-2" onClick={() => setShowCapiTests(true)}><Zap className="h-4 w-4" /> Testes CAPI</Button>
             <Button variant="outline" size="sm" className="h-10 border-green-500/30 text-green-500 hover:bg-green-500/5 gap-2" onClick={() => setShowTemplateDialog(true)}><MessageSquare className="h-4 w-4" /> Templates WhatsApp</Button>
             <Button size="sm" className="h-10 bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-bold px-4" onClick={() => setGlobalAddOpen(true)}><Plus className="h-5 w-5" /> Novo Lead</Button>
           </div>
