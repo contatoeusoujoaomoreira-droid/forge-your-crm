@@ -19,6 +19,8 @@ import {
   Flame, Snowflake, Thermometer, AlertCircle, Zap, TrendingDown, RefreshCw, Hourglass
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import StageCapiDialog, { CapiStage } from "@/components/dashboard/crm/StageCapiDialog";
+import CapiTestConsole from "@/components/dashboard/crm/CapiTestConsole";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
