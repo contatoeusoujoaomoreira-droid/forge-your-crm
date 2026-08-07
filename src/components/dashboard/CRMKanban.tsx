@@ -145,6 +145,9 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: "", content: "" });
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [capiStage, setCapiStage] = useState<CapiStage | null>(null);
+  const [capiDialogOpen, setCapiDialogOpen] = useState(false);
+  const [showCapiTests, setShowCapiTests] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState("#84cc16");
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
