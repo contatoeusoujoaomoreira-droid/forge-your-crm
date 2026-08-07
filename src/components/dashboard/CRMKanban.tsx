@@ -1375,7 +1375,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
       </Dialog>
 
       {/* Meta CAPI Stage Dialog */}
-      <StageCapiDialog stage={capiStage} open={capiDialogOpen} onOpenChange={setCapiDialogOpen} onSaved={loadData} />
+      <StageCapiDialog stage={capiStage} open={capiDialogOpen} onOpenChange={setCapiDialogOpen} onSaved={fetchData} />
 
       {/* New Pipeline Dialog */}
       <Dialog open={showNewPipelineDialog} onOpenChange={setShowNewPipelineDialog}>
