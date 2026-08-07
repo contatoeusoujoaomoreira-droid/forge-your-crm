@@ -591,6 +591,22 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     </div>
   );
 
+  // Central de Testes CAPI em tela cheia (dentro do módulo CRM)
+  if (showCapiTests) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Testes CAPI — Meta Ads</h1>
+            <p className="text-sm text-muted-foreground">Simule movimentações de leads e acompanhe os eventos enviados em tempo real</p>
+          </div>
+          <Button variant="outline" size="sm" className="h-10 gap-2" onClick={() => setShowCapiTests(false)}><X className="h-4 w-4" /> Voltar ao CRM</Button>
+        </div>
+        <CapiTestConsole />
+      </div>
+    );
+  }
+
   // Se o Dashboard está ativo, mostrar apenas ele em tela cheia
   if (showDashboard) {
     return (
