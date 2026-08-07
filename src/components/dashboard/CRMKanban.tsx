@@ -34,7 +34,11 @@ const LEAD_SCORE_WEIGHTS = {
   hasRedes: 10, hasUTM: 10, hasNotes: 5
 };
 
-interface Stage { id: string; name: string; position: number; color: string; pipeline_id?: string | null; }
+interface Stage {
+  id: string; name: string; position: number; color: string; pipeline_id?: string | null;
+  capi_event_active?: boolean | null; capi_event_name?: string | null;
+  capi_event_value?: number | null; capi_currency?: string | null; send_advanced_emq?: boolean | null;
+}
 interface Lead {
   id: string; name: string; email: string | null; phone: string | null;
   company: string | null; value: number; stage_id: string | null;
