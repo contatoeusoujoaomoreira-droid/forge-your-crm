@@ -810,11 +810,20 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
               <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col gap-4 h-full min-h-0" onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage.id)}>
                 <div className="flex flex-col gap-2 p-4 rounded-xl bg-secondary/10 border-t-4" style={{ borderTopColor: stage.color }}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                      <h3 className="text-sm font-bold text-foreground">{stage.name}</h3>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                      <h3 className="text-sm font-bold text-foreground truncate">{stage.name}</h3>
                     </div>
-                    <span className="text-xs font-bold bg-secondary/50 px-2 py-0.5 rounded-full text-muted-foreground">{stageLeads.length}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => { setCapiStage(stage); setCapiDialogOpen(true); }}
+                        title="Integração Meta (CAPI)"
+                        className={`p-1.5 rounded-lg hover:bg-secondary transition-colors ${stage.capi_event_active ? "text-primary" : "text-muted-foreground"}`}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-xs font-bold bg-secondary/50 px-2 py-0.5 rounded-full text-muted-foreground">{stageLeads.length}</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <TrendingUp className="h-3 w-3" />
