@@ -726,6 +726,8 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
               </select>
               <Button variant="outline" size="sm" className="h-10 gap-2 border-primary/30 text-primary hover:bg-primary/5" onClick={() => setShowNewPipelineDialog(true)}><Plus className="h-4 w-4" /> Novo Funil</Button>
+              <Button variant="outline" size="sm" className="h-10 gap-2" disabled={!activePipeline} onClick={() => setShowPipelineMeta(true)} title="Pixel do Meta Ads deste funil"><Globe className="h-4 w-4" /> Pixel do Funil</Button>
+
             </div>
             <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg border border-border">
               <Button variant={view === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("kanban")}><LayoutGrid className="h-3.5 w-3.5" /> Kanban</Button>
