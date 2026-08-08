@@ -209,6 +209,8 @@ const FormPublic = () => {
         utm_content: tracking.content, utm_term: tracking.term,
         ttclid: tracking.ttclid, fbc: tracking.fbc, fbp: tracking.fbp,
         landing_url: tracking.landing_url, referrer: tracking.referrer, user_agent: tracking.user_agent,
+        click_id: tracking.fbclid || tracking.gclid || tracking.ttclid || tracking.ctwa_clid || null,
+        referring_url: tracking.referrer || null,
       } as any).select("id").maybeSingle();
       leadIdForTouchpoint = inserted?.id || null;
     }
