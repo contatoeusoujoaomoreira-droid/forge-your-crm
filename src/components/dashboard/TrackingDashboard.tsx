@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, MousePointerClick, Users, DollarSign, ChevronDown, ChevronRight, Target } from "lucide-react";
 import InfoTip from "@/components/InfoTip";
 import FunnelAnalytics from "./FunnelAnalytics";
+import TrafficAttributionPanel from "./TrafficAttributionPanel";
 import MetaPixelSettings from "./MetaPixelSettings";
 
 type Period = "today" | "7d" | "30d" | "month" | "all";
@@ -295,6 +296,8 @@ const TrackingDashboard = () => {
       </div>
 
       {/* Funnel Analytics for forms & quizzes */}
+      <TrafficAttributionPanel />
+
       <FunnelAnalytics />
 
       {/* Meta Pixel + Conversions API settings */}

@@ -21,6 +21,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import StageCapiDialog, { CapiStage } from "@/components/dashboard/crm/StageCapiDialog";
 import CapiTestConsole from "@/components/dashboard/crm/CapiTestConsole";
+import PipelineMetaDialog from "@/components/dashboard/crm/PipelineMetaDialog";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
@@ -155,6 +156,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [newTag, setNewTag] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [showNewPipelineDialog, setShowNewPipelineDialog] = useState(false);
+  const [showPipelineMeta, setShowPipelineMeta] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
 
   // Auto-open lead detail when arriving via ?lead=<id> (e.g. from Chat)
@@ -1378,6 +1380,13 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
       {/* Meta CAPI Stage Dialog */}
       <StageCapiDialog stage={capiStage} open={capiDialogOpen} onOpenChange={setCapiDialogOpen} onSaved={fetchData} />
+
+      <PipelineMetaDialog
+        open={showPipelineMeta}
+        onOpenChange={setShowPipelineMeta}
+        pipelineId={activePipeline}
+        pipelineName={pipelines.find(p => p.id === activePipeline)?.name}
+      />
 
       {/* New Pipeline Dialog */}
       <Dialog open={showNewPipelineDialog} onOpenChange={setShowNewPipelineDialog}>
