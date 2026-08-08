@@ -2125,6 +2125,7 @@ export type Database = {
       leads: {
         Row: {
           archived: boolean
+          click_id: string | null
           company: string | null
           contract_months: number | null
           created_at: string
@@ -2149,6 +2150,7 @@ export type Database = {
           priority: string | null
           probability: number | null
           referrer: string | null
+          referring_url: string | null
           revenue_type: string | null
           source: string | null
           source_form_id: string | null
@@ -2171,6 +2173,7 @@ export type Database = {
         }
         Insert: {
           archived?: boolean
+          click_id?: string | null
           company?: string | null
           contract_months?: number | null
           created_at?: string
@@ -2195,6 +2198,7 @@ export type Database = {
           priority?: string | null
           probability?: number | null
           referrer?: string | null
+          referring_url?: string | null
           revenue_type?: string | null
           source?: string | null
           source_form_id?: string | null
@@ -2217,6 +2221,7 @@ export type Database = {
         }
         Update: {
           archived?: boolean
+          click_id?: string | null
           company?: string | null
           contract_months?: number | null
           created_at?: string
@@ -2241,6 +2246,7 @@ export type Database = {
           priority?: string | null
           probability?: number | null
           referrer?: string | null
+          referring_url?: string | null
           revenue_type?: string | null
           source?: string | null
           source_form_id?: string | null
@@ -2795,18 +2801,27 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          meta_access_token: string | null
+          meta_pixel_id: string | null
+          meta_test_event_code: string | null
           name: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          meta_access_token?: string | null
+          meta_pixel_id?: string | null
+          meta_test_event_code?: string | null
           name: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          meta_access_token?: string | null
+          meta_pixel_id?: string | null
+          meta_test_event_code?: string | null
           name?: string
           user_id?: string
         }

@@ -62,12 +62,26 @@ Deno.serve(async (req) => {
   if (!lead) { await logFail("lead_not_found"); return json({ ok: false, error: "lead_not_found" }); }
   if (!isTest && !(stage as any).capi_event_active) return json({ ok: true, skipped: "stage_capi_disabled" });
 
-  const pixelId = cfg?.pixel_id || null;
-  const accessToken = cfg?.capi_access_token || null;
-  if (!pixelId || !accessToken || cfg?.capi_enabled === false) {
+  // Multi-pixel: credenciais do funil (pipeline) têm prioridade sobre a config global
+  const pipelineId = (stage as any).pipeline_id || (lead as any).pipeline_id || null;
+  let pipeline: any = null;
+  if (pipelineId) {
+    const { data } = await supabase
+      .from("pipelines")
+      .select("id, name, meta_pixel_id, meta_access_token, meta_test_event_code")
+      .eq("id", pipelineId)
+      .maybeSingle();
+    pipeline = data;
+  }
+
+  const pixelId = pipeline?.meta_pixel_id || cfg?.pixel_id || null;
+  const accessToken = pipeline?.meta_access_token || cfg?.capi_access_token || null;
+  const testEventCode = pipeline?.meta_test_event_code || cfg?.test_event_code || null;
+  if (!pixelId || !accessToken || (!pipeline?.meta_pixel_id && cfg?.capi_enabled === false)) {
     await logFail("capi_not_configured");
     return json({ ok: false, error: "capi_not_configured" });
   }
+
 
   // Deduplication: lead + stage + action timestamp
   const actionTs = Math.floor(Date.now() / 1000);
@@ -92,16 +106,36 @@ Deno.serve(async (req) => {
       if (parts[0]) user_data.fn = [await sha256(parts[0])];
       if (parts.length > 1) user_data.ln = [await sha256(parts.slice(1).join(" "))];
     }
-    const fbc = body.fbc || (lead as any).fbc || null;
+    // Injeção de rastreamento: fbc do click_id quando ausente
+    let fbc = body.fbc || (lead as any).fbc || null;
+    const clickId = (lead as any).click_id || (lead as any).fbclid || null;
+    if (!fbc && clickId) fbc = `fb.1.${Date.now()}.${clickId}`;
     const fbp = body.fbp || (lead as any).fbp || null;
     if (fbc) user_data.fbc = fbc;
     if (fbp) user_data.fbp = fbp;
     const ip = body.client_ip || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
     if (ip) user_data.client_ip_address = ip;
-    const ua = body.client_user_agent || req.headers.get("user-agent") || null;
+    const ua = body.client_user_agent || (lead as any).user_agent || req.headers.get("user-agent") || null;
     if (ua) user_data.client_user_agent = ua;
   }
   if (Object.keys(user_data).length === 0) user_data.external_id = [await sha256(String(body.lead_id))];
+
+  const isConversion = eventName === "Purchase" || eventName === "Subscribe";
+  const custom_data: Record<string, unknown> = {
+    lead_stage: (stage as any).name,
+    content_name: (stage as any).name,
+    // UTMs do lead para atribuição na Meta
+    utm_source: (lead as any).utm_source || null,
+    utm_medium: (lead as any).utm_medium || null,
+    utm_campaign: (lead as any).utm_campaign || null,
+    utm_content: (lead as any).utm_content || null,
+    utm_term: (lead as any).utm_term || null,
+    ...(isTest ? { test_mode: true } : {}),
+  };
+  if (isConversion || value > 0) {
+    custom_data.value = isConversion ? Number(value || 0) : value;
+    custom_data.currency = currency;
+  }
 
   const event: Record<string, unknown> = {
     event_name: eventName,
@@ -109,18 +143,14 @@ Deno.serve(async (req) => {
     event_id: eventId,
     action_source: "system_generated",
     user_data,
-    custom_data: {
-      value,
-      currency,
-      lead_stage: (stage as any).name,
-      content_name: (stage as any).name,
-      ...(isTest ? { test_mode: true } : {}),
-    },
+    custom_data,
   };
-  if (body.event_source_url) event.event_source_url = body.event_source_url;
+  const sourceUrl = body.event_source_url || (lead as any).landing_url || (lead as any).referring_url || null;
+  if (sourceUrl) event.event_source_url = sourceUrl;
 
   const reqBody: Record<string, unknown> = { data: [event] };
-  if (isTest && cfg?.test_event_code) reqBody.test_event_code = cfg.test_event_code;
+  if (isTest && testEventCode) reqBody.test_event_code = testEventCode;
+
 
   let httpStatus = 0; let respJson: any = null; let errText: string | null = null;
   try {

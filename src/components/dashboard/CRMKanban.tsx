@@ -21,6 +21,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import StageCapiDialog, { CapiStage } from "@/components/dashboard/crm/StageCapiDialog";
 import CapiTestConsole from "@/components/dashboard/crm/CapiTestConsole";
+import PipelineMetaDialog from "@/components/dashboard/crm/PipelineMetaDialog";
 
 const COLORS = ["#84cc16", "#3b82f6", "#f59e0b", "#8b5cf6", "#10b981", "#ef4444"];
 const WON_STAGE_PATTERNS = ["fechado", "convertido", "venda", "ganho", "won", "closed"];
@@ -155,6 +156,7 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
   const [newTag, setNewTag] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [showNewPipelineDialog, setShowNewPipelineDialog] = useState(false);
+  const [showPipelineMeta, setShowPipelineMeta] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
 
   // Auto-open lead detail when arriving via ?lead=<id> (e.g. from Chat)
@@ -726,6 +728,8 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>)}
               </select>
               <Button variant="outline" size="sm" className="h-10 gap-2 border-primary/30 text-primary hover:bg-primary/5" onClick={() => setShowNewPipelineDialog(true)}><Plus className="h-4 w-4" /> Novo Funil</Button>
+              <Button variant="outline" size="sm" className="h-10 gap-2" disabled={!activePipeline} onClick={() => setShowPipelineMeta(true)} title="Pixel do Meta Ads deste funil"><Globe className="h-4 w-4" /> Pixel do Funil</Button>
+
             </div>
             <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg border border-border">
               <Button variant={view === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-3 gap-2" onClick={() => setView("kanban")}><LayoutGrid className="h-3.5 w-3.5" /> Kanban</Button>
@@ -1376,6 +1380,13 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
 
       {/* Meta CAPI Stage Dialog */}
       <StageCapiDialog stage={capiStage} open={capiDialogOpen} onOpenChange={setCapiDialogOpen} onSaved={fetchData} />
+
+      <PipelineMetaDialog
+        open={showPipelineMeta}
+        onOpenChange={setShowPipelineMeta}
+        pipelineId={activePipeline}
+        pipelineName={pipelines.find(p => p.id === activePipeline)?.name}
+      />
 
       {/* New Pipeline Dialog */}
       <Dialog open={showNewPipelineDialog} onOpenChange={setShowNewPipelineDialog}>
