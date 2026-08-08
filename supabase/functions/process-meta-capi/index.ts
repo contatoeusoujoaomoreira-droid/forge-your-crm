@@ -62,12 +62,26 @@ Deno.serve(async (req) => {
   if (!lead) { await logFail("lead_not_found"); return json({ ok: false, error: "lead_not_found" }); }
   if (!isTest && !(stage as any).capi_event_active) return json({ ok: true, skipped: "stage_capi_disabled" });
 
-  const pixelId = cfg?.pixel_id || null;
-  const accessToken = cfg?.capi_access_token || null;
-  if (!pixelId || !accessToken || cfg?.capi_enabled === false) {
+  // Multi-pixel: credenciais do funil (pipeline) têm prioridade sobre a config global
+  const pipelineId = (stage as any).pipeline_id || (lead as any).pipeline_id || null;
+  let pipeline: any = null;
+  if (pipelineId) {
+    const { data } = await supabase
+      .from("pipelines")
+      .select("id, name, meta_pixel_id, meta_access_token, meta_test_event_code")
+      .eq("id", pipelineId)
+      .maybeSingle();
+    pipeline = data;
+  }
+
+  const pixelId = pipeline?.meta_pixel_id || cfg?.pixel_id || null;
+  const accessToken = pipeline?.meta_access_token || cfg?.capi_access_token || null;
+  const testEventCode = pipeline?.meta_test_event_code || cfg?.test_event_code || null;
+  if (!pixelId || !accessToken || (!pipeline?.meta_pixel_id && cfg?.capi_enabled === false)) {
     await logFail("capi_not_configured");
     return json({ ok: false, error: "capi_not_configured" });
   }
+
 
   // Deduplication: lead + stage + action timestamp
   const actionTs = Math.floor(Date.now() / 1000);
