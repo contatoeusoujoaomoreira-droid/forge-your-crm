@@ -343,9 +343,24 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     const stage = pipelineStages.find(s => s.id === stageId);
     const updates: any = { stage_id: stageId };
     if (stage && isConversionStage(stage.name) && lead && lead.value > 0) updates.status = "won";
-    await supabase.from("leads").update(updates).eq("id", draggedLead);
+    const { error: updErr } = await supabase.from("leads").update(updates).eq("id", draggedLead);
     setLeads(prev => prev.map(l => l.id === draggedLead ? { ...l, ...updates } : l));
+    const movedLeadId = draggedLead;
     setDraggedLead(null);
+
+    // Gatilho híbrido: força o disparo CAPI mesmo se o trigger do banco falhar
+    if (!updErr && stage && (stage as any).capi_event_active) {
+      supabase.functions.invoke("process-meta-capi", {
+        body: {
+          user_id: user.id,
+          lead_id: movedLeadId,
+          stage_id: stageId,
+          is_test: false,
+          event_source_url: window.location.href,
+        },
+      }).catch(() => {});
+    }
+
 
     // Fire event engine
     if (lead && stage) {
