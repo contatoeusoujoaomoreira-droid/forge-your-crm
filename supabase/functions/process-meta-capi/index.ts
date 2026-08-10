@@ -152,25 +152,51 @@ Deno.serve(async (req) => {
   if (isTest && testEventCode) reqBody.test_event_code = testEventCode;
 
 
-  let httpStatus = 0; let respJson: any = null; let errText: string | null = null;
+  // ---- Chamada real à Graph API: nunca assumir sucesso ----
+  let statusCode = 0;
+  let metaResponse: any = null;
+  let errText: string | null = null;
+
   try {
-    const r = await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody),
-    });
-    httpStatus = r.status;
-    respJson = await r.json().catch(() => null);
-    if (!r.ok) errText = respJson?.error?.message || `http_${r.status}`;
+    const response = await fetch(
+      `https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reqBody) },
+    );
+    statusCode = response.status;
+    const raw = await response.text();
+    try { metaResponse = raw ? JSON.parse(raw) : null; } catch { metaResponse = { raw }; }
+
+    // Sucesso só quando HTTP 200 E a Meta confirmou events_received sem error
+    const accepted = statusCode === 200 && !metaResponse?.error;
+    if (!accepted) {
+      errText = metaResponse?.error?.message
+        || metaResponse?.error?.error_user_msg
+        || (raw ? raw.slice(0, 500) : `http_${statusCode}`);
+    }
   } catch (e) {
     errText = (e as Error)?.message || String(e);
+    metaResponse = { error: { message: errText, type: "network_error" } };
+    statusCode = statusCode || 502;
   }
 
   const status = errText ? "failed" : "sent";
   await supabase.from("meta_event_log").insert({
     user_id: body.user_id, source_type: "crm_stage", source_id: body.stage_id, stage_id: body.stage_id,
     event_name: eventName, event_id: eventId, lead_id: body.lead_id, pixel_id: pixelId,
-    status, http_status: httpStatus, response: respJson || {}, is_test: isTest,
+    status, http_status: statusCode, response: metaResponse || {}, is_test: isTest,
     payload: reqBody as any, error: errText,
   });
 
-  return json({ ok: status === "sent", status, http_status: httpStatus, error: errText, event_id: eventId, response: respJson });
+  return new Response(
+    JSON.stringify({
+      ok: status === "sent",
+      status,
+      http_status: statusCode,
+      meta_api_response: metaResponse,
+      payload_sent: reqBody,
+      event_id: eventId,
+      error: errText,
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: statusCode === 200 ? 200 : (statusCode >= 400 && statusCode <= 599 ? statusCode : 502) },
+  );
 });

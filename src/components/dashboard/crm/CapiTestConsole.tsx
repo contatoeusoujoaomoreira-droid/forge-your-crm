@@ -117,13 +117,52 @@ const CapiTestConsole = () => {
     }
     setSimulating(true);
     await supabase.from("leads").update({ stage_id: stageId } as any).eq("id", leadId);
-    const { data, error } = await supabase.functions.invoke("process-meta-capi", {
-      body: { user_id: user.id, lead_id: leadId, stage_id: stageId, is_test: true, event_source_url: window.location.href },
-    });
+
+    let result: any = null;
+    let transportError: string | null = null;
+    try {
+      const { data, error } = await supabase.functions.invoke("process-meta-capi", {
+        body: { user_id: user.id, lead_id: leadId, stage_id: stageId, is_test: true, event_source_url: window.location.href },
+      });
+      if (error) {
+        // Non-2xx: o corpo real da resposta vem em error.context
+        const ctx = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          result = await ctx.json().catch(() => null);
+        }
+        if (!result) transportError = error.message;
+      } else {
+        result = data;
+      }
+    } catch (e: any) {
+      transportError = e?.message || String(e);
+    }
     setSimulating(false);
-    if (error) { toast({ title: "Falha na simulação", description: error.message, variant: "destructive" }); return; }
-    if ((data as any)?.ok) toast({ title: "Evento de teste enviado", description: `HTTP ${(data as any).http_status}` });
-    else toast({ title: "Meta retornou erro", description: (data as any)?.error || "Veja o console abaixo", variant: "destructive" });
+
+    if (!result) {
+      toast({ title: "Falha ao chamar a função", description: transportError || "Sem resposta da Edge Function", variant: "destructive" });
+      return;
+    }
+
+    const httpStatus = result.http_status ?? 0;
+    const metaResp = result.meta_api_response ?? result.response ?? null;
+    const reason = metaResp?.error?.error_user_msg
+      || metaResp?.error?.message
+      || result.error
+      || `HTTP ${httpStatus}`;
+
+    if (httpStatus === 200 && !metaResp?.error) {
+      toast({
+        title: "Evento aceito pela Meta",
+        description: `HTTP 200 · events_received: ${metaResp?.events_received ?? 1}${metaResp?.fbtrace_id ? ` · trace ${metaResp.fbtrace_id}` : ""}`,
+      });
+    } else {
+      toast({
+        title: `A Meta rejeitou o evento: ${reason}`,
+        description: `HTTP ${httpStatus}${metaResp?.error?.fbtrace_id ? ` · trace ${metaResp.error.fbtrace_id}` : ""} — veja o console abaixo`,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
