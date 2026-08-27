@@ -487,7 +487,13 @@ export default function CampaignsList() {
             </div>
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem">
+            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem (etapas do CRM)">
+              <Layers className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowListPicker(c)} disabled={loading} title="Preencher de lista importada">
+              <Upload className="h-4 w-4" />
+            </Button>
+
               <Layers className="h-4 w-4" />
             </Button>
             <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)} title="Selecionar leads"><Users className="h-4 w-4" /></Button>
