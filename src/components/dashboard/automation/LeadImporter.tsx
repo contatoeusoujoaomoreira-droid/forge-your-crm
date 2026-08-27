@@ -164,7 +164,9 @@ export default function LeadImporter({ onShowImported }: Props) {
     for (const h of hdrs) {
       const lower = h.toLowerCase();
       if (lower.includes("nome") || lower === "name") m.name = h;
-      else if (lower.includes("tel") || lower.includes("phone") || lower.includes("whats")) m.phone = h;
+      else if (/\b(ddi)\b/.test(lower) || lower.includes("pais") || lower.includes("país") || lower.includes("country")) m.country_code = h;
+      else if (/\b(ddd)\b/.test(lower) || lower.includes("area") || lower.includes("área")) m.area_code = h;
+      else if (lower.includes("tel") || lower.includes("phone") || lower.includes("whats") || lower.includes("celular") || lower.includes("fone") || lower.includes("mobile")) m.phone = h;
       else if (lower.includes("mail")) m.email = h;
       else if (lower.includes("empresa") || lower.includes("company")) m.company = h;
       else if (lower.includes("origem") || lower.includes("source")) m.source = h;
@@ -172,6 +174,7 @@ export default function LeadImporter({ onShowImported }: Props) {
     }
     setMapping(m);
   };
+
 
   const importNow = async () => {
     if (!user) return;
