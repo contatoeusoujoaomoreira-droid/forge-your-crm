@@ -108,7 +108,16 @@ export default function LeadImporter({ onShowImported }: Props) {
   const [manualText, setManualText] = useState("");
   const [importedCount, setImportedCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [defaultCountry, setDefaultCountry] = useState("55");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const phoneOf = (row: any) => buildPhoneE164(
+    mapping.phone ? row[mapping.phone] : "",
+    mapping.country_code ? row[mapping.country_code] : "",
+    mapping.area_code ? row[mapping.area_code] : "",
+    defaultCountry,
+  );
+
 
   useEffect(() => {
     if (!user) return;
