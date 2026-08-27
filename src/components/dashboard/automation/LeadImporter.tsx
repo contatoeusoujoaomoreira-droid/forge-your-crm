@@ -381,7 +381,43 @@ export default function LeadImporter({ onShowImported }: Props) {
                 </div>
               ))}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border">
+              <div>
+                <Label className="text-xs">País padrão (quando não houver DDI na planilha)</Label>
+                <select
+                  className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={defaultCountry}
+                  onChange={(e) => setDefaultCountry(e.target.value)}
+                >
+                  {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs">Prévia dos números (formato internacional)</Label>
+                <div className="mt-1 rounded-md border border-border bg-secondary/30 p-2 space-y-1 max-h-32 overflow-y-auto">
+                  {rows.slice(0, 5).map((r, i) => {
+                    const p = phoneOf(r);
+                    const valid = isValidPhone(p);
+                    return (
+                      <div key={i} className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground truncate max-w-[50%]">
+                          {mapping.name ? String(r[mapping.name] || "—") : "—"}
+                        </span>
+                        <span className={valid ? "text-primary font-mono" : "text-destructive font-mono"}>
+                          {p ? `+${p}` : "sem telefone"}{!valid && p ? " (inválido)" : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Válidos: {rows.filter(r => isValidPhone(phoneOf(r))).length} de {rows.length}
+                </p>
+              </div>
+            </div>
           </Card>
+
 
           <Card className="p-4 space-y-3">
             <h3 className="font-semibold text-sm">Destino sugerido (aplicado na conversão)</h3>
