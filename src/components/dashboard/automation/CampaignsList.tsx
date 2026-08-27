@@ -59,16 +59,19 @@ export default function CampaignsList() {
     };
     if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
-    } else {
+    } else if (kind === "agent") {
       setEditing({ ...base, name: "Campanha com agente" });
+    } else {
+      setEditing({ ...base, name: "Campanha de disparo", agent_id: "", flow_id: "" });
     }
   };
 
   const save = async () => {
     if (!user || !editing.name) { toast.error("Nome obrigatório"); return; }
-    const kind = editing._kind || (editing.flow_id ? "flow" : "agent");
+    const kind = editing._kind || (editing.flow_id ? "flow" : editing.agent_id ? "agent" : "blank");
     if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
     if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
+
     if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
     if (editing.audience_mode === "limit" && !(editing.audience_limit > 0)) { toast.error("Informe a quantidade de contatos da campanha"); return; }
     if (editing.post_send_action === "move" && !editing.post_send_stage_id) { toast.error("Escolha a etapa para mover após o primeiro disparo"); return; }
