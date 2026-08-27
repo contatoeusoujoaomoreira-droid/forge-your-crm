@@ -14,12 +14,33 @@ import { Upload, FileSpreadsheet, CheckCircle2, ListPlus, Snowflake, UserCheck, 
 
 const FIELDS = [
   { key: "name", label: "Nome" },
-  { key: "phone", label: "Telefone" },
+  { key: "phone", label: "Telefone / Celular" },
+  { key: "country_code", label: "Código do País (DDI)" },
+  { key: "area_code", label: "DDD" },
   { key: "email", label: "E-mail" },
   { key: "company", label: "Empresa" },
   { key: "source", label: "Origem" },
   { key: "tags", label: "Tags (separadas por ;)" },
 ];
+
+const COUNTRIES = [
+  { code: "55", label: "Brasil (+55)" },
+  { code: "1", label: "EUA / Canadá (+1)" },
+  { code: "351", label: "Portugal (+351)" },
+  { code: "34", label: "Espanha (+34)" },
+  { code: "44", label: "Reino Unido (+44)" },
+  { code: "54", label: "Argentina (+54)" },
+  { code: "56", label: "Chile (+56)" },
+  { code: "57", label: "Colômbia (+57)" },
+  { code: "52", label: "México (+52)" },
+  { code: "595", label: "Paraguai (+595)" },
+  { code: "598", label: "Uruguai (+598)" },
+  { code: "39", label: "Itália (+39)" },
+  { code: "49", label: "Alemanha (+49)" },
+  { code: "33", label: "França (+33)" },
+];
+
+const onlyDigits = (v: any) => String(v ?? "").replace(/\D/g, "");
 
 type ListType = "leads" | "clients" | "mixed";
 
@@ -29,13 +50,41 @@ const LIST_TYPES: { id: ListType; label: string; icon: any; description: string 
   { id: "mixed", label: "Misto", icon: Layers, description: "O arquivo contém leads e clientes. Mapeie a coluna indicadora." },
 ];
 
-const normalizePhone = (raw: string) => {
-  const digits = (raw || "").replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.startsWith("55") && digits.length >= 12) return digits;
-  if (digits.length >= 10 && digits.length <= 11) return "55" + digits;
-  return digits;
+// Monta o E.164 a partir das colunas mapeadas (DDI, DDD e número podem vir separados)
+export const buildPhoneE164 = (
+  rawPhone: string,
+  rawCountry: string,
+  rawArea: string,
+  defaultCountry: string,
+): string => {
+  let local = onlyDigits(rawPhone);
+  if (!local) return "";
+
+  let ddi = onlyDigits(rawCountry);
+  const ddd = onlyDigits(rawArea);
+
+  // Se o número já vem com "+" ou "00", o DDI está embutido
+  const hadPlus = /^\s*(\+|00)/.test(String(rawPhone ?? ""));
+  if (hadPlus && local.startsWith("00")) local = local.slice(2);
+
+  if (ddd && !local.startsWith(ddd)) local = ddd + local;
+
+  if (!ddi) {
+    if (hadPlus) {
+      // DDI já embutido no número
+      return local;
+    }
+    // Brasil: número já com 55 + DDD + 8/9 dígitos
+    if (local.length >= 12 && local.startsWith("55")) return local;
+    ddi = onlyDigits(defaultCountry) || "55";
+  }
+
+  if (local.startsWith(ddi) && local.length > (ddi === "55" ? 11 : 9)) return local;
+  return ddi + local;
 };
+
+const isValidPhone = (e164: string) => e164.length >= 10 && e164.length <= 15;
+
 
 interface Props {
   onShowImported?: () => void;
