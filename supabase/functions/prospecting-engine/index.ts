@@ -87,10 +87,13 @@ Deno.serve(async (req) => {
         .eq('campaign_id', camp.id).gte('sent_at', today.toISOString());
       if ((sentToday || 0) >= (camp.daily_limit || 100)) continue;
 
-      // Get whatsapp config of campaign owner
-      const { data: cfg } = await admin.from('whatsapp_configs')
-        .select('*').eq('user_id', camp.user_id).eq('is_active', true).maybeSingle();
-      if (!cfg) continue;
+      // Get whatsapp config of campaign owner (first active connection)
+      const { data: cfgs } = await admin.from('whatsapp_configs')
+        .select('*').eq('user_id', camp.user_id).eq('is_active', true)
+        .order('created_at', { ascending: true }).limit(1);
+      const cfg = cfgs?.[0];
+      if (!cfg) { console.error('no active whatsapp config for user', camp.user_id); continue; }
+
 
       const remaining = (camp.daily_limit || 100) - (sentToday || 0);
       const batch = Math.min(remaining, 10); // process up to 10 per run
