@@ -14,12 +14,33 @@ import { Upload, FileSpreadsheet, CheckCircle2, ListPlus, Snowflake, UserCheck, 
 
 const FIELDS = [
   { key: "name", label: "Nome" },
-  { key: "phone", label: "Telefone" },
+  { key: "phone", label: "Telefone / Celular" },
+  { key: "country_code", label: "Código do País (DDI)" },
+  { key: "area_code", label: "DDD" },
   { key: "email", label: "E-mail" },
   { key: "company", label: "Empresa" },
   { key: "source", label: "Origem" },
   { key: "tags", label: "Tags (separadas por ;)" },
 ];
+
+const COUNTRIES = [
+  { code: "55", label: "Brasil (+55)" },
+  { code: "1", label: "EUA / Canadá (+1)" },
+  { code: "351", label: "Portugal (+351)" },
+  { code: "34", label: "Espanha (+34)" },
+  { code: "44", label: "Reino Unido (+44)" },
+  { code: "54", label: "Argentina (+54)" },
+  { code: "56", label: "Chile (+56)" },
+  { code: "57", label: "Colômbia (+57)" },
+  { code: "52", label: "México (+52)" },
+  { code: "595", label: "Paraguai (+595)" },
+  { code: "598", label: "Uruguai (+598)" },
+  { code: "39", label: "Itália (+39)" },
+  { code: "49", label: "Alemanha (+49)" },
+  { code: "33", label: "França (+33)" },
+];
+
+const onlyDigits = (v: any) => String(v ?? "").replace(/\D/g, "");
 
 type ListType = "leads" | "clients" | "mixed";
 
@@ -29,13 +50,41 @@ const LIST_TYPES: { id: ListType; label: string; icon: any; description: string 
   { id: "mixed", label: "Misto", icon: Layers, description: "O arquivo contém leads e clientes. Mapeie a coluna indicadora." },
 ];
 
-const normalizePhone = (raw: string) => {
-  const digits = (raw || "").replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.startsWith("55") && digits.length >= 12) return digits;
-  if (digits.length >= 10 && digits.length <= 11) return "55" + digits;
-  return digits;
+// Monta o E.164 a partir das colunas mapeadas (DDI, DDD e número podem vir separados)
+export const buildPhoneE164 = (
+  rawPhone: string,
+  rawCountry: string,
+  rawArea: string,
+  defaultCountry: string,
+): string => {
+  let local = onlyDigits(rawPhone);
+  if (!local) return "";
+
+  let ddi = onlyDigits(rawCountry);
+  const ddd = onlyDigits(rawArea);
+
+  // Se o número já vem com "+" ou "00", o DDI está embutido
+  const hadPlus = /^\s*(\+|00)/.test(String(rawPhone ?? ""));
+  if (hadPlus && local.startsWith("00")) local = local.slice(2);
+
+  if (ddd && !local.startsWith(ddd)) local = ddd + local;
+
+  if (!ddi) {
+    if (hadPlus) {
+      // DDI já embutido no número
+      return local;
+    }
+    // Brasil: número já com 55 + DDD + 8/9 dígitos
+    if (local.length >= 12 && local.startsWith("55")) return local;
+    ddi = onlyDigits(defaultCountry) || "55";
+  }
+
+  if (local.startsWith(ddi) && local.length > (ddi === "55" ? 11 : 9)) return local;
+  return ddi + local;
 };
+
+const isValidPhone = (e164: string) => e164.length >= 10 && e164.length <= 15;
+
 
 interface Props {
   onShowImported?: () => void;
@@ -59,7 +108,16 @@ export default function LeadImporter({ onShowImported }: Props) {
   const [manualText, setManualText] = useState("");
   const [importedCount, setImportedCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [defaultCountry, setDefaultCountry] = useState("55");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const phoneOf = (row: any) => buildPhoneE164(
+    mapping.phone ? row[mapping.phone] : "",
+    mapping.country_code ? row[mapping.country_code] : "",
+    mapping.area_code ? row[mapping.area_code] : "",
+    defaultCountry,
+  );
+
 
   useEffect(() => {
     if (!user) return;
@@ -106,7 +164,9 @@ export default function LeadImporter({ onShowImported }: Props) {
     for (const h of hdrs) {
       const lower = h.toLowerCase();
       if (lower.includes("nome") || lower === "name") m.name = h;
-      else if (lower.includes("tel") || lower.includes("phone") || lower.includes("whats")) m.phone = h;
+      else if (/\b(ddi)\b/.test(lower) || lower.includes("pais") || lower.includes("país") || lower.includes("country")) m.country_code = h;
+      else if (/\b(ddd)\b/.test(lower) || lower.includes("area") || lower.includes("área")) m.area_code = h;
+      else if (lower.includes("tel") || lower.includes("phone") || lower.includes("whats") || lower.includes("celular") || lower.includes("fone") || lower.includes("mobile")) m.phone = h;
       else if (lower.includes("mail")) m.email = h;
       else if (lower.includes("empresa") || lower.includes("company")) m.company = h;
       else if (lower.includes("origem") || lower.includes("source")) m.source = h;
@@ -114,6 +174,7 @@ export default function LeadImporter({ onShowImported }: Props) {
     }
     setMapping(m);
   };
+
 
   const importNow = async () => {
     if (!user) return;
@@ -127,10 +188,13 @@ export default function LeadImporter({ onShowImported }: Props) {
     }).select().single();
 
     for (const row of rows) {
-      const phone = normalizePhone(String(row[mapping.phone] || ""));
+      const built = phoneOf(row);
+      const phone = isValidPhone(built) ? built : "";
       const name = mapping.name ? String(row[mapping.name] || "") : "";
       const email = mapping.email ? String(row[mapping.email] || "") : "";
       if (!phone && !email && !name) { skip++; continue; }
+      if (!phone && mapping.phone) { skip++; continue; }
+
 
       const { data: existing } = phone ? await supabase
         .from("imported_contacts").select("id").eq("user_id", user.id).eq("phone", phone).maybeSingle()
@@ -317,7 +381,43 @@ export default function LeadImporter({ onShowImported }: Props) {
                 </div>
               ))}
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border">
+              <div>
+                <Label className="text-xs">País padrão (quando não houver DDI na planilha)</Label>
+                <select
+                  className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={defaultCountry}
+                  onChange={(e) => setDefaultCountry(e.target.value)}
+                >
+                  {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs">Prévia dos números (formato internacional)</Label>
+                <div className="mt-1 rounded-md border border-border bg-secondary/30 p-2 space-y-1 max-h-32 overflow-y-auto">
+                  {rows.slice(0, 5).map((r, i) => {
+                    const p = phoneOf(r);
+                    const valid = isValidPhone(p);
+                    return (
+                      <div key={i} className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground truncate max-w-[50%]">
+                          {mapping.name ? String(r[mapping.name] || "—") : "—"}
+                        </span>
+                        <span className={valid ? "text-primary font-mono" : "text-destructive font-mono"}>
+                          {p ? `+${p}` : "sem telefone"}{!valid && p ? " (inválido)" : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Válidos: {rows.filter(r => isValidPhone(phoneOf(r))).length} de {rows.length}
+                </p>
+              </div>
+            </div>
           </Card>
+
 
           <Card className="p-4 space-y-3">
             <h3 className="font-semibold text-sm">Destino sugerido (aplicado na conversão)</h3>
