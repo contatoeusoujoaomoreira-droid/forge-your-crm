@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
-import { Bot, GitBranch } from "lucide-react";
+import { Bot, GitBranch, Send } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -11,7 +11,9 @@ interface Props {
 const OPTIONS = [
   { id: "agent", icon: Bot, title: "Com Agente IA", desc: "A campanha usa um agente já criado para conversar com cada lead." },
   { id: "flow", icon: GitBranch, title: "Com Fluxo de conversa", desc: "Caminho pré-definido: pergunta, condição, ação." },
+  { id: "blank", icon: Send, title: "Somente disparo", desc: "Envia apenas a mensagem, sem agente e sem fluxo. Respostas ficam para atendimento humano." },
 ] as const;
+
 
 export default function CampaignTypeModal({ open, onOpenChange, onPick }: Props) {
   return (
