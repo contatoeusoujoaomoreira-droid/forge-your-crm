@@ -310,6 +310,76 @@ export default function CampaignsList() {
           </div>
         </div>
 
+        {/* Audiência */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Audiência da campanha</Label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "Todos os leads das etapas de origem" },
+              { id: "limit", label: "Selecionar quantidade" },
+            ].map(o => (
+              <button key={o.id} type="button"
+                onClick={() => setEditing({ ...editing, audience_mode: o.id })}
+                className={`text-xs px-3 py-1.5 rounded-full border ${(editing.audience_mode || "all") === o.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {editing.audience_mode === "limit" && (
+            <div className="w-48">
+              <Label className="text-xs">Quantidade de contatos</Label>
+              <Input type="number" min={1} value={editing.audience_limit || 0}
+                onChange={(e) => setEditing({ ...editing, audience_limit: +e.target.value })} />
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Use "Preencher da origem" na lista de campanhas para carregar os contatos conforme esta regra.
+          </p>
+        </div>
+
+        {/* Após o primeiro disparo */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Após o primeiro disparo</Label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "keep", label: "Continuar na etapa atual" },
+              { id: "move", label: "Mover para outra etapa" },
+            ].map(o => (
+              <button key={o.id} type="button"
+                onClick={() => setEditing({ ...editing, post_send_action: o.id })}
+                className={`text-xs px-3 py-1.5 rounded-full border ${(editing.post_send_action || "keep") === o.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {editing.post_send_action === "move" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Pipeline</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={editing.post_send_pipeline_id || ""}
+                  onChange={(e) => setEditing({ ...editing, post_send_pipeline_id: e.target.value, post_send_stage_id: "" })}>
+                  <option value="">— Selecione —</option>
+                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Etapa</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={editing.post_send_stage_id || ""}
+                  onChange={(e) => setEditing({ ...editing, post_send_stage_id: e.target.value })}>
+                  <option value="">— Selecione —</option>
+                  {stages.filter((s: any) => !editing.post_send_pipeline_id || s.pipeline_id === editing.post_send_pipeline_id).map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+
+
         <div className="flex gap-2 pt-2 border-t border-border">
           <Button onClick={save}>Salvar</Button>
           <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
