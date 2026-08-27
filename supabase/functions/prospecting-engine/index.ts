@@ -196,7 +196,10 @@ Deno.serve(async (req) => {
               if (mvErr) throw mvErr;
             }
 
-            await admin.from('prospecting_campaigns').update({ total_sent: (camp.total_sent || 0) + 1 }).eq('id', camp.id);
+            const { count: sentCount } = await admin.from('campaign_contacts')
+              .select('id', { count: 'exact', head: true })
+              .eq('campaign_id', camp.id).in('status', ['sent', 'replied', 'converted']);
+            await admin.from('prospecting_campaigns').update({ total_sent: sentCount || 0 }).eq('id', camp.id);
             totalSent++;
 
           } else {

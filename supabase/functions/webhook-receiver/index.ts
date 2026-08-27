@@ -1987,8 +1987,19 @@ Deno.serve(async (req) => {
   let providerCfg: any = null;
   let { data: convStateInit } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
   if (!convStateInit) {
+    const campaignId = client?.metadata?.campaign_id || null;
+    let campaignAgentId: string | null = null;
+    if (campaignId) {
+      const { data: campaignBinding } = await admin.from('prospecting_campaigns')
+        .select('agent_id').eq('id', campaignId).eq('user_id', userId).maybeSingle();
+      campaignAgentId = campaignBinding?.agent_id || null;
+    }
     const { data: createdState } = await admin.from('conversation_state').insert({
-      user_id: userId, client_id: client.id, ai_active: true, mode: 'ai',
+      user_id: userId,
+      client_id: client.id,
+      ai_active: campaignId ? !!campaignAgentId : true,
+      mode: campaignId ? (campaignAgentId ? 'ai' : 'human') : 'ai',
+      assigned_agent_id: campaignAgentId,
     }).select().single();
     convStateInit = createdState;
   }
