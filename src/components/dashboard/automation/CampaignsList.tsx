@@ -49,6 +49,8 @@ export default function CampaignsList() {
       name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
       daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
       source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
+      audience_mode: "all", audience_limit: 50,
+      post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
     };
     if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
@@ -63,10 +65,15 @@ export default function CampaignsList() {
     if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
     if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
     if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
+    if (editing.audience_mode === "limit" && !(editing.audience_limit > 0)) { toast.error("Informe a quantidade de contatos da campanha"); return; }
+    if (editing.post_send_action === "move" && !editing.post_send_stage_id) { toast.error("Escolha a etapa para mover após o primeiro disparo"); return; }
     const payload: any = { ...editing, user_id: user.id };
     delete payload._kind;
     if (!payload.agent_id) delete payload.agent_id;
     if (!payload.flow_id) delete payload.flow_id;
+    if (!payload.post_send_pipeline_id) payload.post_send_pipeline_id = null;
+    if (!payload.post_send_stage_id) payload.post_send_stage_id = null;
+    if (payload.audience_mode !== "limit") payload.audience_limit = null;
     delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
@@ -75,6 +82,36 @@ export default function CampaignsList() {
     toast.success("Campanha salva");
     setEditing(null); load();
   };
+
+  // Popula a campanha com os leads das etapas de origem, respeitando o modo de audiência
+  const fillFromSources = async (c: any) => {
+    if (!user) return;
+    const sources: any[] = Array.isArray(c.source_pipelines) ? c.source_pipelines : [];
+    const stageIds = sources.flatMap((s: any) => s.stage_ids || []);
+    if (stageIds.length === 0) { toast.error("Defina pipelines/etapas de origem na campanha"); return; }
+    setLoading(true);
+    let query = supabase.from("leads").select("id,name,phone,email")
+      .eq("user_id", user.id).in("stage_id", stageIds).not("phone", "is", null)
+      .order("created_at", { ascending: true });
+    if (c.audience_mode === "limit" && c.audience_limit > 0) query = query.limit(c.audience_limit);
+    else query = query.limit(2000);
+    const { data: leads, error } = await query;
+    if (error) { setLoading(false); toast.error(error.message); return; }
+
+    const { data: already } = await supabase.from("campaign_contacts")
+      .select("lead_id").eq("campaign_id", c.id).limit(5000);
+    const existing = new Set((already || []).map((x: any) => x.lead_id));
+    const rows = (leads || []).filter(l => !existing.has(l.id)).map(l => ({
+      user_id: user.id, campaign_id: c.id, lead_id: l.id,
+      name: l.name, phone: l.phone, email: l.email, status: "pending",
+    }));
+    if (rows.length === 0) { setLoading(false); toast.info("Nenhum lead novo nas etapas de origem"); return; }
+    const { error: insErr } = await supabase.from("campaign_contacts").insert(rows);
+    setLoading(false);
+    if (insErr) toast.error(insErr.message);
+    else toast.success(`${rows.length} contatos adicionados${c.audience_mode === "limit" ? ` (limite ${c.audience_limit})` : " (todos da etapa)"}`);
+  };
+
 
   const runCampaign = async (c: any) => {
     if (c.status !== "active") {
