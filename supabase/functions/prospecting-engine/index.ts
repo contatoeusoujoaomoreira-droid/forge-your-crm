@@ -164,8 +164,18 @@ Deno.serve(async (req) => {
               agent_id: camp.agent_id || null,
               sender_phone: phoneDigits || c.phone,
             });
+
+            // Após o primeiro disparo: manter na etapa atual ou mover para a etapa configurada
+            if (c.lead_id && camp.post_send_action === 'move' && camp.post_send_stage_id) {
+              const upd: any = { stage_id: camp.post_send_stage_id, updated_at: new Date().toISOString() };
+              if (camp.post_send_pipeline_id) upd.pipeline_id = camp.post_send_pipeline_id;
+              const { error: mvErr } = await admin.from('leads').update(upd).eq('id', c.lead_id).eq('user_id', camp.user_id);
+              if (mvErr) console.error('post_send move error', mvErr);
+            }
+
             await admin.from('prospecting_campaigns').update({ total_sent: (camp.total_sent || 0) + 1 }).eq('id', camp.id);
             totalSent++;
+
           } else {
             await admin.from('campaign_contacts').update({ status: 'failed', failure_reason: `HTTP ${r.status}` }).eq('id', c.id);
           }

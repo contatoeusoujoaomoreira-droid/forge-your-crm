@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
@@ -49,6 +49,8 @@ export default function CampaignsList() {
       name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
       daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
       source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
+      audience_mode: "all", audience_limit: 50,
+      post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
     };
     if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
@@ -63,10 +65,15 @@ export default function CampaignsList() {
     if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
     if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
     if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
+    if (editing.audience_mode === "limit" && !(editing.audience_limit > 0)) { toast.error("Informe a quantidade de contatos da campanha"); return; }
+    if (editing.post_send_action === "move" && !editing.post_send_stage_id) { toast.error("Escolha a etapa para mover após o primeiro disparo"); return; }
     const payload: any = { ...editing, user_id: user.id };
     delete payload._kind;
     if (!payload.agent_id) delete payload.agent_id;
     if (!payload.flow_id) delete payload.flow_id;
+    if (!payload.post_send_pipeline_id) payload.post_send_pipeline_id = null;
+    if (!payload.post_send_stage_id) payload.post_send_stage_id = null;
+    if (payload.audience_mode !== "limit") payload.audience_limit = null;
     delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
@@ -75,6 +82,36 @@ export default function CampaignsList() {
     toast.success("Campanha salva");
     setEditing(null); load();
   };
+
+  // Popula a campanha com os leads das etapas de origem, respeitando o modo de audiência
+  const fillFromSources = async (c: any) => {
+    if (!user) return;
+    const sources: any[] = Array.isArray(c.source_pipelines) ? c.source_pipelines : [];
+    const stageIds = sources.flatMap((s: any) => s.stage_ids || []);
+    if (stageIds.length === 0) { toast.error("Defina pipelines/etapas de origem na campanha"); return; }
+    setLoading(true);
+    let query = supabase.from("leads").select("id,name,phone,email")
+      .eq("user_id", user.id).in("stage_id", stageIds).not("phone", "is", null)
+      .order("created_at", { ascending: true });
+    if (c.audience_mode === "limit" && c.audience_limit > 0) query = query.limit(c.audience_limit);
+    else query = query.limit(2000);
+    const { data: leads, error } = await query;
+    if (error) { setLoading(false); toast.error(error.message); return; }
+
+    const { data: already } = await supabase.from("campaign_contacts")
+      .select("lead_id").eq("campaign_id", c.id).limit(5000);
+    const existing = new Set((already || []).map((x: any) => x.lead_id));
+    const rows = (leads || []).filter(l => !existing.has(l.id)).map(l => ({
+      user_id: user.id, campaign_id: c.id, lead_id: l.id,
+      name: l.name, phone: l.phone, email: l.email, status: "pending",
+    }));
+    if (rows.length === 0) { setLoading(false); toast.info("Nenhum lead novo nas etapas de origem"); return; }
+    const { error: insErr } = await supabase.from("campaign_contacts").insert(rows);
+    setLoading(false);
+    if (insErr) toast.error(insErr.message);
+    else toast.success(`${rows.length} contatos adicionados${c.audience_mode === "limit" ? ` (limite ${c.audience_limit})` : " (todos da etapa)"}`);
+  };
+
 
   const runCampaign = async (c: any) => {
     if (c.status !== "active") {
@@ -273,6 +310,76 @@ export default function CampaignsList() {
           </div>
         </div>
 
+        {/* Audiência */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Audiência da campanha</Label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "Todos os leads das etapas de origem" },
+              { id: "limit", label: "Selecionar quantidade" },
+            ].map(o => (
+              <button key={o.id} type="button"
+                onClick={() => setEditing({ ...editing, audience_mode: o.id })}
+                className={`text-xs px-3 py-1.5 rounded-full border ${(editing.audience_mode || "all") === o.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {editing.audience_mode === "limit" && (
+            <div className="w-48">
+              <Label className="text-xs">Quantidade de contatos</Label>
+              <Input type="number" min={1} value={editing.audience_limit || 0}
+                onChange={(e) => setEditing({ ...editing, audience_limit: +e.target.value })} />
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Use "Preencher da origem" na lista de campanhas para carregar os contatos conforme esta regra.
+          </p>
+        </div>
+
+        {/* Após o primeiro disparo */}
+        <div className="border-t border-border pt-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Após o primeiro disparo</Label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "keep", label: "Continuar na etapa atual" },
+              { id: "move", label: "Mover para outra etapa" },
+            ].map(o => (
+              <button key={o.id} type="button"
+                onClick={() => setEditing({ ...editing, post_send_action: o.id })}
+                className={`text-xs px-3 py-1.5 rounded-full border ${(editing.post_send_action || "keep") === o.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {editing.post_send_action === "move" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Pipeline</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={editing.post_send_pipeline_id || ""}
+                  onChange={(e) => setEditing({ ...editing, post_send_pipeline_id: e.target.value, post_send_stage_id: "" })}>
+                  <option value="">— Selecione —</option>
+                  {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Etapa</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={editing.post_send_stage_id || ""}
+                  onChange={(e) => setEditing({ ...editing, post_send_stage_id: e.target.value })}>
+                  <option value="">— Selecione —</option>
+                  {stages.filter((s: any) => !editing.post_send_pipeline_id || s.pipeline_id === editing.post_send_pipeline_id).map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+
+
         <div className="flex gap-2 pt-2 border-t border-border">
           <Button onClick={save}>Salvar</Button>
           <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
@@ -303,14 +410,26 @@ export default function CampaignsList() {
           <div>
             <p className="font-medium">{c.name}</p>
             <p className="text-xs text-muted-foreground">{c.description}</p>
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 mt-1 flex-wrap">
               <Badge>{c.status}</Badge>
               <Badge variant="secondary">enviadas: {c.total_sent || 0}</Badge>
               <Badge variant="secondary">resp: {c.total_replied || 0}</Badge>
+              <Badge variant="outline">
+                {c.audience_mode === "limit" ? `audiência: ${c.audience_limit || 0}` : "audiência: todos da etapa"}
+              </Badge>
+              <Badge variant="outline">
+                {c.post_send_action === "move"
+                  ? `após 1º envio → ${stages.find((s: any) => s.id === c.post_send_stage_id)?.name || "etapa definida"}`
+                  : "após 1º envio → mantém etapa"}
+              </Badge>
             </div>
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)}><Users className="h-4 w-4" /></Button>
+            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem">
+              <Layers className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)} title="Selecionar leads"><Users className="h-4 w-4" /></Button>
+
             <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
               <Play className="h-4 w-4 mr-1" />Executar
             </Button>
