@@ -23,22 +23,27 @@ export default function CampaignsList() {
   const [loading, setLoading] = useState(false);
   const [showType, setShowType] = useState(false);
   const [flows, setFlows] = useState<any[]>([]);
+  const [lists, setLists] = useState<any[]>([]);
+  const [showListPicker, setShowListPicker] = useState<any | null>(null);
 
   const load = async () => {
     if (!user) return;
-    const [c, a, p, s, f] = await Promise.all([
+    const [c, a, p, s, f, l] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       supabase.from("conversation_flows").select("id,name,trigger_mode").eq("user_id", user.id).eq("is_active", true),
+      supabase.from("imported_lists").select("id,name,total_contacts").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
     setPipelines(p.data || []);
     setStages(s.data || []);
     setFlows(f.data || []);
+    setLists(l.data || []);
   };
+
   useEffect(() => { load(); }, [user]);
 
   const newCampaign = () => setShowType(true);
