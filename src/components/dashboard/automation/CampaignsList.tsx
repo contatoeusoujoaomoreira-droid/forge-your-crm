@@ -410,14 +410,26 @@ export default function CampaignsList() {
           <div>
             <p className="font-medium">{c.name}</p>
             <p className="text-xs text-muted-foreground">{c.description}</p>
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 mt-1 flex-wrap">
               <Badge>{c.status}</Badge>
               <Badge variant="secondary">enviadas: {c.total_sent || 0}</Badge>
               <Badge variant="secondary">resp: {c.total_replied || 0}</Badge>
+              <Badge variant="outline">
+                {c.audience_mode === "limit" ? `audiência: ${c.audience_limit || 0}` : "audiência: todos da etapa"}
+              </Badge>
+              <Badge variant="outline">
+                {c.post_send_action === "move"
+                  ? `após 1º envio → ${stages.find((s: any) => s.id === c.post_send_stage_id)?.name || "etapa definida"}`
+                  : "após 1º envio → mantém etapa"}
+              </Badge>
             </div>
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)}><Users className="h-4 w-4" /></Button>
+            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem">
+              <Layers className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)} title="Selecionar leads"><Users className="h-4 w-4" /></Button>
+
             <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
               <Play className="h-4 w-4 mr-1" />Executar
             </Button>
