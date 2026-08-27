@@ -133,47 +133,168 @@ export default function LeadImporter({ onShowImported }: Props) {
     })();
   }, [user]);
 
+  // Converte uma matriz (linhas x colunas) em objetos, detectando a linha real de cabeçalho
+  const matrixToRows = (matrix: any[][]) => {
+    const clean = matrix.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim() !== ""));
+    if (clean.length === 0) return { headers: [] as string[], rows: [] as any[] };
+
+    const looksLikeHeader = (row: any[]) => {
+      const cells = row.map((c) => String(c ?? "").trim()).filter(Boolean);
+      if (cells.length < 2) return false;
+      const numeric = cells.filter((c) => /^[\d\s+().-]+$/.test(c)).length;
+      return numeric / cells.length < 0.5;
+    };
+
+    let headerIdx = clean.findIndex(looksLikeHeader);
+    if (headerIdx === -1) headerIdx = -1; // sem cabeçalho: gera nomes genéricos
+
+    const width = Math.max(...clean.map((r) => r.length));
+    const raw = headerIdx >= 0 ? clean[headerIdx] : [];
+    const seen = new Map<string, number>();
+    const headers: string[] = [];
+    for (let i = 0; i < width; i++) {
+      let name = String(raw[i] ?? "").trim() || `Coluna ${i + 1}`;
+      const n = (seen.get(name) || 0) + 1;
+      seen.set(name, n);
+      if (n > 1) name = `${name} (${n})`;
+      headers.push(name);
+    }
+
+    const body = clean.slice(headerIdx + 1);
+    const rows = body
+      .map((r) => {
+        const obj: any = {};
+        headers.forEach((h, i) => { obj[h] = r[i] ?? ""; });
+        return obj;
+      })
+      .filter((o) => Object.values(o).some((v) => String(v ?? "").trim() !== ""));
+
+    return { headers, rows };
+  };
+
+  const applyParsed = (headers: string[], rows: any[]) => {
+    if (rows.length === 0) { toast.error("Nenhuma linha de dados encontrada no arquivo"); return; }
+    setRows(rows);
+    setHeaders(headers);
+    autoMap(headers, rows);
+    toast.success(`${rows.length} linhas lidas • ${headers.length} colunas detectadas`);
+  };
+
   const handleFile = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "csv" || ext === "txt") {
       Papa.parse(file, {
-        header: true, skipEmptyLines: true,
+        header: false, skipEmptyLines: true,
         complete: (res) => {
-          const data = res.data as any[];
-          setRows(data);
-          setHeaders(res.meta.fields || []);
-          autoMap(res.meta.fields || []);
+          const { headers, rows } = matrixToRows(res.data as any[][]);
+          applyParsed(headers, rows);
         },
       });
     } else if (ext === "xlsx" || ext === "xls") {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws);
-      setRows(data);
-      const hdrs = data[0] ? Object.keys(data[0] as any) : [];
-      setHeaders(hdrs);
-      autoMap(hdrs);
+      const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "", blankrows: false }) as any[][];
+      const { headers, rows } = matrixToRows(matrix);
+      applyParsed(headers, rows);
     } else {
       toast.error("Use arquivos CSV, TXT ou Excel (.xlsx, .xls)");
     }
   };
 
-  const autoMap = (hdrs: string[]) => {
-    const m: Record<string, string> = {};
+  // Mapeamento por pontuação: cabeçalho + análise do conteúdo das colunas
+  const autoMap = (hdrs: string[], data: any[]) => {
+    const sample = data.slice(0, 40);
+    const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const vals = (h: string) => sample.map((r) => String(r[h] ?? "").trim()).filter(Boolean);
+
+    const isIdCol = (h: string) => /^(id|ids|codigo|cod|cod\.|numero de registro|registro|#)$/.test(norm(h));
+
+    const scores: Record<string, { h: string; score: number }[]> = {
+      phone: [], name: [], email: [], country_code: [], area_code: [], company: [], source: [], tags: [],
+    };
+
     for (const h of hdrs) {
-      const lower = h.toLowerCase();
-      if (lower.includes("nome") || lower === "name") m.name = h;
-      else if (/\b(ddi)\b/.test(lower) || lower.includes("pais") || lower.includes("país") || lower.includes("country")) m.country_code = h;
-      else if (/\b(ddd)\b/.test(lower) || lower.includes("area") || lower.includes("área")) m.area_code = h;
-      else if (lower.includes("tel") || lower.includes("phone") || lower.includes("whats") || lower.includes("celular") || lower.includes("fone") || lower.includes("mobile")) m.phone = h;
-      else if (lower.includes("mail")) m.email = h;
-      else if (lower.includes("empresa") || lower.includes("company")) m.company = h;
-      else if (lower.includes("origem") || lower.includes("source")) m.source = h;
-      else if (lower.includes("tag")) m.tags = h;
+      const n = norm(h);
+      const v = vals(h);
+      const digitsOnly = v.filter((x) => /^[\d\s+().-]+$/.test(x));
+      const digitLens = digitsOnly.map((x) => x.replace(/\D/g, "").length);
+      const avgLen = digitLens.length ? digitLens.reduce((a, b) => a + b, 0) / digitLens.length : 0;
+      const mostlyDigits = v.length > 0 && digitsOnly.length / v.length > 0.7;
+      const hasEmail = v.length > 0 && v.filter((x) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(x)).length / v.length > 0.5;
+
+      // E-mail
+      let s = 0;
+      if (/mail/.test(n)) s += 60;
+      if (hasEmail) s += 50;
+      if (s) scores.email.push({ h, score: s });
+
+      // Telefone
+      s = 0;
+      if (/(telefone|celular|whats|fone|phone|mobile|tel\b|contato)/.test(n)) s += 60;
+      if (mostlyDigits && avgLen >= 8 && avgLen <= 15) s += 40;
+      if (isIdCol(h)) s -= 100;
+      if (hasEmail) s -= 100;
+      if (s > 0) scores.phone.push({ h, score: s });
+
+      // DDI / País
+      s = 0;
+      if (/^(ddi|pais|country|country code|codigo do pais|cod pais)$/.test(n) || /\bddi\b/.test(n)) s += 60;
+      if (mostlyDigits && avgLen >= 1 && avgLen <= 3) s += 20;
+      if (s >= 60) scores.country_code.push({ h, score: s });
+
+      // DDD / Área
+      s = 0;
+      if (/^(ddd|area|area code|cod area|prefixo)$/.test(n) || /\bddd\b/.test(n)) s += 60;
+      if (mostlyDigits && avgLen >= 2 && avgLen <= 3) s += 20;
+      if (s >= 60) scores.area_code.push({ h, score: s });
+
+      // Nome
+      s = 0;
+      if (/^(nome|name|nome completo|cliente|nome do cliente|razao social|contato|full name|first name)$/.test(n)) s += 80;
+      else if (/(nome|name|cliente)/.test(n)) s += 60;
+      if (v.length && !mostlyDigits && !hasEmail) s += 30;
+      if (isIdCol(h)) s -= 200;
+      if (mostlyDigits) s -= 120;
+      if (s > 0) scores.name.push({ h, score: s });
+
+      // Empresa
+      s = 0;
+      if (/(empresa|company|organizacao|negocio)/.test(n)) s += 60;
+      if (s) scores.company.push({ h, score: s });
+
+      // Origem
+      s = 0;
+      if (/(origem|source|canal|utm)/.test(n)) s += 60;
+      if (s) scores.source.push({ h, score: s });
+
+      // Tags
+      s = 0;
+      if (/(tag|etiqueta|segmento)/.test(n)) s += 60;
+      if (s) scores.tags.push({ h, score: s });
     }
+
+    const m: Record<string, string> = {};
+    const used = new Set<string>();
+    // ordem de prioridade: campos mais críticos primeiro
+    for (const key of ["phone", "email", "name", "country_code", "area_code", "company", "source", "tags"]) {
+      const best = scores[key].filter((c) => !used.has(c.h)).sort((a, b) => b.score - a.score)[0];
+      if (best) { m[key] = best.h; used.add(best.h); }
+    }
+
+    // Fallback: se não achou nome, usa a primeira coluna textual não usada
+    if (!m.name) {
+      const cand = hdrs.find((h) => {
+        if (used.has(h) || isIdCol(h)) return false;
+        const v = vals(h);
+        return v.length > 0 && v.filter((x) => /^[\d\s+().-]+$/.test(x)).length / v.length < 0.4;
+      });
+      if (cand) { m.name = cand; used.add(cand); }
+    }
+
     setMapping(m);
   };
+
 
 
   const importNow = async () => {
