@@ -31,12 +31,23 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
       body = new URLSearchParams({ token, to: phone, body: content }).toString();
       break;
+    case 'omniconect':
+      url = `${baseUrl}/send/text`;
+      headers = { 'Content-Type': 'application/json', token, ...extra };
+      body = { number: phone, text: content };
+      break;
     default:
       url = baseUrl;
       body = { phone, message: content };
   }
   const resp = await fetch(url, { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
-  return { ok: resp.ok, status: resp.status };
+  const responseText = (await resp.text()).slice(0, 1000);
+  let externalMessageId: string | null = null;
+  try {
+    const parsed = JSON.parse(responseText);
+    externalMessageId = parsed?.id || parsed?.messageID || parsed?.messageId || parsed?.message?.id || parsed?.key?.id || null;
+  } catch { /* provider returned a non-JSON body */ }
+  return { ok: resp.ok, status: resp.status, body: responseText, externalMessageId };
 }
 
 const renderTemplate = (tpl: string, vars: Record<string, string>) =>
@@ -110,7 +121,7 @@ Deno.serve(async (req) => {
           });
           const r = await sendWhatsApp(cfg, c.phone, text);
           if (r.ok) {
-            await admin.from('campaign_contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', c.id);
+            const sentAt = new Date().toISOString();
 
             // Ensure a chat_clients record exists for this contact so the flow/agent can engage on reply.
             const phoneDigits = (c.phone || '').replace(/\D/g, '');
@@ -144,6 +155,11 @@ Deno.serve(async (req) => {
               }, { onConflict: 'client_id' });
             }
 
+            const { error: contactUpdateError } = await admin.from('campaign_contacts').update({
+              status: 'sent', sent_at: sentAt, client_id: chatClientId,
+            }).eq('id', c.id);
+            if (contactUpdateError) throw contactUpdateError;
+
 
             // If the campaign uses a flow, start a flow session so the next inbound message advances it
             if (chatClientId && camp.flow_id) {
@@ -168,6 +184,8 @@ Deno.serve(async (req) => {
               channel: 'whatsapp', content: text, status: 'sent',
               agent_id: camp.agent_id || null,
               sender_phone: phoneDigits || c.phone,
+              external_message_id: r.externalMessageId,
+              metadata: { campaign_contact_id: c.id, provider_status: r.status },
             });
 
             // Após o primeiro disparo: manter na etapa atual ou mover para a etapa configurada
@@ -175,10 +193,13 @@ Deno.serve(async (req) => {
               const upd: any = { stage_id: camp.post_send_stage_id, updated_at: new Date().toISOString() };
               if (camp.post_send_pipeline_id) upd.pipeline_id = camp.post_send_pipeline_id;
               const { error: mvErr } = await admin.from('leads').update(upd).eq('id', c.lead_id).eq('user_id', camp.user_id);
-              if (mvErr) console.error('post_send move error', mvErr);
+              if (mvErr) throw mvErr;
             }
 
-            await admin.from('prospecting_campaigns').update({ total_sent: (camp.total_sent || 0) + 1 }).eq('id', camp.id);
+            const { count: sentCount } = await admin.from('campaign_contacts')
+              .select('id', { count: 'exact', head: true })
+              .eq('campaign_id', camp.id).in('status', ['sent', 'replied', 'converted']);
+            await admin.from('prospecting_campaigns').update({ total_sent: sentCount || 0 }).eq('id', camp.id);
             totalSent++;
 
           } else {

@@ -530,7 +530,11 @@ function normalizeOmniChat(raw: any): NormalizedMsg | null {
 function detectAndNormalize(raw: any): NormalizedMsg | null {
   const eventType = String(raw.EventType || raw.event_type || '').toLowerCase();
   if (raw.instanceName && ['groups', 'presence', 'connection', 'contacts'].includes(eventType)) return null;
-  if (raw.instanceName && eventType === 'chats' && raw.chat) return normalizeOmniChat(raw);
+  // `chats` is a conversation snapshot, not a new message event. UAZAPI emits it
+  // after both inbound and outbound activity and its sender fields are incomplete,
+  // so treating it as a message creates an inbound-looking copy of our own sends.
+  // Real messages are handled exclusively by the `messages` event below.
+  if (raw.instanceName && eventType === 'chats') return null;
   // UAZAPI/OmniConect: event === 'messages' (singular 'messages' without dot suffix)
   if (typeof raw.event === 'string' && /^(messages|messages_upsert)$/i.test(raw.event) && (raw.data?.key || raw.data?.from || raw.data?.message)) return normalizeOmniconect(raw);
   // Wasender: event field with messages.received / data.messages structure
@@ -1983,8 +1987,19 @@ Deno.serve(async (req) => {
   let providerCfg: any = null;
   let { data: convStateInit } = await admin.from('conversation_state').select('*').eq('client_id', client.id).maybeSingle();
   if (!convStateInit) {
+    const campaignId = client?.metadata?.campaign_id || null;
+    let campaignAgentId: string | null = null;
+    if (campaignId) {
+      const { data: campaignBinding } = await admin.from('prospecting_campaigns')
+        .select('agent_id').eq('id', campaignId).eq('user_id', userId).maybeSingle();
+      campaignAgentId = campaignBinding?.agent_id || null;
+    }
     const { data: createdState } = await admin.from('conversation_state').insert({
-      user_id: userId, client_id: client.id, ai_active: true, mode: 'ai',
+      user_id: userId,
+      client_id: client.id,
+      ai_active: campaignId ? !!campaignAgentId : true,
+      mode: campaignId ? (campaignAgentId ? 'ai' : 'human') : 'ai',
+      assigned_agent_id: campaignAgentId,
     }).select().single();
     convStateInit = createdState;
   }
@@ -2097,6 +2112,49 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Could not save inbound message' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
   await admin.from('chat_clients').update({ last_inbound_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', client.id);
+
+  // Campaign reply tracking: the first real inbound message after a successful
+  // campaign send marks that contact as replied and moves its lead to the
+  // response destination selected in the campaign configuration.
+  try {
+    const phoneDigits = normalizePhone(msg.phone);
+    const { data: campaignContact } = await admin.from('campaign_contacts')
+      .select('id,campaign_id,lead_id,sent_at,replied_at')
+      .eq('user_id', userId)
+      .eq('status', 'sent')
+      .or(`client_id.eq.${client.id},phone.eq.${phoneDigits}`)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (campaignContact && !campaignContact.replied_at) {
+      const repliedAt = new Date().toISOString();
+      const { error: replyUpdateError } = await admin.from('campaign_contacts').update({
+        status: 'replied', replied_at: repliedAt, client_id: client.id,
+      }).eq('id', campaignContact.id).is('replied_at', null);
+
+      if (!replyUpdateError) {
+        const { data: campaign } = await admin.from('prospecting_campaigns')
+          .select('id,target_pipeline_id,target_stage_id')
+          .eq('id', campaignContact.campaign_id).eq('user_id', userId).maybeSingle();
+        const leadId = campaignContact.lead_id || client.lead_id;
+        if (campaign?.target_stage_id && leadId) {
+          const leadPatch: any = { stage_id: campaign.target_stage_id, updated_at: repliedAt };
+          if (campaign.target_pipeline_id) leadPatch.pipeline_id = campaign.target_pipeline_id;
+          const { error: leadMoveError } = await admin.from('leads').update(leadPatch)
+            .eq('id', leadId).eq('user_id', userId);
+          if (leadMoveError) console.error('campaign reply lead move failed', leadMoveError);
+        }
+        const { count: repliedCount } = await admin.from('campaign_contacts')
+          .select('id', { count: 'exact', head: true })
+          .eq('campaign_id', campaignContact.campaign_id).not('replied_at', 'is', null);
+        await admin.from('prospecting_campaigns').update({ total_replied: repliedCount || 0 })
+          .eq('id', campaignContact.campaign_id).eq('user_id', userId);
+      }
+    }
+  } catch (campaignReplyError) {
+    console.error('campaign reply tracking failed', campaignReplyError);
+  }
 
   // === LEAD SCORING (behavior-based) ===
   try {
