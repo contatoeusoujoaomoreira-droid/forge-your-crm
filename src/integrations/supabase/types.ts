@@ -3027,6 +3027,8 @@ export type Database = {
       prospecting_campaigns: {
         Row: {
           agent_id: string | null
+          audience_limit: number | null
+          audience_mode: string
           business_hours: Json | null
           channel: string
           created_at: string
@@ -3042,6 +3044,9 @@ export type Database = {
           message_template: string | null
           name: string
           pipeline_id: string | null
+          post_send_action: string
+          post_send_pipeline_id: string | null
+          post_send_stage_id: string | null
           source_pipelines: Json
           stage_id: string | null
           status: string
@@ -3056,6 +3061,8 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          audience_limit?: number | null
+          audience_mode?: string
           business_hours?: Json | null
           channel?: string
           created_at?: string
@@ -3071,6 +3078,9 @@ export type Database = {
           message_template?: string | null
           name: string
           pipeline_id?: string | null
+          post_send_action?: string
+          post_send_pipeline_id?: string | null
+          post_send_stage_id?: string | null
           source_pipelines?: Json
           stage_id?: string | null
           status?: string
@@ -3085,6 +3095,8 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          audience_limit?: number | null
+          audience_mode?: string
           business_hours?: Json | null
           channel?: string
           created_at?: string
@@ -3100,6 +3112,9 @@ export type Database = {
           message_template?: string | null
           name?: string
           pipeline_id?: string | null
+          post_send_action?: string
+          post_send_pipeline_id?: string | null
+          post_send_stage_id?: string | null
           source_pipelines?: Json
           stage_id?: string | null
           status?: string
