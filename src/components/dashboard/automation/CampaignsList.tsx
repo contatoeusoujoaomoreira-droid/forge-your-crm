@@ -509,6 +509,34 @@ export default function CampaignsList() {
         </Card>
       ))}
 
+      {showListPicker && (
+        <Card className="p-4 fixed inset-x-8 top-24 z-50 max-w-lg mx-auto bg-background border shadow-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Preencher de lista importada</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowListPicker(null)}>Fechar</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Os contatos serão criados como leads no pipeline/etapa de destino da campanha
+            {showListPicker.audience_mode === "limit" ? ` (limite de ${showListPicker.audience_limit} contatos)` : " (todos da lista)"}.
+          </p>
+          {lists.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma lista importada. Importe uma lista em Automação → Importador.</p>
+          ) : (
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {lists.map((l) => (
+                <button key={l.id} type="button" disabled={loading}
+                  onClick={() => fillFromImportedList(showListPicker, l.id)}
+                  className="w-full text-left p-2 rounded border border-border hover:bg-secondary/50 flex items-center justify-between">
+                  <span className="text-sm">{l.name}</span>
+                  <Badge variant="secondary">{l.total_contacts || 0} contatos</Badge>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+
       {showLeads && (
         <Card className="p-4 fixed inset-4 z-50 overflow-auto bg-background border shadow-2xl">
           <div className="flex items-center justify-between mb-3">
