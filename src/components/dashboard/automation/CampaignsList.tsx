@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
