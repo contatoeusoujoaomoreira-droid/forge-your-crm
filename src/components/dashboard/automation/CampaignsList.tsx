@@ -112,6 +112,63 @@ export default function CampaignsList() {
     else toast.success(`${rows.length} contatos adicionados${c.audience_mode === "limit" ? ` (limite ${c.audience_limit})` : " (todos da etapa)"}`);
   };
 
+  // Popula a campanha a partir de uma lista importada (cria leads no pipeline/etapa de destino)
+  const fillFromImportedList = async (c: any, listId: string) => {
+    if (!user || !listId) return;
+    setLoading(true);
+    try {
+      let q = supabase.from("imported_contacts").select("id,name,phone,email,lead_id")
+        .eq("user_id", user.id).eq("list_id", listId).not("phone", "is", null)
+        .order("created_at", { ascending: true });
+      q = c.audience_mode === "limit" && c.audience_limit > 0 ? q.limit(c.audience_limit) : q.limit(2000);
+      const { data: contacts, error } = await q;
+      if (error) throw error;
+      if (!contacts?.length) { toast.info("Lista sem contatos com telefone"); return; }
+
+      const phones = contacts.map((x: any) => String(x.phone));
+      const { data: existingLeads } = await supabase.from("leads")
+        .select("id,phone").eq("user_id", user.id).in("phone", phones);
+      const byPhone = new Map((existingLeads || []).map((l: any) => [String(l.phone), l.id]));
+
+      const toCreate = contacts.filter((x: any) => !byPhone.has(String(x.phone)));
+      if (toCreate.length) {
+        const { data: created, error: insErr } = await supabase.from("leads").insert(
+          toCreate.map((x: any) => ({
+            user_id: user.id,
+            name: x.name || String(x.phone),
+            phone: String(x.phone),
+            email: x.email || null,
+            source: "campanha_importada",
+            pipeline_id: c.target_pipeline_id || null,
+            stage_id: c.target_stage_id || null,
+          }))
+        ).select("id,phone");
+        if (insErr) throw insErr;
+        (created || []).forEach((l: any) => byPhone.set(String(l.phone), l.id));
+      }
+
+      const { data: already } = await supabase.from("campaign_contacts")
+        .select("phone").eq("campaign_id", c.id).limit(5000);
+      const existingPhones = new Set((already || []).map((x: any) => String(x.phone)));
+      const rows = contacts
+        .filter((x: any) => !existingPhones.has(String(x.phone)))
+        .map((x: any) => ({
+          user_id: user.id, campaign_id: c.id, lead_id: byPhone.get(String(x.phone)) || null,
+          name: x.name || null, phone: String(x.phone), email: x.email || null, status: "pending",
+        }));
+      if (!rows.length) { toast.info("Todos os contatos dessa lista já estão na campanha"); return; }
+      const { error: ccErr } = await supabase.from("campaign_contacts").insert(rows);
+      if (ccErr) throw ccErr;
+      toast.success(`${rows.length} contatos da lista adicionados`);
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao importar contatos da lista");
+    } finally {
+      setLoading(false);
+      setShowListPicker(null);
+    }
+  };
+
+
 
   const runCampaign = async (c: any) => {
     if (c.status !== "active") {
