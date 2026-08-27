@@ -188,10 +188,13 @@ export default function LeadImporter({ onShowImported }: Props) {
     }).select().single();
 
     for (const row of rows) {
-      const phone = normalizePhone(String(row[mapping.phone] || ""));
+      const built = phoneOf(row);
+      const phone = isValidPhone(built) ? built : "";
       const name = mapping.name ? String(row[mapping.name] || "") : "";
       const email = mapping.email ? String(row[mapping.email] || "") : "";
       if (!phone && !email && !name) { skip++; continue; }
+      if (!phone && mapping.phone) { skip++; continue; }
+
 
       const { data: existing } = phone ? await supabase
         .from("imported_contacts").select("id").eq("user_id", user.id).eq("phone", phone).maybeSingle()
