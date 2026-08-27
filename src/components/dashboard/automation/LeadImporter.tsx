@@ -503,6 +503,27 @@ export default function LeadImporter({ onShowImported }: Props) {
               ))}
             </div>
 
+            {/* Prévia da planilha lida */}
+            <div className="pt-2 border-t border-border">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Prévia da planilha (3 primeiras linhas)</Label>
+              <div className="mt-1 overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-[11px]">
+                  <thead className="bg-secondary/50">
+                    <tr>{headers.map((h) => <th key={h} className="px-2 py-1 text-left font-semibold whitespace-nowrap">{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 3).map((r, i) => (
+                      <tr key={i} className="border-t border-border">
+                        {headers.map((h) => <td key={h} className="px-2 py-1 whitespace-nowrap text-muted-foreground">{String(r[h] ?? "")}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border">
               <div>
                 <Label className="text-xs">País padrão (quando não houver DDI na planilha)</Label>
