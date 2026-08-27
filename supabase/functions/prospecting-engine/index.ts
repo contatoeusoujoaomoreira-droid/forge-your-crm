@@ -131,17 +131,19 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Bind the conversation to the campaign's chosen agent (isolation) when set
-            if (chatClientId && camp.agent_id) {
+            // Isolation: bind the conversation to the campaign's chosen agent.
+            // Without a chosen agent, keep the AI off so the main agent never answers campaign leads.
+            if (chatClientId) {
               await admin.from('conversation_state').upsert({
                 user_id: camp.user_id,
                 client_id: chatClientId,
-                ai_active: true,
-                mode: 'ai',
-                assigned_agent_id: camp.agent_id,
+                ai_active: !!camp.agent_id,
+                mode: camp.agent_id ? 'ai' : 'human',
+                assigned_agent_id: camp.agent_id || null,
                 updated_at: new Date().toISOString(),
               }, { onConflict: 'client_id' });
             }
+
 
             // If the campaign uses a flow, start a flow session so the next inbound message advances it
             if (chatClientId && camp.flow_id) {
