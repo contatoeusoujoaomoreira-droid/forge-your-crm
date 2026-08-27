@@ -23,7 +23,7 @@ export default function CampaignTypeModal({ open, onOpenChange, onPick }: Props)
           <DialogTitle>Como quer criar esta campanha?</DialogTitle>
           <DialogDescription>Escolha o ponto de partida — você poderá ajustar tudo depois.</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
           {OPTIONS.map(({ id, icon: Icon, title, desc }) => (
             <Card key={id} onClick={() => onPick(id as any)}
               className="p-4 cursor-pointer hover:border-primary hover:bg-primary/5 transition">
