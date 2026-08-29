@@ -98,12 +98,20 @@ Deno.serve(async (req) => {
         .eq('campaign_id', camp.id).gte('sent_at', today.toISOString());
       if ((sentToday || 0) >= (camp.daily_limit || 100)) continue;
 
-      // Get whatsapp config of campaign owner (first active connection)
+      // Conexão WhatsApp ativa MAIS RECENTE do dono da campanha
       const { data: cfgs } = await admin.from('whatsapp_configs')
         .select('*').eq('user_id', camp.user_id).eq('is_active', true)
-        .order('created_at', { ascending: true }).limit(1);
+        .order('updated_at', { ascending: false }).limit(1);
       const cfg = cfgs?.[0];
-      if (!cfg) { console.error('no active whatsapp config for user', camp.user_id); continue; }
+      if (!cfg) {
+        console.error('[CAMPAIGN] no active whatsapp config for user', camp.user_id, 'campaign', camp.id);
+        await admin.from('webhook_logs').insert({
+          user_id: camp.user_id, direction: 'outbound', source: 'campaign',
+          payload: { campaign_id: camp.id }, error: 'no_active_whatsapp_config', status_code: 424,
+        });
+        continue;
+      }
+
 
 
       const remaining = (camp.daily_limit || 100) - (sentToday || 0);
