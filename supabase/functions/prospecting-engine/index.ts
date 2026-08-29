@@ -89,7 +89,12 @@ Deno.serve(async (req) => {
 
     let totalSent = 0;
     for (const camp of campaigns || []) {
-      if (!inBusinessHours(camp.business_hours)) continue;
+      // Janela de envio: quando invocado manualmente (campaign_id), ignora a janela
+      if (!targetCampaignId && !inBusinessHours(camp.business_hours)) {
+        console.log('[CAMPAIGN] fora do horário comercial, aguardando', camp.id, camp.business_hours);
+        continue;
+      }
+
 
       // Daily limit guard
       const today = new Date(); today.setHours(0, 0, 0, 0);
