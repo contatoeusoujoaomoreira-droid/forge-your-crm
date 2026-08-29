@@ -22,6 +22,20 @@ type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups" | "hot";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 
+// "hoje/ontem/dd-mm + HH:mm" para a lista de conversas
+const formatListTime = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const hhmm = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return `Hoje ${hhmm}`;
+  if (diffDays === 1) return `Ontem ${hhmm}`;
+  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")} ${hhmm}`;
+};
+
+
 // Avatares são consumidos exclusivamente do nosso storage (chat-media).
 // URLs temporárias da API do WhatsApp são ignoradas para não quebrar quando a
 // conexão cai ou a sessão expira.
