@@ -14,13 +14,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 import AudioMessage from "./chat/AudioMessage";
 
-interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; lead_score?: number | null; score_label?: string | null; }
+interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; last_inbound_at?: string | null; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
 interface ConvState { id: string; client_id: string; ai_active: boolean; mode: string; assigned_agent_id: string | null; assigned_user_id: string | null; marked_unread?: boolean; pinned?: boolean; handoff_resume_at?: string | null; }
 
 type FilterTab = "all" | "unread" | "waiting" | "individual" | "groups" | "hot";
 
 const byCreatedAt = (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+// "hoje/ontem/dd-mm + HH:mm" para a lista de conversas
+const formatListTime = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const hhmm = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return `Hoje ${hhmm}`;
+  if (diffDays === 1) return `Ontem ${hhmm}`;
+  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")} ${hhmm}`;
+};
+
 
 // Avatares são consumidos exclusivamente do nosso storage (chat-media).
 // URLs temporárias da API do WhatsApp são ignoradas para não quebrar quando a
@@ -485,7 +499,13 @@ export default function InboxPage() {
                         )}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground truncate">{c.phone}</p>
+                      <span className="text-[10px] text-muted-foreground/70 shrink-0">
+                        {formatListTime(c.last_inbound_at || c.updated_at)}
+                      </span>
+                    </div>
+
                   </div>
                 </button>
                 <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -436,16 +436,43 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, event: body.event, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  const [resumed, debounced, reminders, followups, jobs] = await Promise.all([
+  const [resumed, debounced, reminders, followups, jobs, campaigns] = await Promise.all([
     processHandoffResume(admin).catch(e => { console.error('handoff', e); return 0; }),
     processDebounceQueue(admin).catch(e => { console.error('debounce', e); return 0; }),
     processReminders(admin).catch(e => { console.error('reminders', e); return 0; }),
     processFollowUps(admin).catch(e => { console.error('followups', e); return 0; }),
     drainJobQueue(admin).catch(e => { console.error('jobs', e); return 0; }),
+    processCampaigns(admin).catch(e => { console.error('campaigns', e); return 0; }),
   ]);
   // Best-effort cleanup of event tables (retention)
   admin.rpc('cleanup_event_tables').then(() => null, () => null);
-  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups, jobs }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups, jobs, campaigns }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+// === Campanhas de prospecção: aciona o motor apenas quando há trabalho pendente ===
+async function processCampaigns(admin: any): Promise<number> {
+  const { data: active } = await admin.from('prospecting_campaigns')
+    .select('id').eq('status', 'active').limit(50);
+  if (!active?.length) return 0;
+  const ids = active.map((c: any) => c.id);
+  const { count: pending } = await admin.from('campaign_contacts')
+    .select('id', { count: 'exact', head: true })
+    .in('campaign_id', ids).eq('status', 'pending');
+  if (!pending) return 0;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/prospecting-engine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_SERVICE}` },
+      body: JSON.stringify({ source: 'cron' }),
+    });
+    const txt = (await resp.text()).slice(0, 500);
+    if (!resp.ok) console.error('prospecting-engine failed', resp.status, txt);
+    return pending;
+  } catch (e) {
+    console.error('prospecting-engine invoke error', e);
+    return 0;
+  }
+}
+
 });
 
 // === ONDA 1: Job queue dispatcher ===

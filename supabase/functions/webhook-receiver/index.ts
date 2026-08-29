@@ -407,7 +407,7 @@ function extractAvatarUrl(input: any): string | undefined {
 }
 
 // Status callback (delivered / read) — used to update ✓✓ ticks on existing messages.
-function detectStatusCallback(raw: any): { external_message_id?: string; status: string } | null {
+function detectStatusCallback(raw: any): { ids: string[]; status: string } | null {
   // Z-API: { type: 'MessageStatusCallback', status: 'READ'|'RECEIVED'|'PLAYED', messageId }
   const t = (raw?.type || raw?.event || '').toString().toLowerCase();
   if (t.includes('status') && (raw.messageId || raw.id)) {
@@ -415,16 +415,26 @@ function detectStatusCallback(raw: any): { external_message_id?: string; status:
     let mapped = 'sent';
     if (s.includes('read') || s.includes('played') || raw.ack === 3 || raw.ack === 4) mapped = 'read';
     else if (s.includes('receiv') || s.includes('deliver') || raw.ack === 2) mapped = 'delivered';
-    return { external_message_id: raw.messageId || raw.id, status: mapped };
+    return { ids: [String(raw.messageId || raw.id)], status: mapped };
   }
-  if (t.includes('readreceipt') || (raw.EventType === 'messages_update' && raw.event?.MessageIDs && !String(raw.type || '').toLowerCase().includes('filedownloaded'))) {
-    const ids = raw.event?.MessageIDs || raw.MessageIDs;
-    const statusText = String(raw.state || raw.event?.Type || raw.status || '').toLowerCase();
-    const status = statusText.includes('read') ? 'read' : statusText.includes('deliver') ? 'delivered' : 'sent';
-    return { external_message_id: compactExternalId(Array.isArray(ids) ? ids[0] : ids), status };
+  // UAZAPI/OmniConect: ReadReceipt e messages_update trazem uma LISTA de ids
+  const isReadReceipt = t.includes('readreceipt')
+    || String(raw.EventType || '').toLowerCase() === 'messages_update'
+    || String(raw.event?.EventType || '').toLowerCase() === 'read_receipt';
+  if (isReadReceipt && !String(raw.type || '').toLowerCase().includes('filedownloaded')) {
+    const rawIds = raw.event?.MessageIDs || raw.MessageIDs || raw.event?.messageIds || raw.event?.ids;
+    const ids = (Array.isArray(rawIds) ? rawIds : rawIds ? [rawIds] : [])
+      .map((x: any) => compactExternalId(String(x)))
+      .filter(Boolean) as string[];
+    if (!ids.length) return null;
+    const statusText = String(raw.state || raw.event?.Type || raw.event?.state || raw.status || raw.event?.status || '').toLowerCase();
+    const status = statusText.includes('read') || statusText.includes('played') ? 'read'
+      : statusText.includes('deliver') ? 'delivered' : 'read';
+    return { ids, status };
   }
   return null;
 }
+
 
 function normalizeWasender(raw: any): NormalizedMsg | null {
   // Wasender webhook: { event: "messages.received", data: { messages: { key, messageBody, message } } }
@@ -1665,13 +1675,31 @@ Deno.serve(async (req) => {
 
   // Status callback (delivered / read) — update existing message status (✓✓ ticks)
   const statusCb = detectStatusCallback(raw);
-  if (statusCb?.external_message_id) {
+  if (statusCb?.ids?.length) {
+    // Atualiza ticks das mensagens enviadas
     await admin.from('messages')
       .update({ status: statusCb.status })
       .eq('user_id', userId)
-      .eq('external_message_id', statusCb.external_message_id);
-    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      .in('external_message_id', statusCb.ids);
+
+    let readClients: string[] = [];
+    if (statusCb.status === 'read') {
+      // Recibos que apontam para mensagens do LEAD significam que o dono leu no WhatsApp
+      const { data: inbound } = await admin.from('messages')
+        .select('client_id')
+        .eq('user_id', userId).eq('direction', 'inbound')
+        .in('external_message_id', statusCb.ids);
+      readClients = Array.from(new Set((inbound || []).map((m: any) => m.client_id).filter(Boolean)));
+      for (const cid of readClients) {
+        await admin.from('messages')
+          .update({ is_read: true })
+          .eq('user_id', userId).eq('client_id', cid)
+          .eq('direction', 'inbound').eq('is_read', false);
+      }
+    }
+    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status, ids: statusCb.ids.length, read_clients: readClients.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+
 
   const msg = detectAndNormalize(raw);
   if (!msg || !msg.phone) {
