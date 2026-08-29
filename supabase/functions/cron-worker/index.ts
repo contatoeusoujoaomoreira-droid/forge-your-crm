@@ -436,16 +436,18 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, event: body.event, sent }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  const [resumed, debounced, reminders, followups, jobs] = await Promise.all([
+  const [resumed, debounced, reminders, followups, jobs, campaigns] = await Promise.all([
     processHandoffResume(admin).catch(e => { console.error('handoff', e); return 0; }),
     processDebounceQueue(admin).catch(e => { console.error('debounce', e); return 0; }),
     processReminders(admin).catch(e => { console.error('reminders', e); return 0; }),
     processFollowUps(admin).catch(e => { console.error('followups', e); return 0; }),
     drainJobQueue(admin).catch(e => { console.error('jobs', e); return 0; }),
+    processCampaigns(admin).catch(e => { console.error('campaigns', e); return 0; }),
   ]);
   // Best-effort cleanup of event tables (retention)
   admin.rpc('cleanup_event_tables').then(() => null, () => null);
-  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups, jobs }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ ok: true, resumed, debounced, reminders, followups, jobs, campaigns }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
 });
 
 // === ONDA 1: Job queue dispatcher ===
