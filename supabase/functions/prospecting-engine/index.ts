@@ -211,14 +211,33 @@ Deno.serve(async (req) => {
             totalSent++;
 
           } else {
-            await admin.from('campaign_contacts').update({ status: 'failed', failure_reason: `HTTP ${r.status}` }).eq('id', c.id);
+            console.error('[CAMPAIGN] send failed', { campaign: camp.id, contact: c.id, status: r.status, body: r.body?.slice(0, 300) });
+            await admin.from('campaign_contacts').update({
+              status: 'failed',
+              failure_reason: `HTTP ${r.status}: ${(r.body || '').slice(0, 200)}`,
+            }).eq('id', c.id);
+            await admin.from('webhook_logs').insert({
+              user_id: camp.user_id, direction: 'outbound', source: 'campaign',
+              payload: { campaign_id: camp.id, contact_id: c.id, phone: c.phone, provider: cfg.api_type },
+              error: `send_failed HTTP ${r.status}: ${(r.body || '').slice(0, 300)}`, status_code: r.status,
+            });
           }
           // delay between sends
           const delay = (camp.delay_min_seconds || 30) + Math.floor(Math.random() * Math.max(1, (camp.delay_max_seconds || 120) - (camp.delay_min_seconds || 30)));
           await new Promise((res) => setTimeout(res, Math.min(delay * 1000, 8000)));
         } catch (err) {
-          console.error('campaign send error', err);
+          // Nunca deixar o contato em "pending" silencioso
+          console.error('[CAMPAIGN] send error', { campaign: camp.id, contact: c.id, err: String(err) });
+          await admin.from('campaign_contacts').update({
+            status: 'failed', failure_reason: String(err).slice(0, 200),
+          }).eq('id', c.id).eq('status', 'pending');
+          await admin.from('webhook_logs').insert({
+            user_id: camp.user_id, direction: 'outbound', source: 'campaign',
+            payload: { campaign_id: camp.id, contact_id: c.id, phone: c.phone },
+            error: `exception: ${String(err).slice(0, 300)}`, status_code: 500,
+          });
         }
+
       }
     }
 
