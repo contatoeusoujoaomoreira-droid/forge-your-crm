@@ -1675,13 +1675,31 @@ Deno.serve(async (req) => {
 
   // Status callback (delivered / read) — update existing message status (✓✓ ticks)
   const statusCb = detectStatusCallback(raw);
-  if (statusCb?.external_message_id) {
+  if (statusCb?.ids?.length) {
+    // Atualiza ticks das mensagens enviadas
     await admin.from('messages')
       .update({ status: statusCb.status })
       .eq('user_id', userId)
-      .eq('external_message_id', statusCb.external_message_id);
-    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      .in('external_message_id', statusCb.ids);
+
+    let readClients: string[] = [];
+    if (statusCb.status === 'read') {
+      // Recibos que apontam para mensagens do LEAD significam que o dono leu no WhatsApp
+      const { data: inbound } = await admin.from('messages')
+        .select('client_id')
+        .eq('user_id', userId).eq('direction', 'inbound')
+        .in('external_message_id', statusCb.ids);
+      readClients = Array.from(new Set((inbound || []).map((m: any) => m.client_id).filter(Boolean)));
+      for (const cid of readClients) {
+        await admin.from('messages')
+          .update({ is_read: true })
+          .eq('user_id', userId).eq('client_id', cid)
+          .eq('direction', 'inbound').eq('is_read', false);
+      }
+    }
+    return new Response(JSON.stringify({ ok: true, status_update: statusCb.status, ids: statusCb.ids.length, read_clients: readClients.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+
 
   const msg = detectAndNormalize(raw);
   if (!msg || !msg.phone) {
