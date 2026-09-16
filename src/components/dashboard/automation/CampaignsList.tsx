@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload, Paperclip } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
@@ -25,6 +25,45 @@ export default function CampaignsList() {
   const [flows, setFlows] = useState<any[]>([]);
   const [lists, setLists] = useState<any[]>([]);
   const [showListPicker, setShowListPicker] = useState<any | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const formatSeconds = (s: number) => {
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60), r = s % 60;
+    return r ? `${m}min ${r}s` : `${m}min`;
+  };
+
+  const detectMediaType = (file: File) => {
+    const m = (file.type || "").toLowerCase();
+    if (m.startsWith("image/")) return "image";
+    if (m.startsWith("video/")) return "video";
+    if (m.startsWith("audio/")) return "audio";
+    return "document";
+  };
+
+  const uploadMedia = async (file: File) => {
+    if (!user) return;
+    if (file.size > 25 * 1024 * 1024) { toast.error("Arquivo muito grande (máx. 25 MB)"); return; }
+    setUploading(true);
+    try {
+      const safe = file.name.replace(/[^\w.\-]/g, "_");
+      const path = `${user.id}/campaigns/${Date.now()}-${safe}`;
+      const { error } = await supabase.storage.from("chat-media").upload(path, file, {
+        contentType: file.type || "application/octet-stream", upsert: true,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+      setEditing((prev: any) => ({
+        ...prev, media_url: data.publicUrl, media_type: detectMediaType(file), media_name: file.name,
+      }));
+      toast.success("Arquivo anexado");
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao enviar arquivo");
+    } finally {
+      setUploading(false);
+    }
+  };
+
 
   const load = async () => {
     if (!user) return;
@@ -56,6 +95,7 @@ export default function CampaignsList() {
       source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
       audience_mode: "all", audience_limit: 50,
       post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
+      media_url: null, media_type: null, media_name: null,
     };
     if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
@@ -235,9 +275,26 @@ export default function CampaignsList() {
   };
 
   if (editing) {
+    const dmin = Number(editing.delay_min_seconds ?? 30) || 30;
+    const dmax = Math.max(Number(editing.delay_max_seconds ?? dmin) || dmin, dmin);
+    const base = Math.max(1, Math.round((dmin + dmax) / 2));
+    const rawVar = base > 0 ? Math.round(((dmax - base) / base) * 100) : 0;
+    const variation = rawVar >= 38 ? 50 : rawVar >= 13 ? 25 : 0;
+    const intervalUnit: "s" | "m" = base >= 60 && base % 60 === 0 ? "m" : "s";
+    const intervalValue = intervalUnit === "m" ? base / 60 : base;
+    const applyInterval = (value: number, unit: "s" | "m", varPct: number) => {
+      const secs = Math.max(1, Math.round((value || 1) * (unit === "m" ? 60 : 1)));
+      setEditing({
+        ...editing,
+        delay_min_seconds: Math.max(1, Math.round(secs * (1 - varPct / 100))),
+        delay_max_seconds: Math.round(secs * (1 + varPct / 100)),
+      });
+    };
+
     return (
       <Card className="p-6 space-y-3">
         <h3 className="font-semibold">{editing.id ? "Editar" : "Nova"} Campanha</h3>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Nome</Label>
@@ -288,16 +345,69 @@ export default function CampaignsList() {
           <div>
             <Label>Limite diário</Label>
             <Input type="number" value={editing.daily_limit} onChange={(e) => setEditing({ ...editing, daily_limit: +e.target.value })} />
+            <p className="text-[11px] text-muted-foreground mt-1">Máximo de mensagens por dia nesta campanha.</p>
           </div>
-          <div>
-            <Label>Delay min (s)</Label>
-            <Input type="number" value={editing.delay_min_seconds} onChange={(e) => setEditing({ ...editing, delay_min_seconds: +e.target.value })} />
+          <div className="col-span-2 rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Intervalo entre disparos</Label>
+              <p className="text-[11px] text-muted-foreground">Tempo de espera de um contato para o outro. Intervalos maiores reduzem o risco de bloqueio no WhatsApp.</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-28">
+                <Label className="text-xs">Esperar</Label>
+                <Input type="number" min={1} value={intervalValue}
+                  onChange={(e) => applyInterval(+e.target.value, intervalUnit, variation)} />
+              </div>
+              <div className="w-40">
+                <Label className="text-xs">Unidade</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={intervalUnit}
+                  onChange={(e) => applyInterval(intervalValue, e.target.value as "s" | "m", variation)}>
+                  <option value="s">Segundos</option>
+                  <option value="m">Minutos</option>
+                </select>
+              </div>
+              <div className="w-56">
+                <Label className="text-xs">Variação aleatória</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={String(variation)}
+                  onChange={(e) => applyInterval(intervalValue, intervalUnit, +e.target.value)}>
+                  <option value="0">Exato (sem variação)</option>
+                  <option value="25">Leve (± 25%)</option>
+                  <option value="50">Alta (± 50%) — recomendado</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Envios acontecerão a cada {formatSeconds(editing.delay_min_seconds || 0)}
+              {(editing.delay_max_seconds || 0) > (editing.delay_min_seconds || 0) ? ` a ${formatSeconds(editing.delay_max_seconds || 0)}` : ""}.
+            </p>
           </div>
-          <div>
-            <Label>Delay max (s)</Label>
-            <Input type="number" value={editing.delay_max_seconds} onChange={(e) => setEditing({ ...editing, delay_max_seconds: +e.target.value })} />
+
+          {/* Anexo do primeiro disparo */}
+          <div className="col-span-2 rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Anexo do primeiro disparo (opcional)</Label>
+            <p className="text-[11px] text-muted-foreground">Imagem, vídeo, áudio, PDF, planilha ou documento. A mensagem acima vai como legenda.</p>
+            {editing.media_url ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <a href={editing.media_url} target="_blank" rel="noreferrer" className="underline truncate max-w-[280px]">
+                  {editing.media_name || "arquivo anexado"}
+                </a>
+                <Badge variant="secondary" className="text-[10px]">{editing.media_type || "arquivo"}</Badge>
+                <Button size="sm" variant="ghost" onClick={() => setEditing({ ...editing, media_url: null, media_type: null, media_name: null })}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Input type="file" disabled={uploading}
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.zip"
+                onChange={(e) => e.target.files?.[0] && uploadMedia(e.target.files[0])} />
+            )}
+            {uploading && <p className="text-[11px] text-muted-foreground">Enviando arquivo…</p>}
           </div>
         </div>
+
 
         {/* Source pipelines */}
         <div className="border-t border-border pt-3 space-y-2">
