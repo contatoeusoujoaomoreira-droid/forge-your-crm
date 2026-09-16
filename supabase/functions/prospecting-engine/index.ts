@@ -142,6 +142,12 @@ Deno.serve(async (req) => {
       }
 
 
+      // Respeita o intervalo configurado entre disparos
+      if (camp.next_send_at && new Date(camp.next_send_at).getTime() > Date.now()) {
+        console.log('[CAMPAIGN] aguardando intervalo entre disparos', camp.id, camp.next_send_at);
+        continue;
+      }
+
       // Daily limit guard
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const { count: sentToday } = await admin
@@ -173,12 +179,14 @@ Deno.serve(async (req) => {
         .select('*').eq('campaign_id', camp.id).eq('status', 'pending')
         .limit(batch);
 
+      const runStarted = Date.now();
       for (const c of pendings || []) {
         try {
           const text = renderTemplate(camp.message_template || 'Olá {{name}}', {
             name: c.name || '', phone: c.phone, email: c.email || '',
           });
-          const r = await sendWhatsApp(cfg, c.phone, text);
+          const media = camp.media_url ? { url: camp.media_url, type: camp.media_type, name: camp.media_name } : undefined;
+          const r = await sendWhatsApp(cfg, c.phone, text, media);
           if (r.ok) {
             const sentAt = new Date().toISOString();
 
@@ -241,6 +249,7 @@ Deno.serve(async (req) => {
               user_id: camp.user_id, campaign_id: camp.id,
               client_id: chatClientId, lead_id: c.lead_id, direction: 'outbound',
               channel: 'whatsapp', content: text, status: 'sent',
+              media_url: camp.media_url || null, media_type: camp.media_url ? camp.media_type : null,
               agent_id: camp.agent_id || null,
               sender_phone: phoneDigits || c.phone,
               external_message_id: r.externalMessageId,
@@ -273,9 +282,19 @@ Deno.serve(async (req) => {
               error: `send_failed HTTP ${r.status}: ${(r.body || '').slice(0, 300)}`, status_code: r.status,
             });
           }
-          // delay between sends
-          const delay = (camp.delay_min_seconds || 30) + Math.floor(Math.random() * Math.max(1, (camp.delay_max_seconds || 120) - (camp.delay_min_seconds || 30)));
-          await new Promise((res) => setTimeout(res, Math.min(delay * 1000, 8000)));
+          // Intervalo entre disparos: espera dentro da execução quando curto,
+          // ou agenda o próximo envio para a próxima rodada do cron quando longo.
+          const dmin = Math.max(1, camp.delay_min_seconds || 30);
+          const dmax = Math.max(dmin, camp.delay_max_seconds || dmin);
+          const delay = dmin + Math.floor(Math.random() * (dmax - dmin + 1));
+          await admin.from('prospecting_campaigns')
+            .update({ next_send_at: new Date(Date.now() + delay * 1000).toISOString() })
+            .eq('id', camp.id);
+          if (delay <= 45 && Date.now() - runStarted < 40000) {
+            await new Promise((res) => setTimeout(res, delay * 1000));
+          } else {
+            break;
+          }
         } catch (err) {
           // Nunca deixar o contato em "pending" silencioso
           console.error('[CAMPAIGN] send error', { campaign: camp.id, contact: c.id, err: String(err) });
