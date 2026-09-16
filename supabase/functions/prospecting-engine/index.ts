@@ -10,35 +10,80 @@ const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const sanitizeBaseUrl = (u: string) => (u || '').replace(/\/$/, '').replace(/\/send-text$/, '').replace(/\/send-image$/, '');
 
-async function sendWhatsApp(cfg: any, phone: string, content: string) {
+const mediaKind = (t?: string, url?: string): 'image' | 'video' | 'audio' | 'document' => {
+  const m = (t || '').toLowerCase();
+  if (m.startsWith('image') || m === 'image') return 'image';
+  if (m.startsWith('video') || m === 'video') return 'video';
+  if (m.startsWith('audio') || m === 'audio' || m === 'ptt') return 'audio';
+  if (m === 'document') return 'document';
+  const u = (url || '').toLowerCase();
+  if (/\.(png|jpe?g|webp|gif)$/.test(u)) return 'image';
+  if (/\.(mp4|mov|webm)$/.test(u)) return 'video';
+  if (/\.(mp3|ogg|opus|m4a|wav)$/.test(u)) return 'audio';
+  return 'document';
+};
+
+async function sendWhatsApp(cfg: any, phone: string, content: string, media?: { url?: string; type?: string; name?: string }) {
   const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
   const token = cfg.api_token || '';
   const instance = cfg.instance_id || '';
   const extra = cfg.extra_headers || {};
+  const hasMedia = !!media?.url;
+  const kind = hasMedia ? mediaKind(media?.type, media?.url) : null;
   let url = '', headers: any = { 'Content-Type': 'application/json', ...extra }, body: any = {};
   switch (cfg.api_type) {
-    case 'z-api':
-      url = baseUrl.includes('/instances/') ? `${baseUrl}/send-text` : `${baseUrl}/instances/${instance}/token/${token}/send-text`;
-      body = { phone, message: content };
+    case 'z-api': {
+      const root = baseUrl.includes('/instances/') ? baseUrl : `${baseUrl}/instances/${instance}/token/${token}`;
+      if (hasMedia) {
+        const path = kind === 'image' ? 'send-image' : kind === 'video' ? 'send-video' : kind === 'audio' ? 'send-audio' : 'send-document';
+        url = `${root}/${path}`;
+        body = kind === 'image' ? { phone, image: media!.url, caption: content }
+          : kind === 'video' ? { phone, video: media!.url, caption: content }
+          : kind === 'audio' ? { phone, audio: media!.url }
+          : { phone, document: media!.url, fileName: media?.name || 'arquivo', caption: content };
+      } else {
+        url = `${root}/send-text`;
+        body = { phone, message: content };
+      }
       break;
+    }
     case 'evolution':
-      url = `${baseUrl}/message/sendText/${instance}`;
       headers.apikey = token;
-      body = { number: phone, text: content };
+      if (hasMedia) {
+        url = `${baseUrl}/message/sendMedia/${instance}`;
+        body = { number: phone, mediatype: kind, media: media!.url, caption: content, fileName: media?.name || 'arquivo' };
+      } else {
+        url = `${baseUrl}/message/sendText/${instance}`;
+        body = { number: phone, text: content };
+      }
       break;
     case 'ultramsg':
-      url = `${baseUrl}/${instance}/messages/chat`;
       headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-      body = new URLSearchParams({ token, to: phone, body: content }).toString();
+      if (hasMedia) {
+        const path = kind === 'image' ? 'image' : kind === 'video' ? 'video' : kind === 'audio' ? 'audio' : 'document';
+        url = `${baseUrl}/${instance}/messages/${path}`;
+        const params: any = { token, to: phone, [kind === 'audio' ? 'audio' : kind === 'image' ? 'image' : kind === 'video' ? 'video' : 'document']: media!.url };
+        if (kind !== 'audio') params.caption = content;
+        if (kind === 'document') params.filename = media?.name || 'arquivo';
+        body = new URLSearchParams(params).toString();
+      } else {
+        url = `${baseUrl}/${instance}/messages/chat`;
+        body = new URLSearchParams({ token, to: phone, body: content }).toString();
+      }
       break;
     case 'omniconect':
-      url = `${baseUrl}/send/text`;
       headers = { 'Content-Type': 'application/json', token, ...extra };
-      body = { number: phone, text: content };
+      if (hasMedia) {
+        url = `${baseUrl}/send/media`;
+        body = { number: phone, type: kind, file: media!.url, text: content, docName: media?.name || 'arquivo' };
+      } else {
+        url = `${baseUrl}/send/text`;
+        body = { number: phone, text: content };
+      }
       break;
     default:
       url = baseUrl;
-      body = { phone, message: content };
+      body = hasMedia ? { phone, message: content, media: media!.url } : { phone, message: content };
   }
   const resp = await fetch(url, { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
   const responseText = (await resp.text()).slice(0, 1000);
@@ -49,6 +94,7 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
   } catch { /* provider returned a non-JSON body */ }
   return { ok: resp.ok, status: resp.status, body: responseText, externalMessageId };
 }
+
 
 const renderTemplate = (tpl: string, vars: Record<string, string>) =>
   tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] || '');
