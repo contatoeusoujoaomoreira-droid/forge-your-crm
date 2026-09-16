@@ -25,6 +25,45 @@ export default function CampaignsList() {
   const [flows, setFlows] = useState<any[]>([]);
   const [lists, setLists] = useState<any[]>([]);
   const [showListPicker, setShowListPicker] = useState<any | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const formatSeconds = (s: number) => {
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60), r = s % 60;
+    return r ? `${m}min ${r}s` : `${m}min`;
+  };
+
+  const detectMediaType = (file: File) => {
+    const m = (file.type || "").toLowerCase();
+    if (m.startsWith("image/")) return "image";
+    if (m.startsWith("video/")) return "video";
+    if (m.startsWith("audio/")) return "audio";
+    return "document";
+  };
+
+  const uploadMedia = async (file: File) => {
+    if (!user) return;
+    if (file.size > 25 * 1024 * 1024) { toast.error("Arquivo muito grande (máx. 25 MB)"); return; }
+    setUploading(true);
+    try {
+      const safe = file.name.replace(/[^\w.\-]/g, "_");
+      const path = `${user.id}/campaigns/${Date.now()}-${safe}`;
+      const { error } = await supabase.storage.from("chat-media").upload(path, file, {
+        contentType: file.type || "application/octet-stream", upsert: true,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+      setEditing((prev: any) => ({
+        ...prev, media_url: data.publicUrl, media_type: detectMediaType(file), media_name: file.name,
+      }));
+      toast.success("Arquivo anexado");
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao enviar arquivo");
+    } finally {
+      setUploading(false);
+    }
+  };
+
 
   const load = async () => {
     if (!user) return;
