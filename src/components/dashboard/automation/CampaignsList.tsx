@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload, Paperclip } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
@@ -95,6 +95,7 @@ export default function CampaignsList() {
       source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
       audience_mode: "all", audience_limit: 50,
       post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
+      media_url: null, media_type: null, media_name: null,
     };
     if (kind === "flow") {
       setEditing({ ...base, name: "Campanha com fluxo" });
