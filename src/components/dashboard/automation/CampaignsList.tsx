@@ -288,16 +288,69 @@ export default function CampaignsList() {
           <div>
             <Label>Limite diário</Label>
             <Input type="number" value={editing.daily_limit} onChange={(e) => setEditing({ ...editing, daily_limit: +e.target.value })} />
+            <p className="text-[11px] text-muted-foreground mt-1">Máximo de mensagens por dia nesta campanha.</p>
           </div>
-          <div>
-            <Label>Delay min (s)</Label>
-            <Input type="number" value={editing.delay_min_seconds} onChange={(e) => setEditing({ ...editing, delay_min_seconds: +e.target.value })} />
+          <div className="col-span-2 rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Intervalo entre disparos</Label>
+              <p className="text-[11px] text-muted-foreground">Tempo de espera de um contato para o outro. Intervalos maiores reduzem o risco de bloqueio no WhatsApp.</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-28">
+                <Label className="text-xs">Esperar</Label>
+                <Input type="number" min={1} value={intervalValue}
+                  onChange={(e) => applyInterval(+e.target.value, intervalUnit, variation)} />
+              </div>
+              <div className="w-40">
+                <Label className="text-xs">Unidade</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={intervalUnit}
+                  onChange={(e) => applyInterval(intervalValue, e.target.value as "s" | "m", variation)}>
+                  <option value="s">Segundos</option>
+                  <option value="m">Minutos</option>
+                </select>
+              </div>
+              <div className="w-56">
+                <Label className="text-xs">Variação aleatória</Label>
+                <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={String(variation)}
+                  onChange={(e) => applyInterval(intervalValue, intervalUnit, +e.target.value)}>
+                  <option value="0">Exato (sem variação)</option>
+                  <option value="25">Leve (± 25%)</option>
+                  <option value="50">Alta (± 50%) — recomendado</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Envios acontecerão a cada {formatSeconds(editing.delay_min_seconds || 0)}
+              {(editing.delay_max_seconds || 0) > (editing.delay_min_seconds || 0) ? ` a ${formatSeconds(editing.delay_max_seconds || 0)}` : ""}.
+            </p>
           </div>
-          <div>
-            <Label>Delay max (s)</Label>
-            <Input type="number" value={editing.delay_max_seconds} onChange={(e) => setEditing({ ...editing, delay_max_seconds: +e.target.value })} />
+
+          {/* Anexo do primeiro disparo */}
+          <div className="col-span-2 rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Anexo do primeiro disparo (opcional)</Label>
+            <p className="text-[11px] text-muted-foreground">Imagem, vídeo, áudio, PDF, planilha ou documento. A mensagem acima vai como legenda.</p>
+            {editing.media_url ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <a href={editing.media_url} target="_blank" rel="noreferrer" className="underline truncate max-w-[280px]">
+                  {editing.media_name || "arquivo anexado"}
+                </a>
+                <Badge variant="secondary" className="text-[10px]">{editing.media_type || "arquivo"}</Badge>
+                <Button size="sm" variant="ghost" onClick={() => setEditing({ ...editing, media_url: null, media_type: null, media_name: null })}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Input type="file" disabled={uploading}
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.zip"
+                onChange={(e) => e.target.files?.[0] && uploadMedia(e.target.files[0])} />
+            )}
+            {uploading && <p className="text-[11px] text-muted-foreground">Enviando arquivo…</p>}
           </div>
         </div>
+
 
         {/* Source pipelines */}
         <div className="border-t border-border pt-3 space-y-2">
