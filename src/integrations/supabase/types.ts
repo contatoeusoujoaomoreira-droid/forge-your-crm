@@ -3041,8 +3041,12 @@ export type Database = {
           follow_up_enabled: boolean | null
           id: string
           max_follow_ups: number | null
+          media_name: string | null
+          media_type: string | null
+          media_url: string | null
           message_template: string | null
           name: string
+          next_send_at: string | null
           pipeline_id: string | null
           post_send_action: string
           post_send_pipeline_id: string | null
@@ -3075,8 +3079,12 @@ export type Database = {
           follow_up_enabled?: boolean | null
           id?: string
           max_follow_ups?: number | null
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_template?: string | null
           name: string
+          next_send_at?: string | null
           pipeline_id?: string | null
           post_send_action?: string
           post_send_pipeline_id?: string | null
@@ -3109,8 +3117,12 @@ export type Database = {
           follow_up_enabled?: boolean | null
           id?: string
           max_follow_ups?: number | null
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_template?: string | null
           name?: string
+          next_send_at?: string | null
           pipeline_id?: string | null
           post_send_action?: string
           post_send_pipeline_id?: string | null
