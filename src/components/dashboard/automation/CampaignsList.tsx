@@ -235,9 +235,26 @@ export default function CampaignsList() {
   };
 
   if (editing) {
+    const dmin = Number(editing.delay_min_seconds ?? 30) || 30;
+    const dmax = Math.max(Number(editing.delay_max_seconds ?? dmin) || dmin, dmin);
+    const base = Math.max(1, Math.round((dmin + dmax) / 2));
+    const rawVar = base > 0 ? Math.round(((dmax - base) / base) * 100) : 0;
+    const variation = rawVar >= 38 ? 50 : rawVar >= 13 ? 25 : 0;
+    const intervalUnit: "s" | "m" = base >= 60 && base % 60 === 0 ? "m" : "s";
+    const intervalValue = intervalUnit === "m" ? base / 60 : base;
+    const applyInterval = (value: number, unit: "s" | "m", varPct: number) => {
+      const secs = Math.max(1, Math.round((value || 1) * (unit === "m" ? 60 : 1)));
+      setEditing({
+        ...editing,
+        delay_min_seconds: Math.max(1, Math.round(secs * (1 - varPct / 100))),
+        delay_max_seconds: Math.round(secs * (1 + varPct / 100)),
+      });
+    };
+
     return (
       <Card className="p-6 space-y-3">
         <h3 className="font-semibold">{editing.id ? "Editar" : "Nova"} Campanha</h3>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Nome</Label>
