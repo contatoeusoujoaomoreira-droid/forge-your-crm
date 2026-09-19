@@ -158,29 +158,6 @@ export default function CampaignsList() {
     load();
   };
 
-  const openLeadsPicker = async (campaignId: string) => {
-    if (!user) return;
-    setShowLeads(campaignId);
-    const { data } = await supabase.from("leads").select("id,name,phone,email").eq("user_id", user.id).limit(500);
-    setLeadsAvail(data || []);
-  };
-
-  const addLeads = async (campaignId: string, leadIds: string[]) => {
-    if (!user) return;
-    setLoading(true);
-    const rows = leadIds.map((leadId) => {
-      const lead = leadsAvail.find((l) => l.id === leadId);
-      return {
-        user_id: user.id, campaign_id: campaignId, lead_id: leadId,
-        name: lead?.name, phone: lead?.phone, email: lead?.email, status: "pending",
-      };
-    });
-    const { error } = await supabase.from("campaign_contacts").insert(rows);
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success(`${rows.length} contatos adicionados`);
-    setShowLeads(null);
-  };
 
   const runEngine = async () => {
     setLoading(true);
