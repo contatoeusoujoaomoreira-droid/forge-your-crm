@@ -494,90 +494,21 @@ export default function CampaignsList() {
             </div>
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem (etapas do CRM)">
-              <Layers className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowListPicker(c)} disabled={loading} title="Preencher de lista importada">
-              <Upload className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)} title="Selecionar leads"><Users className="h-4 w-4" /></Button>
-
             <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
               <Play className="h-4 w-4 mr-1" />Executar
             </Button>
             {c.status === "active" ? (
-              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="h-4 w-4" /></Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "active")}><Play className="h-4 w-4" /></Button>
-            )}
+              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")} title="Pausar">
+                <Pause className="h-4 w-4 mr-1" />Pausar
+              </Button>
+            ) : null}
             <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>Editar</Button>
             <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
           </div>
         </Card>
       ))}
 
-      {showListPicker && (
-        <Card className="p-4 fixed inset-x-8 top-24 z-50 max-w-lg mx-auto bg-background border shadow-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Preencher de lista importada</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowListPicker(null)}>Fechar</Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Os contatos serão criados como leads no pipeline/etapa de destino da campanha
-            {showListPicker.audience_mode === "limit" ? ` (limite de ${showListPicker.audience_limit} contatos)` : " (todos da lista)"}.
-          </p>
-          {lists.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma lista importada. Importe uma lista em Automação → Importador.</p>
-          ) : (
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {lists.map((l) => (
-                <button key={l.id} type="button" disabled={loading}
-                  onClick={() => fillFromImportedList(showListPicker, l.id)}
-                  className="w-full text-left p-2 rounded border border-border hover:bg-secondary/50 flex items-center justify-between">
-                  <span className="text-sm">{l.name}</span>
-                  <Badge variant="secondary">{l.total_contacts || 0} contatos</Badge>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-
-      {showLeads && (
-        <Card className="p-4 fixed inset-4 z-50 overflow-auto bg-background border shadow-2xl">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">Adicionar leads à campanha ({leadsAvail.length} disponíveis)</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowLeads(null)}>Fechar</Button>
-          </div>
-          <LeadPicker leads={leadsAvail} onAdd={(ids) => addLeads(showLeads, ids)} />
-        </Card>
-      )}
       <CampaignTypeModal open={showType} onOpenChange={setShowType} onPick={startFromKind} />
-    </div>
-  );
-}
-
-function LeadPicker({ leads, onAdd }: { leads: any[]; onAdd: (ids: string[]) => void }) {
-  const [sel, setSel] = useState<Set<string>>(new Set());
-  return (
-    <div>
-      <div className="flex gap-2 mb-2">
-        <Button size="sm" variant="outline" onClick={() => setSel(new Set(leads.map((l) => l.id)))}>Todos</Button>
-        <Button size="sm" variant="outline" onClick={() => setSel(new Set())}>Nenhum</Button>
-        <Button size="sm" onClick={() => onAdd([...sel])} disabled={sel.size === 0}>Adicionar {sel.size}</Button>
-      </div>
-      <div className="space-y-1 max-h-[60vh] overflow-y-auto">
-        {leads.map((l) => (
-          <label key={l.id} className="flex items-center gap-2 p-2 rounded hover:bg-secondary/50 cursor-pointer">
-            <input type="checkbox" checked={sel.has(l.id)} onChange={(e) => {
-              const n = new Set(sel); e.target.checked ? n.add(l.id) : n.delete(l.id); setSel(n);
-            }} />
-            <span className="text-sm">{l.name}</span>
-            <span className="text-xs text-muted-foreground">{l.phone}</span>
-          </label>
-        ))}
-      </div>
     </div>
   );
 }
