@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload, Paperclip } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Paperclip } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
@@ -18,13 +18,9 @@ export default function CampaignsList() {
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
-  const [showLeads, setShowLeads] = useState<string | null>(null);
-  const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showType, setShowType] = useState(false);
   const [flows, setFlows] = useState<any[]>([]);
-  const [lists, setLists] = useState<any[]>([]);
-  const [showListPicker, setShowListPicker] = useState<any | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const formatSeconds = (s: number) => {
@@ -67,20 +63,18 @@ export default function CampaignsList() {
 
   const load = async () => {
     if (!user) return;
-    const [c, a, p, s, f, l] = await Promise.all([
+    const [c, a, p, s, f] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       supabase.from("conversation_flows").select("id,name,trigger_mode").eq("user_id", user.id).eq("is_active", true),
-      supabase.from("imported_lists").select("id,name,total_contacts").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
     setPipelines(p.data || []);
     setStages(s.data || []);
     setFlows(f.data || []);
-    setLists(l.data || []);
   };
 
   useEffect(() => { load(); }, [user]);
@@ -131,90 +125,7 @@ export default function CampaignsList() {
     setEditing(null); load();
   };
 
-  // Popula a campanha com os leads das etapas de origem, respeitando o modo de audiência
-  const fillFromSources = async (c: any) => {
-    if (!user) return;
-    const sources: any[] = Array.isArray(c.source_pipelines) ? c.source_pipelines : [];
-    const stageIds = sources.flatMap((s: any) => s.stage_ids || []);
-    if (stageIds.length === 0) { toast.error("Defina pipelines/etapas de origem na campanha"); return; }
-    setLoading(true);
-    let query = supabase.from("leads").select("id,name,phone,email")
-      .eq("user_id", user.id).in("stage_id", stageIds).not("phone", "is", null)
-      .order("created_at", { ascending: true });
-    if (c.audience_mode === "limit" && c.audience_limit > 0) query = query.limit(c.audience_limit);
-    else query = query.limit(2000);
-    const { data: leads, error } = await query;
-    if (error) { setLoading(false); toast.error(error.message); return; }
-
-    const { data: already } = await supabase.from("campaign_contacts")
-      .select("lead_id").eq("campaign_id", c.id).limit(5000);
-    const existing = new Set((already || []).map((x: any) => x.lead_id));
-    const rows = (leads || []).filter(l => !existing.has(l.id)).map(l => ({
-      user_id: user.id, campaign_id: c.id, lead_id: l.id,
-      name: l.name, phone: l.phone, email: l.email, status: "pending",
-    }));
-    if (rows.length === 0) { setLoading(false); toast.info("Nenhum lead novo nas etapas de origem"); return; }
-    const { error: insErr } = await supabase.from("campaign_contacts").insert(rows);
-    setLoading(false);
-    if (insErr) toast.error(insErr.message);
-    else toast.success(`${rows.length} contatos adicionados${c.audience_mode === "limit" ? ` (limite ${c.audience_limit})` : " (todos da etapa)"}`);
-  };
-
-  // Popula a campanha a partir de uma lista importada (cria leads no pipeline/etapa de destino)
-  const fillFromImportedList = async (c: any, listId: string) => {
-    if (!user || !listId) return;
-    setLoading(true);
-    try {
-      let q = supabase.from("imported_contacts").select("id,name,phone,email,lead_id")
-        .eq("user_id", user.id).eq("list_id", listId).not("phone", "is", null)
-        .order("created_at", { ascending: true });
-      q = c.audience_mode === "limit" && c.audience_limit > 0 ? q.limit(c.audience_limit) : q.limit(2000);
-      const { data: contacts, error } = await q;
-      if (error) throw error;
-      if (!contacts?.length) { toast.info("Lista sem contatos com telefone"); return; }
-
-      const phones = contacts.map((x: any) => String(x.phone));
-      const { data: existingLeads } = await supabase.from("leads")
-        .select("id,phone").eq("user_id", user.id).in("phone", phones);
-      const byPhone = new Map((existingLeads || []).map((l: any) => [String(l.phone), l.id]));
-
-      const toCreate = contacts.filter((x: any) => !byPhone.has(String(x.phone)));
-      if (toCreate.length) {
-        const { data: created, error: insErr } = await supabase.from("leads").insert(
-          toCreate.map((x: any) => ({
-            user_id: user.id,
-            name: x.name || String(x.phone),
-            phone: String(x.phone),
-            email: x.email || null,
-            source: "campanha_importada",
-            pipeline_id: c.target_pipeline_id || null,
-            stage_id: c.target_stage_id || null,
-          }))
-        ).select("id,phone");
-        if (insErr) throw insErr;
-        (created || []).forEach((l: any) => byPhone.set(String(l.phone), l.id));
-      }
-
-      const { data: already } = await supabase.from("campaign_contacts")
-        .select("phone").eq("campaign_id", c.id).limit(5000);
-      const existingPhones = new Set((already || []).map((x: any) => String(x.phone)));
-      const rows = contacts
-        .filter((x: any) => !existingPhones.has(String(x.phone)))
-        .map((x: any) => ({
-          user_id: user.id, campaign_id: c.id, lead_id: byPhone.get(String(x.phone)) || null,
-          name: x.name || null, phone: String(x.phone), email: x.email || null, status: "pending",
-        }));
-      if (!rows.length) { toast.info("Todos os contatos dessa lista já estão na campanha"); return; }
-      const { error: ccErr } = await supabase.from("campaign_contacts").insert(rows);
-      if (ccErr) throw ccErr;
-      toast.success(`${rows.length} contatos da lista adicionados`);
-    } catch (e: any) {
-      toast.error(e.message || "Falha ao importar contatos da lista");
-    } finally {
-      setLoading(false);
-      setShowListPicker(null);
-    }
-  };
+  // A audiência é montada automaticamente pelo motor de disparo (etapas de origem do CRM).
 
 
 
@@ -241,29 +152,6 @@ export default function CampaignsList() {
     load();
   };
 
-  const openLeadsPicker = async (campaignId: string) => {
-    if (!user) return;
-    setShowLeads(campaignId);
-    const { data } = await supabase.from("leads").select("id,name,phone,email").eq("user_id", user.id).limit(500);
-    setLeadsAvail(data || []);
-  };
-
-  const addLeads = async (campaignId: string, leadIds: string[]) => {
-    if (!user) return;
-    setLoading(true);
-    const rows = leadIds.map((leadId) => {
-      const lead = leadsAvail.find((l) => l.id === leadId);
-      return {
-        user_id: user.id, campaign_id: campaignId, lead_id: leadId,
-        name: lead?.name, phone: lead?.phone, email: lead?.email, status: "pending",
-      };
-    });
-    const { error } = await supabase.from("campaign_contacts").insert(rows);
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success(`${rows.length} contatos adicionados`);
-    setShowLeads(null);
-  };
 
   const runEngine = async () => {
     setLoading(true);
@@ -508,7 +396,7 @@ export default function CampaignsList() {
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Use "Preencher da origem" na lista de campanhas para carregar os contatos conforme esta regra.
+            Ao executar, o sistema busca automaticamente os contatos das etapas de origem selecionadas — quem já recebeu não entra de novo.
           </p>
         </div>
 
@@ -600,90 +488,21 @@ export default function CampaignsList() {
             </div>
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" onClick={() => fillFromSources(c)} disabled={loading} title="Preencher da origem (etapas do CRM)">
-              <Layers className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowListPicker(c)} disabled={loading} title="Preencher de lista importada">
-              <Upload className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => openLeadsPicker(c.id)} title="Selecionar leads"><Users className="h-4 w-4" /></Button>
-
             <Button size="sm" onClick={() => runCampaign(c)} disabled={loading}>
               <Play className="h-4 w-4 mr-1" />Executar
             </Button>
             {c.status === "active" ? (
-              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="h-4 w-4" /></Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "active")}><Play className="h-4 w-4" /></Button>
-            )}
+              <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")} title="Pausar">
+                <Pause className="h-4 w-4 mr-1" />Pausar
+              </Button>
+            ) : null}
             <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>Editar</Button>
             <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
           </div>
         </Card>
       ))}
 
-      {showListPicker && (
-        <Card className="p-4 fixed inset-x-8 top-24 z-50 max-w-lg mx-auto bg-background border shadow-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Preencher de lista importada</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowListPicker(null)}>Fechar</Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Os contatos serão criados como leads no pipeline/etapa de destino da campanha
-            {showListPicker.audience_mode === "limit" ? ` (limite de ${showListPicker.audience_limit} contatos)` : " (todos da lista)"}.
-          </p>
-          {lists.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma lista importada. Importe uma lista em Automação → Importador.</p>
-          ) : (
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {lists.map((l) => (
-                <button key={l.id} type="button" disabled={loading}
-                  onClick={() => fillFromImportedList(showListPicker, l.id)}
-                  className="w-full text-left p-2 rounded border border-border hover:bg-secondary/50 flex items-center justify-between">
-                  <span className="text-sm">{l.name}</span>
-                  <Badge variant="secondary">{l.total_contacts || 0} contatos</Badge>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-
-      {showLeads && (
-        <Card className="p-4 fixed inset-4 z-50 overflow-auto bg-background border shadow-2xl">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">Adicionar leads à campanha ({leadsAvail.length} disponíveis)</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowLeads(null)}>Fechar</Button>
-          </div>
-          <LeadPicker leads={leadsAvail} onAdd={(ids) => addLeads(showLeads, ids)} />
-        </Card>
-      )}
       <CampaignTypeModal open={showType} onOpenChange={setShowType} onPick={startFromKind} />
-    </div>
-  );
-}
-
-function LeadPicker({ leads, onAdd }: { leads: any[]; onAdd: (ids: string[]) => void }) {
-  const [sel, setSel] = useState<Set<string>>(new Set());
-  return (
-    <div>
-      <div className="flex gap-2 mb-2">
-        <Button size="sm" variant="outline" onClick={() => setSel(new Set(leads.map((l) => l.id)))}>Todos</Button>
-        <Button size="sm" variant="outline" onClick={() => setSel(new Set())}>Nenhum</Button>
-        <Button size="sm" onClick={() => onAdd([...sel])} disabled={sel.size === 0}>Adicionar {sel.size}</Button>
-      </div>
-      <div className="space-y-1 max-h-[60vh] overflow-y-auto">
-        {leads.map((l) => (
-          <label key={l.id} className="flex items-center gap-2 p-2 rounded hover:bg-secondary/50 cursor-pointer">
-            <input type="checkbox" checked={sel.has(l.id)} onChange={(e) => {
-              const n = new Set(sel); e.target.checked ? n.add(l.id) : n.delete(l.id); setSel(n);
-            }} />
-            <span className="text-sm">{l.name}</span>
-            <span className="text-xs text-muted-foreground">{l.phone}</span>
-          </label>
-        ))}
-      </div>
     </div>
   );
 }
