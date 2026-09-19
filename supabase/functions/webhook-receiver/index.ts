@@ -1911,11 +1911,19 @@ Deno.serve(async (req) => {
     }
     // 2) Fallback: same content sent within last 90s for this client
     if (!isOurOwnSend) {
-      const since = new Date(Date.now() - 90_000).toISOString();
-      const { data: recent } = await admin.from('messages').select('id, content')
+      // Janela ampliada: o eco da UAZAPI pode chegar minutos depois do disparo da campanha,
+      // o que antes criava uma segunda cópia da mesma mensagem no chat.
+      const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: recent } = await admin.from('messages').select('id, content, media_url')
         .eq('user_id', userId).eq('client_id', client.id).eq('direction', 'outbound')
-        .gte('created_at', since).order('created_at', { ascending: false }).limit(5);
-      if ((recent || []).some((r: any) => (r.content || '').trim() === (msg.content || '').trim() && (msg.content || '').trim().length > 0)) {
+        .gte('created_at', since).order('created_at', { ascending: false }).limit(10);
+      const inc = (msg.content || '').trim();
+      if ((recent || []).some((r: any) => {
+        const rc = String(r.content || '').trim();
+        if (inc && rc && (rc === inc || rc.startsWith(inc) || inc.startsWith(rc))) return true;
+        // Mídia sem legenda: mesmo anexo já registrado como saída
+        return !inc && !!msg.media_url && !!r.media_url;
+      })) {
         isOurOwnSend = true;
       }
     }
