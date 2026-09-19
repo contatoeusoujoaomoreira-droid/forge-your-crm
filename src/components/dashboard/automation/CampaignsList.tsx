@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Megaphone, Play, Pause, Trash2, Plus, Users, Layers, Upload, Paperclip } from "lucide-react";
+import { Megaphone, Play, Pause, Trash2, Plus, Paperclip } from "lucide-react";
 import CampaignTypeModal, { CAMPAIGN_TEMPLATES } from "./CampaignTypeModal";
 
 export default function CampaignsList() {
@@ -18,13 +18,9 @@ export default function CampaignsList() {
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [stages, setStages] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
-  const [showLeads, setShowLeads] = useState<string | null>(null);
-  const [leadsAvail, setLeadsAvail] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showType, setShowType] = useState(false);
   const [flows, setFlows] = useState<any[]>([]);
-  const [lists, setLists] = useState<any[]>([]);
-  const [showListPicker, setShowListPicker] = useState<any | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const formatSeconds = (s: number) => {
@@ -67,20 +63,18 @@ export default function CampaignsList() {
 
   const load = async () => {
     if (!user) return;
-    const [c, a, p, s, f, l] = await Promise.all([
+    const [c, a, p, s, f] = await Promise.all([
       supabase.from("prospecting_campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("ai_agents").select("*").eq("user_id", user.id).eq("is_active", true),
       supabase.from("pipelines").select("*").eq("user_id", user.id),
       supabase.from("pipeline_stages").select("*").eq("user_id", user.id).order("position"),
       supabase.from("conversation_flows").select("id,name,trigger_mode").eq("user_id", user.id).eq("is_active", true),
-      supabase.from("imported_lists").select("id,name,total_contacts").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]);
     setCampaigns(c.data || []);
     setAgents(a.data || []);
     setPipelines(p.data || []);
     setStages(s.data || []);
     setFlows(f.data || []);
-    setLists(l.data || []);
   };
 
   useEffect(() => { load(); }, [user]);
@@ -402,7 +396,7 @@ export default function CampaignsList() {
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Use "Preencher da origem" na lista de campanhas para carregar os contatos conforme esta regra.
+            Ao executar, o sistema busca automaticamente os contatos das etapas de origem selecionadas — quem já recebeu não entra de novo.
           </p>
         </div>
 
