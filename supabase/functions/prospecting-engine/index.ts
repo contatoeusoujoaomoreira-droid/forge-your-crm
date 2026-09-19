@@ -171,6 +171,60 @@ Deno.serve(async (req) => {
 
 
 
+      // === AUDIÊNCIA AUTOMÁTICA ===
+      // Monta a fila de contatos a partir das etapas de origem escolhidas na campanha,
+      // sem precisar de nenhuma ação manual na interface. Nunca repete quem já recebeu.
+      try {
+        const sources: any[] = Array.isArray(camp.source_pipelines) ? camp.source_pipelines : [];
+        const stageIds: string[] = sources.flatMap((s: any) => s?.stage_ids || []).filter(Boolean);
+        if (stageIds.length === 0) {
+          console.log('[CAMPAIGN] sem etapas de origem definidas', camp.id);
+        } else {
+          const limitMode = camp.audience_mode === 'limit' && (camp.audience_limit || 0) > 0;
+          const { count: alreadyCount } = await admin.from('campaign_contacts')
+            .select('id', { count: 'exact', head: true }).eq('campaign_id', camp.id);
+          const need = limitMode ? (camp.audience_limit || 0) - (alreadyCount || 0) : 2000;
+          if (need > 0) {
+            const { data: existing } = await admin.from('campaign_contacts')
+              .select('lead_id, phone').eq('campaign_id', camp.id).limit(5000);
+            const seenLeads = new Set((existing || []).map((x: any) => x.lead_id).filter(Boolean));
+            const seenPhones = new Set((existing || []).map((x: any) => String(x.phone || '').replace(/\D/g, '')).filter(Boolean));
+
+            // Quem já recebeu disparo em qualquer campanha deste usuário não entra novamente
+            const { data: sentElsewhere } = await admin.from('campaign_contacts')
+              .select('phone').eq('user_id', camp.user_id).in('status', ['sent', 'replied', 'converted']).limit(5000);
+            (sentElsewhere || []).forEach((x: any) => {
+              const d = String(x.phone || '').replace(/\D/g, '');
+              if (d) seenPhones.add(d);
+            });
+
+            const { data: stageLeads } = await admin.from('leads')
+              .select('id,name,phone,email').eq('user_id', camp.user_id)
+              .in('stage_id', stageIds).not('phone', 'is', null)
+              .order('created_at', { ascending: true }).limit(need + 500);
+
+            const rows: any[] = [];
+            for (const l of stageLeads || []) {
+              const digits = String(l.phone || '').replace(/\D/g, '');
+              if (!digits || seenLeads.has(l.id) || seenPhones.has(digits)) continue;
+              seenLeads.add(l.id); seenPhones.add(digits);
+              rows.push({
+                user_id: camp.user_id, campaign_id: camp.id, lead_id: l.id,
+                name: l.name, phone: l.phone, email: l.email, status: 'pending',
+              });
+              if (rows.length >= need) break;
+            }
+            if (rows.length) {
+              const { error: syncErr } = await admin.from('campaign_contacts').insert(rows);
+              if (syncErr) console.error('[CAMPAIGN] falha ao montar audiência', camp.id, syncErr.message);
+              else console.log('[CAMPAIGN] audiência sincronizada', camp.id, rows.length);
+            }
+          }
+        }
+      } catch (syncEx) {
+        console.error('[CAMPAIGN] erro na sincronização da audiência', camp.id, String(syncEx));
+      }
+
       const remaining = (camp.daily_limit || 100) - (sentToday || 0);
       const batch = Math.min(remaining, 10); // process up to 10 per run
 
