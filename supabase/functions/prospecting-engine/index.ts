@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     const { data: campaigns } = await q;
 
     let totalSent = 0;
+    let reason: string | null = null;
     for (const camp of campaigns || []) {
       // Janela de envio: quando invocado manualmente (campaign_id), ignora a janela
       if (!targetCampaignId && !inBusinessHours(camp.business_hours)) {
