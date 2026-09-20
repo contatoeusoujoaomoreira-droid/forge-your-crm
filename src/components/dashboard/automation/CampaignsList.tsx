@@ -86,7 +86,7 @@ export default function CampaignsList() {
     const base: any = {
       name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
       daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
-      source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
+      source_pipelines: [], _kind: kind,
       audience_mode: "all", audience_limit: 50,
       post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
       media_url: null, media_type: null, media_name: null,
