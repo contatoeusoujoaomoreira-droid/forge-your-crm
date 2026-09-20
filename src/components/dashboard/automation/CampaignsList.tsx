@@ -106,7 +106,9 @@ export default function CampaignsList() {
     if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
     if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
 
-    if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
+    const srcStages = (Array.isArray(editing.source_pipelines) ? editing.source_pipelines : [])
+      .reduce((acc: number, x: any) => acc + (x.stage_ids?.length || 0), 0);
+    if (srcStages === 0) { toast.error("Selecione o funil e a etapa de origem dos leads"); return; }
     if (editing.audience_mode === "limit" && !(editing.audience_limit > 0)) { toast.error("Informe a quantidade de contatos da campanha"); return; }
     if (editing.post_send_action === "move" && !editing.post_send_stage_id) { toast.error("Escolha a etapa para mover após o primeiro disparo"); return; }
     const payload: any = { ...editing, user_id: user.id };
