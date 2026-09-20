@@ -181,6 +181,7 @@ Deno.serve(async (req) => {
         const stageIds: string[] = sources.flatMap((s: any) => s?.stage_ids || []).filter(Boolean);
         if (stageIds.length === 0) {
           console.log('[CAMPAIGN] sem etapas de origem definidas', camp.id);
+          reason = 'nenhum funil/etapa de origem selecionado na campanha';
         } else {
           const limitMode = camp.audience_mode === 'limit' && (camp.audience_limit || 0) > 0;
           const { count: alreadyCount } = await admin.from('campaign_contacts')
