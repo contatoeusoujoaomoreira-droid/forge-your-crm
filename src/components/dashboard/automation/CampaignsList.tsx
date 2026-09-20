@@ -349,30 +349,6 @@ export default function CampaignsList() {
           </p>
         </div>
 
-        {/* Target pipeline/stage */}
-        <div className="border-t border-border pt-3 grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Pipeline destino (após resposta)</Label>
-            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={editing.target_pipeline_id || ""}
-              onChange={(e) => setEditing({ ...editing, target_pipeline_id: e.target.value, target_stage_id: "" })}>
-              <option value="">— Manter atual —</option>
-              {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label className="text-xs">Etapa destino</Label>
-            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={editing.target_stage_id || ""}
-              onChange={(e) => setEditing({ ...editing, target_stage_id: e.target.value })}>
-              <option value="">— Primeira da pipeline —</option>
-              {stages.filter((s: any) => !editing.target_pipeline_id || s.pipeline_id === editing.target_pipeline_id).map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* Audiência */}
         <div className="border-t border-border pt-3 space-y-2">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Audiência da campanha</Label>
