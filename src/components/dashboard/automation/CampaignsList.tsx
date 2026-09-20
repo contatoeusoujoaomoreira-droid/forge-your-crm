@@ -119,6 +119,7 @@ export default function CampaignsList() {
     if (!payload.post_send_stage_id) payload.post_send_stage_id = null;
     if (payload.audience_mode !== "limit") payload.audience_limit = null;
     delete payload.created_at; delete payload.updated_at;
+    delete payload.target_pipeline_id; delete payload.target_stage_id;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
       : await supabase.from("prospecting_campaigns").insert(payload);
