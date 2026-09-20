@@ -219,8 +219,12 @@ Deno.serve(async (req) => {
             }
             if (rows.length) {
               const { error: syncErr } = await admin.from('campaign_contacts').insert(rows);
-              if (syncErr) console.error('[CAMPAIGN] falha ao montar audiência', camp.id, syncErr.message);
+              if (syncErr) { console.error('[CAMPAIGN] falha ao montar audiência', camp.id, syncErr.message); reason = `falha ao montar audiência: ${syncErr.message}`; }
               else console.log('[CAMPAIGN] audiência sincronizada', camp.id, rows.length);
+            } else if (!(stageLeads || []).length) {
+              reason = 'as etapas de origem não têm leads com telefone';
+            } else {
+              reason = 'todos os leads dessas etapas já receberam disparo';
             }
           }
         }
