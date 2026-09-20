@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     const { data: campaigns } = await q;
 
     let totalSent = 0;
+    let reason: string | null = null;
     for (const camp of campaigns || []) {
       // Janela de envio: quando invocado manualmente (campaign_id), ignora a janela
       if (!targetCampaignId && !inBusinessHours(camp.business_hours)) {
@@ -142,8 +143,8 @@ Deno.serve(async (req) => {
       }
 
 
-      // Respeita o intervalo configurado entre disparos
-      if (camp.next_send_at && new Date(camp.next_send_at).getTime() > Date.now()) {
+      // Respeita o intervalo configurado entre disparos (ignorado no Executar manual)
+      if (!targetCampaignId && camp.next_send_at && new Date(camp.next_send_at).getTime() > Date.now()) {
         console.log('[CAMPAIGN] aguardando intervalo entre disparos', camp.id, camp.next_send_at);
         continue;
       }
@@ -153,7 +154,7 @@ Deno.serve(async (req) => {
       const { count: sentToday } = await admin
         .from('campaign_contacts').select('*', { count: 'exact', head: true })
         .eq('campaign_id', camp.id).gte('sent_at', today.toISOString());
-      if ((sentToday || 0) >= (camp.daily_limit || 100)) continue;
+      if ((sentToday || 0) >= (camp.daily_limit || 100)) { reason = 'limite diário atingido'; continue; }
 
       // Conexão WhatsApp ativa MAIS RECENTE do dono da campanha
       const { data: cfgs } = await admin.from('whatsapp_configs')
@@ -166,6 +167,7 @@ Deno.serve(async (req) => {
           user_id: camp.user_id, direction: 'outbound', source: 'campaign',
           payload: { campaign_id: camp.id }, error: 'no_active_whatsapp_config', status_code: 424,
         });
+        reason = 'nenhuma conexão de WhatsApp ativa';
         continue;
       }
 
@@ -179,6 +181,7 @@ Deno.serve(async (req) => {
         const stageIds: string[] = sources.flatMap((s: any) => s?.stage_ids || []).filter(Boolean);
         if (stageIds.length === 0) {
           console.log('[CAMPAIGN] sem etapas de origem definidas', camp.id);
+          reason = 'nenhum funil/etapa de origem selecionado na campanha';
         } else {
           const limitMode = camp.audience_mode === 'limit' && (camp.audience_limit || 0) > 0;
           const { count: alreadyCount } = await admin.from('campaign_contacts')
@@ -216,8 +219,12 @@ Deno.serve(async (req) => {
             }
             if (rows.length) {
               const { error: syncErr } = await admin.from('campaign_contacts').insert(rows);
-              if (syncErr) console.error('[CAMPAIGN] falha ao montar audiência', camp.id, syncErr.message);
+              if (syncErr) { console.error('[CAMPAIGN] falha ao montar audiência', camp.id, syncErr.message); reason = `falha ao montar audiência: ${syncErr.message}`; }
               else console.log('[CAMPAIGN] audiência sincronizada', camp.id, rows.length);
+            } else if (!(stageLeads || []).length) {
+              reason = 'as etapas de origem não têm leads com telefone';
+            } else {
+              reason = 'todos os leads dessas etapas já receberam disparo';
             }
           }
         }
@@ -226,7 +233,9 @@ Deno.serve(async (req) => {
       }
 
       const remaining = (camp.daily_limit || 100) - (sentToday || 0);
-      const batch = Math.min(remaining, 10); // process up to 10 per run
+      // Quantidade escolhida na campanha manda; o pacing abaixo continua respeitando o intervalo
+      const wanted = camp.audience_mode === 'limit' && (camp.audience_limit || 0) > 0 ? camp.audience_limit : 50;
+      const batch = Math.max(1, Math.min(remaining, wanted));
 
       const { data: pendings } = await admin
         .from('campaign_contacts')
@@ -365,7 +374,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, sent: totalSent }), {
+    return new Response(JSON.stringify({ ok: true, sent: totalSent, reason: totalSent > 0 ? null : reason }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

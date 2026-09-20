@@ -86,7 +86,7 @@ export default function CampaignsList() {
     const base: any = {
       name: "", description: "", agent_id: "", flow_id: "", message_template: "Olá {{name}}, tudo bem?",
       daily_limit: 100, delay_min_seconds: 30, delay_max_seconds: 120, status: "draft", channel: "whatsapp",
-      source_pipelines: [], target_pipeline_id: "", target_stage_id: "", _kind: kind,
+      source_pipelines: [], _kind: kind,
       audience_mode: "all", audience_limit: 50,
       post_send_action: "keep", post_send_pipeline_id: "", post_send_stage_id: "",
       media_url: null, media_type: null, media_name: null,
@@ -106,7 +106,9 @@ export default function CampaignsList() {
     if (kind === "agent" && !editing.agent_id) { toast.error("Selecione um agente"); return; }
     if (kind === "flow" && !editing.flow_id) { toast.error("Selecione um fluxo"); return; }
 
-    if (!editing.target_pipeline_id || !editing.target_stage_id) { toast.error("Selecione pipeline e etapa de destino"); return; }
+    const srcStages = (Array.isArray(editing.source_pipelines) ? editing.source_pipelines : [])
+      .reduce((acc: number, x: any) => acc + (x.stage_ids?.length || 0), 0);
+    if (srcStages === 0) { toast.error("Selecione o funil e a etapa de origem dos leads"); return; }
     if (editing.audience_mode === "limit" && !(editing.audience_limit > 0)) { toast.error("Informe a quantidade de contatos da campanha"); return; }
     if (editing.post_send_action === "move" && !editing.post_send_stage_id) { toast.error("Escolha a etapa para mover após o primeiro disparo"); return; }
     const payload: any = { ...editing, user_id: user.id };
@@ -117,6 +119,7 @@ export default function CampaignsList() {
     if (!payload.post_send_stage_id) payload.post_send_stage_id = null;
     if (payload.audience_mode !== "limit") payload.audience_limit = null;
     delete payload.created_at; delete payload.updated_at;
+    delete payload.target_pipeline_id; delete payload.target_stage_id;
     const { error } = editing.id
       ? await supabase.from("prospecting_campaigns").update(payload).eq("id", editing.id)
       : await supabase.from("prospecting_campaigns").insert(payload);
@@ -137,7 +140,8 @@ export default function CampaignsList() {
     const { data, error } = await supabase.functions.invoke("prospecting-engine", { body: { campaign_id: c.id } });
     setLoading(false);
     if (error) toast.error(error.message);
-    else toast.success(`Disparados: ${data?.sent || 0}`);
+    else if ((data?.sent || 0) > 0) toast.success(`Disparados: ${data.sent}`);
+    else toast.warning(data?.reason ? `Nenhum disparo: ${data.reason}` : "Nenhum contato disponível nas etapas de origem");
     load();
   };
 
@@ -347,30 +351,6 @@ export default function CampaignsList() {
           <p className="text-[11px] text-muted-foreground">
             {(editing.source_pipelines || []).reduce((acc: number, x: any) => acc + (x.stage_ids?.length || 0), 0)} etapa(s) selecionada(s)
           </p>
-        </div>
-
-        {/* Target pipeline/stage */}
-        <div className="border-t border-border pt-3 grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">Pipeline destino (após resposta)</Label>
-            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={editing.target_pipeline_id || ""}
-              onChange={(e) => setEditing({ ...editing, target_pipeline_id: e.target.value, target_stage_id: "" })}>
-              <option value="">— Manter atual —</option>
-              {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label className="text-xs">Etapa destino</Label>
-            <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={editing.target_stage_id || ""}
-              onChange={(e) => setEditing({ ...editing, target_stage_id: e.target.value })}>
-              <option value="">— Primeira da pipeline —</option>
-              {stages.filter((s: any) => !editing.target_pipeline_id || s.pipeline_id === editing.target_pipeline_id).map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Audiência */}
