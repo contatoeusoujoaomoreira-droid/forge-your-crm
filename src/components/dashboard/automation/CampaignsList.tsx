@@ -140,7 +140,8 @@ export default function CampaignsList() {
     const { data, error } = await supabase.functions.invoke("prospecting-engine", { body: { campaign_id: c.id } });
     setLoading(false);
     if (error) toast.error(error.message);
-    else toast.success(`Disparados: ${data?.sent || 0}`);
+    else if ((data?.sent || 0) > 0) toast.success(`Disparados: ${data.sent}`);
+    else toast.warning(data?.reason ? `Nenhum disparo: ${data.reason}` : "Nenhum contato disponível nas etapas de origem");
     load();
   };
 
