@@ -143,8 +143,8 @@ Deno.serve(async (req) => {
       }
 
 
-      // Respeita o intervalo configurado entre disparos
-      if (camp.next_send_at && new Date(camp.next_send_at).getTime() > Date.now()) {
+      // Respeita o intervalo configurado entre disparos (ignorado no Executar manual)
+      if (!targetCampaignId && camp.next_send_at && new Date(camp.next_send_at).getTime() > Date.now()) {
         console.log('[CAMPAIGN] aguardando intervalo entre disparos', camp.id, camp.next_send_at);
         continue;
       }
