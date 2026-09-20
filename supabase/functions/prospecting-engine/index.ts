@@ -233,7 +233,9 @@ Deno.serve(async (req) => {
       }
 
       const remaining = (camp.daily_limit || 100) - (sentToday || 0);
-      const batch = Math.min(remaining, 10); // process up to 10 per run
+      // Quantidade escolhida na campanha manda; o pacing abaixo continua respeitando o intervalo
+      const wanted = camp.audience_mode === 'limit' && (camp.audience_limit || 0) > 0 ? camp.audience_limit : 50;
+      const batch = Math.max(1, Math.min(remaining, wanted));
 
       const { data: pendings } = await admin
         .from('campaign_contacts')
