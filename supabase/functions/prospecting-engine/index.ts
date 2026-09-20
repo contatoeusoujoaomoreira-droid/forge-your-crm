@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
           user_id: camp.user_id, direction: 'outbound', source: 'campaign',
           payload: { campaign_id: camp.id }, error: 'no_active_whatsapp_config', status_code: 424,
         });
+        reason = 'nenhuma conexão de WhatsApp ativa';
         continue;
       }
 
