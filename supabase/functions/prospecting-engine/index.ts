@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
       const { count: sentToday } = await admin
         .from('campaign_contacts').select('*', { count: 'exact', head: true })
         .eq('campaign_id', camp.id).gte('sent_at', today.toISOString());
-      if ((sentToday || 0) >= (camp.daily_limit || 100)) continue;
+      if ((sentToday || 0) >= (camp.daily_limit || 100)) { reason = 'limite diário atingido'; continue; }
 
       // Conexão WhatsApp ativa MAIS RECENTE do dono da campanha
       const { data: cfgs } = await admin.from('whatsapp_configs')
