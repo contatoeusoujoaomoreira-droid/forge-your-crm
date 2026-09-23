@@ -133,9 +133,7 @@ export default function CampaignsList() {
 
 
   const runCampaign = async (c: any) => {
-    if (c.status !== "active") {
-      await supabase.from("prospecting_campaigns").update({ status: "active" }).eq("id", c.id);
-    }
+    if (loading) return;
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("prospecting-engine", { body: { campaign_id: c.id } });
     setLoading(false);
@@ -439,9 +437,6 @@ export default function CampaignsList() {
           <h3 className="font-semibold">Campanhas de Prospecção</h3>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={runEngine} disabled={loading}>
-            <Play className="h-4 w-4 mr-1" />Executar agora
-          </Button>
           <Button size="sm" onClick={newCampaign}><Plus className="h-4 w-4 mr-1" />Nova campanha</Button>
         </div>
       </div>

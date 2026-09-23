@@ -110,6 +110,12 @@ const inBusinessHours = (cfg: any) => {
   return hh >= sh * 60 + sm && hh <= eh * 60 + em;
 };
 
+function brVariants(d: string): string[] {
+  if (/^55\d{10}$/.test(d)) return [d, d.slice(0, 4) + '9' + d.slice(4)];
+  if (/^55\d{11}$/.test(d) && d[4] === '9') return [d, d.slice(0, 4) + d.slice(5)];
+  return [d];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -258,7 +264,7 @@ Deno.serve(async (req) => {
             let chatClientId: string | null = null;
             if (phoneDigits) {
               const { data: existingClient } = await admin.from('chat_clients')
-                .select('id').eq('user_id', camp.user_id).eq('phone', phoneDigits).maybeSingle();
+                .select('id').eq('user_id', camp.user_id).in('phone', brVariants(phoneDigits)).limit(1).maybeSingle();
               if (existingClient) {
                 chatClientId = existingClient.id;
                 await admin.from('chat_clients').update({ updated_at: new Date().toISOString() }).eq('id', existingClient.id);
@@ -353,7 +359,7 @@ Deno.serve(async (req) => {
           await admin.from('prospecting_campaigns')
             .update({ next_send_at: new Date(Date.now() + delay * 1000).toISOString() })
             .eq('id', camp.id);
-          if (delay <= 45 && Date.now() - runStarted < 40000) {
+          if (Date.now() - runStarted + delay * 1000 < 110000) {
             await new Promise((res) => setTimeout(res, delay * 1000));
           } else {
             break;
