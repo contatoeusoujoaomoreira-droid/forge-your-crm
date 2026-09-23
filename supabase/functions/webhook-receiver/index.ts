@@ -1782,7 +1782,17 @@ Deno.serve(async (req) => {
   };
 
   // Check if client already exists & has avatar — avoid overwriting with null
-  const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata')
+  {
+    const d = msg.phone || '';
+    const vars = /^55\d{10}$/.test(d) ? [d, d.slice(0, 4) + '9' + d.slice(4)]
+      : (/^55\d{11}$/.test(d) && d[4] === '9') ? [d, d.slice(0, 4) + d.slice(5)] : [d];
+    if (vars.length > 1) {
+      const { data: alt } = await admin.from('chat_clients').select('phone')
+        .eq('user_id', userId).in('phone', vars).order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (alt?.phone) msg.phone = alt.phone;
+    }
+  }
+  const { data: existingPre } = await admin.from('chat_clients').select('id, avatar_url, metadata, name')
     .eq('user_id', userId).eq('phone', msg.phone).maybeSingle();
 
   // Proactive sync: fetch avatar on every inbound if we don't have one yet (covers new contacts immediately)
