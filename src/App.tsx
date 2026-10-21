@@ -27,6 +27,10 @@ const queryClient = new QueryClient({
   },
 });
 
+const PLATFORM_HOSTS = ["localhost", "127.0.0.1", "omnibuildercrm.online", "www.omnibuildercrm.online"];
+const host = typeof window !== "undefined" ? window.location.hostname : "";
+const isStoreDomain = !!host && !PLATFORM_HOSTS.includes(host) && !host.endsWith(".lovable.app") && !host.endsWith(".lovableproject.com");
+
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen bg-background" />;
@@ -44,7 +48,7 @@ const App = () => (
           <AuthProvider>
             <UserThemeSync />
             <Routes>
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={isStoreDomain ? <StorePublic domain={host} /> : <Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/quiz/:slug" element={<QuizPublic />} />

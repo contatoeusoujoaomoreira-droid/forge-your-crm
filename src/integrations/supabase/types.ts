@@ -3623,6 +3623,7 @@ export type Database = {
       store_settings: {
         Row: {
           created_at: string
+          custom_domain: string | null
           id: string
           is_published: boolean
           logo_url: string | null
@@ -3636,6 +3637,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_domain?: string | null
           id?: string
           is_published?: boolean
           logo_url?: string | null
@@ -3649,6 +3651,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_domain?: string | null
           id?: string
           is_published?: boolean
           logo_url?: string | null

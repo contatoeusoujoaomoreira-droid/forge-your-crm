@@ -1,0 +1,2 @@
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS custom_domain text;
+CREATE UNIQUE INDEX IF NOT EXISTS store_settings_custom_domain_uq ON public.store_settings (lower(custom_domain)) WHERE custom_domain IS NOT NULL;
