@@ -453,7 +453,6 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
             <TabsTrigger value="identidade"><User className="h-4 w-4 mr-1" />Identidade</TabsTrigger>
             <TabsTrigger value="comportamento"><Brain className="h-4 w-4 mr-1" />Comportamento</TabsTrigger>
             <TabsTrigger value="voz"><Mic className="h-4 w-4 mr-1" />Voz & Mídia</TabsTrigger>
-            <TabsTrigger value="roteamento"><GitBranch className="h-4 w-4 mr-1" />Roteamento</TabsTrigger>
             <TabsTrigger value="conhecimento"><BookOpen className="h-4 w-4 mr-1" />Conhecimento</TabsTrigger>
             <TabsTrigger value="testar"><FlaskConical className="h-4 w-4 mr-1" />Testar</TabsTrigger>
           </TabsList>

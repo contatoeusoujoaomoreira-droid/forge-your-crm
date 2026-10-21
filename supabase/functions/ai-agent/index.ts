@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       if (badForGateway || groqWithoutGroq || geminiOff) {
         endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
         apiKey = LOVABLE_API_KEY;
-        model = 'google/gemini-3.8-flash';
+        model = 'google/gemini-2.5-flash';
         providerType = 'lovable';
       }
     }
@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
     if (!resp.ok && [400, 401, 403, 404].includes(resp.status) && !endpoint.includes('ai.gateway.lovable.dev')) {
       console.warn('provider failed, falling back to Lovable AI', resp.status, (await resp.text()).slice(0, 200));
       providerType = 'lovable';
-      model = 'google/gemini-3.8-flash';
+      model = 'google/gemini-2.5-flash';
       endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
       resp = await fetch(endpoint, {
         method: 'POST', headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
