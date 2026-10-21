@@ -1504,8 +1504,8 @@ async function resolveAgent(admin: any, userId: string, client: any, lead: any, 
   const defaultAgent = active.find((ag: any) => ag.is_default === true);
   if (defaultAgent) return defaultAgent.id;
 
-  // 7) WhatsApp config default → first active
-  return waCfg?.default_agent_id || active[0]?.id || null;
+  // 7) WhatsApp config agent only (no implicit "first active" fallback)
+  return waCfg?.default_agent_id || null;
 }
 
 async function resolveWhatsAppConfigForClient(admin: any, userId: string, client: any) {
@@ -2105,9 +2105,9 @@ Deno.serve(async (req) => {
     const { data: createdState } = await admin.from('conversation_state').insert({
       user_id: userId,
       client_id: client.id,
-      ai_active: campaignId ? !!campaignAgentId : true,
-      mode: campaignId ? (campaignAgentId ? 'ai' : 'human') : 'ai',
-      assigned_agent_id: campaignAgentId,
+      ai_active: campaignId ? !!campaignAgentId : (waCfg?.ai_auto_reply === true && !!waCfg?.default_agent_id),
+      mode: (campaignId ? !!campaignAgentId : (waCfg?.ai_auto_reply === true && !!waCfg?.default_agent_id)) ? 'ai' : 'human',
+      assigned_agent_id: campaignAgentId || (waCfg?.ai_auto_reply === true ? (waCfg?.default_agent_id || null) : null),
     }).select().single();
     convStateInit = createdState;
   }
