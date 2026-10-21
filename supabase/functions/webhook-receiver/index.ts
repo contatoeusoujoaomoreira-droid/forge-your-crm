@@ -965,6 +965,64 @@ async function callAi(systemPrompt: string, history: MmMessage[], runtime: { end
   return { text: choice.content || '', tool_calls: choice.tool_calls || [] };
 }
 
+
+// ============= Ferramentas de Produtos/Estoque para o agente =============
+const PRODUCT_TOOLS = [
+  { type: 'function', function: { name: 'buscar_produtos', description: 'Busca produtos do catálogo por nome, categoria ou código. Retorna preço varejo, preço atacado, quantidade mínima de atacado e estoque.', parameters: { type: 'object', properties: { termo: { type: 'string', description: 'Texto de busca. Vazio lista os principais.' } } } } },
+  { type: 'function', function: { name: 'verificar_estoque', description: 'Verifica o estoque atual de um produto pelo id ou código (SKU).', parameters: { type: 'object', properties: { produto: { type: 'string' } }, required: ['produto'] } } },
+  { type: 'function', function: { name: 'registrar_pedido', description: 'Registra o pedido confirmado pelo cliente: baixa o estoque e atualiza o valor da venda no CRM. Use só após o cliente confirmar itens e quantidades.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
+  { type: 'function', function: { name: 'link_loja', description: 'Retorna o link da loja virtual para o cliente montar a cesta.', parameters: { type: 'object', properties: {} } } },
+];
+
+async function findProduct(admin: any, userId: string, ref: string) {
+  const isUuid = /^[0-9a-f-]{36}$/i.test(ref);
+  let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true);
+  q = isUuid ? q.eq('id', ref) : q.or(`sku.eq.${ref.replace(/[,()]/g, '')},name.ilike.%${ref.replace(/[,()%]/g, '')}%`);
+  const { data } = await q.limit(1).maybeSingle();
+  return data;
+}
+
+async function execProductTool(admin: any, userId: string, client: any, name: string, args: any): Promise<string> {
+  const fmt = (p: any) => ({ id: p.id, sku: p.sku, nome: p.name, categoria: p.category, unidade: p.unit, preco_varejo: p.price, preco_atacado: p.wholesale_price, atacado_a_partir_de: p.wholesale_min_qty, estoque: p.stock_qty, descricao: (p.description || '').slice(0, 200) });
+  try {
+    if (name === 'buscar_produtos') {
+      const t = String(args.termo || '').replace(/[,()%]/g, '').trim();
+      let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true);
+      if (t) q = q.or(`name.ilike.%${t}%,category.ilike.%${t}%,sku.ilike.%${t}%,description.ilike.%${t}%`);
+      const { data } = await q.limit(15);
+      return JSON.stringify((data || []).map(fmt));
+    }
+    if (name === 'verificar_estoque') {
+      const p = await findProduct(admin, userId, String(args.produto || ''));
+      return p ? JSON.stringify(fmt(p)) : JSON.stringify({ erro: 'Produto não encontrado' });
+    }
+    if (name === 'link_loja') {
+      const { data: st } = await admin.from('store_settings').select('slug,is_published').eq('user_id', userId).maybeSingle();
+      if (!st?.is_published) return JSON.stringify({ erro: 'Loja não publicada' });
+      return JSON.stringify({ link: `https://omnibuildercrm.online/loja/${st.slug}` });
+    }
+    if (name === 'registrar_pedido') {
+      const itens = Array.isArray(args.itens) ? args.itens : [];
+      let total = 0; const linhas: any[] = []; const faltas: string[] = [];
+      for (const it of itens) {
+        const p = await findProduct(admin, userId, String(it.produto || ''));
+        const qtd = Math.max(1, Number(it.quantidade) || 1);
+        if (!p) { faltas.push(`${it.produto}: não encontrado`); continue; }
+        if (p.stock_qty != null && Number(p.stock_qty) < qtd) { faltas.push(`${p.name}: só ${p.stock_qty} em estoque`); continue; }
+        const unit = p.wholesale_price && p.wholesale_min_qty && qtd >= p.wholesale_min_qty ? Number(p.wholesale_price) : Number(p.price || 0);
+        total += unit * qtd; linhas.push({ nome: p.name, quantidade: qtd, preco_unit: unit, subtotal: unit * qtd });
+        if (p.stock_qty != null) await admin.from('products_services').update({ stock_qty: Number(p.stock_qty) - qtd }).eq('id', p.id);
+      }
+      if (linhas.length && client?.lead_id) {
+        const { data: lead } = await admin.from('leads').select('value').eq('id', client.lead_id).maybeSingle();
+        await admin.from('leads').update({ value: Number(lead?.value || 0) + total }).eq('id', client.lead_id);
+      }
+      return JSON.stringify({ registrado: linhas, total, problemas: faltas });
+    }
+  } catch (e) { return JSON.stringify({ erro: String((e as Error).message || e) }); }
+  return JSON.stringify({ erro: 'ferramenta desconhecida' });
+}
+
 // ============= Fase 3: Scheduling tools for AI function calling =============
 const SCHEDULING_TOOLS = [
   {
@@ -1115,7 +1173,10 @@ async function callAiWithTools(
   systemPrompt: string, history: MmMessage[],
   runtime: { endpoint: string; apiKey: string; model: string; provider?: string }
 ): Promise<string> {
-  const enableTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book) && (runtime.provider !== 'anthropic');
+  const schedTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book);
+  const enableTools = runtime.provider !== 'anthropic';
+  const TOOLS = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : [])];
+  systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
     return r.text;
@@ -1126,7 +1187,7 @@ async function callAiWithTools(
     if (runtime.provider === 'openrouter') { headers['HTTP-Referer'] = 'https://omnibuildercrm.online'; headers['X-Title'] = 'Omni Builder CRM'; }
     const resp = await fetch(runtime.endpoint, {
       method: 'POST', headers,
-      body: JSON.stringify({ model: runtime.model, messages: conv, tools: SCHEDULING_TOOLS, tool_choice: 'auto' }),
+      body: JSON.stringify({ model: runtime.model, messages: conv, tools: TOOLS, tool_choice: 'auto' }),
     });
     if (!resp.ok) throw new Error(`AI ${resp.status}: ${await resp.text()}`);
     const json = await resp.json();
@@ -1137,11 +1198,12 @@ async function callAiWithTools(
     for (const tc of calls) {
       let parsedArgs: any = {};
       try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
-      const result = await execSchedulingTool(admin, userId, clientId, client, tc.function?.name || '', parsedArgs);
+      const tn = tc.function?.name || '';
+      const result = PRODUCT_TOOLS.some(t => t.function.name === tn) ? await execProductTool(admin, userId, client, tn, parsedArgs) : await execSchedulingTool(admin, userId, clientId, client, tn, parsedArgs);
       conv.push({ role: 'tool', tool_call_id: tc.id, content: result });
     }
   }
-  return 'Não consegui completar o agendamento. Pode tentar novamente?';
+  return 'Desculpe, não consegui concluir agora. Pode repetir, por favor?';
 }
 
 
