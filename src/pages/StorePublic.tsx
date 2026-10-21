@@ -76,6 +76,14 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      {store.banner_url && <img src={store.banner_url} alt="" className="w-full h-36 md:h-52 object-cover" />}
+      {(store.opening_hours || minOrder > 0) && (
+        <div className="max-w-5xl mx-auto px-4 pt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4">
+          {store.opening_hours && <span>🕒 {store.opening_hours}</span>}
+          {minOrder > 0 && <span>Pedido mínimo {brl(minOrder)}</span>}
+          {Number(store.delivery_fee) > 0 && <span>Entrega {brl(Number(store.delivery_fee))}</span>}
+        </div>
+      )}
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
           {store.logo_url ? <img src={store.logo_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full flex items-center justify-center text-background font-bold" style={{ background: color }}>{store.store_name[0]}</div>}
@@ -142,16 +150,33 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
                 <span className="font-medium">{brl(unitPrice(l.product, l.qty) * l.qty)}</span>
               </div>
             ))}
-            <div className="flex justify-between font-bold border-t border-border pt-2"><span>Total estimado</span><span>{brl(total)}</span></div>
+            {fee > 0 && <div className="flex justify-between text-sm border-t border-border pt-2"><span>Taxa de entrega</span><span>{brl(fee)}</span></div>}
+            <div className="flex justify-between font-bold border-t border-border pt-2"><span>Total</span><span>{brl(total + fee)}</span></div>
           </div>
           <div className="space-y-2">
             <Input placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
             <Input placeholder="Endereço de entrega" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={300} />
             <Textarea placeholder="Observações (opcional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
-            <Button className="w-full h-12 text-base" style={{ background: color }} disabled={!name.trim()} onClick={send}>
-              <MessageCircle className="h-5 w-5 mr-2" />Enviar pedido no WhatsApp
+            {belowMin && <p className="text-sm text-destructive">Pedido mínimo: {brl(minOrder)}. Faltam {brl(minOrder - total)}.</p>}
+            <Button className="w-full h-12 text-base" style={{ background: color }} disabled={!name.trim() || belowMin || sending} onClick={send}>
+              <MessageCircle className="h-5 w-5 mr-2" />{sending ? "Enviando..." : "Enviar pedido no WhatsApp"}
             </Button>
           </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={!!done} onOpenChange={(v) => !v && setDone(null)}>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+          <SheetHeader><SheetTitle>✅ Pedido #{done?.order_no} enviado!</SheetTitle></SheetHeader>
+          {done && (
+            <div className="space-y-2 py-3 text-sm">
+              {done.items.map((i: any) => <div key={i.id} className="flex justify-between"><span>{i.qty}x {i.name}</span><span>{brl(i.unit_price * i.qty)}</span></div>)}
+              <div className="flex justify-between border-t border-border pt-2"><span>Entrega</span><span>{brl(done.delivery_fee)}</span></div>
+              <div className="flex justify-between font-bold"><span>Total</span><span>{brl(done.total)}</span></div>
+              <p className="text-xs text-muted-foreground">A loja vai confirmar seu pedido pelo WhatsApp.</p>
+              <Button variant="outline" className="w-full" onClick={() => printReceipt(done, store.store_name)}>Imprimir / Salvar comprovante</Button>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </div>
