@@ -92,11 +92,11 @@ export default function ProductsPage() {
 
   const uploadImage = async (file: File) => {
     if (!user || !edit) return;
-    const path = `${user.id}/products/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+    const path = `${user.id}/products/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
     const { error } = await supabase.storage.from("chat-media").upload(path, file, { upsert: true });
     if (error) { toast.error("Falha ao enviar foto: " + error.message); return; }
     const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
-    setEdit({ ...edit, images: [...(edit.images || []), data.publicUrl] });
+    setEdit((e: any) => e ? { ...e, images: [...(e.images || []), data.publicUrl] } : e);
   };
 
   /** Upsert por SKU: se existir, atualiza (e soma estoque quando addStock); senão cria. */
@@ -260,8 +260,9 @@ export default function ProductsPage() {
                       <button className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full h-5 w-5 text-xs" onClick={() => setEdit({ ...edit, images: edit.images.filter((_, j) => j !== i) })}>×</button>
                     </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => imgRef.current?.click()}><Plus className="h-4 w-4 mr-1" />Foto</Button>
-                  <input ref={imgRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
+                  <Button type="button" variant="outline" size="sm" onClick={() => imgRef.current?.click()}><Plus className="h-4 w-4 mr-1" />Fotos</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => { const u = prompt("Cole o link da foto (https://...)")?.trim(); if (u && /^https?:\/\//.test(u)) setEdit({ ...edit, images: [...edit.images, u] }); }}>Link</Button>
+                  <input ref={imgRef} type="file" accept="image/*" multiple hidden onChange={(e) => { Array.from(e.target.files || []).forEach((f) => uploadImage(f)); e.target.value = ""; }} />
                 </div>
               </div>
               <div className="flex items-center gap-2"><Switch checked={edit.is_active} onCheckedChange={(v) => setEdit({ ...edit, is_active: v })} /><Label>Ativo</Label></div>

@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ShoppingCart, ExternalLink, Copy, Globe } from "lucide-react";
+import StoreOrders from "./StoreOrders";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
@@ -56,6 +57,12 @@ export default function StoreSettings() {
         </div>
         <div><Label>WhatsApp que recebe os pedidos (com DDD)</Label><Input value={s.whatsapp || ""} onChange={(e) => setS({ ...s, whatsapp: e.target.value })} placeholder="5511999998888" /></div>
         <div><Label>Logo (link da imagem)</Label><Input value={s.logo_url || ""} onChange={(e) => setS({ ...s, logo_url: e.target.value })} placeholder="https://..." /></div>
+        <div><Label>Banner de capa (link da imagem)</Label><Input value={s.banner_url || ""} onChange={(e) => setS({ ...s, banner_url: e.target.value })} placeholder="https://..." /></div>
+        <div><Label>Horário de funcionamento</Label><Input value={s.opening_hours || ""} onChange={(e) => setS({ ...s, opening_hours: e.target.value })} placeholder="Seg a Sáb, 8h às 18h" /></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label>Pedido mínimo (R$)</Label><Input type="number" min={0} value={s.min_order ?? 0} onChange={(e) => setS({ ...s, min_order: Math.max(0, Number(e.target.value) || 0) })} /></div>
+          <div><Label>Taxa de entrega (R$)</Label><Input type="number" min={0} value={s.delivery_fee ?? 0} onChange={(e) => setS({ ...s, delivery_fee: Math.max(0, Number(e.target.value) || 0) })} /></div>
+        </div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>
         <div><Label>Mensagem de boas-vindas</Label><Textarea rows={2} value={s.welcome_text || ""} onChange={(e) => setS({ ...s, welcome_text: e.target.value })} placeholder="Ex: Entregamos em toda a região em até 24h!" /></div>
         <div className="space-y-1 rounded-md border border-border p-3">
@@ -73,7 +80,8 @@ export default function StoreSettings() {
             <Input readOnly value={url} />
             <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(url); toast.success("Link copiado!"); }}><Copy className="h-4 w-4" /></Button>
             <Button variant="outline" size="icon" asChild><a href={url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-          </div>
+      {s.id && <StoreOrders storeName={s.store_name} />}
+    </div>
           {!s.is_published && <p className="text-xs text-destructive">A loja está despublicada — ligue "Loja publicada" para os clientes verem.</p>}
         </Card>
       )}

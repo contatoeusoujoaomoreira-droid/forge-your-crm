@@ -3620,13 +3620,62 @@ export type Database = {
         }
         Relationships: []
       }
+      store_orders: {
+        Row: {
+          address: string | null
+          created_at: string
+          customer_name: string
+          delivery_fee: number
+          id: string
+          items: Json
+          notes: string | null
+          order_no: string
+          status: string
+          subtotal: number
+          total: number
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          customer_name: string
+          delivery_fee?: number
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_no: string
+          status?: string
+          subtotal?: number
+          total?: number
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          customer_name?: string
+          delivery_fee?: number
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_no?: string
+          status?: string
+          subtotal?: number
+          total?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       store_settings: {
         Row: {
+          banner_url: string | null
           created_at: string
           custom_domain: string | null
+          delivery_fee: number | null
           id: string
           is_published: boolean
           logo_url: string | null
+          min_order: number | null
+          opening_hours: string | null
           primary_color: string | null
           slug: string
           store_name: string
@@ -3636,11 +3685,15 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          banner_url?: string | null
           created_at?: string
           custom_domain?: string | null
+          delivery_fee?: number | null
           id?: string
           is_published?: boolean
           logo_url?: string | null
+          min_order?: number | null
+          opening_hours?: string | null
           primary_color?: string | null
           slug: string
           store_name?: string
@@ -3650,11 +3703,15 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          banner_url?: string | null
           created_at?: string
           custom_domain?: string | null
+          delivery_fee?: number | null
           id?: string
           is_published?: boolean
           logo_url?: string | null
+          min_order?: number | null
+          opening_hours?: string | null
           primary_color?: string | null
           slug?: string
           store_name?: string
