@@ -10,8 +10,9 @@ import { unitPrice, cartTotal, buildOrderMessage, type CartLine } from "@/lib/st
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function StorePublic() {
-  const { slug } = useParams();
+export default function StorePublic({ domain }: { domain?: string } = {}) {
+  const params = useParams();
+  const [slug, setSlug] = useState<string | undefined>(params.slug);
   const [store, setStore] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,10 @@ export default function StorePublic() {
 
   useEffect(() => {
     (async () => {
-      const { data: s } = await supabase.from("store_settings").select("*").eq("slug", slug!).eq("is_published", true).maybeSingle();
+      let qs = supabase.from("store_settings").select("*").eq("is_published", true);
+      qs = domain ? qs.ilike("custom_domain", domain.replace(/^www\./, "")) : qs.eq("slug", params.slug!);
+      const { data: s } = await qs.maybeSingle();
+      if (s && s.slug !== slug) setSlug(s.slug);
       setStore(s);
       if (s) {
         const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images")
@@ -33,8 +37,8 @@ export default function StorePublic() {
       }
       setLoading(false);
     })();
-  }, [slug]);
-  useEffect(() => { localStorage.setItem(`cart_${slug}`, JSON.stringify(cart)); }, [cart, slug]);
+  }, [params.slug, domain]);
+  useEffect(() => { if (!slug) return; localStorage.setItem(`cart_${slug}`, JSON.stringify(cart)); }, [cart, slug]);
 
   const cats = useMemo(() => Array.from(new Set(products.map((p) => p.category).filter(Boolean))), [products]);
   const shown = products.filter((p) => (!cat || p.category === cat) && (!q || p.name.toLowerCase().includes(q.toLowerCase())));
