@@ -272,6 +272,17 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...body.messages] }),
       });
     }
+    // External provider rejected model/key -> retry once on Lovable AI
+    if (!resp.ok && [400, 401, 403, 404].includes(resp.status) && !endpoint.includes('ai.gateway.lovable.dev')) {
+      console.warn('provider failed, falling back to Lovable AI', resp.status, (await resp.text()).slice(0, 200));
+      providerType = 'lovable';
+      model = 'google/gemini-3.8-flash';
+      endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+      resp = await fetch(endpoint, {
+        method: 'POST', headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...body.messages] }),
+      });
+    }
     if (resp.status === 429) return new Response(JSON.stringify({ error: 'Rate limit. Tente em alguns segundos.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     if (resp.status === 402) return new Response(JSON.stringify({ error: 'Créditos esgotados. Adicione créditos ao workspace.' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     if (!resp.ok) {
