@@ -594,9 +594,11 @@ export default function InboxPage() {
                     Ticket R$ {avgTicket.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
                   </Badge>
                 )}
-                <Badge variant={convState?.ai_active ? "default" : "secondary"}>
-                  {convState?.ai_active ? <><Bot className="h-3 w-3 mr-1" />IA</> : <><User className="h-3 w-3 mr-1" />Humano</>}
-                </Badge>
+                <Button size="sm" variant={convState?.ai_active ? "default" : "outline"} className="h-7 gap-1 text-[11px]"
+                  onClick={() => toggleAi(!convState?.ai_active)}
+                  title={convState?.ai_active ? "A IA está respondendo. Clique para pausar e assumir a conversa." : "Atendimento humano. Clique para a IA voltar a responder."}>
+                  {convState?.ai_active ? <><Bot className="h-3 w-3" />Pausar IA</> : <><User className="h-3 w-3" />Ativar IA</>}
+                </Button>
                 {mediaItems.length > 0 && (
                   <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => setGalleryOpen(true)} title="Galeria de mídias">
                     <ImageIcon className="h-3 w-3" /> {mediaItems.length}
@@ -604,7 +606,7 @@ export default function InboxPage() {
                 )}
               </div>
             </div>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1.5 bg-muted/30">
               {messages.map(m => {
                 const isOut = m.direction === "outbound";
                 const isNote = (m as any).is_internal_note === true || (m as any).channel === "internal";
@@ -637,7 +639,7 @@ export default function InboxPage() {
                 }
                 return (
                   <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-lg px-3 py-2 text-sm ${isOut ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                    <div className={`max-w-[85%] sm:max-w-[75%] rounded-xl px-3 py-1.5 text-sm shadow-sm ${isOut ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card text-card-foreground border border-border rounded-tl-sm"}`}>
                       {m.media_type === "audio" && m.media_url && (
                         <AudioMessage
                           messageId={m.id}
