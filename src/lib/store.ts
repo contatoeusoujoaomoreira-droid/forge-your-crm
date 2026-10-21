@@ -14,7 +14,7 @@ export function cartTotal(lines: CartLine[]): number {
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function buildOrderMessage(lines: CartLine[], c: { name: string; address?: string; notes?: string; orderNo?: string; storeName?: string }): string {
+export function buildOrderMessage(lines: CartLine[], c: { name: string; address?: string; notes?: string; orderNo?: string; storeName?: string; fee?: number }): string {
   const now = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   const items = lines.map((l) => {
     const u = unitPrice(l.product, l.qty);
@@ -31,8 +31,9 @@ export function buildOrderMessage(lines: CartLine[], c: { name: string; address?
     `🛒 *ITENS (${units})*`,
     items,
     `━━━━━━━━━━━━━━━`,
-    `💰 *TOTAL: ${brl(cartTotal(lines))}*`,
-    `_Taxa de entrega e pagamento a confirmar_`,
+    c.fee ? `Subtotal: ${brl(cartTotal(lines))}\nEntrega: ${brl(c.fee)}` : null,
+    `💰 *TOTAL: ${brl(cartTotal(lines) + (c.fee || 0))}*`,
+    c.fee ? `_Forma de pagamento a combinar_` : `_Taxa de entrega e pagamento a confirmar_`,
     c.notes?.trim() ? `\n📝 *Obs:* ${c.notes.trim()}` : null,
   ].filter((x) => x !== null).join("\n");
 }

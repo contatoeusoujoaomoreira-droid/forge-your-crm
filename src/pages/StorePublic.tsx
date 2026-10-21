@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Minus, Plus, Search, ShoppingCart, Package, MessageCircle } from "lucide-react";
-import { unitPrice, cartTotal, buildOrderMessage, type CartLine } from "@/lib/store";
+import { unitPrice, cartTotal, buildOrderMessage, printReceipt, type CartLine } from "@/lib/store";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -21,6 +21,8 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const [cart, setCart] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem(`cart_${slug}`) || "{}"); } catch { return {}; } });
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(""); const [address, setAddress] = useState(""); const [notes, setNotes] = useState("");
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,16 +49,25 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const count = lines.reduce((a, l) => a + l.qty, 0);
   const setQty = (id: string, qty: number) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = qty; return n; });
 
-  const send = () => {
+  const fee = address.trim() ? Number(store?.delivery_fee || 0) : 0;
+  const minOrder = Number(store?.min_order || 0);
+  const belowMin = minOrder > 0 && total < minOrder;
+  const send = async () => {
+    if (belowMin || sending) return;
+    setSending(true);
     const orderNo = String(Date.now()).slice(-6);
-    const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name });
-    window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
-    const w = window.open("", "_blank", "width=380,height=640");
-    if (w) {
-      const esc = (s: string) => s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]!));
-      w.document.write(`<html><head><title>Pedido #${orderNo}</title><style>body{font-family:monospace;font-size:13px;padding:12px;white-space:pre-wrap}button{margin-top:12px;padding:8px 16px}@media print{button{display:none}}</style></head><body>${esc(msg.replace(/\*/g, "").replace(/_/g, ""))}<br><button onclick="print()">Imprimir / Salvar PDF</button></body></html>`);
-      w.document.close();
-    }
+    const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name, fee });
+    const waWin = window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+    const order = {
+      user_id: store.user_id, order_no: orderNo, customer_name: name.trim(), address: address.trim() || null, notes: notes.trim() || null,
+      items: lines.map((l) => ({ id: l.product.id, name: l.product.name, qty: l.qty, unit_price: unitPrice(l.product, l.qty) })),
+      subtotal: total, delivery_fee: fee, total: Math.round((total + fee) * 100) / 100,
+    };
+    await (supabase as any).from("store_orders").insert(order);
+    setSending(false);
+    setDone({ ...order, created_at: new Date().toISOString() });
+    setCart({}); setOpen(false);
+    if (!waWin) window.location.href = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
