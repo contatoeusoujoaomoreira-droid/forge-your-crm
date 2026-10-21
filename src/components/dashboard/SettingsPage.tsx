@@ -31,11 +31,7 @@ interface ProjectOption {
 }
 
 const PROJECT_TYPES = [
-  { value: "page", label: "Landing Page" },
-  { value: "form", label: "Formulário" },
-  { value: "quiz", label: "Quiz" },
-  { value: "schedule", label: "Agenda" },
-  { value: "checkout", label: "Checkout" },
+  { value: "page", label: "Loja / Sistema" },
 ];
 
 const DNS_INSTRUCTIONS = [
@@ -93,20 +89,7 @@ const SettingsPage = () => {
   };
 
   const fetchProjects = async () => {
-    if (!user) return;
-    const [forms, quizzes, schedules, checkouts] = await Promise.all([
-      supabase.from("forms").select("id, title, slug").eq("user_id", user.id),
-      supabase.from("quizzes").select("id, title, slug").eq("user_id", user.id),
-      supabase.from("schedules").select("id, title, slug").eq("user_id", user.id),
-      supabase.from("checkouts").select("id, title, slug").eq("user_id", user.id),
-    ]);
-    const all: ProjectOption[] = [
-      ...(forms.data || []).map((f: any) => ({ ...f, type: "form" })),
-      ...(quizzes.data || []).map((q: any) => ({ ...q, type: "quiz" })),
-      ...(schedules.data || []).map((s: any) => ({ ...s, type: "schedule" })),
-      ...(checkouts.data || []).map((c: any) => ({ ...c, type: "checkout" })),
-    ];
-    setProjects(all);
+    setProjects([]);
   };
 
   const fetchProfile = async () => {

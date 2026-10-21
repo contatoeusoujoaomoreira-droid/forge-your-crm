@@ -48,8 +48,15 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const setQty = (id: string, qty: number) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = qty; return n; });
 
   const send = () => {
-    const msg = buildOrderMessage(lines, { name, address, notes });
+    const orderNo = String(Date.now()).slice(-6);
+    const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name });
     window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+    const w = window.open("", "_blank", "width=380,height=640");
+    if (w) {
+      const esc = (s: string) => s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]!));
+      w.document.write(`<html><head><title>Pedido #${orderNo}</title><style>body{font-family:monospace;font-size:13px;padding:12px;white-space:pre-wrap}button{margin-top:12px;padding:8px 16px}@media print{button{display:none}}</style></head><body>${esc(msg.replace(/\*/g, "").replace(/_/g, ""))}<br><button onclick="print()">Imprimir / Salvar PDF</button></body></html>`);
+      w.document.close();
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
