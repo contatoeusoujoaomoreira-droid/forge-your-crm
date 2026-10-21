@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ShoppingCart, ExternalLink, Copy, Globe } from "lucide-react";
+import StoreOrders from "./StoreOrders";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
@@ -79,7 +80,8 @@ export default function StoreSettings() {
             <Input readOnly value={url} />
             <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(url); toast.success("Link copiado!"); }}><Copy className="h-4 w-4" /></Button>
             <Button variant="outline" size="icon" asChild><a href={url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-          </div>
+      {s.id && <StoreOrders storeName={s.store_name} />}
+    </div>
           {!s.is_published && <p className="text-xs text-destructive">A loja está despublicada — ligue "Loja publicada" para os clientes verem.</p>}
         </Card>
       )}
