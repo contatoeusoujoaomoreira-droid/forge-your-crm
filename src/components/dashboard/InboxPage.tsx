@@ -186,7 +186,7 @@ export default function InboxPage() {
       const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
       if (st) setConvState(st as any);
       else if (user) {
-        const { data: created } = await supabase.from("conversation_state").insert({ user_id: user.id, client_id: selectedId, ai_active: true, mode: "ai" }).select().single();
+        const { data: created } = await supabase.from("conversation_state").insert({ user_id: user.id, client_id: selectedId, ai_active: false, mode: "human" }).select().single();
         if (created) setConvState(created as any);
       }
       const cli = clients.find(c => c.id === selectedId);
