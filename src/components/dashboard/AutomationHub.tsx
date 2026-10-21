@@ -746,14 +746,9 @@ export default function AutomationHub() {
           <TabsTrigger value="whatsapp"><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</TabsTrigger>
           <TabsTrigger value="apikeys"><Key className="h-4 w-4 mr-1" />API Keys</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="h-4 w-4 mr-1" />Agentes IA</TabsTrigger>
-          <TabsTrigger value="flows"><GitBranch className="h-4 w-4 mr-1" />Fluxos</TabsTrigger>
           {showProvidersTab && <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>}
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-          <TabsTrigger value="crm-intelligence"><Zap className="h-4 w-4 mr-1" />Inteligência CRM</TabsTrigger>
-          <TabsTrigger value="products"><Package className="h-4 w-4 mr-1" />Produtos & Serviços</TabsTrigger>
           <TabsTrigger value="faq"><HelpCircle className="h-4 w-4 mr-1" />FAQ</TabsTrigger>
-          <TabsTrigger value="tags"><TagIcon className="h-4 w-4 mr-1" />Tags</TabsTrigger>
-          <TabsTrigger value="orchestrator"><GitBranch className="h-4 w-4 mr-1" />Orquestrador</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -868,10 +863,6 @@ export default function AutomationHub() {
                                       }
                                     }}
                                   >
-                                    <TabsList className="grid grid-cols-2 w-full">
-                                      <TabsTrigger value="omniconect">📱 OmniConect</TabsTrigger>
-                                      <TabsTrigger value="outras">🔌 Outras opções</TabsTrigger>
-                                    </TabsList>
 
                                     <TabsContent value="omniconect" className="space-y-2 pt-3">
                                       <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
@@ -1003,15 +994,15 @@ export default function AutomationHub() {
                               <div className="col-span-2 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="flex flex-col">
-                                    <span className="font-semibold text-sm">🤖 Resposta automática por IA</span>
-                                    <span className="text-[11px] text-muted-foreground font-normal">Agente abaixo responde toda mensagem recebida.</span>
+                                    <span className="font-semibold text-sm">🤖 Atendimento por Agente de IA (opcional)</span>
+                                    <span className="text-[11px] text-muted-foreground font-normal">Desligado = as conversas entram no Chat e no CRM para atendimento humano.</span>
                                   </Label>
-                                  <Switch checked={c.ai_auto_reply !== false} onCheckedChange={(v) => updateLocalConn(c.id, { ai_auto_reply: v })} />
+                                  <Switch checked={c.ai_auto_reply === true && !!c.default_agent_id} onCheckedChange={(v) => updateLocalConn(c.id, { ai_auto_reply: v })} />
                                 </div>
                                 <div>
-                                  <Label className="text-xs">Agente IA desta conexão</Label>
-                                  <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm" value={c.default_agent_id || ""} onChange={(e) => updateLocalConn(c.id, { default_agent_id: e.target.value || null })}>
-                                    <option value="">Primeiro agente ativo</option>
+                                  <Label className="text-xs">Agente que vai atender</Label>
+                                  <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm" value={c.default_agent_id || ""} onChange={(e) => updateLocalConn(c.id, { default_agent_id: e.target.value || null, ...(e.target.value ? {} : { ai_auto_reply: false }) })}>
+                                    <option value="">Nenhum (somente humano)</option>
                                     {agents.filter(a => a.is_active).map(a => (
                                       <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
                                     ))}
@@ -1318,37 +1309,12 @@ export default function AutomationHub() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="flows" className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            Fluxos de conversa
-            <InfoHint title="Como usar Fluxos" steps={[
-              "Fluxos são roteiros automáticos: ao receber certas palavras-chave, o sistema segue passos pré-definidos.",
-              "Crie nós (mensagem, pergunta, condição, ação) e conecte-os arrastando.",
-              "Vincule a um agente IA para que ele assuma após o fluxo terminar.",
-              "Use para qualificação inicial, FAQ, agendamentos ou coleta de dados.",
-            ]} />
-          </div>
-          <FlowsBuilder />
-        </TabsContent>
         {showProvidersTab && (
         <TabsContent value="aikeys" className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            Provedores de IA
-            <InfoHint title="Como cadastrar um Provedor" steps={[
-              "Adicione chaves de IA externas (OpenAI, Groq, Gemini) ou use o provedor do sistema (sem chave).",
-              "Defina um modelo padrão (ex: gpt-4o-mini, llama-3.3-70b, gemini-2.0-flash).",
-              "Marque um como padrão — será usado pelos agentes que não tiverem provedor próprio.",
-              "Cada agente pode escolher seu provedor + modelo na aba 'Agentes IA'.",
-            ]} />
-          </div>
           <AIProviderSettings />
         </TabsContent>
         )}
-       <TabsContent value="crm-intelligence"><CRMIntelligence /></TabsContent>
-      <TabsContent value="products"><ProductsServicesPanel /></TabsContent>
       <TabsContent value="faq"><FAQPanel /></TabsContent>
-      <TabsContent value="tags"><TagsPanel /></TabsContent>
-      <TabsContent value="orchestrator"><AgentOrchestratorPanel /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção

@@ -454,6 +454,15 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
     fetchData();
   };
 
+  const handleCreateSalesPipeline = async () => {
+    const { data, error } = await supabase.rpc("create_sales_pipeline", { _name: newPipelineName.trim() || "Funil de Vendas" });
+    if (error) { toast({ title: "Erro ao criar funil", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Funil de Vendas criado com as 6 etapas!" });
+    setNewPipelineName(""); setShowNewPipelineDialog(false);
+    if (data) setActivePipeline(data as string);
+    fetchData();
+  };
+
   const addTagToLead = () => {
     if (!editLead || !newTag.trim()) return;
     if (!editLead.tags.includes(newTag.trim())) setEditLead({ ...editLead, tags: [...editLead.tags, newTag.trim()] });
@@ -1415,6 +1424,9 @@ const CRMKanban = ({ focusLeadId }: CRMKanbanProps = {}) => {
               </div>
               <p className="text-xs text-muted-foreground italic">Crie um novo funil para organizar diferentes tipos de leads ou processos de vendas.</p>
             </div>
+            <Button variant="outline" className="w-full h-10 font-bold" onClick={handleCreateSalesPipeline}>
+              ⚡ Usar funil pronto de Vendas (Pedido → Negociação → Pagamento → Separação → Entrega → Concluído)
+            </Button>
             <div className="flex gap-3">
               <Button variant="ghost" className="flex-1 h-10 font-bold" onClick={() => { setNewPipelineName(""); setShowNewPipelineDialog(false); }}>Cancelar</Button>
               <Button onClick={handleCreatePipeline} className="flex-1 h-10 font-bold shadow-lg shadow-primary/20" disabled={!newPipelineName.trim()}>Criar Funil</Button>

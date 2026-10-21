@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -2892,8 +2892,10 @@ export type Database = {
           ad_identifiers: string[] | null
           ad_source: string | null
           agent_id: string | null
+          barcode: string | null
           benefits: string | null
           categories: string[] | null
+          category: string | null
           conditions: string | null
           created_at: string
           description: string | null
@@ -2904,6 +2906,7 @@ export type Database = {
           images: string[] | null
           is_active: boolean
           keywords: string[] | null
+          low_stock_threshold: number
           metadata: Json | null
           name: string
           niche: string | null
@@ -2911,16 +2914,24 @@ export type Database = {
           price: number | null
           price_label: string | null
           segment: string | null
+          show_in_catalog: boolean
+          sku: string | null
+          stock_qty: number
+          unit: string
           updated_at: string
           user_id: string
           warranties: string | null
+          wholesale_min_qty: number | null
+          wholesale_price: number | null
         }
         Insert: {
           ad_identifiers?: string[] | null
           ad_source?: string | null
           agent_id?: string | null
+          barcode?: string | null
           benefits?: string | null
           categories?: string[] | null
+          category?: string | null
           conditions?: string | null
           created_at?: string
           description?: string | null
@@ -2931,6 +2942,7 @@ export type Database = {
           images?: string[] | null
           is_active?: boolean
           keywords?: string[] | null
+          low_stock_threshold?: number
           metadata?: Json | null
           name: string
           niche?: string | null
@@ -2938,16 +2950,24 @@ export type Database = {
           price?: number | null
           price_label?: string | null
           segment?: string | null
+          show_in_catalog?: boolean
+          sku?: string | null
+          stock_qty?: number
+          unit?: string
           updated_at?: string
           user_id: string
           warranties?: string | null
+          wholesale_min_qty?: number | null
+          wholesale_price?: number | null
         }
         Update: {
           ad_identifiers?: string[] | null
           ad_source?: string | null
           agent_id?: string | null
+          barcode?: string | null
           benefits?: string | null
           categories?: string[] | null
+          category?: string | null
           conditions?: string | null
           created_at?: string
           description?: string | null
@@ -2958,6 +2978,7 @@ export type Database = {
           images?: string[] | null
           is_active?: boolean
           keywords?: string[] | null
+          low_stock_threshold?: number
           metadata?: Json | null
           name?: string
           niche?: string | null
@@ -2965,9 +2986,15 @@ export type Database = {
           price?: number | null
           price_label?: string | null
           segment?: string | null
+          show_in_catalog?: boolean
+          sku?: string | null
+          stock_qty?: number
+          unit?: string
           updated_at?: string
           user_id?: string
           warranties?: string | null
+          wholesale_min_qty?: number | null
+          wholesale_price?: number | null
         }
         Relationships: [
           {
@@ -3593,6 +3620,48 @@ export type Database = {
         }
         Relationships: []
       }
+      store_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_published: boolean
+          logo_url: string | null
+          primary_color: string | null
+          slug: string
+          store_name: string
+          updated_at: string
+          user_id: string
+          welcome_text: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          slug: string
+          store_name?: string
+          updated_at?: string
+          user_id: string
+          welcome_text?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          slug?: string
+          store_name?: string
+          updated_at?: string
+          user_id?: string
+          welcome_text?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       structured_logs: {
         Row: {
           category: string | null
@@ -4017,6 +4086,7 @@ export type Database = {
         Args: { _error?: string; _id: string; _ok: boolean }
         Returns: undefined
       }
+      create_sales_pipeline: { Args: { _name?: string }; Returns: string }
       deduct_credits: {
         Args: {
           _amount: number
@@ -4057,6 +4127,13 @@ export type Database = {
         Returns: string
       }
       ensure_followup_template: { Args: { _user_id: string }; Returns: Json }
+      get_credit_cost: {
+        Args: { _action: string }
+        Returns: {
+          credits_per_unit: number
+          label: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

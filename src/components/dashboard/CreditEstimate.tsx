@@ -26,10 +26,11 @@ export default function CreditEstimate({ open, onOpenChange, action, quantity = 
     if (!open) return;
     setLoading(true);
     (async () => {
-      const [{ data: c }, { data: u }] = await Promise.all([
-        supabase.from("credit_costs").select("credits_per_unit,label").eq("action", action).maybeSingle(),
+      const [{ data: rows }, { data: u }] = await Promise.all([
+        supabase.rpc("get_credit_cost", { _action: action }),
         supabase.auth.getUser(),
       ]);
+      const c: any = Array.isArray(rows) ? rows[0] : rows;
       const perUnit = Number(c?.credits_per_unit ?? 1);
       setCost(Math.max(1, Math.ceil(perUnit * quantity)));
       if (u?.user?.id) {

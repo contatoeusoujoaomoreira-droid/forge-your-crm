@@ -9,7 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target, Package,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +19,8 @@ import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/DashboardAnalytics";
 
-import QuizList from "@/components/dashboard/QuizList";
-import FormsList from "@/components/dashboard/FormsList";
-import SchedulesList from "@/components/dashboard/SchedulesList";
-import CheckoutsList from "@/components/dashboard/CheckoutsList";
+import ProductsPage from "@/components/dashboard/products/ProductsPage";
+import StoreSettings from "@/components/dashboard/products/StoreSettings";
 import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 import InboxPage from "@/components/dashboard/InboxPage";
@@ -37,11 +35,8 @@ const allTabs = [
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
   { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
-  
-  { id: "forms", label: "Forms", icon: FileText, group: "tools" },
-  { id: "quiz", label: "Quiz", icon: FileQuestion, group: "tools" },
-  { id: "schedules", label: "Agenda", icon: Calendar, group: "tools" },
-  { id: "checkout", label: "Checkout", icon: ShoppingCart, group: "tools" },
+  { id: "products", label: "Produtos", icon: Package, group: "tools" },
+  { id: "store", label: "Loja Virtual", icon: ShoppingCart, group: "tools" },
   { id: "automation", label: "Automação", icon: Zap, group: "tools" },
   { id: "chat", label: "Chat", icon: MessageCircle, group: "comms" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
@@ -335,10 +330,8 @@ const Dashboard = () => {
             {activeTab === "tracking" && <TrackingDashboard />}
             
             
-            {activeTab === "forms" && <FormsList />}
-            {activeTab === "quiz" && <QuizList />}
-            {activeTab === "schedules" && <SchedulesList />}
-            {activeTab === "checkout" && <CheckoutsList />}
+            {activeTab === "products" && <ProductsPage />}
+            {activeTab === "store" && <StoreSettings />}
             {activeTab === "automation" && <AutomationHub />}
             {activeTab === "settings" && <SettingsPage />}
             {activeTab === "admin" && <SuperAdminPanel />}
