@@ -8,6 +8,13 @@
       "when": 1792605321834,
       "tag": "0000_products_store_sales_pipeline_security",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792605982520,
+      "tag": "0001_store_custom_domain",
+      "breakpoints": true
     }
   ]
 }
