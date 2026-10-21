@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       if (badForGateway || groqWithoutGroq || geminiOff) {
         endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
         apiKey = LOVABLE_API_KEY;
-        model = 'google/gemini-2.5-flash';
+        model = 'google/gemini-3.8-flash';
         providerType = 'lovable';
       }
     }
