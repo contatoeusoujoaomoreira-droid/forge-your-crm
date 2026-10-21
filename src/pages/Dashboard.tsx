@@ -330,10 +330,8 @@ const Dashboard = () => {
             {activeTab === "tracking" && <TrackingDashboard />}
             
             
-            {activeTab === "forms" && <FormsList />}
-            {activeTab === "quiz" && <QuizList />}
-            {activeTab === "schedules" && <SchedulesList />}
-            {activeTab === "checkout" && <CheckoutsList />}
+            {activeTab === "products" && <ProductsPage />}
+            {activeTab === "store" && <StoreSettings />}
             {activeTab === "automation" && <AutomationHub />}
             {activeTab === "settings" && <SettingsPage />}
             {activeTab === "admin" && <SuperAdminPanel />}
