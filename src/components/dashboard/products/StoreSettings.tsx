@@ -31,7 +31,8 @@ export default function StoreSettings() {
     const digits = String(s.whatsapp || "").replace(/\D/g, "");
     if (s.is_published && digits.length < 10) { toast.error("Informe o WhatsApp com DDD para receber os pedidos"); return; }
     setSaving(true);
-    const payload = { ...s, slug, whatsapp: digits, user_id: user.id };
+    const custom_domain = String(s.custom_domain || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "") || null;
+    const payload = { ...s, slug, whatsapp: digits, user_id: user.id, custom_domain };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
     const { data, error } = await supabase.from("store_settings").upsert(payload, { onConflict: "user_id" }).select().single();
     setSaving(false);
@@ -57,6 +58,11 @@ export default function StoreSettings() {
         <div><Label>Logo (link da imagem)</Label><Input value={s.logo_url || ""} onChange={(e) => setS({ ...s, logo_url: e.target.value })} placeholder="https://..." /></div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>
         <div><Label>Mensagem de boas-vindas</Label><Textarea rows={2} value={s.welcome_text || ""} onChange={(e) => setS({ ...s, welcome_text: e.target.value })} placeholder="Ex: Entregamos em toda a região em até 24h!" /></div>
+        <div className="space-y-1 rounded-md border border-border p-3">
+          <Label>Domínio próprio (opcional)</Label>
+          <Input value={s.custom_domain || ""} onChange={(e) => setS({ ...s, custom_domain: e.target.value })} placeholder="minhaloja.com.br" />
+          <p className="text-xs text-muted-foreground">No provedor do domínio (Registro.br, GoDaddy...), crie um registro <b>A</b> para <b>@</b> e <b>www</b> apontando para <b>185.158.133.1</b>. Depois avise o suporte da plataforma para ativar o domínio e o cadeado de segurança (HTTPS). Quando ativo, ao abrir o domínio a sua loja aparece direto.</p>
+        </div>
         <div className="flex items-center gap-2"><Switch checked={s.is_published} onCheckedChange={(v) => setS({ ...s, is_published: v })} /><Label>Loja publicada (visível para clientes)</Label></div>
         <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar loja"}</Button>
       </Card>
