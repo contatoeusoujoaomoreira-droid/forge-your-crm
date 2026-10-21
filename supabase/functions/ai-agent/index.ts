@@ -219,6 +219,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Guard: model must match the endpoint actually in use, otherwise fall back to Lovable AI
+    {
+      const onGateway = endpoint.includes('ai.gateway.lovable.dev');
+      const badForGateway = onGateway && !(model.startsWith('google/') || model.startsWith('openai/'));
+      const groqWithoutGroq = (model.startsWith('llama-') || model.startsWith('mixtral-')) && !endpoint.includes('groq.com');
+      const geminiOff = model.startsWith('gemini-') && !endpoint.includes('generativelanguage');
+      if (badForGateway || groqWithoutGroq || geminiOff) {
+        endpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+        apiKey = LOVABLE_API_KEY;
+        model = 'google/gemini-2.5-flash';
+        providerType = 'lovable';
+      }
+    }
     if (body.mode === 'summary') systemPrompt = 'Você resume conversas em 2-3 frases curtas, objetivas e em português.';
     if (body.mode === 'copilot') systemPrompt = 'Você é um copiloto de vendas. Dado o histórico de conversa, sugira 3 respostas curtas e diretas (uma por linha, prefixe com "•"). NÃO escreva mais nada além disso.';
 
