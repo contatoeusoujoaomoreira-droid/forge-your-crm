@@ -863,10 +863,6 @@ export default function AutomationHub() {
                                       }
                                     }}
                                   >
-                                    <TabsList className="grid grid-cols-2 w-full">
-                                      <TabsTrigger value="omniconect">📱 OmniConect</TabsTrigger>
-                                      <TabsTrigger value="outras">🔌 Outras opções</TabsTrigger>
-                                    </TabsList>
 
                                     <TabsContent value="omniconect" className="space-y-2 pt-3">
                                       <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
