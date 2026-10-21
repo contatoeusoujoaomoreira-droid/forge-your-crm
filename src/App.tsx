@@ -13,6 +13,7 @@ import FormPublic from "./pages/FormPublic";
 import SchedulePublic from "./pages/SchedulePublic";
 import CheckoutPublic from "./pages/CheckoutPublic";
 import NotFound from "./pages/NotFound";
+import StorePublic from "./pages/StorePublic";
 import UserThemeSync from "./components/UserThemeSync";
 
 const queryClient = new QueryClient({
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/form/:slug" element={<FormPublic />} />
               <Route path="/agendar/:slug" element={<SchedulePublic />} />
               <Route path="/checkout/:slug" element={<CheckoutPublic />} />
+              <Route path="/loja/:slug" element={<StorePublic />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
