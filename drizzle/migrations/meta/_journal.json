@@ -15,6 +15,13 @@
       "when": 1792605982520,
       "tag": "0001_store_custom_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792689071927,
+      "tag": "0002_products_brand_cost_stock_movements",
+      "breakpoints": true
     }
   ]
 }
