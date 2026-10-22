@@ -207,9 +207,17 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      <div className="relative max-w-sm">
-        <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar por nome, código ou categoria" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="flex flex-wrap gap-2">
+        <div className="relative w-full max-w-sm">
+          <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Buscar por nome, código, marca ou categoria" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <select className="h-10 px-3 rounded-md border border-input bg-background text-sm" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
+          <option value="">Todas as categorias</option>{categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className="h-10 px-3 rounded-md border border-input bg-background text-sm" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
+          <option value="">Todas as marcas</option>{brands.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       {loading ? <p className="text-sm text-muted-foreground">Carregando...</p> : filtered.length === 0 ? (
