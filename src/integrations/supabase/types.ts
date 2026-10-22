@@ -3632,8 +3632,12 @@ export type Database = {
           created_at: string
           delta: number
           id: string
+          movement_type: string
+          note: string | null
+          order_id: string | null
           product_id: string
           reason: string
+          unit_cost: number | null
           user_id: string
         }
         Insert: {
@@ -3641,8 +3645,12 @@ export type Database = {
           created_at?: string
           delta: number
           id?: string
+          movement_type?: string
+          note?: string | null
+          order_id?: string | null
           product_id: string
           reason?: string
+          unit_cost?: number | null
           user_id: string
         }
         Update: {
@@ -3650,8 +3658,12 @@ export type Database = {
           created_at?: string
           delta?: number
           id?: string
+          movement_type?: string
+          note?: string | null
+          order_id?: string | null
           product_id?: string
           reason?: string
+          unit_cost?: number | null
           user_id?: string
         }
         Relationships: [
@@ -3667,44 +3679,68 @@ export type Database = {
       store_orders: {
         Row: {
           address: string | null
+          channel: string
           created_at: string
           customer_name: string
+          customer_phone: string | null
+          customer_type: string
           delivery_fee: number
+          discount: number
           id: string
           items: Json
           notes: string | null
           order_no: string
+          payment_method: string | null
+          payment_status: string
           status: string
+          status_history: Json
           subtotal: number
           total: number
+          updated_at: string
           user_id: string
         }
         Insert: {
           address?: string | null
+          channel?: string
           created_at?: string
           customer_name: string
+          customer_phone?: string | null
+          customer_type?: string
           delivery_fee?: number
+          discount?: number
           id?: string
           items?: Json
           notes?: string | null
           order_no: string
+          payment_method?: string | null
+          payment_status?: string
           status?: string
+          status_history?: Json
           subtotal?: number
           total?: number
+          updated_at?: string
           user_id: string
         }
         Update: {
           address?: string | null
+          channel?: string
           created_at?: string
           customer_name?: string
+          customer_phone?: string | null
+          customer_type?: string
           delivery_fee?: number
+          discount?: number
           id?: string
           items?: Json
           notes?: string | null
           order_no?: string
+          payment_method?: string | null
+          payment_status?: string
           status?: string
+          status_history?: Json
           subtotal?: number
           total?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
