@@ -2894,9 +2894,11 @@ export type Database = {
           agent_id: string | null
           barcode: string | null
           benefits: string | null
+          brand: string | null
           categories: string[] | null
           category: string | null
           conditions: string | null
+          cost_price: number | null
           created_at: string
           description: string | null
           differentials: string | null
@@ -2930,9 +2932,11 @@ export type Database = {
           agent_id?: string | null
           barcode?: string | null
           benefits?: string | null
+          brand?: string | null
           categories?: string[] | null
           category?: string | null
           conditions?: string | null
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           differentials?: string | null
@@ -2966,9 +2970,11 @@ export type Database = {
           agent_id?: string | null
           barcode?: string | null
           benefits?: string | null
+          brand?: string | null
           categories?: string[] | null
           category?: string | null
           conditions?: string | null
+          cost_price?: number | null
           created_at?: string
           description?: string | null
           differentials?: string | null
@@ -3619,6 +3625,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      stock_movements: {
+        Row: {
+          balance_after: number | null
+          created_at: string
+          delta: number
+          id: string
+          product_id: string
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          balance_after?: number | null
+          created_at?: string
+          delta: number
+          id?: string
+          product_id: string
+          reason?: string
+          user_id: string
+        }
+        Update: {
+          balance_after?: number | null
+          created_at?: string
+          delta?: number
+          id?: string
+          product_id?: string
+          reason?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       store_orders: {
         Row: {
