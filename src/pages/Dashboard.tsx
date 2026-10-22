@@ -9,7 +9,7 @@ import {
   LogOut, LayoutDashboard, BarChart3,
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
-  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target, Package,
+  MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target, Package, Boxes, ClipboardList,
 } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,8 @@ import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
 import InboxPage from "@/components/dashboard/InboxPage";
 import AutomationHub from "@/components/dashboard/AutomationHub";
+import OrdersCenter from "@/components/dashboard/operations/OrdersCenter";
+import StockPage from "@/components/dashboard/operations/StockPage";
 import TrackingDashboard from "@/components/dashboard/TrackingDashboard";
 import RequestCreditsModal from "@/components/dashboard/RequestCreditsModal";
 
@@ -35,8 +37,10 @@ const allTabs = [
   { id: "clients", label: "Clientes", icon: Users, group: "crm" },
   { id: "import", label: "Importar", icon: Upload, group: "crm" },
   { id: "imported", label: "Importados", icon: CheckCircle2, group: "crm" },
-  { id: "products", label: "Produtos", icon: Package, group: "tools" },
-  { id: "store", label: "Loja Virtual", icon: ShoppingCart, group: "tools" },
+  { id: "products", label: "Produtos", icon: Package, group: "ops" },
+  { id: "stock", label: "Estoque", icon: Boxes, group: "ops" },
+  { id: "orders", label: "Pedidos", icon: ClipboardList, group: "ops" },
+  { id: "store", label: "Loja Virtual", icon: ShoppingCart, group: "sales" },
   { id: "automation", label: "Automação", icon: Zap, group: "tools" },
   { id: "chat", label: "Chat", icon: MessageCircle, group: "comms" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
@@ -140,6 +144,8 @@ const Dashboard = () => {
   });
 
   const crmTabs = tabs.filter((t) => t.group === "crm");
+  const opsTabs = tabs.filter((t) => t.group === "ops");
+  const salesTabs = tabs.filter((t) => t.group === "sales");
   const toolsTabs = tabs.filter((t) => t.group === "tools");
   const commsTabs = tabs.filter((t) => t.group === "comms");
   const systemTabs = tabs.filter((t) => t.group === "system");
@@ -200,6 +206,15 @@ const Dashboard = () => {
             {sidebarCollapsed ? "—" : "CRM"}
           </p>
           {renderTabGroup(crmTabs)}
+
+          {[["Operação", opsTabs], ["Vendas", salesTabs]].map(([label, list]: any) => list.length > 0 && (
+            <div key={label}>
+              <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+                {sidebarCollapsed ? "—" : label}
+              </p>
+              {renderTabGroup(list)}
+            </div>
+          ))}
 
           {toolsTabs.length > 0 && (
             <>
@@ -332,6 +347,8 @@ const Dashboard = () => {
             
             {activeTab === "products" && <ProductsPage />}
             {activeTab === "store" && <StoreSettings />}
+            {activeTab === "orders" && <OrdersCenter />}
+            {activeTab === "stock" && <StockPage />}
             {activeTab === "automation" && <AutomationHub />}
             {activeTab === "settings" && <SettingsPage />}
             {activeTab === "admin" && <SuperAdminPanel />}
