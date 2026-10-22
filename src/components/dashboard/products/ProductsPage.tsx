@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook } from "lucide-react";
+import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History } from "lucide-react";
 
 export type Product = {
   id?: string;
@@ -64,6 +64,13 @@ export default function ProductsPage() {
   };
   useEffect(() => { load(); }, [user]);
 
+  const [hist, setHist] = useState<any | null>(null);
+  const [histRows, setHistRows] = useState<any[]>([]);
+  const openHist = async (p: any) => {
+    setHist(p); setHistRows([]);
+    const { data } = await supabase.from("stock_movements").select("*").eq("product_id", p.id).order("created_at", { ascending: false }).limit(100);
+    setHistRows(data || []);
+  };
   const [catFilter, setCatFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const categories = useMemo(() => Array.from(new Set(items.map((p) => p.category).filter(Boolean))).sort() as string[], [items]);
@@ -243,6 +250,7 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex border-t border-border">
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => setEdit({ ...empty, ...p })}><Pencil className="h-4 w-4 mr-1" />Editar</Button>
+                  <Button variant="ghost" size="sm" title="Histórico de estoque" onClick={() => openHist(p)}><History className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="sm" className="flex-1 text-destructive" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 mr-1" />Excluir</Button>
                 </div>
               </Card>
@@ -294,6 +302,22 @@ export default function ProductsPage() {
                 <Button variant="ghost" onClick={() => setEdit(null)}>Cancelar</Button>
                 <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!hist} onOpenChange={(o) => !o && setHist(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Histórico de estoque · {hist?.name}</DialogTitle></DialogHeader>
+          {histRows.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma movimentação registrada.</p> : (
+            <div className="max-h-80 overflow-y-auto divide-y divide-border text-sm">
+              {histRows.map((m) => (
+                <div key={m.id} className="flex justify-between py-2">
+                  <div><p className="font-medium">{m.reason}</p><p className="text-[11px] text-muted-foreground">{new Date(m.created_at).toLocaleString("pt-BR")}</p></div>
+                  <div className="text-right"><p className={Number(m.delta) < 0 ? "text-destructive font-semibold" : "text-primary font-semibold"}>{Number(m.delta) > 0 ? "+" : ""}{Number(m.delta)}</p><p className="text-[11px] text-muted-foreground">saldo {Number(m.balance_after ?? 0)}</p></div>
+                </div>
+              ))}
             </div>
           )}
         </DialogContent>

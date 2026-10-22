@@ -22,6 +22,13 @@
       "when": 1792689071927,
       "tag": "0002_products_brand_cost_stock_movements",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792689353210,
+      "tag": "0003_store_order_stock_trigger",
+      "breakpoints": true
     }
   ]
 }
