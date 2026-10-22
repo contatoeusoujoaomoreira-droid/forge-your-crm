@@ -64,6 +64,13 @@ export default function ProductsPage() {
   };
   useEffect(() => { load(); }, [user]);
 
+  const [hist, setHist] = useState<any | null>(null);
+  const [histRows, setHistRows] = useState<any[]>([]);
+  const openHist = async (p: any) => {
+    setHist(p); setHistRows([]);
+    const { data } = await supabase.from("stock_movements").select("*").eq("product_id", p.id).order("created_at", { ascending: false }).limit(100);
+    setHistRows(data || []);
+  };
   const [catFilter, setCatFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const categories = useMemo(() => Array.from(new Set(items.map((p) => p.category).filter(Boolean))).sort() as string[], [items]);
