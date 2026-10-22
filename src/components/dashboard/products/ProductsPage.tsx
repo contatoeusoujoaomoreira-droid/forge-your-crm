@@ -19,6 +19,8 @@ export type Product = {
   sku: string | null;
   barcode: string | null;
   category: string | null;
+  brand?: string | null;
+  cost_price?: number | null;
   description: string | null;
   unit: string;
   price: number | null;
@@ -62,24 +64,34 @@ export default function ProductsPage() {
   };
   useEffect(() => { load(); }, [user]);
 
+  const [catFilter, setCatFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const categories = useMemo(() => Array.from(new Set(items.map((p) => p.category).filter(Boolean))).sort() as string[], [items]);
+  const brands = useMemo(() => Array.from(new Set(items.map((p) => p.brand).filter(Boolean))).sort() as string[], [items]);
   const filtered = useMemo(() => {
     const t = q.toLowerCase().trim();
-    if (!t) return items;
-    return items.filter((p) => [p.name, p.sku, p.category, p.barcode].some((f) => String(f || "").toLowerCase().includes(t)));
-  }, [items, q]);
+    return items.filter((p) =>
+      (!catFilter || p.category === catFilter) && (!brandFilter || p.brand === brandFilter) &&
+      (!t || [p.name, p.sku, p.category, p.brand, p.barcode].some((f) => String(f || "").toLowerCase().includes(t))));
+  }, [items, q, catFilter, brandFilter]);
   const lowStock = items.filter((p) => p.is_active && Number(p.low_stock_threshold) > 0 && Number(p.stock_qty) <= Number(p.low_stock_threshold));
 
   const save = async () => {
     if (!user || !edit) return;
     if (!edit.name.trim()) { toast.error("Informe o nome do produto"); return; }
     setSaving(true);
-    const payload: any = { ...edit, user_id: user.id, sku: edit.sku?.trim() || null, price_label: null };
+    const payload: any = { ...edit, user_id: user.id, sku: edit.sku?.trim() || null, brand: edit.brand?.trim() || null, category: edit.category?.trim() || null, price_label: null };
     delete payload.id;
+    const prevQty = edit.id ? Number(items.find((p) => p.id === edit.id)?.stock_qty || 0) : 0;
     const res = edit.id
-      ? await supabase.from("products_services").update(payload).eq("id", edit.id)
-      : await supabase.from("products_services").insert(payload);
+      ? await supabase.from("products_services").update(payload).eq("id", edit.id).select("id").single()
+      : await supabase.from("products_services").insert(payload).select("id").single();
     setSaving(false);
     if (res.error) { toast.error(res.error.message.includes("uq_products_user_sku") ? "Já existe um produto com esse código (SKU)" : res.error.message); return; }
+    const delta = Number(edit.stock_qty || 0) - prevQty;
+    if (delta !== 0 && res.data?.id) {
+      await supabase.from("stock_movements").insert({ user_id: user.id, product_id: res.data.id, delta, balance_after: Number(edit.stock_qty || 0), reason: edit.id ? "ajuste manual" : "cadastro" });
+    }
     toast.success("Produto salvo!");
     setEdit(null); load();
   };
@@ -239,7 +251,11 @@ export default function ProductsPage() {
               <div className="col-span-2"><Label>Nome *</Label><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
               <div><Label>Código / SKU</Label><Input value={edit.sku || ""} onChange={(e) => setEdit({ ...edit, sku: e.target.value })} /></div>
               <div><Label>Código de barras</Label><Input value={edit.barcode || ""} onChange={(e) => setEdit({ ...edit, barcode: e.target.value })} /></div>
-              <div><Label>Categoria</Label><Input value={edit.category || ""} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Ex: Químicos, Descartáveis" /></div>
+              <div><Label>Categoria</Label><Input list="cat-list" value={edit.category || ""} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Ex: Químicos, Descartáveis" />
+                <datalist id="cat-list">{categories.map((c) => <option key={c} value={c} />)}</datalist></div>
+              <div><Label>Marca</Label><Input list="brand-list" value={edit.brand || ""} onChange={(e) => setEdit({ ...edit, brand: e.target.value })} placeholder="Ex: Ypê" />
+                <datalist id="brand-list">{brands.map((c) => <option key={c} value={c} />)}</datalist></div>
+              <div><Label>Preço de custo (R$)</Label><Input type="number" step="0.01" value={edit.cost_price ?? ""} onChange={(e) => setEdit({ ...edit, cost_price: e.target.value === "" ? null : Number(e.target.value) })} /></div>
               <div><Label>Unidade</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>
                   {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -260,8 +276,7 @@ export default function ProductsPage() {
                       <button className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full h-5 w-5 text-xs" onClick={() => setEdit({ ...edit, images: edit.images.filter((_, j) => j !== i) })}>×</button>
                     </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => imgRef.current?.click()}><Plus className="h-4 w-4 mr-1" />Fotos</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => { const u = prompt("Cole o link da foto (https://...)")?.trim(); if (u && /^https?:\/\//.test(u)) setEdit({ ...edit, images: [...edit.images, u] }); }}>Link</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => imgRef.current?.click()}><Plus className="h-4 w-4 mr-1" />Enviar fotos</Button>
                   <input ref={imgRef} type="file" accept="image/*" multiple hidden onChange={(e) => { Array.from(e.target.files || []).forEach((f) => uploadImage(f)); e.target.value = ""; }} />
                 </div>
               </div>
