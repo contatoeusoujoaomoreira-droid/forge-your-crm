@@ -712,6 +712,8 @@ export default function AutomationHub() {
   // Verifica status de uma conexão OmniConect salva
   const checkOmniStatus = async (c: any) => {
     if (c.api_type !== "omniconect" || !c.api_token) return;
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) { toast.error("Sua sessão expirou. Entre novamente."); return; }
     const { data } = await supabase.functions.invoke("omniconect", {
       body: { action: "status", base_url: c.base_url || OMNI_DEFAULT_BASE, instance_token: c.api_token },
     });

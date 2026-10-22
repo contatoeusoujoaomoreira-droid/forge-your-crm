@@ -108,11 +108,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, { global: { headers: { Authorization: auth } } });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const jwt = auth.replace('Bearer ', '');
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(jwt);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId || claimsData?.claims?.role !== 'authenticated') {
+      return new Response(JSON.stringify({ ok: false, error: 'Sessão expirada. Entre novamente.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    const userId = userData.user.id;
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
     const body = await req.json();
