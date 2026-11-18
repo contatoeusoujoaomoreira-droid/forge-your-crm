@@ -1,9 +1,6 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3";
 
 // Super admin status is managed exclusively via the `user_roles` table.
 
@@ -11,9 +8,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || '';
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || '';
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || '';
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -50,14 +47,16 @@ Deno.serve(async (req: Request) => {
     const { action } = body;
 
     if (action === "create_user") {
-      const { email, password, full_name, permissions, ai_credits } = body;
+      const parsed = z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(6).max(1024), full_name: z.string().max(255).nullable().optional(), permissions: z.record(z.boolean()).optional(), ai_credits: z.number().int().nonnegative().optional() }).safeParse(body);
+      if (!parsed.success) return new Response(JSON.stringify({ success: false, error: 'Confira o e-mail (nome@empresa.com), a senha e os créditos informados.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { email, password, full_name, permissions, ai_credits } = parsed.data;
       const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: { full_name },
       });
-      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (error || !newUser.user) return new Response(JSON.stringify({ success: false, error: error?.message?.includes('invalid format') ? 'Informe um e-mail válido, como nome@empresa.com.' : error?.message || 'Não foi possível criar este acesso.' }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role: "user" });
       await supabaseAdmin.from("managed_users").insert({

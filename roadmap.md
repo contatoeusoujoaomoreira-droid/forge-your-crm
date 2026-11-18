@@ -1,4 +1,5 @@
 # Solicitação atual
+- [x] Bloquear e-mail inválido no cadastro de usuários, normalizar espaços e mostrar erro sem interromper o painel; teste de tela e serviço concluídos.
 - [x] Simplificar integrações REST com credenciais protegidas e métodos configuráveis.
 - [x] Corrigir incompatibilidade da validação de sessão, endereço padrão e exclusão remota do OmniConect, mantendo IA desativada por padrão.
 - [x] Verificar cadastro e exclusão de integração pela tela e executar seis testes.

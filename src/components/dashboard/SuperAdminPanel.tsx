@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { normalizedEmail } from "../../../supabase/functions/_shared/userInput";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -88,7 +90,11 @@ const SuperAdminPanel = () => {
 
   const callEdge = async (body: any) => {
     const { data, error } = await supabase.functions.invoke("manage-users", { body });
-    if (error) throw error;
+    if (error) {
+      const details = error instanceof FunctionsHttpError ? await error.context.json().catch(() => ({})) : {};
+      throw new Error(details.error || "Não foi possível concluir. Confira sua sessão e tente novamente.");
+    }
+    if (data?.error) throw new Error(data.error);
     return data;
   };
 
@@ -105,7 +111,12 @@ const SuperAdminPanel = () => {
   useEffect(() => { fetchUsers(); }, []);
 
   const handleCreate = async () => {
-    if (!newEmail || !newPassword || newPassword.length < 6) {
+    const parsedEmail = normalizedEmail.safeParse(newEmail);
+    if (!parsedEmail.success) {
+      toast({ title: "E-mail inválido", description: "Informe um e-mail válido, como nome@empresa.com.", variant: "destructive" });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
       toast({ title: "Preencha e-mail e senha (mín. 6 caracteres)", variant: "destructive" });
       return;
     }
@@ -113,7 +124,7 @@ const SuperAdminPanel = () => {
     try {
       await callEdge({
         action: "create_user",
-        email: newEmail,
+        email: parsedEmail.data,
         password: newPassword,
         full_name: newName || null,
         permissions: newPerms,
