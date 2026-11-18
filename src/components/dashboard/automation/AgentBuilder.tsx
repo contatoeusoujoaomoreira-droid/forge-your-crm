@@ -118,6 +118,8 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [allAgents, setAllAgents] = useState<any[]>([]);
+  const [extTools, setExtTools] = useState<any[]>([]);
+  useEffect(() => { if (!user) return; (supabase as any).from("external_tools").select("id, name, description, kind, active").eq("user_id", user.id).then(({ data }: any) => setExtTools(data || [])); }, [user?.id]);
   const [knTitle, setKnTitle] = useState("");
   const [knContent, setKnContent] = useState("");
   const [knType, setKnType] = useState<"text" | "site" | "link" | "document" | "image">("text");
@@ -580,6 +582,21 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
 
           {/* COMPORTAMENTO */}
           <TabsContent value="comportamento" className="space-y-4">
+            <Card className="p-4 space-y-2">
+              <Label>Integrações que este agente pode usar</Label>
+              <p className="text-xs text-muted-foreground">Ligue somente as integrações (ERP, CRM, loja, outros sistemas) que este agente deve consultar ou acionar.</p>
+              {extTools.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma integração cadastrada. Crie em Automação → Integrações.</p>}
+              {extTools.map((t) => {
+                const off: string[] = form.disabled_external_tool_ids || [];
+                const on = !off.includes(t.id);
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-3 border rounded-md p-2">
+                    <div className="min-w-0"><p className="text-sm font-medium truncate">{t.name}{!t.active && " (desativada)"}</p><p className="text-xs text-muted-foreground truncate">{t.description}</p></div>
+                    <Switch checked={on} onCheckedChange={(v) => setForm({ ...form, disabled_external_tool_ids: v ? off.filter((x) => x !== t.id) : [...off, t.id] })} />
+                  </div>
+                );
+              })}
+            </Card>
             <Card className="p-4 space-y-2">
               <Label className="flex items-center gap-2"><span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs">1</span> Instrução Principal</Label>
               <p className="text-xs text-muted-foreground">Descreva o objetivo principal do agente, o que ele deve fazer e como deve se comportar.</p>

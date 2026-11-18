@@ -20,20 +20,16 @@ const db = supabase as any;
 const PRODUCTS_API = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/products-sync`;
 const IMOVEIS_PARAMS: Param[] = [
   { name: "q", description: "Texto livre do que o cliente procura", type: "string" },
-  { name: "tipo", description: "apartamento, casa, flat, studio, terreno, sala", type: "string" },
-  { name: "finalidade", description: "venda ou locacao", type: "string" },
-  { name: "bairro", description: "Bairro desejado", type: "string" },
-  { name: "cidade", description: "Cidade desejada", type: "string" },
-  { name: "quartos", description: "Número mínimo de quartos", type: "number" },
+  { name: "categoria", description: "Categoria ou tipo do item procurado", type: "string" },
   { name: "preco_max", description: "Valor máximo em reais", type: "number" },
 ];
 const LEAD_PARAMS: Param[] = [
   { name: "interesse", description: "Resumo do que o cliente procura", type: "string", required: true },
-  { name: "imovel_codigo", description: "Código do imóvel de interesse, se houver", type: "string" },
+  { name: "codigo_item", description: "Código do produto/item de interesse, se houver", type: "string" },
 ];
 const blank = (kind: Tool["kind"]): Tool => ({
-  name: kind === "search" ? "buscar_imoveis" : "enviar_lead",
-  description: kind === "search" ? "Busca imóveis disponíveis no sistema da imobiliária. Use sempre que o cliente procurar imóvel para comprar ou alugar." : "Envia o lead para o CRM do sistema da imobiliária quando o cliente demonstrar interesse em imóvel.",
+  name: kind === "search" ? "buscar_itens" : "enviar_lead",
+  description: kind === "search" ? "Busca itens disponíveis no sistema externo (produtos, catálogo, estoque). Use sempre que o cliente procurar algo." : "Envia o lead para o CRM do sistema externo quando o cliente demonstrar interesse.",
   kind, method: kind === "search" ? "GET" : "POST", url: "", headers: { "x-api-key": "" },
   params: kind === "search" ? IMOVEIS_PARAMS : kind === "lead_push" ? LEAD_PARAMS : [], active: true, auth_type: "api_key", auth_header: "x-api-key", credential: "",
 });
@@ -42,6 +38,8 @@ export default function ExternalToolsPanel() {
   const { user } = useAuth();
   const [tools, setTools] = useState<Tool[]>([]);
   const [triage, setTriage] = useState<any>(null);
+  const [agentList, setAgentList] = useState<any[]>([]);
+  useEffect(() => { if (!user) return; (supabase as any).from("ai_agents").select("id, name").eq("user_id", user.id).eq("is_active", true).then(({ data }: any) => setAgentList(data || [])); }, [user?.id]);
   const [testArgs, setTestArgs] = useState<Record<number, string>>({});
   const [testOut, setTestOut] = useState<Record<number, string>>({});
 
@@ -52,7 +50,7 @@ export default function ExternalToolsPanel() {
       db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     setTools(previous => [...(t || []), ...previous.filter(tool => !tool.id)]);
-    setTriage(tr || { enabled: false, keywords: "imóvel, apartamento, casa, flat, aluguel, alugar, comprar, venda, terreno, studio", ignore_known_clients: true, triage_message: "Olá! Para te atender melhor, me diga: 1 - Procuro imóvel (comprar ou alugar) | 2 - Coworking | 3 - Já sou cliente ou proprietário" });
+    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ...(tr || {}) });
   };
   useEffect(() => { load(); }, [user?.id]);
 
@@ -113,7 +111,7 @@ export default function ExternalToolsPanel() {
           </div>
           <div className="space-y-2 rounded-md border border-border p-3">
             <Badge variant="secondary">B — Sua IA usa os dados do OUTRO sistema</Badge>
-            <p className="text-sm text-muted-foreground">Ex.: a IA busca imóveis no sistema da imobiliária e envia o lead para o CRM de lá.</p>
+            <p className="text-sm text-muted-foreground">Ex.: a IA consulta produtos no ERP, na Tray ou em outro sistema e envia o lead para o CRM de lá.</p>
             <ol className="text-sm list-decimal pl-4 space-y-1">
               <li>Peça ao outro sistema (ou a quem fez) o <b>endereço da API</b> e a <b>chave de acesso</b> DELE.</li>
               <li>Abaixo, clique em <b>Busca de dados</b> (para consultar) ou <b>Envio de lead</b> (para mandar contatos).</li>
@@ -125,21 +123,55 @@ export default function ExternalToolsPanel() {
       </Card>
       <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h3 className="font-semibold">Triagem de contatos no WhatsApp</h3></div>
-          {triage && <Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} />}
+          <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h3 className="font-semibold">Menu de boas-vindas e direcionamento</h3></div>
+          {triage && <Switch checked={!!triage.menu_enabled} onCheckedChange={(v) => setTriage({ ...triage, menu_enabled: v })} />}
         </div>
-        <p className="text-sm text-muted-foreground">Quando ligada, a IA só atende quem procura imóvel. Coworking, proprietários e clientes atuais são passados para a equipe (a IA pausa sozinha).</p>
+        <p className="text-sm text-muted-foreground">Quando ligado, quem chama no WhatsApp recebe uma mensagem com opções para tocar. Cada opção leva a um destino: um agente de IA, a equipe humana ou só uma resposta.</p>
+        {triage?.menu_enabled && (<>
+          <div><Label>Mensagem inicial</Label><Textarea rows={2} value={triage.menu_message || ""} onChange={(e) => setTriage({ ...triage, menu_message: e.target.value })} /></div>
+          {(triage.menu_options || []).map((o: any, k: number) => {
+            const up = (patch: any) => setTriage({ ...triage, menu_options: triage.menu_options.map((x: any, n: number) => n === k ? { ...x, ...patch } : x) });
+            return (
+              <div key={k} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-center gap-2"><Badge>Opção {k + 1}</Badge><Input placeholder="Texto do botão (até 24 letras)" maxLength={24} value={o.label || ""} onChange={(e) => up({ label: e.target.value })} />
+                  <Button size="icon" variant="ghost" onClick={() => setTriage({ ...triage, menu_options: triage.menu_options.filter((_: any, n: number) => n !== k) })}><Trash2 className="h-4 w-4" /></Button></div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <div><Label className="text-xs">O que acontece</Label>
+                    <Select value={o.action || "agent"} onValueChange={(v) => up({ action: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agent">Agente de IA atende</SelectItem>
+                        <SelectItem value="human">Pausar IA e passar para a equipe</SelectItem>
+                        <SelectItem value="message">Só enviar uma resposta</SelectItem>
+                      </SelectContent>
+                    </Select></div>
+                  {(o.action || "agent") === "agent" && <div><Label className="text-xs">Qual agente</Label>
+                    <Select value={o.agent_id || ""} onValueChange={(v) => up({ agent_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Escolha o agente" /></SelectTrigger>
+                      <SelectContent>{agentList.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                    </Select></div>}
+                </div>
+                <div><Label className="text-xs">Mensagem enviada depois da escolha (opcional)</Label><Textarea rows={2} value={o.reply || ""} onChange={(e) => up({ reply: e.target.value })} placeholder={(o.action || "agent") === "agent" ? "Vazio = o agente responde direto" : "Ex: Certo! Um atendente vai falar com você."} /></div>
+              </div>
+            );
+          })}
+          {(triage.menu_options || []).length < 10 && <Button size="sm" variant="outline" onClick={() => setTriage({ ...triage, menu_options: [...(triage.menu_options || []), { label: "", action: "agent", agent_id: "", reply: "" }] })}><Plus className="h-4 w-4 mr-1" />Adicionar opção</Button>}
+          <div className="flex items-center gap-2"><Switch checked={triage.menu_only_new !== false} onCheckedChange={(v) => setTriage({ ...triage, menu_only_new: v })} /><span className="text-sm">Enviar só para contatos novos</span></div>
+        </>)}
         {triage && (<>
-          <div><Label>Palavras que indicam interesse em imóvel (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
-          <div><Label>Pergunta de triagem para mensagens genéricas ("Oi", "Bom dia")</Label><Textarea rows={2} value={triage.triage_message} onChange={(e) => setTriage({ ...triage, triage_message: e.target.value })} /></div>
+          <div className="flex items-center justify-between border-t pt-3"><span className="text-sm font-medium">A IA pode passar a conversa para a equipe quando o assunto não for com ela</span><Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} /></div>
+          {triage.enabled && <>
+            <div><Label>Palavras que a IA atende direto, sem perguntar (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords || ""} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
+            <div><Label>Pergunta da IA para mensagens genéricas ("Oi", "Bom dia")</Label><Textarea rows={2} value={triage.triage_message || ""} onChange={(e) => setTriage({ ...triage, triage_message: e.target.value })} /></div>
+          </>}
           <div className="flex items-center gap-2"><Switch checked={triage.ignore_known_clients} onCheckedChange={(v) => setTriage({ ...triage, ignore_known_clients: v })} /><span className="text-sm">Clientes já fechados no CRM vão direto para a equipe</span></div>
-          <Button size="sm" onClick={saveTriage}><Save className="h-4 w-4 mr-1" />Salvar triagem</Button>
+          <Button size="sm" onClick={saveTriage}><Save className="h-4 w-4 mr-1" />Salvar</Button>
         </>)}
       </Card>
 
       <Card className="p-4 space-y-2">
         <div className="flex items-center gap-2"><Plug className="h-4 w-4 text-primary" /><h3 className="font-semibold">Integrações com outros sistemas (API)</h3></div>
-        <p className="text-sm text-muted-foreground">O agente de IA usa estas integrações para buscar dados (ex: imóveis) e enviar leads para o CRM do outro sistema.</p>
+        <p className="text-sm text-muted-foreground">O agente de IA usa estas integrações para buscar dados (produtos, estoque, catálogo, pedidos) e enviar leads para o CRM do outro sistema.</p>
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("search")])}><Plus className="h-4 w-4 mr-1" />Busca de dados</Button>
           <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("lead_push")])}><Plus className="h-4 w-4 mr-1" />Envio de lead</Button>

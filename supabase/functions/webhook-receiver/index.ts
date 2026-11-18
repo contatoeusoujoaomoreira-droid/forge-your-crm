@@ -1177,15 +1177,16 @@ async function callAiWithTools(
   const schedTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book);
   const enableTools = runtime.provider !== 'anthropic';
   const { data: extRows } = await admin.from('external_tools').select('*').eq('user_id', userId).eq('active', true);
-  const extTools = (extRows || []).filter((t: any) => !t.agent_id || t.agent_id === agent?.id);
+  const offIds: string[] = Array.isArray(agent?.disabled_external_tool_ids) ? agent.disabled_external_tool_ids : [];
+  const extTools = (extRows || []).filter((t: any) => (!t.agent_id || t.agent_id === agent?.id) && !offIds.includes(t.id));
   const { data: triageCfg } = await admin.from('ai_triage_settings').select('*').eq('user_id', userId).maybeSingle();
-  const HUMAN_TOOL = { type: 'function', function: { name: 'transferir_humano', description: 'Pausa a IA e passa a conversa para a equipe humana. Use quando o contato NÃO for um interessado em imóvel (ex: coworking, proprietário, cliente atual, financeiro, reclamação) ou pedir para falar com uma pessoa.', parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Ex: coworking, proprietario, cliente, outro' } }, required: ['motivo'] } } };
+  const HUMAN_TOOL = { type: 'function', function: { name: 'transferir_humano', description: 'Pausa a IA e passa a conversa para a equipe humana. Use quando o assunto do contato não for atendido por este agente ou ele pedir para falar com uma pessoa.', parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Motivo curto da transferência' } }, required: ['motivo'] } } };
   const TOOLS: any[] = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : []), ...buildExternalToolDefs(extTools), ...(triageCfg?.enabled ? [HUMAN_TOOL] : [])];
   if (extTools.length) {
     systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 a 5 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
   }
   if (triageCfg?.enabled) {
-    systemPrompt += `\n\nTRIAGEM: este número também recebe contatos que não são interessados em imóveis. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o contato for de coworking, proprietário, cliente atual ou outro assunto, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, trate direto como interessado em imóvel, sem perguntar: ${triageCfg.keywords}.`;
+    systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
@@ -1270,6 +1271,23 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
       return { ok: resp.ok, status: resp.status, body: (await resp.text()).slice(0, 500) };
     }
   }
+}
+
+// Envia menu clicável (botões até 3, lista acima disso); cai para texto numerado se falhar.
+async function sendTriageMenu(cfg: any, phone: string, text: string, opts: any[]) {
+  const numbered = text + '\n\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n') + '\n\nToque em uma opção ou responda com o número.';
+  if (cfg?.api_type === 'omniconect') {
+    try {
+      const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
+      const isList = opts.length > 3;
+      const body: any = { number: phone, type: isList ? 'list' : 'button', text, footerText: 'Responda tocando em uma opção', choices: opts.map((o: any, k: number) => `${String(o.label).slice(0, 24)}|opt${k + 1}`) };
+      if (isList) { body.listButton = 'Ver opções'; body.choices = ['[Opções]', ...body.choices]; }
+      const r = await fetch(`${baseUrl}/send/menu`, { method: 'POST', headers: { 'Content-Type': 'application/json', token: cfg.api_token || '' }, body: JSON.stringify(body), redirect: 'error' });
+      if (r.ok) return;
+      console.warn('send/menu failed', r.status, (await r.text()).slice(0, 300));
+    } catch (e) { console.warn('send/menu error', e); }
+  }
+  await sendWhatsApp(cfg, phone, numbered);
 }
 
 async function sendWhatsAppAudio(cfg: any, phone: string, audioDataUrl: string) {
@@ -2150,7 +2168,12 @@ Deno.serve(async (req) => {
     convStateInit = { ...convStateInit, assigned_agent_id: agentId };
   }
   if (agentId) {
-    const { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).maybeSingle();
+    let { data: ag } = await admin.from('ai_agents').select('*').eq('id', agentId).eq('user_id', userId).eq('is_active', true).maybeSingle();
+    if (!ag && waCfg?.default_agent_id && waCfg.default_agent_id !== agentId) {
+      const { data: fb } = await admin.from('ai_agents').select('*').eq('id', waCfg.default_agent_id).eq('user_id', userId).eq('is_active', true).maybeSingle();
+      ag = fb;
+      if (fb) await admin.from('conversation_state').update({ assigned_agent_id: fb.id }).eq('client_id', client.id);
+    }
     agent = ag;
     if (agent?.ai_provider_config_id) {
       const { data: cfg } = await admin.from('ai_provider_configs').select('*').eq('id', agent.ai_provider_config_id).eq('user_id', userId).maybeSingle();
@@ -2429,6 +2452,66 @@ Deno.serve(async (req) => {
     console.error('flow runner error', e);
   }
 
+  // === MENU DE TRIAGEM: opções clicáveis com destino (agente, humano ou mensagem) ===
+  try {
+    if (!flowHandled && !isGroupMsg && !msg.from_me && waCfg) {
+      const { data: tm } = await admin.from('ai_triage_settings').select('menu_enabled, menu_message, menu_options, menu_only_new').eq('user_id', userId).maybeSingle();
+      const opts: any[] = Array.isArray(tm?.menu_options) ? tm!.menu_options.filter((o: any) => o?.label) : [];
+      if (tm?.menu_enabled && opts.length) {
+        const meta = client.metadata || {};
+        const pending = meta.triage_pending === true;
+        const setMeta = async (patch: any) => { client.metadata = { ...meta, ...patch }; await admin.from('chat_clients').update({ metadata: client.metadata }).eq('id', client.id); };
+        if (pending) {
+          const t = String(msg.content || '').trim().toLowerCase();
+          const num = parseInt(t.replace(/[^0-9]/g, ''), 10);
+          let idx = opts.findIndex((o: any, k: number) => t === `opt${k + 1}` || t === String(o.label).trim().toLowerCase());
+          if (idx < 0 && num >= 1 && num <= opts.length && t.length <= 4) idx = num - 1;
+          if (idx < 0) idx = opts.findIndex((o: any) => t && String(o.label).toLowerCase().includes(t));
+          if (idx >= 0) {
+            const o = opts[idx];
+            await setMeta({ triage_pending: false, triage_done: true, triage_choice: o.label });
+            const now = new Date().toISOString();
+            if (o.action === 'human') {
+              await admin.from('conversation_state').update({ ai_active: false, mode: 'human', updated_at: now }).eq('client_id', client.id);
+              convStateInit = { ...convStateInit, ai_active: false, mode: 'human' };
+            } else if (o.action === 'agent' && o.agent_id) {
+              const { data: ag2 } = await admin.from('ai_agents').select('*').eq('id', o.agent_id).eq('user_id', userId).eq('is_active', true).maybeSingle();
+              if (ag2) {
+                agent = ag2;
+                await admin.from('conversation_state').update({ ai_active: true, mode: 'ai', assigned_agent_id: ag2.id, updated_at: now }).eq('client_id', client.id);
+                convStateInit = { ...convStateInit, ai_active: true, mode: 'ai', assigned_agent_id: ag2.id };
+              }
+            }
+            if (o.reply) {
+              const d = await sendWhatsApp(waCfg, msg.phone, o.reply);
+              await admin.from('messages').insert({ user_id: userId, client_id: client.id, lead_id: client.lead_id, direction: 'outbound', channel: 'whatsapp', content: o.reply, external_message_id: d?.external_id || null, metadata: { source: 'triage_menu' } });
+            }
+            // Agente escolhido sem mensagem própria: deixa o agente responder agora.
+            if (!(o.action === 'agent' && agent && !o.reply)) {
+              return new Response(JSON.stringify({ ok: true, triage: 'routed', option: idx + 1 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+          } else {
+            const tries = Number(meta.triage_tries || 0) + 1;
+            if (tries >= 3) {
+              await setMeta({ triage_pending: false, triage_done: true, triage_tries: tries });
+              await admin.from('conversation_state').update({ ai_active: false, mode: 'human' }).eq('client_id', client.id);
+              return new Response(JSON.stringify({ ok: true, triage: 'to_human' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            await setMeta({ triage_tries: tries });
+            await sendTriageMenu(waCfg, msg.phone, 'Por favor, escolha uma das opções abaixo:', opts);
+            return new Response(JSON.stringify({ ok: true, triage: 'retry' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+        } else if (meta.triage_done !== true && !(tm.menu_only_new !== false && existingPre)) {
+          const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';
+          await sendTriageMenu(waCfg, msg.phone, text, opts);
+          await admin.from('messages').insert({ user_id: userId, client_id: client.id, lead_id: client.lead_id, direction: 'outbound', channel: 'whatsapp', content: text + '\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n'), metadata: { source: 'triage_menu' } });
+          await setMeta({ triage_pending: true, triage_tries: 0 });
+          return new Response(JSON.stringify({ ok: true, triage: 'menu_sent' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+    }
+  } catch (e) { console.error('triage menu error', e); }
+
   // Skip AI in WhatsApp group chats unless agent explicitly opts in
   const isGroupChat = (msg as any).is_group === true;
   if (isGroupChat && agent && agent.respond_in_groups !== true) {
@@ -2442,7 +2525,7 @@ Deno.serve(async (req) => {
   const isOmniChatSnapshot = String(raw.EventType || raw.event_type || '').toLowerCase() === 'chats';
   // === DEBOUNCE: agrupa rajadas curtas em vez de responder a cada mensagem.
   // Aplica para TODOS os provedores (corrige duplicação no OmniConect/uazapi).
-  if (!flowHandled && !isOmniChatSnapshot && (agent?.group_messages !== false) && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
+  if (!flowHandled && agent && !isOmniChatSnapshot && (agent?.group_messages !== false) && convStateInit?.ai_active && convStateInit?.mode === 'ai') {
     try {
       const responseDelay = Number(agent.response_delay_seconds || 0);
       const fallbackDebounce = Number(agent.debounce_seconds || 8);

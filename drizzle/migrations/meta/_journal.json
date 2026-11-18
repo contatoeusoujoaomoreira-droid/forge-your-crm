@@ -64,6 +64,13 @@
       "when": 1795035879443,
       "tag": "0008_protect_external_api_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795038614075,
+      "tag": "0009_triage_menu_and_agent_tools",
+      "breakpoints": true
     }
   ]
 }

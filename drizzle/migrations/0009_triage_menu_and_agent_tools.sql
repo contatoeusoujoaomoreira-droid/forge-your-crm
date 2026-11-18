@@ -1,0 +1,2 @@
+ALTER TABLE public.ai_triage_settings ADD COLUMN IF NOT EXISTS menu_enabled boolean NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS menu_message text, ADD COLUMN IF NOT EXISTS menu_options jsonb NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN IF NOT EXISTS menu_only_new boolean NOT NULL DEFAULT true;
+ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS disabled_external_tool_ids uuid[] NOT NULL DEFAULT '{}';

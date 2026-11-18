@@ -401,6 +401,7 @@ export type Database = {
           created_at: string
           debounce_seconds: number
           disable_on_human_takeover: boolean
+          disabled_external_tool_ids: string[]
           display_name: string | null
           enable_scheduling_tools: boolean
           examples: string | null
@@ -472,6 +473,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           disable_on_human_takeover?: boolean
+          disabled_external_tool_ids?: string[]
           display_name?: string | null
           enable_scheduling_tools?: boolean
           examples?: string | null
@@ -543,6 +545,7 @@ export type Database = {
           created_at?: string
           debounce_seconds?: number
           disable_on_human_takeover?: boolean
+          disabled_external_tool_ids?: string[]
           display_name?: string | null
           enable_scheduling_tools?: boolean
           examples?: string | null
@@ -648,6 +651,10 @@ export type Database = {
           enabled: boolean
           ignore_known_clients: boolean
           keywords: string
+          menu_enabled: boolean
+          menu_message: string | null
+          menu_only_new: boolean
+          menu_options: Json
           triage_message: string
           updated_at: string
           user_id: string
@@ -656,6 +663,10 @@ export type Database = {
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string
+          menu_enabled?: boolean
+          menu_message?: string | null
+          menu_only_new?: boolean
+          menu_options?: Json
           triage_message?: string
           updated_at?: string
           user_id: string
@@ -664,6 +675,10 @@ export type Database = {
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string
+          menu_enabled?: boolean
+          menu_message?: string | null
+          menu_only_new?: boolean
+          menu_options?: Json
           triage_message?: string
           updated_at?: string
           user_id?: string
