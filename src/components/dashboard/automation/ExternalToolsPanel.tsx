@@ -10,10 +10,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { Plus, Trash2, Save, FlaskConical, Plug, Filter } from "lucide-react";
 
 type Param = { name: string; description: string; type: "string" | "number"; required?: boolean };
-type Tool = { id?: string; name: string; description: string; kind: "search" | "lead_push"; method: string; url: string; headers: Record<string, string>; params: Param[]; active: boolean; last_test_status?: number | null };
+type Tool = { id?: string; name: string; description: string; kind: "search" | "lead_push" | "action"; method: string; url: string; headers: Record<string, string>; params: Param[]; active: boolean; auth_type?: "api_key" | "bearer" | "none"; auth_header?: string; credential?: string; credential_configured?: boolean; last_test_status?: number | null };
 
 const db = supabase as any;
 const PRODUCTS_API = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/products-sync`;
@@ -34,7 +35,7 @@ const blank = (kind: Tool["kind"]): Tool => ({
   name: kind === "search" ? "buscar_imoveis" : "enviar_lead",
   description: kind === "search" ? "Busca imóveis disponíveis no sistema da imobiliária. Use sempre que o cliente procurar imóvel para comprar ou alugar." : "Envia o lead para o CRM do sistema da imobiliária quando o cliente demonstrar interesse em imóvel.",
   kind, method: kind === "search" ? "GET" : "POST", url: "", headers: { "x-api-key": "" },
-  params: kind === "search" ? IMOVEIS_PARAMS : LEAD_PARAMS, active: true,
+  params: kind === "search" ? IMOVEIS_PARAMS : kind === "lead_push" ? LEAD_PARAMS : [], active: true, auth_type: "api_key", auth_header: "x-api-key", credential: "",
 });
 
 export default function ExternalToolsPanel() {
@@ -58,16 +59,21 @@ export default function ExternalToolsPanel() {
   const upd = (i: number, patch: Partial<Tool>) => setTools((p) => p.map((t, j) => (j === i ? { ...t, ...patch } : t)));
 
   const save = async (i: number) => {
+    if (!user) return;
     const t = tools[i];
     if (!/^https:\/\//i.test(t.url)) return toast.error("O endereço precisa começar com https://");
-    const row = { name: t.name, description: t.description, kind: t.kind, method: t.method, url: t.url.trim(), headers: t.headers, params: t.params, active: t.active, user_id: user!.id, updated_at: new Date().toISOString() };
-    const { error } = t.id ? await db.from("external_tools").update(row).eq("id", t.id) : await db.from("external_tools").insert(row);
-    if (error) return toast.error(error.message);
+    const row = { id: t.id, name: t.name, description: t.description, kind: t.kind, method: t.method, url: t.url.trim(), params: t.params, active: t.active, auth_type: t.auth_type || "api_key", auth_header: t.auth_header || "x-api-key", credential: t.credential || undefined };
+    const { error, data } = await supabase.functions.invoke("external-tool-save", { body: row });
+    if (error) {
+      const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => ({})) : {};
+      return toast.error(detail.error || "Não foi possível salvar. Confira sua sessão.");
+    }
+    if (!data?.ok) return toast.error(data?.error || "Não foi possível salvar");
     toast.success("Integração salva"); load();
   };
   const remove = async (i: number) => {
     const t = tools[i];
-    if (t.id) await db.from("external_tools").delete().eq("id", t.id);
+    if (t.id) { const { error } = await db.from("external_tools").delete().eq("id", t.id); if (error) return toast.error("Não foi possível excluir a integração."); }
     setTools((p) => p.filter((_, j) => j !== i));
   };
   const test = async (i: number) => {
@@ -77,10 +83,12 @@ export default function ExternalToolsPanel() {
     try { args = testArgs[i] ? JSON.parse(testArgs[i]) : {}; } catch { return toast.error('Exemplo inválido. Use: {"bairro":"Centro"}'); }
     setTestOut((p) => ({ ...p, [i]: "Testando..." }));
     const { data, error } = await supabase.functions.invoke("external-tool-test", { body: { tool_id: t.id, args } });
-    setTestOut((p) => ({ ...p, [i]: error ? `Erro: ${error.message}` : `Status ${data?.status ?? "-"} em ${data?.ms ?? "?"}ms\n${data?.data ?? data?.error ?? ""}` }));
+    const detail = error instanceof FunctionsHttpError ? await error.context.json().catch(() => ({})) : {};
+    setTestOut((p) => ({ ...p, [i]: error ? `Erro: ${detail.error || error.message}` : `Status ${data?.status ?? "-"} em ${data?.ms ?? "?"}ms\n${data?.data ?? data?.error ?? ""}` }));
   };
   const saveTriage = async () => {
-    const { error } = await db.from("ai_triage_settings").upsert({ ...triage, user_id: user!.id, updated_at: new Date().toISOString() });
+    if (!user) return;
+    const { error } = await db.from("ai_triage_settings").upsert({ ...triage, user_id: user.id, updated_at: new Date().toISOString() });
     error ? toast.error(error.message) : toast.success("Triagem salva");
   };
 
@@ -108,7 +116,7 @@ export default function ExternalToolsPanel() {
             <ol className="text-sm list-decimal pl-4 space-y-1">
               <li>Peça ao outro sistema (ou a quem fez) o <b>endereço da API</b> e a <b>chave de acesso</b> DELE.</li>
               <li>Abaixo, clique em <b>Busca de dados</b> (para consultar) ou <b>Envio de lead</b> (para mandar contatos).</li>
-              <li>Cole o endereço e a chave de lá, clique em <b>Testar</b> e depois <b>Salvar</b>.</li>
+              <li>Cole o endereço e a chave de lá, clique em <b>Salvar</b> e depois <b>Testar</b>.</li>
             </ol>
             <p className="text-xs text-muted-foreground">Resumo: em A a chave é <b>daqui</b>; em B a chave é <b>de lá</b>.</p>
           </div>
@@ -134,6 +142,7 @@ export default function ExternalToolsPanel() {
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("search")])}><Plus className="h-4 w-4 mr-1" />Busca de dados</Button>
           <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("lead_push")])}><Plus className="h-4 w-4 mr-1" />Envio de lead</Button>
+          <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, { ...blank("action"), name: "acao_externa", description: "", method: "POST" }])}><Plus className="h-4 w-4 mr-1" />Outra ação (ERP / CRM)</Button>
         </div>
       </Card>
 
@@ -141,7 +150,7 @@ export default function ExternalToolsPanel() {
         <Card key={t.id || i} className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">{t.kind === "search" ? "Busca" : "Envio de lead"}</Badge>
+              <Badge variant="secondary">{t.kind === "search" ? "Busca" : t.kind === "lead_push" ? "Envio de lead" : "Ação externa"}</Badge>
               {t.last_test_status ? <Badge variant={t.last_test_status < 300 ? "default" : "destructive"}>Último teste: {t.last_test_status}</Badge> : null}
             </div>
             <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Ativa</span><Switch checked={t.active} onCheckedChange={(v) => upd(i, { active: v })} /></div>
@@ -149,12 +158,14 @@ export default function ExternalToolsPanel() {
           <div className="grid md:grid-cols-[1fr_120px] gap-2">
             <div><Label>Nome</Label><Input value={t.name} onChange={(e) => upd(i, { name: e.target.value })} /></div>
             <div><Label>Método</Label>
-              <Select value={t.method} onValueChange={(v) => upd(i, { method: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent></Select>
+              <Select value={t.method} onValueChange={(v) => upd(i, { method: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["GET", "POST", "PUT", "PATCH", "DELETE"].map(method => <SelectItem key={method} value={method}>{method}</SelectItem>)}</SelectContent></Select>
             </div>
           </div>
           <div><Label>Quando a IA deve usar</Label><Textarea rows={2} value={t.description} onChange={(e) => upd(i, { description: e.target.value })} /></div>
           <div><Label>Endereço da API (https://...)</Label><Input value={t.url} placeholder="https://.../functions/v1/imoveis-api" onChange={(e) => upd(i, { url: e.target.value })} /></div>
-          <div><Label>Chave de acesso (x-api-key)</Label><Input type="password" value={t.headers?.["x-api-key"] || ""} onChange={(e) => upd(i, { headers: { ...t.headers, "x-api-key": e.target.value } })} /></div>
+          <div><Label>Tipo de acesso</Label><Select value={t.auth_type || "api_key"} onValueChange={(v) => upd(i, { auth_type: v as Tool["auth_type"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="api_key">Chave de API</SelectItem><SelectItem value="bearer">Token Bearer</SelectItem><SelectItem value="none">API pública, sem chave</SelectItem></SelectContent></Select></div>
+          {(t.auth_type || "api_key") === "api_key" && <div><Label>Nome do campo de autenticação</Label><Input value={t.auth_header || "x-api-key"} onChange={e => upd(i, { auth_header: e.target.value })} /></div>}
+          {t.auth_type !== "none" && <div><Label htmlFor={`credential-${i}`}>Chave de acesso do outro sistema</Label><Input id={`credential-${i}`} type="password" autoComplete="new-password" value={t.credential || ""} placeholder={t.credential_configured ? "Chave salva — preencha somente para substituir" : "Cole aqui a chave gerada no outro sistema"} onChange={(e) => upd(i, { credential: e.target.value })} />{t.credential_configured && <Badge variant="secondary" className="mt-2">Chave protegida salva</Badge>}</div>}
           <div className="space-y-1">
             <Label>Filtros que a IA pode preencher</Label>
             {t.params.map((p, k) => (

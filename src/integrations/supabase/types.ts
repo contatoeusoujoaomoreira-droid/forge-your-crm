@@ -1571,11 +1571,37 @@ export type Database = {
         }
         Relationships: []
       }
+      external_tool_credentials: {
+        Row: {
+          headers: Json
+          tool_id: string
+        }
+        Insert: {
+          headers?: Json
+          tool_id: string
+        }
+        Update: {
+          headers?: Json
+          tool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_tool_credentials_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: true
+            referencedRelation: "external_tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_tools: {
         Row: {
           active: boolean
           agent_id: string | null
+          auth_header: string
+          auth_type: string
           created_at: string
+          credential_configured: boolean
           description: string
           headers: Json
           id: string
@@ -1592,7 +1618,10 @@ export type Database = {
         Insert: {
           active?: boolean
           agent_id?: string | null
+          auth_header?: string
+          auth_type?: string
           created_at?: string
+          credential_configured?: boolean
           description?: string
           headers?: Json
           id?: string
@@ -1609,7 +1638,10 @@ export type Database = {
         Update: {
           active?: boolean
           agent_id?: string | null
+          auth_header?: string
+          auth_type?: string
           created_at?: string
+          credential_configured?: boolean
           description?: string
           headers?: Json
           id?: string

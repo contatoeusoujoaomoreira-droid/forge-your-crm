@@ -1,4 +1,5 @@
 import { forwardRef, useState, useEffect } from "react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -98,7 +99,7 @@ const PROVIDER_HINTS: Record<string, { base: string; tokenLabel: string; instanc
     helpText: "Painel WasenderAPI → Sessions → conecte a sessão (QR no WhatsApp) → copie a API Key. Base URL fixa: https://www.wasenderapi.com",
   },
   omniconect: {
-    base: "https://omnibuildercrm.uazapi.com",
+    base: "https://omnibuilder.uazapi.com",
     tokenLabel: "Instance Token (gerado automaticamente)",
     instanceLabel: "Nome da Instância (opcional)",
     helpText: "OmniConect já pré-configurado. Basta clicar em 'Gerar QR Code' — o sistema cria/reusa a instância, ativa o webhook e gera o QR automaticamente.",
@@ -151,7 +152,7 @@ export default function AutomationHub() {
 
   const webhookUrl = `https://jdsomjwynxetccrcdszt.supabase.co/functions/v1/webhook-receiver`;
   // Servidor UAZAPI configurável (persistido localmente + por conexão em whatsapp_configs)
-  const OMNI_FALLBACK_BASE = "https://omnibuildercrm.uazapi.com";
+  const OMNI_FALLBACK_BASE = "https://omnibuilder.uazapi.com";
   const [omniDefaultBase, setOmniDefaultBase] = useState<string>(() => localStorage.getItem("omni_base_url") || OMNI_FALLBACK_BASE);
   const [omniDefaultAdminToken, setOmniDefaultAdminToken] = useState<string>(() => localStorage.getItem("omni_admin_token") || "");
   const OMNI_DEFAULT_BASE = omniDefaultBase;
@@ -195,12 +196,18 @@ export default function AutomationHub() {
   };
 
   const newConnection = () => {
-    setWaCfg({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: true, label: `Conexão ${waConfigs.length + 1}` });
+    setWaCfg({ api_type: "z-api", base_url: "", api_token: "", instance_id: "", is_active: true, auto_create_lead: true, ai_auto_reply: false, label: `Conexão ${waConfigs.length + 1}` });
   };
 
   const deleteConnection = async (id: string) => {
-    if (!confirm("Excluir esta conexão WhatsApp?")) return;
-    const { error } = await supabase.from("whatsapp_configs").delete().eq("id", id);
+    if (!confirm("Excluir esta conexão e sua instância no servidor WhatsApp?")) return;
+    const cfg = waConfigs.find(c => c.id === id);
+    if (!cfg) return;
+    if (cfg.api_type === "omniconect") {
+      const { data, error: remoteError } = await supabase.functions.invoke("omniconect", { body: { action: "delete", config_id: id } });
+      if (remoteError || !data?.ok) { toast.error(data?.error || await functionError(remoteError), { description: data?.hint || "A conexão foi mantida. Tente novamente." }); return; }
+    }
+    const { error } = cfg.api_type === "omniconect" ? { error: null } : await supabase.from("whatsapp_configs").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Conexão excluída");
     const remaining = waConfigs.filter(c => c.id !== id);
@@ -474,8 +481,8 @@ export default function AutomationHub() {
     }
     const qr = data.qrcode;
     setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
-    setEvoQrState("qr");
-    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    setEvoQrState(qr ? "qr" : "connecting");
+    if (qr) toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
     await reloadWaConfigs();
     // Start polling status
     const inst = data.instance_name;
@@ -525,6 +532,14 @@ export default function AutomationHub() {
     else toast.error("Não foi possível obter novo QR.");
   };
 
+  const functionError = async (error: unknown): Promise<string> => {
+    if (error instanceof FunctionsHttpError) {
+      const body = await error.context.json().catch(() => ({}));
+      return body.error || "Não foi possível concluir a operação.";
+    }
+    return "Não foi possível concluir a operação. Confira sua sessão e tente novamente.";
+  };
+
   // ===== OmniConect QR connect =====
   const startOmniQr = async (cfg: any) => {
     const baseUrl = (cfg.base_url || OMNI_DEFAULT_BASE || "").trim().replace(/\/+$/, "");
@@ -533,7 +548,7 @@ export default function AutomationHub() {
       toast.error("Informe a URL do servidor UAZAPI (ex.: https://seuservidor.uazapi.com).");
       return;
     }
-    if (!adminToken) {
+    if (!adminToken && !cfg.api_token) {
       toast.error("Informe o Admin Token do servidor UAZAPI para criar a instância.");
       return;
     }
@@ -556,7 +571,9 @@ export default function AutomationHub() {
       if (c.data?.ok) {
         qr = c.data?.qrcode || null;
       } else {
-        instanceToken = ""; // fallback to create
+        setEvoQrLoading(false); setEvoQrState("close");
+        toast.error(c.data?.error || await functionError(c.error));
+        return; // Falha de conexão não autoriza criar instância duplicada.
       }
     }
 
@@ -570,7 +587,7 @@ export default function AutomationHub() {
       });
       if (error || !data?.ok) {
         setEvoQrLoading(false);
-        toast.error(`Falha ao criar instância: ${data?.error || error?.message || "erro"}`, {
+        toast.error(`Falha ao criar instância: ${data?.error || await functionError(error)}`, {
           description: data?.hint || "Confira a URL do servidor e o Admin Token na aba OmniConect.",
         });
         setEvoQrState("close");
@@ -594,8 +611,8 @@ export default function AutomationHub() {
     setOmniBaseUrl(baseUrl);
     setEvoQrLoading(false);
     setEvoQrImage(qr ? (qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`) : null);
-    setEvoQrState("qr");
-    toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
+    setEvoQrState(qr ? "qr" : "connecting");
+    if (qr) toast.success("Escaneie o QR Code no WhatsApp → Aparelhos conectados.");
     await reloadWaConfigs();
     let lastQrRefresh = Date.now();
     const t = setInterval(async () => {
@@ -632,13 +649,13 @@ export default function AutomationHub() {
       }
       // QR da uazapi vive ~40s; só renova após 30s pra dar tempo do usuário escanear
       // sem invalidar o QR ainda válido em outra requisição.
-      if (status !== "connected" && pairMode === "qr" && (Date.now() - lastQrRefresh) > 30000) {
+      if (status !== "connected" && pairMode === "qr" && (!qr || (Date.now() - lastQrRefresh) > 30000)) {
         lastQrRefresh = Date.now();
         const c3 = await supabase.functions.invoke("omniconect", {
           body: { action: "qr", base_url: baseUrl, instance_token: instanceToken, config_id: cfg.id || undefined },
         });
         const nq = c3.data?.qrcode;
-        if (nq) setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`);
+        if (nq) { qr = nq; setEvoQrState("qr"); setEvoQrImage(nq.startsWith("data:") ? nq : `data:image/png;base64,${nq}`); }
       }
     }, 3000);
     setEvoPollTimer(t);
@@ -656,7 +673,7 @@ export default function AutomationHub() {
         body: { action: "list", base_url: baseUrl, admin_token: adminToken },
       });
       if (error || !data?.ok) {
-        toast.error(`Servidor indisponível: ${data?.error || error?.message || "erro"}`, { description: data?.hint });
+        toast.error(`Servidor indisponível: ${data?.error || await functionError(error)}`, { description: data?.hint });
       } else {
         persistOmniDefaults(baseUrl, adminToken);
         toast.success(`Servidor OK — ${(data.instances || []).length} instância(s) encontradas.`);
@@ -680,7 +697,7 @@ export default function AutomationHub() {
       label: `WhatsApp ${waConfigs.length + 1}`,
       is_active: true,
       auto_create_lead: true,
-      ai_auto_reply: true,
+      ai_auto_reply: false,
     });
   };
 

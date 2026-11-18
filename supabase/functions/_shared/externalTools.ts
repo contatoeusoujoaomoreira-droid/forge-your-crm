@@ -1,4 +1,6 @@
 // Ferramentas externas (APIs de outros sistemas) usadas pelo agente de IA.
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { API_METHODS, isPublicHttpsUrl } from './integrationPolicy.ts';
 export function safeToolName(n: string) {
   return ('ext_' + (n || 'api').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_]+/g, '_')).slice(0, 60);
 }
@@ -28,9 +30,13 @@ export function buildExternalToolDefs(tools: any[]) {
 
 export async function execExternalTool(tool: any, args: Record<string, any>, lead?: { name?: string; phone?: string; email?: string }) {
   const method = String(tool.method || 'GET').toUpperCase();
-  const headers: Record<string, string> = { Accept: 'application/json', ...(tool.headers || {}) };
+  if (!API_METHODS.includes(method)) return JSON.stringify({ error: 'Método não permitido' });
+  const admin = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+  const { data: credentials, error: credentialError } = await admin.from('external_tool_credentials').select('headers').eq('tool_id', tool.id).maybeSingle();
+  if (credentialError) return JSON.stringify({ error: 'Não foi possível carregar a credencial protegida.' });
+  const headers: Record<string, string> = { Accept: 'application/json', ...(credentials?.headers || {}) };
   let url = String(tool.url || '');
-  if (!/^https:\/\//i.test(url)) return JSON.stringify({ error: 'URL precisa começar com https://' });
+  if (!isPublicHttpsUrl(url)) return JSON.stringify({ error: 'Informe um endereço HTTPS público.' });
   const payload: Record<string, any> = { ...(args || {}) };
   if (tool.kind === 'lead_push' && lead) {
     payload.nome = payload.nome || lead.name || '';
@@ -50,10 +56,17 @@ export async function execExternalTool(tool: any, args: Record<string, any>, lea
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const r = await fetch(url, { ...init, signal: ctrl.signal });
+    const r = await fetch(url, { ...init, redirect: 'error', signal: ctrl.signal });
     const text = await r.text();
-    return JSON.stringify({ status: r.status, ok: r.ok, data: text.slice(0, 6000) });
+    let safeText = text;
+    for (const value of Object.values(credentials?.headers || {})) {
+      if (typeof value === 'string' && value) {
+        safeText = safeText.split(value).join('[credencial protegida]');
+        if (value.startsWith('Bearer ')) safeText = safeText.split(value.slice(7)).join('[credencial protegida]');
+      }
+    }
+    return JSON.stringify({ status: r.status, ok: r.ok, data: safeText.slice(0, 6000) });
   } catch (e) {
-    return JSON.stringify({ error: 'Falha ao acessar o sistema externo: ' + String(e).slice(0, 200) });
+    return JSON.stringify({ error: 'O sistema externo não respondeu ou tentou redirecionar a solicitação.' });
   } finally { clearTimeout(timer); }
 }

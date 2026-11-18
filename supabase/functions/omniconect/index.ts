@@ -1,15 +1,12 @@
 // OmniConect — integração WhatsApp via UAZAPI (https://docs.uazapi.com)
 // Lifecycle: create (admintoken) -> connect/QR (token) -> status -> webhook -> disconnect -> delete
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { isPublicHttpsUrl, canRemoveLocalConnection } from '../_shared/integrationPolicy.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
-const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_ANON = Deno.env.get('SUPABASE_ANON_KEY') || '';
+const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/webhook-receiver`;
 
 const sanitize = (u: string) => (u || '').replace(/\/+$/, '');
@@ -56,7 +53,7 @@ async function setOmniWebhook(baseUrl: string, instanceToken: string, configId?:
 async function uaz(baseUrl: string, path: string, headers: Record<string, string>, method = 'GET', body?: any) {
   const url = `${sanitize(baseUrl)}${path}`;
   let lastErr: any = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < (method === 'GET' ? 3 : 1); attempt++) {
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 25000);
@@ -64,7 +61,7 @@ async function uaz(baseUrl: string, path: string, headers: Record<string, string
         method,
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Connection': 'close', ...headers },
         body: body ? JSON.stringify(body) : undefined,
-        signal: ctrl.signal,
+        signal: ctrl.signal, redirect: 'error',
       });
       clearTimeout(t);
       const text = await r.text();
@@ -118,12 +115,18 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const action = body.action as string;
-    const baseUrl = sanitize(body.base_url || 'https://free.uazapi.com');
+    let baseUrl = sanitize(body.base_url || '');
     const adminToken = body.admin_token || '';
     const instanceName = (body.instance_name || `omni_${userId.slice(0, 6)}_${Date.now().toString(36)}`).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const instanceToken = body.instance_token || '';
+    let instanceToken = body.instance_token || '';
+    if (action === 'delete') {
+      if (typeof body.config_id !== 'string') return new Response(JSON.stringify({ ok: false, error: 'Selecione uma conexão salva para excluir.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: cfg } = await admin.from('whatsapp_configs').select('id, base_url, api_token, api_type').eq('id', body.config_id).eq('user_id', userId).maybeSingle();
+      if (!cfg || cfg.api_type !== 'omniconect') return new Response(JSON.stringify({ ok: false, error: 'Conexão não encontrada nesta conta.' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      baseUrl = sanitize(cfg.base_url); instanceToken = cfg.api_token;
+    }
 
-    if (!/^https?:\/\//.test(baseUrl)) {
+    if (!isPublicHttpsUrl(baseUrl)) {
       return new Response(JSON.stringify({ ok: false, error: 'base_url inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
@@ -144,50 +147,20 @@ Deno.serve(async (req) => {
       if (!health.ok) {
         return new Response(JSON.stringify({ ok: false, status: health.status, ...explain(health, baseUrl) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      let r = await uaz(baseUrl, '/instance/init', { admintoken: adminToken }, 'POST', { name: instanceName });
+      let r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
       if (!r.ok && (r.status === 404 || r.status === 405)) {
-        r = await uaz(baseUrl, '/instance/create', { admintoken: adminToken }, 'POST', { name: instanceName });
+        r = await uaz(baseUrl, '/instance/init', { admintoken: adminToken }, 'POST', { name: instanceName });
       }
 
 
-      // Handle "Maximum number of instances reached" → reuse an existing instance
-      if (!r.ok && /maximum number of instances|limit/i.test(r.text)) {
-        const listRes = await uaz(baseUrl, '/instance/all', { admintoken: adminToken }, 'GET');
-        const all: any[] = Array.isArray(listRes.json) ? listRes.json : (listRes.json?.instances || []);
-        const disconnected = all.find((i) => (i.status || '').toLowerCase() !== 'connected');
-        const reuse = disconnected || all[0];
-        if (reuse?.token) {
-          const reuseToken = reuse.token;
-          const reuseName = reuse.name || reuse.instanceName || instanceName;
-          const patch: any = {
-            api_type: 'omniconect', base_url: baseUrl, instance_id: reuseName, api_token: reuseToken,
-            extra_headers: { admin_token: adminToken }, is_active: true, webhook_instance_ids: [reuseName],
-          };
-          if (body.default_agent_id) patch.default_agent_id = body.default_agent_id;
-          if (body.default_pipeline_id) patch.default_pipeline_id = body.default_pipeline_id;
-          if (body.default_stage_id) patch.default_stage_id = body.default_stage_id;
-          let configId = body.config_id;
-          if (configId) {
-            await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId);
-          } else {
-            const ins = await admin.from('whatsapp_configs').insert({ ...patch, user_id: userId, label: body.label || `OmniConect ${String(reuseName).slice(-6)}`, auto_create_lead: true, ai_auto_reply: true }).select('id').single();
-            if (ins.data) configId = (ins.data as any).id;
-          }
-          const wh = await setOmniWebhook(baseUrl, reuseToken, configId);
-          const conn = await uaz(baseUrl, '/instance/connect', { token: reuseToken }, 'POST', {});
-          const inst = conn.json?.instance || conn.json;
-          return new Response(JSON.stringify({
-            ok: true, reused: true, config_id: configId, instance_name: reuseName, instance_token: reuseToken,
-            qrcode: inst?.qrcode || null, paircode: inst?.paircode || null,
-            webhook: { ok: wh.ok, status: wh.status, url: wh.url, verified: wh.verified, enabled: wh.enabled, events: wh.events, body: (wh.text || '').slice(0, 300) },
-            raw: conn.json,
-          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Remova uma conexão antiga para liberar espaço.', body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Nunca reutilizar outra instância do servidor: ela pode pertencer a outro cliente.
+      if (!r.ok && (r.status === 429 || /maximum number of instances|limit/i.test(r.text))) {
+        return new Response(JSON.stringify({ ok: false, status: r.status, error: 'Limite de instâncias atingido. Exclua uma conexão antiga antes de criar outra.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       if (!r.ok) return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl), body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const instToken = r.json?.token || r.json?.instance?.token || '';
+      if (!instToken) return new Response(JSON.stringify({ ok: false, error: 'O servidor criou uma resposta sem token de instância.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       const qrcode = r.json?.instance?.qrcode || r.json?.qrcode || null;
       const paircode = r.json?.instance?.paircode || r.json?.paircode || null;
 
@@ -200,10 +173,12 @@ Deno.serve(async (req) => {
       if (body.default_stage_id) patch.default_stage_id = body.default_stage_id;
       let configId = body.config_id;
       if (configId) {
-        await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId);
+        const saved = await admin.from('whatsapp_configs').update(patch).eq('id', configId).eq('user_id', userId).select('id').single();
+        if (saved.error) throw new Error('Não foi possível salvar a conexão criada.');
       } else {
-        const ins = await admin.from('whatsapp_configs').insert({ ...patch, user_id: userId, label: body.label || `OmniConect ${instanceName.slice(-6)}`, auto_create_lead: true, ai_auto_reply: true }).select('id').single();
-        if (ins.data) configId = (ins.data as any).id;
+        const ins = await admin.from('whatsapp_configs').insert({ ...patch, user_id: userId, label: body.label || `OmniConect ${instanceName.slice(-6)}`, auto_create_lead: true, ai_auto_reply: false }).select('id').single();
+        if (ins.error || !ins.data) throw new Error('Não foi possível salvar a conexão criada.');
+        configId = ins.data.id;
       }
 
       const wh = await setOmniWebhook(baseUrl, instToken, configId);
@@ -277,12 +252,15 @@ Deno.serve(async (req) => {
 
     if (action === 'delete') {
       if (!instanceToken) return new Response(JSON.stringify({ ok: false, error: 'instance_token obrigatório' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      const r = await uaz(baseUrl, '/instance/', { token: instanceToken }, 'DELETE');
-      return new Response(JSON.stringify({ ok: r.ok, status: r.status, body: r.text.slice(0, 600) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const r = await uaz(baseUrl, '/instance', { token: instanceToken }, 'DELETE');
+      if (!canRemoveLocalConnection(r)) return new Response(JSON.stringify({ ok: false, status: r.status, ...explain(r, baseUrl), hint: 'A conexão foi mantida para você tentar excluir novamente.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const removed = await admin.from('whatsapp_configs').delete().eq('id', body.config_id).eq('user_id', userId);
+      if (removed.error) throw new Error('Instância removida no servidor, mas não foi possível remover o cadastro local.');
+      return new Response(JSON.stringify({ ok: true, remote_deleted: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ ok: false, error: 'action inválida' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: false, error: 'Não foi possível concluir a operação. Confira sua sessão e a configuração do servidor.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
