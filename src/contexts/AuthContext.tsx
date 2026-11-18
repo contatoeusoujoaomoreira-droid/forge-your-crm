@@ -41,6 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const roles = (roleData || []).map((r: any) => r.role);
+    // Logo após entrar, a consulta pode voltar vazia antes da sessão "assentar": confere de novo.
+    if (roles.length === 0 && attempt < 2) setTimeout(() => checkRole(userId, attempt + 1), 1500);
     setIsSuperAdmin(roles.includes("super_admin"));
 
     // Check managed_users for permissions
