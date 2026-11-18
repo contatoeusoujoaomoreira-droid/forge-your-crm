@@ -30,7 +30,8 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       toast({ title: "Bem-vindo de volta!", description: "Login realizado com sucesso." });
       navigate("/dashboard");
@@ -39,6 +40,8 @@ const Auth = () => {
       let description = "Ocorreu um erro. Tente novamente.";
       if (msg.includes("Invalid login credentials")) {
         description = "E-mail ou senha incorretos.";
+      } else if (/refresh|token|session/i.test(msg)) {
+        description = "Sessão antiga limpa. Tente entrar novamente.";
       } else if (msg.includes("Email not confirmed")) {
         description = "E-mail não confirmado. Verifique sua caixa de entrada.";
       }

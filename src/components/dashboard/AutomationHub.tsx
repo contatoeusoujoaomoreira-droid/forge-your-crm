@@ -22,6 +22,7 @@ import FlowsBuilder from "./automation/FlowsBuilder";
 import CRMIntelligence from "./automation/CRMIntelligence";
 import ProductsServicesPanel from "./automation/ProductsServicesPanel";
 import FAQPanel from "./automation/FAQPanel";
+import ExternalToolsPanel from "./automation/ExternalToolsPanel";
 import TagsPanel from "./automation/TagsPanel";
 import AgentOrchestratorPanel from "./automation/AgentOrchestratorPanel";
 import { Package, HelpCircle, Tag as TagIcon } from "lucide-react";
@@ -751,6 +752,7 @@ export default function AutomationHub() {
           {showProvidersTab && <TabsTrigger value="aikeys"><KeyRound className="h-4 w-4 mr-1" />Provedores</TabsTrigger>}
           <TabsTrigger value="campaigns"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
           <TabsTrigger value="faq"><HelpCircle className="h-4 w-4 mr-1" />FAQ</TabsTrigger>
+          <TabsTrigger value="integrations"><Workflow className="h-4 w-4 mr-1" />Integrações & Triagem</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -1309,6 +1311,7 @@ export default function AutomationHub() {
         </TabsContent>
         )}
       <TabsContent value="faq"><FAQPanel /></TabsContent>
+      <TabsContent value="integrations"><ExternalToolsPanel /></TabsContent>
         <TabsContent value="campaigns" className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             Campanhas de prospecção

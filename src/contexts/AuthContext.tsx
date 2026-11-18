@@ -69,7 +69,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        // Sessão antiga/corrompida (ex: refresh_token_already_used): limpa só neste navegador.
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        session = null;
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);

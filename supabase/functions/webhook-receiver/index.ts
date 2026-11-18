@@ -1,3 +1,4 @@
+import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
 
@@ -1175,7 +1176,17 @@ async function callAiWithTools(
 ): Promise<string> {
   const schedTools = !!(agent.enable_scheduling_tools || agent.schedule_can_query || agent.schedule_can_book);
   const enableTools = runtime.provider !== 'anthropic';
-  const TOOLS = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : [])];
+  const { data: extRows } = await admin.from('external_tools').select('*').eq('user_id', userId).eq('active', true);
+  const extTools = (extRows || []).filter((t: any) => !t.agent_id || t.agent_id === agent?.id);
+  const { data: triageCfg } = await admin.from('ai_triage_settings').select('*').eq('user_id', userId).maybeSingle();
+  const HUMAN_TOOL = { type: 'function', function: { name: 'transferir_humano', description: 'Pausa a IA e passa a conversa para a equipe humana. Use quando o contato NÃO for um interessado em imóvel (ex: coworking, proprietário, cliente atual, financeiro, reclamação) ou pedir para falar com uma pessoa.', parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Ex: coworking, proprietario, cliente, outro' } }, required: ['motivo'] } } };
+  const TOOLS: any[] = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : []), ...buildExternalToolDefs(extTools), ...(triageCfg?.enabled ? [HUMAN_TOOL] : [])];
+  if (extTools.length) {
+    systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 a 5 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
+  }
+  if (triageCfg?.enabled) {
+    systemPrompt += `\n\nTRIAGEM: este número também recebe contatos que não são interessados em imóveis. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o contato for de coworking, proprietário, cliente atual ou outro assunto, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, trate direto como interessado em imóvel, sem perguntar: ${triageCfg.keywords}.`;
+  }
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
@@ -1199,7 +1210,14 @@ async function callAiWithTools(
       let parsedArgs: any = {};
       try { parsedArgs = JSON.parse(tc.function?.arguments || '{}'); } catch {}
       const tn = tc.function?.name || '';
-      const result = PRODUCT_TOOLS.some(t => t.function.name === tn) ? await execProductTool(admin, userId, client, tn, parsedArgs) : await execSchedulingTool(admin, userId, clientId, client, tn, parsedArgs);
+      const ext = extTools.find((t: any) => safeToolName(t.name) === tn);
+      let result: string;
+      if (ext) result = await execExternalTool(ext, parsedArgs, { name: client?.name, phone: client?.phone, email: client?.email });
+      else if (tn === 'transferir_humano') {
+        await admin.from('conversation_state').update({ ai_active: false, mode: 'human', updated_at: new Date().toISOString() }).eq('client_id', clientId);
+        result = JSON.stringify({ ok: true, motivo: parsedArgs?.motivo || 'outro' });
+      }
+      else result = PRODUCT_TOOLS.some(t => t.function.name === tn) ? await execProductTool(admin, userId, client, tn, parsedArgs) : await execSchedulingTool(admin, userId, clientId, client, tn, parsedArgs);
       conv.push({ role: 'tool', tool_call_id: tc.id, content: result });
     }
   }
@@ -2102,11 +2120,20 @@ Deno.serve(async (req) => {
         .select('agent_id').eq('id', campaignId).eq('user_id', userId).maybeSingle();
       campaignAgentId = campaignBinding?.agent_id || null;
     }
+    let aiOn = campaignId ? !!campaignAgentId : (waCfg?.ai_auto_reply === true && !!waCfg?.default_agent_id);
+    if (aiOn && !campaignId) {
+      // Triagem: contatos já conhecidos (cliente/proprietário com lead fechado ou mensagens antigas) ficam com humano.
+      const { data: tri } = await admin.from('ai_triage_settings').select('*').eq('user_id', userId).maybeSingle();
+      if (tri?.enabled && tri.ignore_known_clients && client.lead_id) {
+        const { data: kl } = await admin.from('leads').select('status').eq('id', client.lead_id).maybeSingle();
+        if (kl && ['won', 'ganho', 'cliente', 'closed'].includes(String(kl.status || '').toLowerCase())) aiOn = false;
+      }
+    }
     const { data: createdState } = await admin.from('conversation_state').insert({
       user_id: userId,
       client_id: client.id,
-      ai_active: campaignId ? !!campaignAgentId : (waCfg?.ai_auto_reply === true && !!waCfg?.default_agent_id),
-      mode: (campaignId ? !!campaignAgentId : (waCfg?.ai_auto_reply === true && !!waCfg?.default_agent_id)) ? 'ai' : 'human',
+      ai_active: aiOn,
+      mode: aiOn ? 'ai' : 'human',
       assigned_agent_id: campaignAgentId || (waCfg?.ai_auto_reply === true ? (waCfg?.default_agent_id || null) : null),
     }).select().single();
     convStateInit = createdState;

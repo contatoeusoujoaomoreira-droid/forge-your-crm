@@ -1,0 +1,151 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { Plus, Trash2, Save, FlaskConical, Plug, Filter } from "lucide-react";
+
+type Param = { name: string; description: string; type: "string" | "number"; required?: boolean };
+type Tool = { id?: string; name: string; description: string; kind: "search" | "lead_push"; method: string; url: string; headers: Record<string, string>; params: Param[]; active: boolean; last_test_status?: number | null };
+
+const db = supabase as any;
+const IMOVEIS_PARAMS: Param[] = [
+  { name: "q", description: "Texto livre do que o cliente procura", type: "string" },
+  { name: "tipo", description: "apartamento, casa, flat, studio, terreno, sala", type: "string" },
+  { name: "finalidade", description: "venda ou locacao", type: "string" },
+  { name: "bairro", description: "Bairro desejado", type: "string" },
+  { name: "cidade", description: "Cidade desejada", type: "string" },
+  { name: "quartos", description: "Número mínimo de quartos", type: "number" },
+  { name: "preco_max", description: "Valor máximo em reais", type: "number" },
+];
+const LEAD_PARAMS: Param[] = [
+  { name: "interesse", description: "Resumo do que o cliente procura", type: "string", required: true },
+  { name: "imovel_codigo", description: "Código do imóvel de interesse, se houver", type: "string" },
+];
+const blank = (kind: Tool["kind"]): Tool => ({
+  name: kind === "search" ? "buscar_imoveis" : "enviar_lead",
+  description: kind === "search" ? "Busca imóveis disponíveis no sistema da imobiliária. Use sempre que o cliente procurar imóvel para comprar ou alugar." : "Envia o lead para o CRM do sistema da imobiliária quando o cliente demonstrar interesse em imóvel.",
+  kind, method: kind === "search" ? "GET" : "POST", url: "", headers: { "x-api-key": "" },
+  params: kind === "search" ? IMOVEIS_PARAMS : LEAD_PARAMS, active: true,
+});
+
+export default function ExternalToolsPanel() {
+  const { user } = useAuth();
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [triage, setTriage] = useState<any>(null);
+  const [testArgs, setTestArgs] = useState<Record<number, string>>({});
+  const [testOut, setTestOut] = useState<Record<number, string>>({});
+
+  const load = async () => {
+    if (!user) return;
+    const [{ data: t }, { data: tr }] = await Promise.all([
+      db.from("external_tools").select("*").eq("user_id", user.id).order("created_at"),
+      db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
+    ]);
+    setTools(t || []);
+    setTriage(tr || { enabled: false, keywords: "imóvel, apartamento, casa, flat, aluguel, alugar, comprar, venda, terreno, studio", ignore_known_clients: true, triage_message: "Olá! Para te atender melhor, me diga: 1 - Procuro imóvel (comprar ou alugar) | 2 - Coworking | 3 - Já sou cliente ou proprietário" });
+  };
+  useEffect(() => { load(); }, [user]);
+
+  const upd = (i: number, patch: Partial<Tool>) => setTools((p) => p.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+
+  const save = async (i: number) => {
+    const t = tools[i];
+    if (!/^https:\/\//i.test(t.url)) return toast.error("O endereço precisa começar com https://");
+    const row = { name: t.name, description: t.description, kind: t.kind, method: t.method, url: t.url.trim(), headers: t.headers, params: t.params, active: t.active, user_id: user!.id, updated_at: new Date().toISOString() };
+    const { error } = t.id ? await db.from("external_tools").update(row).eq("id", t.id) : await db.from("external_tools").insert(row);
+    if (error) return toast.error(error.message);
+    toast.success("Integração salva"); load();
+  };
+  const remove = async (i: number) => {
+    const t = tools[i];
+    if (t.id) await db.from("external_tools").delete().eq("id", t.id);
+    setTools((p) => p.filter((_, j) => j !== i));
+  };
+  const test = async (i: number) => {
+    const t = tools[i];
+    if (!t.id) return toast.error("Salve antes de testar");
+    let args: any = {};
+    try { args = testArgs[i] ? JSON.parse(testArgs[i]) : {}; } catch { return toast.error('Exemplo inválido. Use: {"bairro":"Centro"}'); }
+    setTestOut((p) => ({ ...p, [i]: "Testando..." }));
+    const { data, error } = await supabase.functions.invoke("external-tool-test", { body: { tool_id: t.id, args } });
+    setTestOut((p) => ({ ...p, [i]: error ? `Erro: ${error.message}` : `Status ${data?.status ?? "-"} em ${data?.ms ?? "?"}ms\n${data?.data ?? data?.error ?? ""}` }));
+  };
+  const saveTriage = async () => {
+    const { error } = await db.from("ai_triage_settings").upsert({ ...triage, user_id: user!.id, updated_at: new Date().toISOString() });
+    error ? toast.error(error.message) : toast.success("Triagem salva");
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h3 className="font-semibold">Triagem de contatos no WhatsApp</h3></div>
+          {triage && <Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} />}
+        </div>
+        <p className="text-sm text-muted-foreground">Quando ligada, a IA só atende quem procura imóvel. Coworking, proprietários e clientes atuais são passados para a equipe (a IA pausa sozinha).</p>
+        {triage && (<>
+          <div><Label>Palavras que indicam interesse em imóvel (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
+          <div><Label>Pergunta de triagem para mensagens genéricas ("Oi", "Bom dia")</Label><Textarea rows={2} value={triage.triage_message} onChange={(e) => setTriage({ ...triage, triage_message: e.target.value })} /></div>
+          <div className="flex items-center gap-2"><Switch checked={triage.ignore_known_clients} onCheckedChange={(v) => setTriage({ ...triage, ignore_known_clients: v })} /><span className="text-sm">Clientes já fechados no CRM vão direto para a equipe</span></div>
+          <Button size="sm" onClick={saveTriage}><Save className="h-4 w-4 mr-1" />Salvar triagem</Button>
+        </>)}
+      </Card>
+
+      <Card className="p-4 space-y-2">
+        <div className="flex items-center gap-2"><Plug className="h-4 w-4 text-primary" /><h3 className="font-semibold">Integrações com outros sistemas (API)</h3></div>
+        <p className="text-sm text-muted-foreground">O agente de IA usa estas integrações para buscar dados (ex: imóveis) e enviar leads para o CRM do outro sistema.</p>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("search")])}><Plus className="h-4 w-4 mr-1" />Busca de dados</Button>
+          <Button size="sm" variant="outline" onClick={() => setTools((p) => [...p, blank("lead_push")])}><Plus className="h-4 w-4 mr-1" />Envio de lead</Button>
+        </div>
+      </Card>
+
+      {tools.map((t, i) => (
+        <Card key={t.id || i} className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{t.kind === "search" ? "Busca" : "Envio de lead"}</Badge>
+              {t.last_test_status ? <Badge variant={t.last_test_status < 300 ? "default" : "destructive"}>Último teste: {t.last_test_status}</Badge> : null}
+            </div>
+            <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Ativa</span><Switch checked={t.active} onCheckedChange={(v) => upd(i, { active: v })} /></div>
+          </div>
+          <div className="grid md:grid-cols-[1fr_120px] gap-2">
+            <div><Label>Nome</Label><Input value={t.name} onChange={(e) => upd(i, { name: e.target.value })} /></div>
+            <div><Label>Método</Label>
+              <Select value={t.method} onValueChange={(v) => upd(i, { method: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <div><Label>Quando a IA deve usar</Label><Textarea rows={2} value={t.description} onChange={(e) => upd(i, { description: e.target.value })} /></div>
+          <div><Label>Endereço da API (https://...)</Label><Input value={t.url} placeholder="https://.../functions/v1/imoveis-api" onChange={(e) => upd(i, { url: e.target.value })} /></div>
+          <div><Label>Chave de acesso (x-api-key)</Label><Input type="password" value={t.headers?.["x-api-key"] || ""} onChange={(e) => upd(i, { headers: { ...t.headers, "x-api-key": e.target.value } })} /></div>
+          <div className="space-y-1">
+            <Label>Filtros que a IA pode preencher</Label>
+            {t.params.map((p, k) => (
+              <div key={k} className="grid grid-cols-[1fr_2fr_auto] gap-2">
+                <Input value={p.name} onChange={(e) => upd(i, { params: t.params.map((x, z) => (z === k ? { ...x, name: e.target.value } : x)) })} />
+                <Input value={p.description} onChange={(e) => upd(i, { params: t.params.map((x, z) => (z === k ? { ...x, description: e.target.value } : x)) })} />
+                <Button size="icon" variant="ghost" onClick={() => upd(i, { params: t.params.filter((_, z) => z !== k) })}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => upd(i, { params: [...t.params, { name: "", description: "", type: "string" }] })}><Plus className="h-4 w-4 mr-1" />Filtro</Button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" onClick={() => save(i)}><Save className="h-4 w-4 mr-1" />Salvar</Button>
+            <Button size="sm" variant="outline" onClick={() => test(i)}><FlaskConical className="h-4 w-4 mr-1" />Testar</Button>
+            <Button size="sm" variant="ghost" onClick={() => remove(i)}><Trash2 className="h-4 w-4 mr-1" />Excluir</Button>
+          </div>
+          <Input placeholder='Exemplo para testar: {"bairro":"Centro","quartos":2}' value={testArgs[i] || ""} onChange={(e) => setTestArgs((p) => ({ ...p, [i]: e.target.value }))} />
+          {testOut[i] && <pre className="text-xs bg-muted p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">{testOut[i]}</pre>}
+        </Card>
+      ))}
+    </div>
+  );
+}
