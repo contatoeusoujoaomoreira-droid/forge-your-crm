@@ -16,7 +16,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, {
     modules: {
       crm: true, clients: true, import: true, imported: true, analytics: true,
       pages: false, forms: true, quiz: false, schedules: false, checkout: false,
-      automation: false, chat: false, settings: true, admin: false,
+      automation: true, chat: true, products: true, stock: true, orders: true, store: true, tracking: true, settings: true, admin: false,
     },
   },
   pro: {
@@ -24,7 +24,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, {
     modules: {
       crm: true, clients: true, import: true, imported: true, analytics: true,
       pages: true, forms: true, quiz: true, schedules: false, checkout: true,
-      automation: false, chat: false, settings: true, admin: false,
+      automation: true, chat: true, products: true, stock: true, orders: true, store: true, tracking: true, settings: true, admin: false,
     },
   },
   enterprise: {
@@ -32,7 +32,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, {
     modules: {
       crm: true, clients: true, import: true, imported: true, analytics: true,
       pages: true, forms: true, quiz: true, schedules: true, checkout: true,
-      automation: true, chat: true, settings: true, admin: false,
+      automation: true, chat: true, products: true, stock: true, orders: true, store: true, tracking: true, settings: true, admin: false,
     },
   },
 };

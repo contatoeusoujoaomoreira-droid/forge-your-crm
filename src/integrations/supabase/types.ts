@@ -643,6 +643,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_triage_settings: {
+        Row: {
+          enabled: boolean
+          ignore_known_clients: boolean
+          keywords: string
+          triage_message: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          ignore_known_clients?: boolean
+          keywords?: string
+          triage_message?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          ignore_known_clients?: boolean
+          keywords?: string
+          triage_message?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -1541,6 +1568,60 @@ export type Database = {
           updated_at?: string
           user_id?: string
           verified_at?: string | null
+        }
+        Relationships: []
+      }
+      external_tools: {
+        Row: {
+          active: boolean
+          agent_id: string | null
+          created_at: string
+          description: string
+          headers: Json
+          id: string
+          kind: string
+          last_test_at: string | null
+          last_test_status: number | null
+          method: string
+          name: string
+          params: Json
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          agent_id?: string | null
+          created_at?: string
+          description?: string
+          headers?: Json
+          id?: string
+          kind?: string
+          last_test_at?: string | null
+          last_test_status?: number | null
+          method?: string
+          name: string
+          params?: Json
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          agent_id?: string | null
+          created_at?: string
+          description?: string
+          headers?: Json
+          id?: string
+          kind?: string
+          last_test_at?: string | null
+          last_test_status?: number | null
+          method?: string
+          name?: string
+          params?: Json
+          updated_at?: string
+          url?: string
+          user_id?: string
         }
         Relationships: []
       }

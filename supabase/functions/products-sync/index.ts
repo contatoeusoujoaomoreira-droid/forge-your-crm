@@ -10,8 +10,8 @@ const n = (v: unknown) => { if (v === null || v === undefined || v === "") retur
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  if (req.method !== "POST") return json({ error: "Use POST" }, 405);
-  const key = req.headers.get("x-api-key") || "";
+  if (req.method !== "POST" && req.method !== "GET") return json({ error: "Use GET ou POST" }, 405);
+  const key = req.headers.get("x-api-key") || new URL(req.url).searchParams.get("api_key") || "";
   if (!key) return json({ error: "x-api-key ausente" }, 401);
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -20,13 +20,31 @@ Deno.serve(async (req) => {
   const { data: k } = await sb.from("api_keys").select("id,user_id").eq("key_hash", hash).eq("is_active", true).maybeSingle();
   if (!k) return json({ error: "Chave inválida" }, 401);
 
+  // GET = catálogo/feed para lojas externas (Tray, Nuvemshop, Shopify, marketplaces)
+  if (req.method === "GET") {
+    const { data } = await sb.from("products_services").select("*").eq("user_id", k.user_id).limit(5000);
+    const items = (data || []).map((p: any) => ({
+      id: p.id, sku: p.sku, name: p.name, description: p.description, category: p.category, brand: p.brand ?? null,
+      price: p.price, wholesale_price: p.wholesale_price, stock: p.stock_qty, unit: p.unit, images: p.images || [],
+      active: p.is_active ?? p.active ?? true,
+    }));
+    await sb.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", k.id);
+    return json({ ok: true, total: items.length, products: items });
+  }
+
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "JSON inválido" }, 400); }
   const list: any[] = Array.isArray(body) ? body : Array.isArray(body?.products) ? body.products : [body];
   if (list.length > 1000) return json({ error: "Máximo 1000 produtos por envio" }, 400);
 
   let created = 0, updated = 0; const errors: string[] = [];
-  for (const p of list) {
+  for (const raw of list) {
+    // Compatível com Tray ({Product:{...}}), Nuvemshop, Bling, Tiny e formato próprio
+    const p: any = raw?.Product ?? raw?.produto ?? raw;
+    const trayImgs = Array.isArray(p.ProductImage) ? p.ProductImage.map((i: any) => i?.https || i?.http).filter(Boolean) : null;
+    if (trayImgs) p.images = trayImgs;
+    if (p.reference && !p.sku) p.sku = p.reference;
+    if (p.promotional_price && Number(p.promotional_price) > 0 && !p.preco) p.preco = p.promotional_price;
     const name = String(p.nome ?? p.name ?? "").trim().slice(0, 300);
     const sku = String(p.sku ?? p.codigo ?? "").trim().slice(0, 100) || null;
     if (!name && !sku) { errors.push("item sem nome/sku"); continue; }
