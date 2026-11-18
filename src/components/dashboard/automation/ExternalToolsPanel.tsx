@@ -16,6 +16,7 @@ type Param = { name: string; description: string; type: "string" | "number"; req
 type Tool = { id?: string; name: string; description: string; kind: "search" | "lead_push"; method: string; url: string; headers: Record<string, string>; params: Param[]; active: boolean; last_test_status?: number | null };
 
 const db = supabase as any;
+const PRODUCTS_API = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/products-sync`;
 const IMOVEIS_PARAMS: Param[] = [
   { name: "q", description: "Texto livre do que o cliente procura", type: "string" },
   { name: "tipo", description: "apartamento, casa, flat, studio, terreno, sala", type: "string" },
@@ -85,6 +86,34 @@ export default function ExternalToolsPanel() {
 
   return (
     <div className="space-y-4">
+      <Card className="p-4 space-y-4 border-primary/30">
+        <h3 className="font-semibold">Como funcionam as APIs (passo a passo)</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Badge>A — Outro sistema usa os SEUS dados</Badge>
+            <p className="text-sm text-muted-foreground">Ex.: Tray, loja externa ou ERP enviando/puxando seus produtos.</p>
+            <ol className="text-sm list-decimal pl-4 space-y-1">
+              <li>Vá na aba <b>API Keys</b> e clique em criar chave. Copie a chave (ela é a sua "senha" da API).</li>
+              <li>No outro sistema, cole este endereço:</li>
+            </ol>
+            <div className="flex gap-2"><Input readOnly value={PRODUCTS_API} className="font-mono text-xs" /><Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(PRODUCTS_API); toast.success("Endereço copiado"); }}>Copiar</Button></div>
+            <ol start={3} className="text-sm list-decimal pl-4 space-y-1">
+              <li>No campo de cabeçalho/header, use o nome <b>x-api-key</b> e cole a sua chave.</li>
+              <li><b>Puxar produtos</b>: método GET. <b>Enviar produtos</b>: método POST.</li>
+            </ol>
+          </div>
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Badge variant="secondary">B — Sua IA usa os dados do OUTRO sistema</Badge>
+            <p className="text-sm text-muted-foreground">Ex.: a IA busca imóveis no sistema da imobiliária e envia o lead para o CRM de lá.</p>
+            <ol className="text-sm list-decimal pl-4 space-y-1">
+              <li>Peça ao outro sistema (ou a quem fez) o <b>endereço da API</b> e a <b>chave de acesso</b> DELE.</li>
+              <li>Abaixo, clique em <b>Busca de dados</b> (para consultar) ou <b>Envio de lead</b> (para mandar contatos).</li>
+              <li>Cole o endereço e a chave de lá, clique em <b>Testar</b> e depois <b>Salvar</b>.</li>
+            </ol>
+            <p className="text-xs text-muted-foreground">Resumo: em A a chave é <b>daqui</b>; em B a chave é <b>de lá</b>.</p>
+          </div>
+        </div>
+      </Card>
       <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><h3 className="font-semibold">Triagem de contatos no WhatsApp</h3></div>

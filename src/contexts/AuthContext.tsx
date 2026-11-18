@@ -29,11 +29,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userPermissions, setUserPermissions] = useState<Record<string, boolean> | null>(null);
 
-  const checkRole = async (userId: string) => {
-    const { data: roleData } = await supabase
+  const checkRole = async (userId: string, attempt = 0): Promise<void> => {
+    const { data: roleData, error: roleErr } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
+    // Falha temporária (ex.: sessão renovando): tenta de novo sem rebaixar o acesso.
+    if (roleErr) {
+      if (attempt < 4) setTimeout(() => checkRole(userId, attempt + 1), 800 * (attempt + 1));
+      return;
+    }
 
     const roles = (roleData || []).map((r: any) => r.role);
     setIsSuperAdmin(roles.includes("super_admin"));
