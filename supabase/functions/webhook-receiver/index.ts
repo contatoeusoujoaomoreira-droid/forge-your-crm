@@ -1188,6 +1188,7 @@ async function callAiWithTools(
   if (triageCfg?.enabled) {
     systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
+  systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e o link puro na última linha. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
@@ -1553,6 +1554,28 @@ async function resolveWhatsAppConfigForClient(admin: any, userId: string, client
     if (exact) return exact;
   }
   return list[0] || null;
+}
+
+// Converte markdown da IA para o formato do WhatsApp e separa em blocos (um por opção/item).
+function formatWhatsAppBlocks(text: string): { text: string; image?: string }[] {
+  const parts = String(text || '').split(/\n\s*(?:-{3,}|\*{3,}|_{3,})\s*\n/);
+  const out: { text: string; image?: string }[] = [];
+  for (const part of parts) {
+    let image: string | undefined;
+    let t = part.replace(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g, (_m, u) => { if (!image) image = u; return ''; });
+    t = t
+      .replace(/^#{1,6}\s*(.+)$/gm, '*$1*')
+      .replace(/\*\*(.+?)\*\*/g, '*$1*')
+      .replace(/__(.+?)__/g, '*$1*')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m, l, u) => /^(veja|clique|link|acesse|mais)/i.test(l) || l === u ? u : `${l}: ${u}`)
+      .replace(/^\s*[-•]\s+\*([^*]+):\*\s*/gm, '▫️ *$1:* ')
+      .replace(/^\s*[-•]\s+/gm, '▫️ ')
+      .replace(/\*{2,}/g, '*')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (t || image) out.push({ text: t, image });
+  }
+  return out;
 }
 
 // Split a long reply into 1-3 natural chunks.
@@ -2661,7 +2684,10 @@ Deno.serve(async (req) => {
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; }
             }
           } else {
-            const chunks = (agent.split_long_messages !== false) ? splitMessage(replyWithLinks) : [replyWithLinks];
+            const blocks = formatWhatsAppBlocks(replyWithLinks).slice(0, 8);
+            const chunks: { text: string; image?: string }[] = blocks.length > 1 || agent.split_long_messages === false
+              ? blocks
+              : (blocks[0]?.image ? blocks : splitMessage(blocks[0]?.text || replyWithLinks).map((t) => ({ text: t })));
             const cfgDelaySec = Math.max(0, Math.min(300, Number(agent.response_delay_seconds) || 0));
             // Apply the configured response delay ONCE (before the first chunk),
             // not per chunk — previous behavior multiplied delay × N chunks.
@@ -2674,12 +2700,17 @@ Deno.serve(async (req) => {
               if (i > 0 && agent.simulate_typing !== false) {
                 // Small natural inter-chunk pause based on chunk length (max ~3s).
                 await sendPresence(waCfg, msg.phone, 'composing');
-                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + chunk.length * 20)));
+                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + (chunk.text || '').length * 20)));
               } else if (i === 0 && cfgDelaySec === 0 && agent.simulate_typing !== false) {
                 await sendPresence(waCfg, msg.phone, 'composing');
-                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + chunk.length * 20)));
+                await new Promise((r) => setTimeout(r, Math.min(3000, 400 + (chunk.text || '').length * 20)));
               }
-              try { delivery = await sendWhatsApp(waCfg, msg.phone, chunk) || delivery; }
+              try {
+                if (chunk.image) {
+                  const sentImg = await sendWhatsAppImage(waCfg, msg.phone, chunk.image, chunk.text.slice(0, 1000));
+                  delivery = sentImg?.ok ? sentImg : (await sendWhatsApp(waCfg, msg.phone, chunk.text) || delivery);
+                } else if (chunk.text) delivery = await sendWhatsApp(waCfg, msg.phone, chunk.text) || delivery;
+              }
               catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 500) }; console.error('whatsapp send failed', e); }
             }
           }
@@ -2707,7 +2738,7 @@ Deno.serve(async (req) => {
 
         await admin.from('messages').insert({
           user_id: userId, client_id: client.id, lead_id: client.lead_id,
-          direction: 'outbound', channel: 'whatsapp', content: replyWithLinks,
+          direction: 'outbound', channel: 'whatsapp', content: formatWhatsAppBlocks(replyWithLinks).map((b) => b.text).join('\n\n'),
           status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id,
           sender_phone: msg.phone,
           external_message_id: (delivery as any).external_id || null,
