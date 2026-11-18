@@ -1189,7 +1189,7 @@ async function callAiWithTools(
   if (triageCfg?.enabled) {
     systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
-  systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e o link puro na última linha. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
+  systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e UM único link (o da página com mais detalhes) na última linha; nunca envie dois links para o mesmo item. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
   systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
@@ -1575,6 +1575,13 @@ function formatWhatsAppBlocks(text: string): { text: string; image?: string }[] 
       .replace(/\*{2,}/g, '*')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+    // Um link só por bloco (o de mais detalhes = último), com emoji antes.
+    const urls = t.match(/https?:\/\/[^\s)]+/g) || [];
+    if (urls.length) {
+      const keep = urls[urls.length - 1];
+      t = t.split('\n').filter((ln) => { const u = ln.match(/https?:\/\/[^\s)]+/g); return !u || u.includes(keep); }).join('\n');
+      t = t.split('\n').map((ln) => ln.includes(keep) ? `👉 *Mais detalhes:* ${keep}` : ln).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
     if (t || image) out.push({ text: t, image });
   }
   return out;
