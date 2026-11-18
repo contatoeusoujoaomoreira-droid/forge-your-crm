@@ -1189,7 +1189,7 @@ async function callAiWithTools(
   if (triageCfg?.enabled) {
     systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
-  systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e UM único link (o da página com mais detalhes) na última linha; nunca envie dois links para o mesmo item. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
+  systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e UM único link (o da página com mais detalhes) na última linha; nunca envie dois links para o mesmo item. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais. Nunca escreva o link da foto como texto. SEMPRE termine com uma chamada para ação curta e convidativa (ex: agendar uma visita, marcar um horário, falar com um especialista, fazer o pedido), adequada ao que foi conversado.';
   systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
@@ -1575,6 +1575,7 @@ function formatWhatsAppBlocks(text: string): { text: string; image?: string }[] 
       .replace(/\*{2,}/g, '*')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+    t = t.replace(/https?:\/\/[^\s)]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s)]*)?/gi, (u) => { if (!image) image = u; return ''; }).replace(/^\s*!?\[\]\(\s*\)\s*$/gm, '').trim();
     // Um link só por bloco (o de mais detalhes = último), com emoji antes.
     const urls = t.match(/https?:\/\/[^\s)]+/g) || [];
     if (urls.length) {
@@ -1711,11 +1712,19 @@ Deno.serve(async (req) => {
       const reply = await callAiWithTools(admin, dUserId, dClientId, client, agent, sys, aiHistory, runtime);
       let delivery = { ok: false, status: 0, body: 'WhatsApp inativo' };
       if (reply && waCfg?.is_active && client.phone) {
-        try { delivery = await sendWhatsApp(waCfg, client.phone, reply); } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
+        try {
+          const blocks = formatWhatsAppBlocks(reply).slice(0, 8);
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const bl = blocks[bi];
+            if (bl.image) { try { await sendWhatsAppImage(waCfg, client.phone, bl.image, bl.text); } catch { delivery = await sendWhatsApp(waCfg, client.phone, bl.text); } delivery = { ok: true, status: 200, body: 'image+caption' }; }
+            else if (bl.text) delivery = await sendWhatsApp(waCfg, client.phone, bl.text);
+            if (bi < blocks.length - 1) await new Promise((r) => setTimeout(r, 900));
+          }
+        } catch (e) { delivery = { ok: false, status: 500, body: String(e).slice(0, 300) }; }
       }
       await admin.from('messages').insert({
         user_id: dUserId, client_id: dClientId, lead_id: client.lead_id,
-        direction: 'outbound', channel: 'whatsapp', content: reply || '',
+        direction: 'outbound', channel: 'whatsapp', content: reply ? formatWhatsAppBlocks(reply).map((b) => b.text).join('\n\n') : '',
         status: delivery.ok ? 'sent' : 'failed', agent_id: agent.id, sender_phone: client.phone,
         metadata: { debounced: true, batch_size: buffered.length, external_status: delivery.status, external_body: delivery.body },
       });
