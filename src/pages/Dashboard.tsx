@@ -130,17 +130,12 @@ const Dashboard = () => {
 
   const handleSignOut = async () => { await signOut(); navigate("/"); };
 
+  // Super admin vê tudo; demais contas veem apenas o que o super admin liberou.
   const tabs = allTabs.filter(tab => {
     if (tab.id === "admin") return isSuperAdmin;
-    if (tab.id === "settings") return true;
     if (isSuperAdmin) return true;
-    // Manual super-admin grants always win over plan defaults
-    const manualGrant = userPermissions && userPermissions[tab.id] === true;
-    if (manualGrant) return true;
-    // Plan-based gating
-    if (!planInfo.hasModule(tab.id)) return false;
-    if (!userPermissions) return true;
-    return userPermissions[tab.id] !== false;
+    if (tab.id === "settings") return true;
+    return !!userPermissions && userPermissions[tab.id] === true;
   });
 
   const crmTabs = tabs.filter((t) => t.group === "crm");
