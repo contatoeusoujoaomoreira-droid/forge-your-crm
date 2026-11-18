@@ -133,7 +133,7 @@ export default function ExternalToolsPanel() {
             const up = (patch: any) => setTriage({ ...triage, menu_options: triage.menu_options.map((x: any, n: number) => n === k ? { ...x, ...patch } : x) });
             return (
               <div key={k} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center gap-2"><Badge className="shrink-0 whitespace-nowrap">Opção {k + 1}</Badge><Input placeholder="Texto da opção (até 20 letras vira botão; maior vira lista numerada)" maxLength={80} value={o.label || ""} onChange={(e) => up({ label: e.target.value })} />
+                <div className="flex items-center gap-2"><Badge className="shrink-0 whitespace-nowrap">Opção {k + 1}</Badge><Input placeholder="Texto da opção (até 20 letras vira botão; maior vira lista para tocar)" maxLength={80} value={o.label || ""} onChange={(e) => up({ label: e.target.value })} />
                   <Button size="icon" variant="ghost" onClick={() => setTriage({ ...triage, menu_options: triage.menu_options.filter((_: any, n: number) => n !== k) })}><Trash2 className="h-4 w-4" /></Button></div>
                 <div className="grid sm:grid-cols-2 gap-2">
                   <div><Label className="text-xs">O que acontece</Label>
@@ -156,13 +156,11 @@ export default function ExternalToolsPanel() {
             );
           })}
           {(triage.menu_options || []).length < 10 && <Button size="sm" variant="outline" onClick={() => setTriage({ ...triage, menu_options: [...(triage.menu_options || []), { label: "", action: "agent", agent_id: "", reply: "" }] })}><Plus className="h-4 w-4 mr-1" />Adicionar opção</Button>}
-          <div className="flex items-center gap-2"><Switch checked={triage.menu_only_new !== false} onCheckedChange={(v) => setTriage({ ...triage, menu_only_new: v })} /><span className="text-sm">Enviar só para contatos novos</span></div>
         </>)}
         {triage && (<>
           <div className="flex items-center justify-between border-t pt-3"><span className="text-sm font-medium">A IA pode passar a conversa para a equipe quando o assunto não for com ela</span><Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} /></div>
           {triage.enabled && <>
             <div><Label>Palavras que a IA atende direto, sem perguntar (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords || ""} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
-            <div><Label>Pergunta da IA para mensagens genéricas ("Oi", "Bom dia")</Label><Textarea rows={2} value={triage.triage_message || ""} onChange={(e) => setTriage({ ...triage, triage_message: e.target.value })} /></div>
           </>}
           <div className="flex items-center gap-2"><Switch checked={triage.ignore_known_clients} onCheckedChange={(v) => setTriage({ ...triage, ignore_known_clients: v })} /><span className="text-sm">Clientes já fechados no CRM vão direto para a equipe</span></div>
           <Button size="sm" onClick={saveTriage}><Save className="h-4 w-4 mr-1" />Salvar</Button>

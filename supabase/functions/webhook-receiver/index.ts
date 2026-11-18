@@ -1187,7 +1187,7 @@ async function callAiWithTools(
     systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 a 5 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
   }
   if (triageCfg?.enabled) {
-    systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
+    systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
   systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e o link puro na última linha. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
   systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
@@ -1280,11 +1280,10 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
 async function sendTriageMenu(cfg: any, phone: string, text: string, opts: any[]) {
   const numbered = text + '\n\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n') + '\n\nToque em uma opção ou responda com o número.';
   if (cfg?.api_type === 'omniconect') {
-    if (opts.some((o: any) => String(o.label).length > 20)) { await sendWhatsApp(cfg, phone, numbered); return; }
     try {
       const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
-      const isList = opts.length > 3;
-      const body: any = { number: phone, type: isList ? 'list' : 'button', text, footerText: 'Responda tocando em uma opção', choices: opts.map((o: any, k: number) => `${String(o.label).slice(0, 24)}|opt${k + 1}`) };
+      const isList = opts.length > 3 || opts.some((o: any) => String(o.label).length > 20);
+      const body: any = { number: phone, type: isList ? 'list' : 'button', text, footerText: 'Responda tocando em uma opção', choices: opts.map((o: any, k: number) => isList && String(o.label).length > 24 ? `${String(o.label).slice(0, 24)}|opt${k + 1}|${String(o.label).slice(0, 72)}` : `${String(o.label).slice(0, 24)}|opt${k + 1}`) };
       if (isList) { body.listButton = 'Ver opções'; body.choices = ['[Opções]', ...body.choices]; }
       const r = await fetch(`${baseUrl}/send/menu`, { method: 'POST', headers: { 'Content-Type': 'application/json', token: cfg.api_token || '' }, body: JSON.stringify(body), redirect: 'error' });
       if (r.ok) return;
@@ -2498,7 +2497,7 @@ Deno.serve(async (req) => {
           if (idx < 0) idx = opts.findIndex((o: any) => t && String(o.label).toLowerCase().includes(t));
           if (idx >= 0) {
             const o = opts[idx];
-            await setMeta({ triage_pending: false, triage_done: true, triage_choice: o.label });
+            await setMeta({ triage_pending: false, triage_done: true, triage_choice: o.label, triage_at: new Date().toISOString() });
             const now = new Date().toISOString();
             if (o.action === 'human') {
               await admin.from('conversation_state').update({ ai_active: false, mode: 'human', updated_at: now }).eq('client_id', client.id);
@@ -2530,12 +2529,17 @@ Deno.serve(async (req) => {
             await sendTriageMenu(waCfg, msg.phone, 'Por favor, escolha uma das opções abaixo:', opts);
             return new Response(JSON.stringify({ ok: true, triage: 'retry' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           }
-        } else if (meta.triage_done !== true && !(tm.menu_only_new !== false && existingPre)) {
+        } else {
+          // Nova conversa = sem menu respondido nas últimas 12h. Mostra o menu de novo nesse caso.
+          const lastAt = meta.triage_at ? new Date(meta.triage_at).getTime() : 0;
+          const fresh = !meta.triage_done || (Date.now() - lastAt > 12 * 3600 * 1000);
+          if (!fresh) { /* segue para o agente */ } else {
           const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';
           await sendTriageMenu(waCfg, msg.phone, text, opts);
           await admin.from('messages').insert({ user_id: userId, client_id: client.id, lead_id: client.lead_id, direction: 'outbound', channel: 'whatsapp', content: text + '\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n'), metadata: { source: 'triage_menu' } });
-          await setMeta({ triage_pending: true, triage_tries: 0 });
+          await setMeta({ triage_pending: true, triage_tries: 0, triage_done: false, triage_at: new Date().toISOString() });
           return new Response(JSON.stringify({ ok: true, triage: 'menu_sent' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
         }
       }
     }
