@@ -133,7 +133,7 @@ export default function ExternalToolsPanel() {
             const up = (patch: any) => setTriage({ ...triage, menu_options: triage.menu_options.map((x: any, n: number) => n === k ? { ...x, ...patch } : x) });
             return (
               <div key={k} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center gap-2"><Badge>Opção {k + 1}</Badge><Input placeholder="Texto do botão (até 24 letras)" maxLength={24} value={o.label || ""} onChange={(e) => up({ label: e.target.value })} />
+                <div className="flex items-center gap-2"><Badge className="shrink-0 whitespace-nowrap">Opção {k + 1}</Badge><Input placeholder="Texto do botão (até 24 letras)" maxLength={24} value={o.label || ""} onChange={(e) => up({ label: e.target.value })} />
                   <Button size="icon" variant="ghost" onClick={() => setTriage({ ...triage, menu_options: triage.menu_options.filter((_: any, n: number) => n !== k) })}><Trash2 className="h-4 w-4" /></Button></div>
                 <div className="grid sm:grid-cols-2 gap-2">
                   <div><Label className="text-xs">O que acontece</Label>
