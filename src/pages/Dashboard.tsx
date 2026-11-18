@@ -138,6 +138,7 @@ const Dashboard = () => {
     return !!userPermissions && userPermissions[tab.id] === true;
   });
 
+  const viewTab: Tab = tabs.some((t) => t.id === activeTab) ? activeTab : "settings";
   const crmTabs = tabs.filter((t) => t.group === "crm");
   const opsTabs = tabs.filter((t) => t.group === "ops");
   const salesTabs = tabs.filter((t) => t.group === "sales");
@@ -197,9 +198,9 @@ const Dashboard = () => {
         </div>
 
         <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-          <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
+          {crmTabs.length > 0 && <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "CRM"}
-          </p>
+          </p>}
           {renderTabGroup(crmTabs)}
 
           {[["Operação", opsTabs], ["Vendas", salesTabs]].map(([label, list]: any) => list.length > 0 && (
@@ -333,22 +334,22 @@ const Dashboard = () => {
 
         <div className="max-w-full overflow-x-hidden p-3 pb-24 sm:p-6 sm:pb-24 md:pb-6">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {activeTab === "crm" && <CRMKanban focusLeadId={focusLeadId || undefined} />}
-            {activeTab === "clients" && <CRMClients />}
-            {activeTab === "import" && <LeadImporter onShowImported={() => setActiveTab("imported")} />}
-            {activeTab === "imported" && <ImportedListsViewer />}
-            {activeTab === "chat" && <InboxPage />}
-            {activeTab === "analytics" && <Analytics />}
-            {activeTab === "tracking" && <TrackingDashboard />}
+            {viewTab === "crm" && <CRMKanban focusLeadId={focusLeadId || undefined} />}
+            {viewTab === "clients" && <CRMClients />}
+            {viewTab === "import" && <LeadImporter onShowImported={() => setActiveTab("imported")} />}
+            {viewTab === "imported" && <ImportedListsViewer />}
+            {viewTab === "chat" && <InboxPage />}
+            {viewTab === "analytics" && <Analytics />}
+            {viewTab === "tracking" && <TrackingDashboard />}
             
             
-            {activeTab === "products" && <ProductsPage />}
-            {activeTab === "store" && <StoreSettings />}
-            {activeTab === "orders" && <OrdersCenter />}
-            {activeTab === "stock" && <StockPage />}
-            {activeTab === "automation" && <AutomationHub />}
-            {activeTab === "settings" && <SettingsPage />}
-            {activeTab === "admin" && <SuperAdminPanel />}
+            {viewTab === "products" && <ProductsPage />}
+            {viewTab === "store" && <StoreSettings />}
+            {viewTab === "orders" && <OrdersCenter />}
+            {viewTab === "stock" && <StockPage />}
+            {viewTab === "automation" && <AutomationHub />}
+            {viewTab === "settings" && <SettingsPage />}
+            {viewTab === "admin" && <SuperAdminPanel />}
           </motion.div>
         </div>
       </main>
