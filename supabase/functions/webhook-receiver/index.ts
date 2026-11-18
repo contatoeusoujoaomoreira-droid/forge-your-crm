@@ -2058,18 +2058,33 @@ Deno.serve(async (req) => {
         .eq('direction', 'outbound').maybeSingle();
       if (own) isOurOwnSend = true;
     }
-    // 2) Fallback: same content sent within last 90s for this client
-    if (!isOurOwnSend) {
+    // 2) Fallback: same content sent recently for this client.
+    // A IA registra a resposta só depois de enviar todos os blocos; por isso,
+    // se a IA está ativa, tentamos de novo após alguns segundos antes de pausar.
+    for (let attempt = 0; attempt < 3 && !isOurOwnSend; attempt++) {
+      if (attempt > 0) {
+        const { data: csA } = await admin.from('conversation_state').select('ai_active, mode').eq('client_id', client.id).maybeSingle();
+        if (!csA?.ai_active) break;
+        await new Promise((r) => setTimeout(r, 8000));
+      }
       // Janela ampliada: o eco da UAZAPI pode chegar minutos depois do disparo da campanha,
       // o que antes criava uma segunda cópia da mesma mensagem no chat.
       const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      const { data: recent } = await admin.from('messages').select('id, content, media_url')
+      const { data: recent } = await admin.from('messages').select('id, content, media_url, created_at')
         .eq('user_id', userId).eq('client_id', client.id).eq('direction', 'outbound')
         .gte('created_at', since).order('created_at', { ascending: false }).limit(10);
+      const norm = (t: string) => String(t || '').toLowerCase().replace(/[*_~`>#\-]|https?:\/\/\S+/g, ' ').replace(/[^\p{L}\p{N}]+/gu, '');
       const inc = (msg.content || '').trim();
+      const incN = norm(inc);
+      // Respostas da IA são enviadas em blocos: o eco de cada bloco é parte do texto salvo.
+      const recentAiWindow = Date.now() - 3 * 60 * 1000;
       if ((recent || []).some((r: any) => {
         const rc = String(r.content || '').trim();
         if (inc && rc && (rc === inc || rc.startsWith(inc) || inc.startsWith(rc))) return true;
+        const rcN = norm(rc);
+        if (incN && rcN && (rcN.includes(incN) || incN.includes(rcN))) return true;
+        // Bloco só com link/imagem logo após resposta recente
+        if (!incN && new Date(r.created_at).getTime() > recentAiWindow) return true;
         // Mídia sem legenda: mesmo anexo já registrado como saída
         return !inc && !!msg.media_url && !!r.media_url;
       })) {
