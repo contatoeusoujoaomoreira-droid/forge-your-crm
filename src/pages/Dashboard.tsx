@@ -217,27 +217,29 @@ const Dashboard = () => {
           ))}
 
           {toolsTabs.length > 0 && (
-            <>
+            <div>
               <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
                 {sidebarCollapsed ? "—" : "Ferramentas"}
               </p>
               {renderTabGroup(toolsTabs)}
-            </>
+            </div>
           )}
 
           {commsTabs.length > 0 && (
-            <>
+            <div>
               <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
                 {sidebarCollapsed ? "—" : "Comunicação"}
               </p>
               {renderTabGroup(commsTabs)}
-            </>
+            </div>
           )}
 
+          <div>
           <p className={`text-[10px] uppercase tracking-wider text-sidebar-foreground mb-2 mt-6 ${sidebarCollapsed ? "text-center" : "px-2"}`}>
             {sidebarCollapsed ? "—" : "Sistema"}
           </p>
           {renderTabGroup(systemTabs)}
+          </div>
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
