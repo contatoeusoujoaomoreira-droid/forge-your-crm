@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .eq("user_id", userId);
     // Falha temporária (ex.: sessão renovando): tenta de novo sem rebaixar o acesso.
     if (roleErr) {
-      if (attempt < 4) setTimeout(() => checkRole(userId, attempt + 1), 800 * (attempt + 1));
+      setTimeout(() => checkRole(userId, attempt + 1), Math.min(10000, 1000 * (attempt + 1)));
       return;
     }
 

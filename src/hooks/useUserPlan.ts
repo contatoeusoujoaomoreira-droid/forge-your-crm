@@ -57,13 +57,16 @@ export function useUserPlan(): UserPlanInfo {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     let mounted = true;
-    const load = async () => {
-      const { data } = await supabase
+    let tries = 0;
+    const load = async (): Promise<void> => {
+      const { data, error } = await supabase
         .from("profiles")
         .select("plan, full_name, credits_balance, credits_monthly")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!mounted) return;
+      // Falha de conexão: tenta de novo em vez de mostrar plano/créditos errados.
+      if (error) { tries++; setTimeout(() => mounted && load(), Math.min(10000, 1000 * tries)); return; }
       if (data) {
         const p = ((data as any).plan || "start") as PlanId;
         const resolvedPlan = isSuperAdmin ? "enterprise" : (PLAN_DEFINITIONS[p] ? p : "start");
