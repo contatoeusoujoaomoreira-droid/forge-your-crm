@@ -255,7 +255,7 @@ function normalizeEvolution(raw: any): NormalizedMsg {
   const msg = data.message || {};
   const phone = (key.remoteJid || '').split('@')[0];
   const isGroup = (key.remoteJid || '').includes('@g.us');
-  const text = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.documentMessage?.caption || '';
+  const text = msg.buttonsResponseMessage?.selectedButtonId || msg.listResponseMessage?.singleSelectReply?.selectedRowId || msg.templateButtonReplyMessage?.selectedId || msg.buttonsResponseMessage?.selectedDisplayText || msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || msg.documentMessage?.caption || '';
   const reactionEmoji = msg.reactionMessage?.text;
   const mediaType = msg.imageMessage ? 'image'
     : msg.videoMessage ? 'video'
@@ -315,7 +315,8 @@ function normalizeUmclique(raw: any): NormalizedMsg | null {
   const msgType = message.type || raw.type || event.Type || chat.wa_lastMessageType;
   const mediaType = isDownloaded ? mediaTypeFromMime(mime, event.Type) : mediaTypeFromMime(mime, msgType);
   const fileUrl = isDownloaded ? event.FileURL : (contentObj.FileURL || contentObj.fileUrl || contentObj.url || contentObj.URL || message.media_url || message.mediaUrl);
-  const text = message.text || message.body || message.caption || contentObj.caption || contentObj.text || raw.text || raw.body || '';
+  const btnReply = message.buttonOrListid || message.selectedButtonId || message.selectedId || contentObj.selectedButtonID || contentObj.selectedButtonId || contentObj.selectedRowID || contentObj.selectedRowId || contentObj.singleSelectReply?.selectedRowId || contentObj.selectedDisplayText || contentObj.selectedID || '';
+  const text = message.text || message.body || message.caption || contentObj.caption || contentObj.text || contentObj.selectedDisplayText || btnReply || raw.text || raw.body || '';
   const ts = isDownloaded ? event.Timestamp : (message.timestamp || chat.wa_lastMsgTimestamp || raw.timestamp);
   const timestamp = typeof ts === 'number'
     ? new Date(ts > 10_000_000_000 ? ts : ts * 1000).toISOString()
@@ -1189,6 +1190,7 @@ async function callAiWithTools(
     systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se a primeira mensagem for genérica, pergunte de forma curta: "${triageCfg.triage_message}". Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
   }
   systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e o link puro na última linha. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais.';
+  systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
@@ -1278,6 +1280,7 @@ async function sendWhatsApp(cfg: any, phone: string, content: string) {
 async function sendTriageMenu(cfg: any, phone: string, text: string, opts: any[]) {
   const numbered = text + '\n\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n') + '\n\nToque em uma opção ou responda com o número.';
   if (cfg?.api_type === 'omniconect') {
+    if (opts.some((o: any) => String(o.label).length > 20)) { await sendWhatsApp(cfg, phone, numbered); return; }
     try {
       const baseUrl = sanitizeBaseUrl(cfg.base_url || '');
       const isList = opts.length > 3;
@@ -2484,6 +2487,9 @@ Deno.serve(async (req) => {
         const meta = client.metadata || {};
         const pending = meta.triage_pending === true;
         const setMeta = async (patch: any) => { client.metadata = { ...meta, ...patch }; await admin.from('chat_clients').update({ metadata: client.metadata }).eq('id', client.id); };
+        if (pending && !String(msg.content || '').trim()) {
+          return new Response(JSON.stringify({ ok: true, triage: 'empty_ignored' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         if (pending) {
           const t = String(msg.content || '').trim().toLowerCase();
           const num = parseInt(t.replace(/[^0-9]/g, ''), 10);
