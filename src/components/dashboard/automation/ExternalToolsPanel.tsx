@@ -51,10 +51,10 @@ export default function ExternalToolsPanel() {
       db.from("external_tools").select("*").eq("user_id", user.id).order("created_at"),
       db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
-    setTools(t || []);
+    setTools(previous => [...(t || []), ...previous.filter(tool => !tool.id)]);
     setTriage(tr || { enabled: false, keywords: "imóvel, apartamento, casa, flat, aluguel, alugar, comprar, venda, terreno, studio", ignore_known_clients: true, triage_message: "Olá! Para te atender melhor, me diga: 1 - Procuro imóvel (comprar ou alugar) | 2 - Coworking | 3 - Já sou cliente ou proprietário" });
   };
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user?.id]);
 
   const upd = (i: number, patch: Partial<Tool>) => setTools((p) => p.map((t, j) => (j === i ? { ...t, ...patch } : t)));
 
@@ -69,6 +69,7 @@ export default function ExternalToolsPanel() {
       return toast.error(detail.error || "Não foi possível salvar. Confira sua sessão.");
     }
     if (!data?.ok) return toast.error(data?.error || "Não foi possível salvar");
+    setTools(previous => previous.filter((_, index) => index !== i));
     toast.success("Integração salva"); load();
   };
   const remove = async (i: number) => {
