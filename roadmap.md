@@ -1,6 +1,7 @@
 # Solicitação atual
-- [ ] Impedir fluxos antigos de interceptar o WhatsApp e encerrar sessões legadas sem apagar históricos.
-- [ ] Configurar consulta direta por mensagens abertas, regras e instruções por integração; testar e implantar.
+- [x] Impedir fluxos antigos de interceptar o WhatsApp e encerrar sessões legadas sem apagar históricos; confirmado que a conta não possui fluxos legados ativos.
+- [x] Configurar consulta direta por mensagens abertas, regras e instruções; nove testes passaram, atualização do atendimento implantada e salvamento/reabertura conferidos na conta conectada.
+- [ ] Confirmar resposta e consulta externa em conversa real no WhatsApp (aguarda nova mensagem recebida após a implantação; não enviar mensagens a clientes para testar).
 - [x] Bloquear e-mail inválido no cadastro de usuários, normalizar espaços e mostrar erro sem interromper o painel; teste de tela e serviço concluídos.
 - [x] Simplificar integrações REST com credenciais protegidas e métodos configuráveis.
 - [x] Corrigir incompatibilidade da validação de sessão, endereço padrão e exclusão remota do OmniConect, mantendo IA desativada por padrão.
