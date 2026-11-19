@@ -3059,6 +3059,7 @@ export type Database = {
           id: string
           images: string[] | null
           is_active: boolean
+          item_type: string
           keywords: string[] | null
           low_stock_threshold: number
           metadata: Json | null
@@ -3097,6 +3098,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          item_type?: string
           keywords?: string[] | null
           low_stock_threshold?: number
           metadata?: Json | null
@@ -3135,6 +3137,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          item_type?: string
           keywords?: string[] | null
           low_stock_threshold?: number
           metadata?: Json | null

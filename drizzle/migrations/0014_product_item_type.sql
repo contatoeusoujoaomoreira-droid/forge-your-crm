@@ -1,0 +1,1 @@
+ALTER TABLE public.products_services ADD COLUMN IF NOT EXISTS item_type text NOT NULL DEFAULT 'product';

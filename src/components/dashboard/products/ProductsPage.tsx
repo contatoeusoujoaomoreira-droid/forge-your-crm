@@ -31,13 +31,15 @@ export type Product = {
   images: string[];
   is_active: boolean;
   show_in_catalog: boolean;
+  item_type?: string;
 };
 
 const UNITS = ["un", "cx", "fardo", "kg", "L", "galão", "pct"];
+const SERVICE_UNITS = ["serviço", "hora", "sessão", "projeto", "mês", "pacote", "diária"];
 const empty: Product = {
   name: "", sku: null, barcode: null, category: null, description: null, unit: "un",
   price: null, wholesale_price: null, wholesale_min_qty: null, stock_qty: 0, low_stock_threshold: 0,
-  images: [], is_active: true, show_in_catalog: true,
+  images: [], is_active: true, show_in_catalog: true, item_type: "product",
 };
 const brl = (v: number | null | undefined) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (v: any) => { if (v === null || v === undefined || v === "") return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return isNaN(n) ? null : n; };
@@ -78,10 +80,11 @@ export default function ProductsPage() {
   const filtered = useMemo(() => {
     const t = q.toLowerCase().trim();
     return items.filter((p) =>
-      (!catFilter || p.category === catFilter) && (!brandFilter || p.brand === brandFilter) &&
+      (!typeFilter || (p.item_type || "product") === typeFilter) && (!catFilter || p.category === catFilter) && (!brandFilter || p.brand === brandFilter) &&
       (!t || [p.name, p.sku, p.category, p.brand, p.barcode].some((f) => String(f || "").toLowerCase().includes(t))));
   }, [items, q, catFilter, brandFilter]);
-  const lowStock = items.filter((p) => p.is_active && Number(p.low_stock_threshold) > 0 && Number(p.stock_qty) <= Number(p.low_stock_threshold));
+  const [typeFilter, setTypeFilter] = useState("");
+  const lowStock = items.filter((p) => p.item_type !== "service" && p.is_active && Number(p.low_stock_threshold) > 0 && Number(p.stock_qty) <= Number(p.low_stock_threshold));
 
   const save = async () => {
     if (!user || !edit) return;
@@ -193,14 +196,15 @@ export default function ProductsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2"><Package className="h-6 w-6 text-primary" />Produtos & Estoque</h2>
-          <p className="text-sm text-muted-foreground">Cadastre, importe e controle o estoque. Os produtos ativos aparecem na sua Loja Virtual.</p>
+          <h2 className="text-2xl font-bold flex items-center gap-2"><Package className="h-6 w-6 text-primary" />Produtos & Serviços</h2>
+          <p className="text-sm text-muted-foreground">Cadastre produtos (com estoque) ou serviços (consultoria, marketing, aulas...). Os itens ativos aparecem na sua Loja Virtual.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4 mr-1" />Modelo de planilha</Button>
           <Button variant="outline" size="sm" onClick={() => sheetRef.current?.click()}><Upload className="h-4 w-4 mr-1" />Importar Excel/CSV</Button>
           <Button variant="outline" size="sm" onClick={() => xmlRef.current?.click()}><FileCode className="h-4 w-4 mr-1" />Importar XML (NF-e)</Button>
           <Button variant="outline" size="sm" onClick={() => setShowApi(true)}><Webhook className="h-4 w-4 mr-1" />API / Webhook</Button>
+          <Button size="sm" variant="outline" onClick={() => setEdit({ ...empty, item_type: "service", unit: "serviço" })}><Plus className="h-4 w-4 mr-1" />Novo serviço</Button>
           <Button size="sm" onClick={() => setEdit({ ...empty })}><Plus className="h-4 w-4 mr-1" />Novo produto</Button>
         </div>
         <input ref={sheetRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importSheet(f); e.target.value = ""; }} />
@@ -219,6 +223,9 @@ export default function ProductsPage() {
           <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
           <Input className="pl-9" placeholder="Buscar por nome, código, marca ou categoria" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        <select className="h-10 px-3 rounded-md border border-input bg-background text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <option value="">Produtos e serviços</option><option value="product">Só produtos</option><option value="service">Só serviços</option>
+        </select>
         <select className="h-10 px-3 rounded-md border border-input bg-background text-sm" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
           <option value="">Todas as categorias</option>{categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -241,16 +248,16 @@ export default function ProductsPage() {
                 <div className="p-3 space-y-1 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-semibold leading-tight">{p.name}</p>
-                    {!p.is_active && <Badge variant="secondary">Inativo</Badge>}
+                    <div className="flex gap-1">{p.item_type === "service" && <Badge variant="outline">Serviço</Badge>}{!p.is_active && <Badge variant="secondary">Inativo</Badge>}</div>
                   </div>
                   <p className="text-xs text-muted-foreground">{[p.sku, p.category].filter(Boolean).join(" · ") || "Sem código"}</p>
                   <p className="text-sm"><b>{brl(p.price)}</b> / {p.unit}</p>
                   {p.wholesale_price != null && <p className="text-xs text-primary">Atacado: {brl(p.wholesale_price)} a partir de {p.wholesale_min_qty ?? 1}</p>}
-                  <p className={`text-xs ${low ? "text-destructive font-semibold" : "text-muted-foreground"}`}>Estoque: {Number(p.stock_qty)} {p.unit}{low ? " (baixo)" : ""}</p>
+                  {p.item_type !== "service" && <p className={`text-xs ${low ? "text-destructive font-semibold" : "text-muted-foreground"}`}>Estoque: {Number(p.stock_qty)} {p.unit}{low ? " (baixo)" : ""}</p>}
                 </div>
                 <div className="flex border-t border-border">
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => setEdit({ ...empty, ...p })}><Pencil className="h-4 w-4 mr-1" />Editar</Button>
-                  <Button variant="ghost" size="sm" title="Histórico de estoque" onClick={() => openHist(p)}><History className="h-4 w-4" /></Button>
+                  {p.item_type !== "service" && <Button variant="ghost" size="sm" title="Histórico de estoque" onClick={() => openHist(p)}><History className="h-4 w-4" /></Button>}
                   <Button variant="ghost" size="sm" className="flex-1 text-destructive" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 mr-1" />Excluir</Button>
                 </div>
               </Card>
@@ -261,28 +268,33 @@ export default function ProductsPage() {
 
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{edit?.id ? "Editar produto" : "Novo produto"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{edit?.item_type === "service" ? (edit?.id ? "Editar serviço" : "Novo serviço") : (edit?.id ? "Editar produto" : "Novo produto")}</DialogTitle></DialogHeader>
           {edit && (
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2"><Label>Tipo</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <Button type="button" variant={edit.item_type !== "service" ? "default" : "outline"} onClick={() => setEdit({ ...edit, item_type: "product", unit: UNITS.includes(edit.unit) ? edit.unit : "un" })}>Produto (com estoque)</Button>
+                  <Button type="button" variant={edit.item_type === "service" ? "default" : "outline"} onClick={() => setEdit({ ...edit, item_type: "service", unit: SERVICE_UNITS.includes(edit.unit) ? edit.unit : "serviço" })}>Serviço</Button>
+                </div></div>
               <div className="col-span-2"><Label>Nome *</Label><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
               <div><Label>Código / SKU</Label><Input value={edit.sku || ""} onChange={(e) => setEdit({ ...edit, sku: e.target.value })} /></div>
-              <div><Label>Código de barras</Label><Input value={edit.barcode || ""} onChange={(e) => setEdit({ ...edit, barcode: e.target.value })} /></div>
-              <div><Label>Categoria</Label><Input list="cat-list" value={edit.category || ""} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Ex: Químicos, Descartáveis" />
+              {edit.item_type !== "service" && <div><Label>Código de barras</Label><Input value={edit.barcode || ""} onChange={(e) => setEdit({ ...edit, barcode: e.target.value })} /></div>}
+              <div><Label>Categoria</Label><Input list="cat-list" value={edit.category || ""} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder={edit.item_type === "service" ? "Ex: Tráfego pago, Design" : "Ex: Químicos, Descartáveis"} />
                 <datalist id="cat-list">{categories.map((c) => <option key={c} value={c} />)}</datalist></div>
               <div><Label>Marca</Label><Input list="brand-list" value={edit.brand || ""} onChange={(e) => setEdit({ ...edit, brand: e.target.value })} placeholder="Ex: Ypê" />
                 <datalist id="brand-list">{brands.map((c) => <option key={c} value={c} />)}</datalist></div>
               <div><Label>Preço de custo (R$)</Label><Input type="number" step="0.01" value={edit.cost_price ?? ""} onChange={(e) => setEdit({ ...edit, cost_price: e.target.value === "" ? null : Number(e.target.value) })} /></div>
               <div><Label>Unidade</Label>
                 <select className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm" value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>
-                  {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  {(edit.item_type === "service" ? SERVICE_UNITS : UNITS).map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="col-span-2"><Label>Descrição</Label><Textarea rows={3} value={edit.description || ""} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></div>
               <div><Label>Preço varejo (R$)</Label><Input type="number" step="0.01" value={edit.price ?? ""} onChange={(e) => setEdit({ ...edit, price: e.target.value === "" ? null : Number(e.target.value) })} /></div>
-              <div><Label>Preço atacado (R$)</Label><Input type="number" step="0.01" value={edit.wholesale_price ?? ""} onChange={(e) => setEdit({ ...edit, wholesale_price: e.target.value === "" ? null : Number(e.target.value) })} /></div>
-              <div><Label>Atacado a partir de (qtd)</Label><Input type="number" value={edit.wholesale_min_qty ?? ""} onChange={(e) => setEdit({ ...edit, wholesale_min_qty: e.target.value === "" ? null : Number(e.target.value) })} /></div>
-              <div><Label>Estoque atual</Label><Input type="number" value={edit.stock_qty} onChange={(e) => setEdit({ ...edit, stock_qty: Number(e.target.value || 0) })} /></div>
-              <div><Label>Avisar quando estoque ≤</Label><Input type="number" value={edit.low_stock_threshold} onChange={(e) => setEdit({ ...edit, low_stock_threshold: Number(e.target.value || 0) })} /></div>
+              {edit.item_type !== "service" && <div><Label>Preço atacado (R$)</Label><Input type="number" step="0.01" value={edit.wholesale_price ?? ""} onChange={(e) => setEdit({ ...edit, wholesale_price: e.target.value === "" ? null : Number(e.target.value) })} /></div>}
+              {edit.item_type !== "service" && <div><Label>Atacado a partir de (qtd)</Label><Input type="number" value={edit.wholesale_min_qty ?? ""} onChange={(e) => setEdit({ ...edit, wholesale_min_qty: e.target.value === "" ? null : Number(e.target.value) })} /></div>}
+              {edit.item_type !== "service" && <div><Label>Estoque atual</Label><Input type="number" value={edit.stock_qty} onChange={(e) => setEdit({ ...edit, stock_qty: Number(e.target.value || 0) })} /></div>}
+              {edit.item_type !== "service" && <div><Label>Avisar quando estoque ≤</Label><Input type="number" value={edit.low_stock_threshold} onChange={(e) => setEdit({ ...edit, low_stock_threshold: Number(e.target.value || 0) })} /></div>}
               <div className="col-span-2 space-y-2">
                 <Label>Fotos</Label>
                 <div className="flex flex-wrap gap-2">

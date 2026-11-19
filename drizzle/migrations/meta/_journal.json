@@ -99,6 +99,13 @@
       "when": 1795057633299,
       "tag": "0013_store_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795058402133,
+      "tag": "0014_product_item_type",
+      "breakpoints": true
     }
   ]
 }
