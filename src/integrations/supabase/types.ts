@@ -654,6 +654,8 @@ export type Database = {
           ad_match_mode: string
           ad_welcome_enabled: boolean
           ad_welcome_message: string
+          direct_instructions: string
+          direct_open_requests: boolean
           enabled: boolean
           ignore_known_clients: boolean
           keywords: string
@@ -672,6 +674,8 @@ export type Database = {
           ad_match_mode?: string
           ad_welcome_enabled?: boolean
           ad_welcome_message?: string
+          direct_instructions?: string
+          direct_open_requests?: boolean
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string
@@ -690,6 +694,8 @@ export type Database = {
           ad_match_mode?: string
           ad_welcome_enabled?: boolean
           ad_welcome_message?: string
+          direct_instructions?: string
+          direct_open_requests?: boolean
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string

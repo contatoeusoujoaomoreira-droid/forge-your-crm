@@ -71,7 +71,7 @@ export default function ExternalToolsPanel() {
       db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     setTools(previous => [...(t || []), ...previous.filter(tool => !tool.id)]);
-    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ad_auto_detect: true, ad_keywords: "", ad_match_mode: "contains", ad_welcome_enabled: true, ...(tr || {}) });
+    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ad_auto_detect: true, ad_keywords: "", ad_match_mode: "contains", ad_welcome_enabled: true, direct_open_requests: true, direct_instructions: "", ...(tr || {}) });
   };
   useEffect(() => { load(); }, [user?.id]);
 
@@ -181,7 +181,8 @@ export default function ExternalToolsPanel() {
         </>)}
         {triage && (<div className="border-t pt-3 space-y-2">
           <p className="text-sm font-medium">Atendimento direto (anúncios Meta/Instagram e mensagens prontas)</p>
-          <p className="text-xs text-muted-foreground">Quando a primeira mensagem bater com estas regras, o menu de boas-vindas não é enviado e a IA atende na hora.</p>
+          <div className="flex items-center gap-2"><Switch aria-label="Consultar pedidos em texto livre" checked={triage.direct_open_requests !== false} onCheckedChange={(v) => setTriage({ ...triage, direct_open_requests: v })} /><span className="text-sm">Consultar pedidos em texto livre, sem exigir código</span></div>
+          <div><Label htmlFor="direct-instructions">Como atender e o que consultar</Label><Textarea id="direct-instructions" rows={3} maxLength={4000} placeholder="Ex.: Consulte o catálogo ao receber um pedido. Se houver referência, busque esse item. Pergunte o nome uma única vez e ofereça o próximo passo." value={triage.direct_instructions || ""} onChange={(e) => setTriage({ ...triage, direct_instructions: e.target.value })} /></div>
           <div className="flex items-center gap-2"><Switch checked={triage.ad_auto_detect !== false} onCheckedChange={(v) => setTriage({ ...triage, ad_auto_detect: v })} /><span className="text-sm">Reconhecer anúncios automaticamente (código, link, "tenho interesse", texto pronto do anúncio)</span></div>
           <div><Label className="text-xs">Suas palavras ou frases (uma por linha)</Label><Textarea rows={3} placeholder={"tenho interesse\nvi o anúncio\nDetergente Neutro 5L"} value={triage.ad_keywords || ""} onChange={(e) => setTriage({ ...triage, ad_keywords: e.target.value })} /></div>
           <div><Label className="text-xs">Como comparar</Label>
@@ -199,7 +200,7 @@ export default function ExternalToolsPanel() {
         {triage && (<>
           <div className="flex items-center justify-between border-t pt-3"><span className="text-sm font-medium">A IA pode passar a conversa para a equipe quando o assunto não for com ela</span><Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} /></div>
           {triage.enabled && <>
-            <div><Label>Palavras que a IA atende direto, sem perguntar (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords || ""} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
+            <div><Label>Assuntos atendidos pela IA (separe por vírgula)</Label><Textarea rows={2} value={triage.keywords || ""} onChange={(e) => setTriage({ ...triage, keywords: e.target.value })} /></div>
           </>}
           <div className="flex items-center gap-2"><Switch checked={triage.ignore_known_clients} onCheckedChange={(v) => setTriage({ ...triage, ignore_known_clients: v })} /><span className="text-sm">Clientes já fechados no CRM vão direto para a equipe</span></div>
           <Button size="sm" onClick={saveTriage}><Save className="h-4 w-4 mr-1" />Salvar</Button>

@@ -1,4 +1,4 @@
-import { detectAdIntent, matchCustomAdRules } from '../_shared/adIntent.ts';
+import { shouldAttendDirect, directRequestInstructions } from '../_shared/adIntent.ts';
 import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
@@ -1185,18 +1185,18 @@ async function callAiWithTools(
   const HUMAN_TOOL = { type: 'function', function: { name: 'transferir_humano', description: 'Pausa a IA e passa a conversa para a equipe humana. Use quando o assunto do contato não for atendido por este agente ou ele pedir para falar com uma pessoa.', parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Motivo curto da transferência' } }, required: ['motivo'] } } };
   const TOOLS: any[] = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : []), ...buildExternalToolDefs(extTools), ...(triageCfg?.enabled ? [HUMAN_TOOL] : [])];
   if (extTools.length) {
-    systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 a 5 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
+    systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
   }
   if (triageCfg?.enabled) {
-    systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Se a mensagem citar algum destes termos ou vier de anúncio/campanha, atenda direto, sem perguntar: ${triageCfg.keywords}.`;
+    systemPrompt += `\n\nTRIAGEM: este número recebe contatos de vários assuntos. Se o assunto não for o que você atende, diga que um atendente vai continuar e chame transferir_humano. Não transfira só porque faltou uma palavra exata: considere o contexto, as integrações disponíveis e as orientações da empresa. Se o assunto for atendido por elas, consulte e continue. Assuntos de atendimento: ${triageCfg.keywords}.`;
   }
   systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e UM único link (o da página com mais detalhes) na última linha; nunca envie dois links para o mesmo item. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais. Nunca escreva o link da foto como texto. SEMPRE termine com uma chamada para ação curta e convidativa (ex: agendar uma visita, marcar um horário, falar com um especialista, fazer o pedido), adequada ao que foi conversado.';
-  systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
-  systemPrompt += '\n\nMENSAGEM DE ANÚNCIO OU COM ITEM ESPECÍFICO: se a mensagem do cliente vier de um anúncio (texto pronto com *, ▫️, "Endereço:", "Código:", "Ref:", "SKU:", "Produto:", link, ou frases como "tenho interesse", "vi o anúncio"), NÃO faça perguntas de qualificação antes: consulte a ferramenta na hora. Para buscar, NUNCA envie o texto inteiro: extraia só 1 a 3 termos curtos e limpos, nesta prioridade: 1) código/referência/SKU; 2) nome próprio do item (nome do produto, modelo, marca, condomínio ou edifício); 3) rua/região ou categoria. Remova emojis, asteriscos, números de rua e palavras genéricas (apartamento, produto, locação, venda). Se não achar, tente de novo com outro termo (até 2 tentativas). Achando, responda: saudação curta, os dados do item com foto e o link de mais detalhes, depois pergunte o nome do cliente e ofereça o próximo passo (agendar, fazer pedido, falar com especialista). Assim que souber o nome, envie o lead pela ferramenta de envio, se houver.';
+  systemPrompt += directRequestInstructions(triageCfg);
+  systemPrompt += '\n\nBUSCA DE ITEM ESPECÍFICO: extraia o código/SKU/referência ou nome/modelo/endereço do pedido e consulte a integração que cobre o assunto. Não use todo o texto do anúncio como filtro. Se não encontrar, tente um termo alternativo até duas consultas e peça apenas a informação ausente. Nunca invente resultados.';
   if ((triageCfg as any)?.ad_welcome_enabled !== false) {
     const wm = (triageCfg as any)?.ad_welcome_message || 'Maravilha! Enquanto vou buscando aqui sobre {item} pra você, me conta qual é o seu nome, por gentileza?';
     const dm = (triageCfg as any)?.ad_delivery_message || 'Tá na mão, {nome}! O que você me pediu sobre {item}. É uma ótima opção pra você que busca {desejo}.';
-    systemPrompt += `\n\nPRIORIDADE MÁXIMA - FLUXO DE ANÚNCIO/REFERÊNCIA (substitui a QUALIFICAÇÃO): quando a mensagem trouxer código, referência, link ou texto de anúncio e o cliente ainda não disse o nome, NÃO faça perguntas de qualificação e NÃO mostre o item ainda. Responda só com esta mensagem de acolhimento, trocando {item} pelo item/referência citado: "${wm}". Na próxima resposta (após o cliente dizer o nome), consulte a ferramenta com o código/termo do item, e comece com esta mensagem, trocando {nome} pelo nome do cliente, {item} pelo item e {desejo} pelo que ele busca (ex: alugar, comprar): "${dm}". Em seguida envie os dados do item com foto e o link de mais detalhes, termine com uma chamada para ação e envie o lead pela ferramenta de envio, se houver. Se o cliente já tiver dito o nome, pule o acolhimento e entregue direto chamando pelo nome.`;
+    systemPrompt += `\n\nPRIORIDADE MÁXIMA - FLUXO DE ANÚNCIO/REFERÊNCIA (substitui a QUALIFICAÇÃO): quando a mensagem trouxer código, referência, link ou texto de anúncio e o cliente ainda não disse o nome, NÃO faça perguntas de qualificação. Consulte a ferramenta já neste turno para confirmar o item. Use esta mensagem de acolhimento, trocando {item} pelo item/referência citado: "${wm}". Não invente que está buscando sem consultar. Não repita a pergunta de nome se já foi feita; não bloqueie a entrega se o cliente preferir não dizer o nome. Na próxima resposta (após o cliente dizer o nome), aproveite os resultados confirmados ou consulte novamente se necessário com o código/termo do item, e comece com esta mensagem, trocando {nome} pelo nome do cliente, {item} pelo item e {desejo} pelo que ele busca (ex: alugar, comprar): "${dm}". Em seguida envie os dados do item com foto e o link de mais detalhes, termine com uma chamada para ação e envie o lead pela ferramenta de envio, se houver. Se o cliente já tiver dito o nome, pule o acolhimento e entregue direto chamando pelo nome.`;
   }
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
@@ -1475,14 +1475,6 @@ async function sendPresence(cfg: any, phone: string, kind: 'composing' | 'record
 async function resolveAgent(admin: any, userId: string, client: any, lead: any, waCfg: any, convState: any, inboundText: string) {
   // 1) Agent already assigned in this conversation — keep it
   if (convState?.assigned_agent_id) return convState.assigned_agent_id;
-
-  // 2) Active flow session takes precedence (its agent is implicit per node)
-  try {
-    const { data: flowSession } = await admin.from('conversation_flow_sessions')
-      .select('id, variables').eq('client_id', client.id).eq('status', 'active').maybeSingle();
-    const flowAgent = flowSession?.variables?.agent_id;
-    if (flowAgent) return flowAgent;
-  } catch (_e) { /* ignore */ }
 
   const { data: agents } = await admin.from('ai_agents').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
   const active = agents || [];
@@ -2401,128 +2393,18 @@ Deno.serve(async (req) => {
     related_id: client?.id,
   });
 
-  // ===== Conversation Flow runner (interactive buttons / collect / message) =====
-  // Has higher priority than AI auto-reply when an active session exists OR a flow keyword matches.
-  let flowHandled = false;
-  try {
-    const { data: existingSession } = await admin.from('conversation_flow_sessions')
-      .select('*').eq('client_id', client.id).eq('status', 'active').maybeSingle();
-
-    let session = existingSession;
-    let flowDef: any = null;
-
-    if (session) {
-      const { data: f } = await admin.from('conversation_flows').select('*').eq('id', session.flow_id).maybeSingle();
-      flowDef = f;
-    } else {
-      // Try to match a flow by trigger keyword (case-insensitive substring)
-      // Only flows with trigger_mode = 'keyword' (or null/legacy) participate in auto keyword matching.
-      const text = (inboundContent || '').toLowerCase().trim();
-      const { data: flows } = await admin.from('conversation_flows').select('*')
-        .eq('user_id', userId).eq('is_active', true);
-      for (const f of flows || []) {
-        const mode = (f.trigger_mode || 'keyword');
-        if (mode !== 'keyword') continue; // campaign_only / manual flows never auto-trigger
-        const kw = (f.trigger_keywords || '').toLowerCase().split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
-        if (kw.length && kw.some((k: string) => text.includes(k))) { flowDef = f; break; }
-      }
-      if (flowDef) {
-        const startNode = (flowDef.nodes || []).find((n: any) => n.id === 'start') || (flowDef.nodes || [])[0];
-        if (startNode) {
-          const { data: created } = await admin.from('conversation_flow_sessions').insert({
-            user_id: userId, client_id: client.id, flow_id: flowDef.id,
-            current_node_id: startNode.id, variables: {}, status: 'active',
-          }).select().single();
-          session = created;
-        }
-      }
-    }
-
-    if (session && flowDef) {
-      flowHandled = true;
-      const nodes: any[] = flowDef.nodes || [];
-      const edges: any[] = flowDef.edges || [];
-      let currentNodeId: string | null = session.current_node_id;
-      const variables: Record<string, any> = { ...(session.variables || {}) };
-
-      const findNode = (id: string | null) => nodes.find((n: any) => n.id === id) || null;
-      const nextDefault = (id: string) => {
-        const e = edges.find((x: any) => x.from === id && x.meta !== 'button');
-        return e?.to || null;
-      };
-
-      // First, if waiting on buttons or collect, consume incoming message
-      const cur = findNode(currentNodeId);
-      if (cur?.type === 'buttons') {
-        const list = (cur.data?.buttons || []) as any[];
-        const text = (inboundContent || '').trim().toLowerCase();
-        const idx = list.findIndex((b: any, i: number) => {
-          const lbl = (typeof b === 'string' ? b : b.label || '').toLowerCase();
-          return text === lbl || text === String(i + 1) || (lbl && text.includes(lbl));
-        });
-        if (idx >= 0) {
-          const picked = list[idx];
-          const target = (typeof picked === 'object' && picked.target) ? picked.target : nextDefault(currentNodeId!);
-          variables[`${currentNodeId}_choice`] = typeof picked === 'string' ? picked : picked.label;
-          currentNodeId = target;
-        } else {
-          // unknown reply: just re-send buttons with hint
-          if (waCfg?.is_active) await sendWhatsAppButtons(waCfg, msg.phone, `Não entendi. ${cur.data?.content || 'Escolha uma opção:'}`, list.map((b: any) => typeof b === 'string' ? b : b.label));
-          await admin.from('conversation_flow_sessions').update({ variables, updated_at: new Date().toISOString() }).eq('id', session.id);
-          return new Response(JSON.stringify({ ok: true, flow: 'awaiting_button' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-      } else if (cur?.type === 'collect') {
-        variables[cur.data?.variable || 'value'] = inboundContent || '';
-        currentNodeId = nextDefault(currentNodeId!);
-      }
-
-      // Walk forward, executing nodes until pause/end
-      const maxSteps = 20;
-      for (let step = 0; step < maxSteps && currentNodeId; step++) {
-        const node = findNode(currentNodeId);
-        if (!node) break;
-        if (node.type === 'message') {
-          if (waCfg?.is_active && node.data?.content) await sendWhatsApp(waCfg, msg.phone, String(node.data.content));
-          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.content || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id } });
-          currentNodeId = nextDefault(currentNodeId);
-        } else if (node.type === 'buttons') {
-          const list = (node.data?.buttons || []) as any[];
-          const labels = list.map((b: any) => typeof b === 'string' ? b : b.label).filter(Boolean);
-          if (waCfg?.is_active) await sendWhatsAppButtons(waCfg, msg.phone, node.data?.content || 'Escolha uma opção:', labels);
-          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.content || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id, buttons: labels } });
-          await admin.from('conversation_flow_sessions').update({ current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
-          return new Response(JSON.stringify({ ok: true, flow: 'paused_buttons' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        } else if (node.type === 'collect') {
-          if (waCfg?.is_active && node.data?.question) await sendWhatsApp(waCfg, msg.phone, String(node.data.question));
-          await admin.from('messages').insert({ user_id: userId, client_id: client.id, direction: 'outbound', channel: 'whatsapp', content: node.data?.question || '', status: 'sent', sender_phone: msg.phone, metadata: { flow_node: node.id } });
-          await admin.from('conversation_flow_sessions').update({ current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
-          return new Response(JSON.stringify({ ok: true, flow: 'paused_collect' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        } else if (node.type === 'wait') {
-          // soft wait: just advance
-          currentNodeId = nextDefault(currentNodeId);
-        } else if (node.type === 'end') {
-          await admin.from('conversation_flow_sessions').update({ status: 'completed', current_node_id: node.id, variables, updated_at: new Date().toISOString() }).eq('id', session.id);
-          return new Response(JSON.stringify({ ok: true, flow: 'completed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        } else {
-          // condition / filter / ai / media / crm not yet executed deeply — just advance
-          currentNodeId = nextDefault(currentNodeId);
-        }
-      }
-      await admin.from('conversation_flow_sessions').update({ current_node_id: currentNodeId, variables, status: currentNodeId ? 'active' : 'completed', updated_at: new Date().toISOString() }).eq('id', session.id);
-      return new Response(JSON.stringify({ ok: true, flow: 'advanced' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-  } catch (e) {
-    console.error('flow runner error', e);
-  }
+  // Retired flows must never intercept WhatsApp messages or override assigned agents.
+  const flowHandled = false;
 
   // === MENU DE TRIAGEM: opções clicáveis com destino (agente, humano ou mensagem) ===
   try {
     if (!flowHandled && !isGroupMsg && !msg.from_me && waCfg) {
-      const { data: tm } = await admin.from('ai_triage_settings').select('menu_enabled, menu_message, menu_options, menu_only_new, ad_auto_detect, ad_keywords, ad_match_mode').eq('user_id', userId).maybeSingle();
-      const opts: any[] = Array.isArray(tm?.menu_options) ? tm!.menu_options.filter((o: any) => o?.label) : [];
+      const { data: tm } = await admin.from('ai_triage_settings').select('*').eq('user_id', userId).maybeSingle();
+      const opts: any[] = Array.isArray(tm?.menu_options) ? tm.menu_options.filter((o: any) => o?.label) : [];
       if (tm?.menu_enabled && opts.length) {
         const meta = client.metadata || {};
-        const pending = meta.triage_pending === true;
+        const directHit = shouldAttendDirect(inboundContent || msg.content || '', raw, tm);
+        const pending = meta.triage_pending === true && !directHit;
         const setMeta = async (patch: any) => { client.metadata = { ...meta, ...patch }; await admin.from('chat_clients').update({ metadata: client.metadata }).eq('id', client.id); };
         if (pending && !String(msg.content || '').trim()) {
           return new Response(JSON.stringify({ ok: true, triage: 'empty_ignored' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -2571,8 +2453,7 @@ Deno.serve(async (req) => {
           // Nova conversa = sem menu respondido nas últimas 12h. Mostra o menu de novo nesse caso.
           const lastAt = meta.triage_at ? new Date(meta.triage_at).getTime() : 0;
           const fresh = !meta.triage_done || (Date.now() - lastAt > 12 * 3600 * 1000);
-          const adText = inboundContent || msg.content || '';
-          const adHit = fresh && (matchCustomAdRules(adText, (tm as any)?.ad_keywords || '', (tm as any)?.ad_match_mode || 'contains') || ((tm as any)?.ad_auto_detect !== false && detectAdIntent(adText, raw)));
+          const adHit = directHit;
           if (adHit) await setMeta({ triage_pending: false, triage_done: true, triage_tries: 0, triage_at: new Date().toISOString(), from_ad: true });
           if (!fresh || adHit) { /* segue para o agente (anúncio ou conversa em andamento) */ } else {
           const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';

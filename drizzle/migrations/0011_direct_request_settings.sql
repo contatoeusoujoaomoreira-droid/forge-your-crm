@@ -1,0 +1,3 @@
+ALTER TABLE public.ai_triage_settings ADD COLUMN IF NOT EXISTS direct_open_requests boolean NOT NULL DEFAULT true, ADD COLUMN IF NOT EXISTS direct_instructions text NOT NULL DEFAULT '';
+COMMENT ON COLUMN public.ai_triage_settings.direct_open_requests IS 'Allow relevant open requests to bypass the welcome menu and query enabled integrations.';
+COMMENT ON COLUMN public.ai_triage_settings.direct_instructions IS 'Tenant instructions for direct requests; never grant additional integration permissions.';
