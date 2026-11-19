@@ -17,6 +17,14 @@ export default function StoreSettings() {
   const { user } = useAuth();
   const [s, setS] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [ipTest, setIpTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [ipTesting, setIpTesting] = useState(false);
+  const testInfinitePay = async () => {
+    setIpTesting(true); setIpTest(null);
+    const { data, error } = await supabase.functions.invoke("infinitepay?action=test", { body: { handle: s.infinitepay_handle || "" } });
+    setIpTest(error ? { ok: false, message: "Não foi possível testar agora. Tente de novo." } : data);
+    setIpTesting(false);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -72,7 +80,10 @@ export default function StoreSettings() {
           </div>
           {s.infinitepay_enabled && (
             <div><Label>Sua InfiniteTag</Label><Input value={s.infinitepay_handle || ""} onChange={(e) => setS({ ...s, infinitepay_handle: e.target.value })} placeholder="minha_loja (sem o $)" />
-              <p className="text-[11px] text-muted-foreground mt-1">Encontre no app InfinitePay, no seu perfil. O dinheiro cai direto na sua conta InfinitePay.</p></div>
+              <p className="text-[11px] text-muted-foreground mt-1">Encontre no app InfinitePay, no seu perfil. O dinheiro cai direto na sua conta InfinitePay.</p>
+              <Button type="button" variant="outline" size="sm" className="mt-2" disabled={ipTesting} onClick={testInfinitePay}>{ipTesting ? "Testando..." : "🔍 Testar conexão com a InfinitePay"}</Button>
+              {ipTest && <p className={`text-xs mt-2 ${ipTest.ok ? "text-primary" : "text-destructive"}`}>{ipTest.ok ? "✅ " : "⚠️ "}{ipTest.message}</p>}
+            </div>
           )}
         </div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>

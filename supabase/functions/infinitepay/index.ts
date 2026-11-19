@@ -12,6 +12,16 @@ Deno.serve(async (req) => {
   const action = new URL(req.url).searchParams.get('action') || 'create';
   const body = await req.json().catch(() => ({}));
 
+  if (action === 'test') {
+    const handle = cleanHandle(String(body.handle || ''));
+    if (!handle) return json({ ok: false, message: 'Digite sua InfiniteTag.' });
+    const r = await fetch('https://api.checkout.infinitepay.io/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle, items: [{ quantity: 1, price: 100, description: 'Teste de conexão' }], order_nsu: 'teste-' + Date.now() }) });
+    const txt = await r.text();
+    if (r.ok) return json({ ok: true, message: 'Conexão ativa! Sua loja está pronta para receber pagamentos.' });
+    if (/not enabled/i.test(txt)) return json({ ok: false, message: 'Tag encontrada, mas o checkout online não está ativado. No app InfinitePay, ative o "Checkout / Link de pagamento" e teste de novo.' });
+    return json({ ok: false, message: 'InfiniteTag não encontrada. Confira se digitou igual ao app (sem o $).' });
+  }
+
   if (action === 'webhook') {
     const orderId = String(body.order_nsu || '');
     if (!UUID.test(orderId)) return json({ error: 'order' }, 400);
