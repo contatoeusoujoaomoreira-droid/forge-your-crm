@@ -648,6 +648,9 @@ export type Database = {
       }
       ai_triage_settings: {
         Row: {
+          ad_auto_detect: boolean
+          ad_keywords: string
+          ad_match_mode: string
           enabled: boolean
           ignore_known_clients: boolean
           keywords: string
@@ -660,6 +663,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ad_auto_detect?: boolean
+          ad_keywords?: string
+          ad_match_mode?: string
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string
@@ -672,6 +678,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ad_auto_detect?: boolean
+          ad_keywords?: string
+          ad_match_mode?: string
           enabled?: boolean
           ignore_known_clients?: boolean
           keywords?: string

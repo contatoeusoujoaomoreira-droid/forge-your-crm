@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_triage_settings ADD COLUMN IF NOT EXISTS ad_auto_detect boolean NOT NULL DEFAULT true, ADD COLUMN IF NOT EXISTS ad_keywords text NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS ad_match_mode text NOT NULL DEFAULT 'contains';

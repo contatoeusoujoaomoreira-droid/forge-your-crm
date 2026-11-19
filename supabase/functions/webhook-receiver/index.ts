@@ -1,4 +1,4 @@
-import { detectAdIntent } from '../_shared/adIntent.ts';
+import { detectAdIntent, matchCustomAdRules } from '../_shared/adIntent.ts';
 import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
@@ -2513,7 +2513,7 @@ Deno.serve(async (req) => {
   // === MENU DE TRIAGEM: opções clicáveis com destino (agente, humano ou mensagem) ===
   try {
     if (!flowHandled && !isGroupMsg && !msg.from_me && waCfg) {
-      const { data: tm } = await admin.from('ai_triage_settings').select('menu_enabled, menu_message, menu_options, menu_only_new').eq('user_id', userId).maybeSingle();
+      const { data: tm } = await admin.from('ai_triage_settings').select('menu_enabled, menu_message, menu_options, menu_only_new, ad_auto_detect, ad_keywords, ad_match_mode').eq('user_id', userId).maybeSingle();
       const opts: any[] = Array.isArray(tm?.menu_options) ? tm!.menu_options.filter((o: any) => o?.label) : [];
       if (tm?.menu_enabled && opts.length) {
         const meta = client.metadata || {};
@@ -2566,7 +2566,8 @@ Deno.serve(async (req) => {
           // Nova conversa = sem menu respondido nas últimas 12h. Mostra o menu de novo nesse caso.
           const lastAt = meta.triage_at ? new Date(meta.triage_at).getTime() : 0;
           const fresh = !meta.triage_done || (Date.now() - lastAt > 12 * 3600 * 1000);
-          const adHit = fresh && detectAdIntent(inboundContent || msg.content || '', raw);
+          const adText = inboundContent || msg.content || '';
+          const adHit = fresh && (matchCustomAdRules(adText, (tm as any)?.ad_keywords || '', (tm as any)?.ad_match_mode || 'contains') || ((tm as any)?.ad_auto_detect !== false && detectAdIntent(adText, raw)));
           if (adHit) await setMeta({ triage_pending: false, triage_done: true, triage_tries: 0, triage_at: new Date().toISOString(), from_ad: true });
           if (!fresh || adHit) { /* segue para o agente (anúncio ou conversa em andamento) */ } else {
           const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';

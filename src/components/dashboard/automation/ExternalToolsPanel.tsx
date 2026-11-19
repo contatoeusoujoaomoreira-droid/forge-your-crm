@@ -71,7 +71,7 @@ export default function ExternalToolsPanel() {
       db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     setTools(previous => [...(t || []), ...previous.filter(tool => !tool.id)]);
-    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ...(tr || {}) });
+    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ad_auto_detect: true, ad_keywords: "", ad_match_mode: "contains", ...(tr || {}) });
   };
   useEffect(() => { load(); }, [user?.id]);
 
@@ -179,6 +179,18 @@ export default function ExternalToolsPanel() {
           })}
           {(triage.menu_options || []).length < 10 && <Button size="sm" variant="outline" onClick={() => setTriage({ ...triage, menu_options: [...(triage.menu_options || []), { label: "", action: "agent", agent_id: "", reply: "" }] })}><Plus className="h-4 w-4 mr-1" />Adicionar opção</Button>}
         </>)}
+        {triage && (<div className="border-t pt-3 space-y-2">
+          <p className="text-sm font-medium">Atendimento direto (anúncios Meta/Instagram e mensagens prontas)</p>
+          <p className="text-xs text-muted-foreground">Quando a primeira mensagem bater com estas regras, o menu de boas-vindas não é enviado e a IA atende na hora.</p>
+          <div className="flex items-center gap-2"><Switch checked={triage.ad_auto_detect !== false} onCheckedChange={(v) => setTriage({ ...triage, ad_auto_detect: v })} /><span className="text-sm">Reconhecer anúncios automaticamente (código, link, "tenho interesse", texto pronto do anúncio)</span></div>
+          <div><Label className="text-xs">Suas palavras ou frases (uma por linha)</Label><Textarea rows={3} placeholder={"tenho interesse\nvi o anúncio\nDetergente Neutro 5L"} value={triage.ad_keywords || ""} onChange={(e) => setTriage({ ...triage, ad_keywords: e.target.value })} /></div>
+          <div><Label className="text-xs">Como comparar</Label>
+            <select className="w-full h-9 rounded-md border bg-background px-2 text-sm" value={triage.ad_match_mode || "contains"} onChange={(e) => setTriage({ ...triage, ad_match_mode: e.target.value })}>
+              <option value="contains">A mensagem contém a palavra ou frase</option>
+              <option value="starts">A mensagem começa com a frase</option>
+              <option value="exact">A mensagem é exatamente igual (texto completo do anúncio)</option>
+            </select></div>
+        </div>)}
         {triage && (<>
           <div className="flex items-center justify-between border-t pt-3"><span className="text-sm font-medium">A IA pode passar a conversa para a equipe quando o assunto não for com ela</span><Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} /></div>
           {triage.enabled && <>

@@ -27,3 +27,11 @@ export function detectAdIntent(raw: string, rawPayload?: any): boolean {
   if (CODE_RE.test(n) && n.split(/\s+/).length <= 12) return true;
   return false;
 }
+
+export function matchCustomAdRules(raw: string, keywords: string, mode: string): boolean {
+  const clean = (x: string) => normalizeText(x).replace(/[*_~▫️•]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const t = clean(raw);
+  if (!t) return false;
+  const list = String(keywords || '').split(/[\n,]/).map(clean).filter(Boolean);
+  return list.some((k) => mode === 'exact' ? t === k : mode === 'starts' ? t.startsWith(k) : t.includes(k));
+}
