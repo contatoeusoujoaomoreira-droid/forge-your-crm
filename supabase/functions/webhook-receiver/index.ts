@@ -1,3 +1,4 @@
+import { detectAdIntent } from '../_shared/adIntent.ts';
 import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
@@ -1191,6 +1192,7 @@ async function callAiWithTools(
   }
   systemPrompt += '\n\nFORMATO DAS MENSAGENS (WhatsApp): escreva curto, claro e organizado. Não use markdown (#, **, tabelas, [texto](link)). Para negrito use *texto*. Ao apresentar opções (produtos, itens, imóveis, serviços), mostre no máximo 3 por vez e separe CADA opção com uma linha contendo apenas --- . Cada opção: nome em *negrito*, até 4 linhas com os dados principais, a foto (se houver) como ![](url) e UM único link (o da página com mais detalhes) na última linha; nunca envie dois links para o mesmo item. Comece com uma frase curta antes da primeira opção e termine com uma pergunta curta depois da última, também separadas por --- . Se houver mais opções, ofereça mostrar mais. Nunca escreva o link da foto como texto. SEMPRE termine com uma chamada para ação curta e convidativa (ex: agendar uma visita, marcar um horário, falar com um especialista, fazer o pedido), adequada ao que foi conversado.';
   systemPrompt += '\n\nQUALIFICAÇÃO ANTES DE BUSCAR: não envie lista de itens logo de cara. Se o cliente disser só o tipo (ex: um modelo ou categoria), primeiro pergunte de forma curta (uma pergunta por vez, no máximo 2) o que falta: se já tem o código/referência do item, se veio de um anúncio específico, localização/região, faixa de valor e a finalidade (ex: comprar ou alugar, varejo ou atacado). Se a mensagem já trouxer código, referência, link ou dados de anúncio, consulte a ferramenta direto com esse código e responda sobre aquele item, continuando a conversa. Só busque e mostre opções quando tiver pelo menos 2 critérios. Nunca repita uma pergunta que o cliente já respondeu no histórico.';
+  systemPrompt += '\n\nMENSAGEM DE ANÚNCIO OU COM ITEM ESPECÍFICO: se a mensagem do cliente vier de um anúncio (texto pronto com *, ▫️, "Endereço:", "Código:", "Ref:", "SKU:", "Produto:", link, ou frases como "tenho interesse", "vi o anúncio"), NÃO faça perguntas de qualificação antes: consulte a ferramenta na hora. Para buscar, NUNCA envie o texto inteiro: extraia só 1 a 3 termos curtos e limpos, nesta prioridade: 1) código/referência/SKU; 2) nome próprio do item (nome do produto, modelo, marca, condomínio ou edifício); 3) rua/região ou categoria. Remova emojis, asteriscos, números de rua e palavras genéricas (apartamento, produto, locação, venda). Se não achar, tente de novo com outro termo (até 2 tentativas). Achando, responda: saudação curta, os dados do item com foto e o link de mais detalhes, depois pergunte o nome do cliente e ofereça o próximo passo (agendar, fazer pedido, falar com especialista). Assim que souber o nome, envie o lead pela ferramenta de envio, se houver.';
   systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
@@ -2564,7 +2566,9 @@ Deno.serve(async (req) => {
           // Nova conversa = sem menu respondido nas últimas 12h. Mostra o menu de novo nesse caso.
           const lastAt = meta.triage_at ? new Date(meta.triage_at).getTime() : 0;
           const fresh = !meta.triage_done || (Date.now() - lastAt > 12 * 3600 * 1000);
-          if (!fresh) { /* segue para o agente */ } else {
+          const adHit = fresh && detectAdIntent(inboundContent || msg.content || '', raw);
+          if (adHit) await setMeta({ triage_pending: false, triage_done: true, triage_tries: 0, triage_at: new Date().toISOString(), from_ad: true });
+          if (!fresh || adHit) { /* segue para o agente (anúncio ou conversa em andamento) */ } else {
           const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';
           await sendTriageMenu(waCfg, msg.phone, text, opts);
           await admin.from('messages').insert({ user_id: userId, client_id: client.id, lead_id: client.lead_id, direction: 'outbound', channel: 'whatsapp', content: text + '\n' + opts.map((o: any, k: number) => `${k + 1} - ${o.label}`).join('\n'), metadata: { source: 'triage_menu' } });
