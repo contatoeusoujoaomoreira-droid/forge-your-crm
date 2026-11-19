@@ -50,6 +50,7 @@ export default function ProductsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [edit, setEdit] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [showApi, setShowApi] = useState(false);
@@ -83,7 +84,6 @@ export default function ProductsPage() {
       (!typeFilter || (p.item_type || "product") === typeFilter) && (!catFilter || p.category === catFilter) && (!brandFilter || p.brand === brandFilter) &&
       (!t || [p.name, p.sku, p.category, p.brand, p.barcode].some((f) => String(f || "").toLowerCase().includes(t))));
   }, [items, q, catFilter, brandFilter]);
-  const [typeFilter, setTypeFilter] = useState("");
   const lowStock = items.filter((p) => p.item_type !== "service" && p.is_active && Number(p.low_stock_threshold) > 0 && Number(p.stock_qty) <= Number(p.low_stock_threshold));
 
   const save = async () => {
