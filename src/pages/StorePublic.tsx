@@ -52,12 +52,14 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const fee = address.trim() ? Number(store?.delivery_fee || 0) : 0;
   const minOrder = Number(store?.min_order || 0);
   const belowMin = minOrder > 0 && total < minOrder;
-  const send = async () => {
+  const [payError, setPayError] = useState("");
+  const send = async (mode: "whatsapp" | "pay" = "whatsapp") => {
     if (belowMin || sending) return;
-    setSending(true);
+    setSending(true); setPayError("");
     const orderNo = String(Date.now()).slice(-6);
     const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name, fee });
-    const waWin = window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+    const waUrl = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
+    const waWin = mode === "whatsapp" ? window.open(waUrl, "_blank") : null;
     const order = {
       id: crypto.randomUUID(), user_id: store.user_id, order_no: orderNo, customer_name: name.trim(), address: address.trim() || null, notes: notes.trim() || null,
       items: lines.map((l) => ({ id: l.product.id, name: l.product.name, qty: l.qty, unit_price: unitPrice(l.product, l.qty) })),
@@ -69,10 +71,16 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       const { data } = await supabase.functions.invoke("infinitepay", { body: { order_id: order.id, redirect_url: window.location.href } });
       payUrl = data?.url || "";
     }
+    if (mode === "pay") {
+      if (payUrl) { window.location.href = payUrl; return; }
+      setSending(false);
+      setPayError("Não foi possível abrir o pagamento agora. Tente de novo ou envie o pedido pelo WhatsApp.");
+      return;
+    }
     setSending(false);
-    setDone({ ...order, payment_link: payUrl, created_at: new Date().toISOString() });
+    setDone({ ...order, payment_link: payUrl, wa_url: waUrl, created_at: new Date().toISOString() });
     setCart({}); setOpen(false);
-    if (!waWin) window.location.href = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
+    if (!waWin) window.location.href = waUrl;
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
@@ -163,7 +171,13 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
             <Input placeholder="Endereço de entrega" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={300} />
             <Textarea placeholder="Observações (opcional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
             {belowMin && <p className="text-sm text-destructive">Pedido mínimo: {brl(minOrder)}. Faltam {brl(minOrder - total)}.</p>}
-            <Button className="w-full h-12 text-base" style={{ background: color }} disabled={!name.trim() || belowMin || sending} onClick={send}>
+            {store.infinitepay_enabled && (
+              <Button className="w-full h-12 text-base" style={{ background: color }} disabled={!name.trim() || belowMin || sending} onClick={() => send("pay")}>
+                {sending ? "Abrindo pagamento..." : "💳 Pagar agora (Pix ou Cartão)"}
+              </Button>
+            )}
+            {payError && <p className="text-sm text-destructive">{payError}</p>}
+            <Button className="w-full h-12 text-base" variant={store.infinitepay_enabled ? "outline" : "default"} style={store.infinitepay_enabled ? undefined : { background: color }} disabled={!name.trim() || belowMin || sending} onClick={() => send("whatsapp")}>
               <MessageCircle className="h-5 w-5 mr-2" />{sending ? "Enviando..." : "Enviar pedido no WhatsApp"}
             </Button>
           </div>
