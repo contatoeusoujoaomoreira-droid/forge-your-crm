@@ -1,0 +1,1 @@
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS store_theme text NOT NULL DEFAULT 'dark', ADD COLUMN IF NOT EXISTS store_bg_color text;

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ShoppingCart, ExternalLink, Copy, Globe } from "lucide-react";
+import { ShoppingCart, ExternalLink, Copy, Globe, Upload, ImageIcon } from "lucide-react";
 import StoreOrders from "./StoreOrders";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -25,6 +25,31 @@ export default function StoreSettings() {
     setIpTest(error ? { ok: false, message: "Não foi possível testar agora. Tente de novo." } : data);
     setIpTesting(false);
   };
+
+  const [uploading, setUploading] = useState<string | null>(null);
+  const uploadImg = async (field: "logo_url" | "banner_url", file?: File) => {
+    if (!user || !file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Escolha um arquivo de imagem"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Imagem muito grande (máx. 5 MB)"); return; }
+    setUploading(field);
+    const path = `${user.id}/store/${field}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+    const { error } = await supabase.storage.from("chat-media").upload(path, file, { upsert: true });
+    setUploading(null);
+    if (error) { toast.error("Falha ao enviar: " + error.message); return; }
+    const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+    setS((x: any) => ({ ...x, [field]: data.publicUrl }));
+    toast.success("Imagem enviada! Clique em Salvar loja.");
+  };
+  const ImgField = ({ field, label, wide }: { field: "logo_url" | "banner_url"; label: string; wide?: boolean }) => (
+    <div><Label>{label}</Label>
+      <div className="flex items-center gap-3 mt-1">
+        {s[field] ? <img src={s[field]} alt="" className={wide ? "h-16 w-32 rounded-md object-cover border border-border" : "h-16 w-16 rounded-full object-cover border border-border"} /> : <div className={`${wide ? "h-16 w-32 rounded-md" : "h-16 w-16 rounded-full"} border border-dashed border-border flex items-center justify-center text-muted-foreground`}><ImageIcon className="h-5 w-5" /></div>}
+        <label className="cursor-pointer"><input type="file" accept="image/*" className="hidden" onChange={(e) => { uploadImg(field, e.target.files?.[0]); e.target.value = ""; }} />
+          <span className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"><Upload className="h-4 w-4" />{uploading === field ? "Enviando..." : s[field] ? "Trocar imagem" : "Enviar imagem"}</span></label>
+        {s[field] && <Button type="button" variant="ghost" size="sm" onClick={() => setS({ ...s, [field]: null })}>Remover</Button>}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -66,8 +91,8 @@ export default function StoreSettings() {
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">{window.location.origin}/loja/</span><Input value={s.slug} onChange={(e) => setS({ ...s, slug: slugify(e.target.value) })} /></div>
         </div>
         <div><Label>WhatsApp que recebe os pedidos (com DDD)</Label><Input value={s.whatsapp || ""} onChange={(e) => setS({ ...s, whatsapp: e.target.value })} placeholder="5511999998888" /></div>
-        <div><Label>Logo (link da imagem)</Label><Input value={s.logo_url || ""} onChange={(e) => setS({ ...s, logo_url: e.target.value })} placeholder="https://..." /></div>
-        <div><Label>Banner de capa (link da imagem)</Label><Input value={s.banner_url || ""} onChange={(e) => setS({ ...s, banner_url: e.target.value })} placeholder="https://..." /></div>
+        <ImgField field="logo_url" label="Logo da loja" />
+        <ImgField field="banner_url" label="Banner de capa" wide />
         <div><Label>Horário de funcionamento</Label><Input value={s.opening_hours || ""} onChange={(e) => setS({ ...s, opening_hours: e.target.value })} placeholder="Seg a Sáb, 8h às 18h" /></div>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Pedido mínimo (R$)</Label><Input type="number" min={0} value={s.min_order ?? 0} onChange={(e) => setS({ ...s, min_order: Math.max(0, Number(e.target.value) || 0) })} /></div>
@@ -79,12 +104,28 @@ export default function StoreSettings() {
             <Switch checked={!!s.infinitepay_enabled} onCheckedChange={(v) => setS({ ...s, infinitepay_enabled: v })} />
           </div>
           {s.infinitepay_enabled && (
+            <ol className="text-xs text-muted-foreground list-decimal pl-4 space-y-1 rounded-md bg-muted/40 p-3">
+              <li>Ainda não tem conta? <a className="text-primary underline" href="https://www.infinitepay.io" target="_blank" rel="noreferrer">Crie grátis na InfinitePay</a> (baixe o app e cadastre-se com CPF ou CNPJ).</li>
+              <li>No app, toque no seu perfil e copie sua <b>InfiniteTag</b> (o nome que começa com $).</li>
+              <li>Ative o checkout online: <a className="text-primary underline" href="https://app.infinitepay.io" target="_blank" rel="noreferrer">abra o painel da InfinitePay</a> → Checkout / Link de pagamento → ativar.</li>
+              <li>Cole a tag abaixo (sem o $), clique em <b>Testar conexão</b> e depois em <b>Salvar loja</b>.</li>
+            </ol>
+          )}
+          {s.infinitepay_enabled && (
             <div><Label>Sua InfiniteTag</Label><Input value={s.infinitepay_handle || ""} onChange={(e) => setS({ ...s, infinitepay_handle: e.target.value })} placeholder="minha_loja (sem o $)" />
               <p className="text-[11px] text-muted-foreground mt-1">Encontre no app InfinitePay, no seu perfil. O dinheiro cai direto na sua conta InfinitePay.</p>
               <Button type="button" variant="outline" size="sm" className="mt-2" disabled={ipTesting} onClick={testInfinitePay}>{ipTesting ? "Testando..." : "🔍 Testar conexão com a InfinitePay"}</Button>
               {ipTest && <p className={`text-xs mt-2 ${ipTest.ok ? "text-primary" : "text-destructive"}`}>{ipTest.ok ? "✅ " : "⚠️ "}{ipTest.message}</p>}
             </div>
           )}
+        </div>
+        <div><Label>Fundo da loja</Label>
+          <div className="grid grid-cols-3 gap-2 mt-1">
+            {[["dark", "Escuro"], ["light", "Claro"], ["custom", "Personalizado"]].map(([v, l]) => (
+              <Button key={v} type="button" variant={(s.store_theme || "dark") === v ? "default" : "outline"} onClick={() => setS({ ...s, store_theme: v, store_bg_color: v === "custom" ? (s.store_bg_color || "#f5f0e8") : s.store_bg_color })}>{l}</Button>
+            ))}
+          </div>
+          {s.store_theme === "custom" && <div className="flex items-center gap-2 mt-2"><Input type="color" className="h-10 w-24 p-1" value={s.store_bg_color || "#f5f0e8"} onChange={(e) => setS({ ...s, store_bg_color: e.target.value })} /><span className="text-xs text-muted-foreground">Cor do fundo. O texto se ajusta sozinho para ficar legível.</span></div>}
         </div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>
         <div><Label>Mensagem de boas-vindas</Label><Textarea rows={2} value={s.welcome_text || ""} onChange={(e) => setS({ ...s, welcome_text: e.target.value })} placeholder="Ex: Entregamos em toda a região em até 24h!" /></div>

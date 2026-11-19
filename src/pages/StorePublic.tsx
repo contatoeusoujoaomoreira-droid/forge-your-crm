@@ -86,9 +86,13 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
   if (!store) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loja não encontrada.</div>;
   const color = store.primary_color || "hsl(var(--primary))";
+  const customBg = store.store_theme === "custom" && /^#[0-9a-f]{6}$/i.test(store.store_bg_color || "") ? store.store_bg_color : null;
+  const isLightBg = customBg ? (() => { const n = parseInt(customBg.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150; })() : store.store_theme === "light";
+  const themeClass = isLightBg ? "light" : "store-dark";
+  const bgStyle = customBg ? ({ backgroundColor: customBg } as React.CSSProperties) : undefined;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className={`min-h-screen bg-background text-foreground pb-24 ${themeClass}`} style={bgStyle}>
       {store.banner_url && <img src={store.banner_url} alt="" className="w-full h-36 md:h-52 object-cover" />}
       {(store.opening_hours || minOrder > 0) && (
         <div className="max-w-5xl mx-auto px-4 pt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4">
@@ -154,7 +158,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       )}
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+        <SheetContent side="bottom" className={`max-h-[90vh] overflow-y-auto bg-background text-foreground ${themeClass}`} style={bgStyle}>
           <SheetHeader><SheetTitle>Sua cesta</SheetTitle></SheetHeader>
           <div className="space-y-2 py-3">
             {lines.map((l) => (
@@ -185,7 +189,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       </Sheet>
 
       <Sheet open={!!done} onOpenChange={(v) => !v && setDone(null)}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+        <SheetContent side="bottom" className={`max-h-[90vh] overflow-y-auto bg-background text-foreground ${themeClass}`} style={bgStyle}>
           <SheetHeader><SheetTitle>✅ Pedido #{done?.order_no} enviado!</SheetTitle></SheetHeader>
           {done && (
             <div className="space-y-2 py-3 text-sm">

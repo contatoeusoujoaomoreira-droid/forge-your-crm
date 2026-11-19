@@ -3921,7 +3921,9 @@ export type Database = {
           opening_hours: string | null
           primary_color: string | null
           slug: string
+          store_bg_color: string | null
           store_name: string
+          store_theme: string
           updated_at: string
           user_id: string
           welcome_text: string | null
@@ -3941,7 +3943,9 @@ export type Database = {
           opening_hours?: string | null
           primary_color?: string | null
           slug: string
+          store_bg_color?: string | null
           store_name?: string
+          store_theme?: string
           updated_at?: string
           user_id: string
           welcome_text?: string | null
@@ -3961,7 +3965,9 @@ export type Database = {
           opening_hours?: string | null
           primary_color?: string | null
           slug?: string
+          store_bg_color?: string | null
           store_name?: string
+          store_theme?: string
           updated_at?: string
           user_id?: string
           welcome_text?: string | null
