@@ -71,7 +71,7 @@ export default function ExternalToolsPanel() {
       db.from("ai_triage_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     setTools(previous => [...(t || []), ...previous.filter(tool => !tool.id)]);
-    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ad_auto_detect: true, ad_keywords: "", ad_match_mode: "contains", ...(tr || {}) });
+    setTriage({ enabled: false, keywords: "", ignore_known_clients: true, triage_message: "", menu_enabled: false, menu_message: "Olá! Como podemos te ajudar? Escolha uma opção:", menu_options: [], menu_only_new: true, ad_auto_detect: true, ad_keywords: "", ad_match_mode: "contains", ad_welcome_enabled: true, ...(tr || {}) });
   };
   useEffect(() => { load(); }, [user?.id]);
 
@@ -190,6 +190,11 @@ export default function ExternalToolsPanel() {
               <option value="starts">A mensagem começa com a frase</option>
               <option value="exact">A mensagem é exatamente igual (texto completo do anúncio)</option>
             </select></div>
+          <div className="flex items-center gap-2 pt-2"><Switch checked={triage.ad_welcome_enabled !== false} onCheckedChange={(v) => setTriage({ ...triage, ad_welcome_enabled: v })} /><span className="text-sm">Acolher e pedir o nome antes de enviar o item (anúncio ou código)</span></div>
+          {triage.ad_welcome_enabled !== false && <>
+            <div><Label className="text-xs">1ª mensagem (enquanto busca). Use {"{item}"}</Label><Textarea rows={2} value={triage.ad_welcome_message || ""} placeholder="Maravilha! Enquanto vou buscando aqui sobre {item} pra você, me conta qual é o seu nome, por gentileza?" onChange={(e) => setTriage({ ...triage, ad_welcome_message: e.target.value })} /></div>
+            <div><Label className="text-xs">2ª mensagem (entrega). Use {"{nome}"}, {"{item}"}, {"{desejo}"}</Label><Textarea rows={2} value={triage.ad_delivery_message || ""} placeholder="Tá na mão, {nome}! O que você me pediu sobre {item}. É uma ótima opção pra você que busca {desejo}." onChange={(e) => setTriage({ ...triage, ad_delivery_message: e.target.value })} /></div>
+          </>}
         </div>)}
         {triage && (<>
           <div className="flex items-center justify-between border-t pt-3"><span className="text-sm font-medium">A IA pode passar a conversa para a equipe quando o assunto não for com ela</span><Switch checked={triage.enabled} onCheckedChange={(v) => setTriage({ ...triage, enabled: v })} /></div>
