@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History } from "lucide-react";
+import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History, Link2, Copy } from "lucide-react";
 
 export type Product = {
   id?: string;
@@ -51,6 +51,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [storeSlug, setStoreSlug] = useState<string | null>(null);
+  const [linkItem, setLinkItem] = useState<any>(null);
+  useEffect(() => { if (user) supabase.from("store_settings").select("slug").eq("user_id", user.id).maybeSingle().then(({ data }) => setStoreSlug(data?.slug || null)); }, [user]);
   const [edit, setEdit] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [showApi, setShowApi] = useState(false);
@@ -258,6 +261,7 @@ export default function ProductsPage() {
                 <div className="flex border-t border-border">
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => setEdit({ ...empty, ...p })}><Pencil className="h-4 w-4 mr-1" />Editar</Button>
                   {p.item_type !== "service" && <Button variant="ghost" size="sm" title="Histórico de estoque" onClick={() => openHist(p)}><History className="h-4 w-4" /></Button>}
+                  <Button variant="ghost" size="sm" title="Link para o cliente" onClick={() => setLinkItem(p)}><Link2 className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="sm" className="flex-1 text-destructive" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 mr-1" />Excluir</Button>
                 </div>
               </Card>
@@ -314,6 +318,23 @@ export default function ProductsPage() {
                 <Button variant="ghost" onClick={() => setEdit(null)}>Cancelar</Button>
                 <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!linkItem} onOpenChange={(o) => !o && setLinkItem(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Enviar link · {linkItem?.name}</DialogTitle></DialogHeader>
+          {!storeSlug ? <p className="text-sm text-muted-foreground">Configure e salve sua Loja Virtual primeiro para gerar links.</p> : linkItem && (
+            <div className="space-y-4">
+              {[["💳 Pagamento direto", "O cliente abre o link e vai direto para o pagamento (InfinitePay) com este item já selecionado.", "pagar"],
+                ["🛍️ Página do item na loja", "Abre sua loja já mostrando este item. O cliente pode pagar na hora" + (linkItem.item_type === "service" ? "." : " ou adicionar à cesta."), "item"]].map(([t, d, k]) => {
+                const link = `${window.location.origin}/loja/${storeSlug}?${k}=${linkItem.id}`;
+                return (<div key={k} className="space-y-1"><Label>{t}</Label><p className="text-xs text-muted-foreground">{d}</p>
+                  <div className="flex gap-2"><Input readOnly value={link} /><Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(link); toast.success("Link copiado!"); }}><Copy className="h-4 w-4" /></Button></div></div>);
+              })}
+              <p className="text-xs text-muted-foreground">O pagamento direto precisa da InfinitePay ligada em Loja Virtual → Pagamento e entrega. Sem ela, o link abre a página do item.</p>
             </div>
           )}
         </DialogContent>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,9 @@ const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", curren
 
 export default function StorePublic({ domain }: { domain?: string } = {}) {
   const params = useParams();
+  const [search, setSearch] = useSearchParams();
+  const [viewItem, setViewItem] = useState<any>(null);
+  const [autoPay, setAutoPay] = useState(false);
   const [slug, setSlug] = useState<string | undefined>(params.slug);
   const [store, setStore] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
@@ -32,9 +36,12 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       if (s && s.slug !== slug) setSlug(s.slug);
       setStore(s);
       if (s) {
-        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images")
+        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images,item_type")
           .eq("user_id", s.user_id).eq("is_active", true).eq("show_in_catalog", true).order("name");
         setProducts(data || []);
+        const itemId = search.get("item") || search.get("pagar");
+        const found = itemId ? (data || []).find((x: any) => x.id === itemId) : null;
+        if (found) { setViewItem(found); if (search.get("pagar") && s.infinitepay_enabled) setAutoPay(true); }
         document.title = s.store_name;
       }
       setLoading(false);
@@ -83,6 +90,31 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
     if (!waWin) window.location.href = waUrl;
   };
 
+  const buyNow = async (p: any, qty = 1) => {
+    if (sending) return;
+    setSending(true); setPayError("");
+    const one: CartLine[] = [{ product: p, qty }];
+    const sub = cartTotal(one);
+    const orderNo = String(Date.now()).slice(-6);
+    const msg = buildOrderMessage(one, { name, address: "", notes: "", orderNo, storeName: store.store_name, fee: 0 });
+    const waUrl = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
+    const order = { id: crypto.randomUUID(), user_id: store.user_id, order_no: orderNo, customer_name: (name.trim() || "Cliente").slice(0, 100), address: null, notes: null,
+      items: [{ id: p.id, name: p.name, qty, unit_price: unitPrice(p, qty) }], subtotal: sub, delivery_fee: 0, total: Math.round(sub * 100) / 100 };
+    await (supabase as any).from("store_orders").insert(order);
+    if (store.infinitepay_enabled) {
+      const base = `${window.location.origin}${window.location.pathname}`;
+      const { data } = await supabase.functions.invoke("infinitepay", { body: { order_id: order.id, redirect_url: base } });
+      if (data?.url) { window.location.href = data.url; return; }
+      setSending(false); setAutoPay(false);
+      setPayError("Não foi possível abrir o pagamento agora. Tente de novo ou fale no WhatsApp.");
+      return;
+    }
+    setSending(false);
+    window.location.href = waUrl;
+  };
+  useEffect(() => { if (autoPay && viewItem && store) { setAutoPay(false); buyNow(viewItem); } }, [autoPay, viewItem, store]);
+  const closeItem = () => { setViewItem(null); if (search.get("item") || search.get("pagar")) { search.delete("item"); search.delete("pagar"); setSearch(search, { replace: true }); } };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
   if (!store) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loja não encontrada.</div>;
   const color = store.primary_color || "hsl(var(--primary))";
@@ -123,16 +155,18 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
           const qty = cart[p.id] || 0;
           return (
             <div key={p.id} className="rounded-lg border border-border overflow-hidden flex flex-col bg-card">
-              <div className="aspect-square bg-muted flex items-center justify-center">
+              <div className="aspect-square bg-muted flex items-center justify-center cursor-pointer" onClick={() => setViewItem(p)}>
                 {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" loading="lazy" /> : <Package className="h-10 w-10 text-muted-foreground" />}
               </div>
               <div className="p-2 flex-1 flex flex-col gap-1">
                 <p className="text-sm font-medium leading-tight line-clamp-2">{p.name}</p>
                 {p.price != null && <p className="font-bold">{brl(Number(p.price))}<span className="text-xs font-normal text-muted-foreground"> /{p.unit}</span></p>}
                 {p.wholesale_price != null && <p className="text-xs" style={{ color }}>{brl(Number(p.wholesale_price))} a partir de {p.wholesale_min_qty ?? 1}</p>}
-                {Number(p.stock_qty) <= 0 && <p className="text-xs text-muted-foreground">Sob consulta</p>}
+                {p.item_type !== "service" && Number(p.stock_qty) <= 0 && <p className="text-xs text-muted-foreground">Sob consulta</p>}
                 <div className="mt-auto pt-1">
-                  {qty === 0 ? (
+                  {p.item_type === "service" ? (
+                    <Button size="sm" className="w-full" style={{ background: color }} disabled={sending} onClick={() => setViewItem(p)}>Contratar</Button>
+                  ) : qty === 0 ? (
                     <Button size="sm" className="w-full" style={{ background: color }} onClick={() => setQty(p.id, 1)}>Adicionar</Button>
                   ) : (
                     <div className="flex items-center justify-between border border-border rounded-md">
@@ -203,6 +237,24 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
           )}
         </SheetContent>
       </Sheet>
+      <Dialog open={!!viewItem} onOpenChange={(v) => !v && closeItem()}>
+        <DialogContent className={`max-w-lg max-h-[90vh] overflow-y-auto bg-background text-foreground ${themeClass}`} style={bgStyle}>
+          {viewItem && (() => { const isSvc = viewItem.item_type === "service"; const q = cart[viewItem.id] || 0; return (
+            <div className="space-y-3">
+              <DialogHeader><DialogTitle>{viewItem.name}</DialogTitle></DialogHeader>
+              {viewItem.images?.[0] && <img src={viewItem.images[0]} alt={viewItem.name} className="w-full max-h-72 object-cover rounded-md" />}
+              {viewItem.price != null && <p className="text-xl font-bold">{brl(Number(viewItem.price))}<span className="text-sm font-normal text-muted-foreground"> /{viewItem.unit}</span></p>}
+              {viewItem.description && <p className="text-sm text-muted-foreground whitespace-pre-line">{viewItem.description}</p>}
+              {autoPay || (sending && isSvc) ? <p className="text-sm text-muted-foreground">Abrindo o pagamento...</p> : null}
+              {payError && <p className="text-xs text-destructive">{payError}</p>}
+              {store.infinitepay_enabled && viewItem.price != null && (
+                <Button className="w-full" style={{ background: color }} disabled={sending} onClick={() => buyNow(viewItem, isSvc ? 1 : Math.max(1, q))}>{sending ? "Abrindo pagamento..." : isSvc ? "💳 Contratar e pagar agora" : "💳 Comprar agora (Pix ou Cartão)"}</Button>
+              )}
+              {!isSvc && <Button variant="outline" className="w-full" onClick={() => { setQty(viewItem.id, q + 1); closeItem(); }}><ShoppingCart className="h-4 w-4 mr-1" />{q > 0 ? `Adicionar mais um (${q} na cesta)` : "Adicionar à cesta"}</Button>}
+              <Button variant="ghost" className="w-full" asChild><a href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Olá! Tenho interesse em: ${viewItem.name}`)}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 mr-1" />Falar no WhatsApp</a></Button>
+            </div>); })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
