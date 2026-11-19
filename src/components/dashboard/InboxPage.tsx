@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConversationActionsMenu from "./automation/ConversationActionsMenu";
 import AudioMessage from "./chat/AudioMessage";
+import { readConversationState } from "@/lib/conversationState";
 
 interface Client { id: string; name: string | null; phone: string | null; lead_id: string | null; source?: string | null; avatar_url?: string | null; tags?: string[] | null; metadata?: any; updated_at?: string; last_inbound_at?: string | null; lead_score?: number | null; score_label?: string | null; }
 interface Message { id: string; client_id: string | null; direction: string; content: string | null; created_at: string; agent_id?: string | null; external_message_id?: string | null; media_url?: string | null; media_type?: string | null; status?: string | null; metadata?: any; is_read?: boolean; }
@@ -174,6 +175,7 @@ export default function InboxPage() {
   // Load when conversation changes
   useEffect(() => {
     if (!selectedId) { setMessages([]); setConvState(null); setLead(null); setActivities([]); return; }
+    let cancelled = false;
     (async () => {
       const { data: msgs } = await supabase.from("messages").select("*").eq("client_id", selectedId).order("created_at", { ascending: false }).limit(300);
       setMessages(((msgs || []) as Message[]).sort(byCreatedAt));
@@ -183,11 +185,11 @@ export default function InboxPage() {
           .eq("user_id", user.id).eq("client_id", selectedId).eq("is_read", false);
         setUnreadByClient(prev => { const c = { ...prev }; delete c[selectedId]; return c; });
       }
-      const { data: st } = await supabase.from("conversation_state").select("*").eq("client_id", selectedId).maybeSingle();
-      if (st) setConvState(st as any);
-      else if (user) {
-        const { data: created } = await supabase.from("conversation_state").insert({ user_id: user.id, client_id: selectedId, ai_active: false, mode: "human" }).select().single();
-        if (created) setConvState(created as any);
+      try {
+        const st = await readConversationState(supabase, selectedId);
+        if (!cancelled) setConvState(st as ConvState | null);
+      } catch {
+        if (!cancelled) toast.error("Não foi possível conferir o estado da IA. Tente novamente.");
       }
       const cli = clients.find(c => c.id === selectedId);
       if (cli?.lead_id) {
@@ -202,6 +204,7 @@ export default function InboxPage() {
         setActivities([]);
       }
     })();
+    return () => { cancelled = true; };
   }, [selectedId, user, clients]);
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
@@ -258,9 +261,13 @@ export default function InboxPage() {
   };
 
   const toggleAi = async (active: boolean) => {
-    if (!convState) return;
-    await supabase.from("conversation_state").update({ ai_active: active, mode: active ? "ai" : "human" }).eq("id", convState.id);
-    setConvState({ ...convState, ai_active: active, mode: active ? "ai" : "human" });
+    if (!selectedId || !user) return;
+    const { data, error } = await supabase.from("conversation_state").upsert({
+      user_id: user.id, client_id: selectedId, ai_active: active, mode: active ? "ai" : "human",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "client_id" }).select().single();
+    if (error) { toast.error("Não foi possível alterar a IA. Tente novamente."); return; }
+    setConvState(data as ConvState);
     toast.success(active ? "IA ativada para esta conversa" : "IA pausada — assumindo manualmente");
   };
 

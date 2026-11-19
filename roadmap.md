@@ -1,4 +1,5 @@
 # Solicitação atual
+- [x] Remover criação automática de estado humano pelo chat; oito testes passaram e IA reativada na conversa afetada, com persistência conferida após recarregar (nova resposta WhatsApp ainda depende de mensagem real).
 - [x] Impedir fluxos antigos de interceptar o WhatsApp e encerrar sessões legadas sem apagar históricos; confirmado que a conta não possui fluxos legados ativos.
 - [x] Configurar consulta direta por mensagens abertas, regras e instruções; nove testes passaram, atualização do atendimento implantada e salvamento/reabertura conferidos na conta conectada.
 - [ ] Confirmar resposta e consulta externa em conversa real no WhatsApp (aguarda nova mensagem recebida após a implantação; não enviar mensagens a clientes para testar).

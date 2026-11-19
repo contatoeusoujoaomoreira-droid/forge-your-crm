@@ -4,3 +4,4 @@
 - Never adopt arbitrary server instances or retry uncertain instance creation automatically, because these actions can affect another tenant or create duplicates.
 - Use the shared integration policy for supported REST methods and public HTTPS destinations; reject redirects before forwarding credentials.
 - WhatsApp inbound routing uses the configured welcome menu and assigned AI agent, never retired conversation flows; keep direct-request rules shared between routing and AI instructions to prevent conflicting behavior.
+- Inbox reads must never initialize conversation state; only inbound processing or explicit user actions may write it, to prevent chat refreshes racing with agent activation.
