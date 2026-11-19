@@ -1,6 +1,7 @@
 import { shouldAttendDirect, directRequestInstructions } from '../_shared/adIntent.ts';
 import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { createInfinitePayLink } from '../_shared/infinitepay.ts';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
 
 const corsHeaders = {
@@ -974,6 +975,7 @@ const PRODUCT_TOOLS = [
   { type: 'function', function: { name: 'buscar_produtos', description: 'Busca produtos do catálogo por nome, categoria ou código. Retorna preço varejo, preço atacado, quantidade mínima de atacado e estoque.', parameters: { type: 'object', properties: { termo: { type: 'string', description: 'Texto de busca. Vazio lista os principais.' } } } } },
   { type: 'function', function: { name: 'verificar_estoque', description: 'Verifica o estoque atual de um produto pelo id ou código (SKU).', parameters: { type: 'object', properties: { produto: { type: 'string' } }, required: ['produto'] } } },
   { type: 'function', function: { name: 'registrar_pedido', description: 'Registra o pedido confirmado pelo cliente: baixa o estoque e atualiza o valor da venda no CRM. Use só após o cliente confirmar itens e quantidades.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
+  { type: 'function', function: { name: 'gerar_link_pagamento', description: 'Cria um pedido e gera o link de pagamento (Pix ou cartão) para o cliente pagar. Use só após o cliente confirmar itens e quantidades. Envie o link retornado ao cliente.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
   { type: 'function', function: { name: 'link_loja', description: 'Retorna o link da loja virtual para o cliente montar a cesta.', parameters: { type: 'object', properties: {} } } },
 ];
 
@@ -998,6 +1000,22 @@ async function execProductTool(admin: any, userId: string, client: any, name: st
     if (name === 'verificar_estoque') {
       const p = await findProduct(admin, userId, String(args.produto || ''));
       return p ? JSON.stringify(fmt(p)) : JSON.stringify({ erro: 'Produto não encontrado' });
+    }
+    if (name === 'gerar_link_pagamento') {
+      const its: any[] = [];
+      for (const it of (Array.isArray(args.itens) ? args.itens : [])) {
+        const p = await findProduct(admin, userId, String(it.produto || ''));
+        if (!p) return JSON.stringify({ erro: `Produto não encontrado: ${it.produto}` });
+        const qty = Math.max(1, Number(it.quantidade) || 1);
+        const unit = p.wholesale_price && p.wholesale_min_qty && qty >= p.wholesale_min_qty ? Number(p.wholesale_price) : Number(p.price || 0);
+        its.push({ id: p.id, name: p.name, qty, unit_price: unit });
+      }
+      if (!its.length) return JSON.stringify({ erro: 'Nenhum item informado' });
+      const sub = Math.round(its.reduce((a, i) => a + i.qty * i.unit_price, 0) * 100) / 100;
+      const { data: ord, error: oe } = await admin.from('store_orders').insert({ user_id: userId, order_no: String(Date.now()).slice(-6), customer_name: client?.name || 'Cliente WhatsApp', customer_phone: client?.phone || null, channel: 'whatsapp', items: its, subtotal: sub, delivery_fee: 0, total: sub }).select('id').single();
+      if (oe || !ord) return JSON.stringify({ erro: 'Não foi possível criar o pedido' });
+      const r = await createInfinitePayLink(admin, ord.id);
+      return JSON.stringify(r.url ? { link_pagamento: r.url, total: sub } : { erro: r.error });
     }
     if (name === 'link_loja') {
       const { data: st } = await admin.from('store_settings').select('slug,is_published').eq('user_id', userId).maybeSingle();
@@ -2454,7 +2472,22 @@ Deno.serve(async (req) => {
           const lastAt = meta.triage_at ? new Date(meta.triage_at).getTime() : 0;
           const fresh = !meta.triage_done || (Date.now() - lastAt > 12 * 3600 * 1000);
           const adHit = directHit;
-          if (adHit) await setMeta({ triage_pending: false, triage_done: true, triage_tries: 0, triage_at: new Date().toISOString(), from_ad: true });
+          if (adHit) {
+            await setMeta({ triage_pending: false, triage_done: true, triage_tries: 0, triage_at: new Date().toISOString(), from_ad: true });
+            // Pedido direto pula o menu: ativa o agente da primeira opção de agente do menu (senão a conversa ficava com humano).
+            if (!convStateInit?.ai_active) {
+              const agOpt = opts.find((o: any) => o.action === 'agent' && o.agent_id);
+              const agId = agOpt?.agent_id || waCfg?.default_agent_id || null;
+              if (agId) {
+                const { data: ag3 } = await admin.from('ai_agents').select('*').eq('id', agId).eq('user_id', userId).eq('is_active', true).maybeSingle();
+                if (ag3) {
+                  agent = ag3;
+                  await admin.from('conversation_state').update({ ai_active: true, mode: 'ai', assigned_agent_id: ag3.id, updated_at: new Date().toISOString() }).eq('client_id', client.id);
+                  convStateInit = { ...convStateInit, ai_active: true, mode: 'ai', assigned_agent_id: ag3.id };
+                }
+              }
+            }
+          }
           if (!fresh || adHit) { /* segue para o agente (anúncio ou conversa em andamento) */ } else {
           const text = tm.menu_message || 'Olá! Como podemos te ajudar? Escolha uma opção:';
           await sendTriageMenu(waCfg, msg.phone, text, opts);

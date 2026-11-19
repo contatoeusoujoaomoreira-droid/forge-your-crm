@@ -59,13 +59,18 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
     const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name, fee });
     const waWin = window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
     const order = {
-      user_id: store.user_id, order_no: orderNo, customer_name: name.trim(), address: address.trim() || null, notes: notes.trim() || null,
+      id: crypto.randomUUID(), user_id: store.user_id, order_no: orderNo, customer_name: name.trim(), address: address.trim() || null, notes: notes.trim() || null,
       items: lines.map((l) => ({ id: l.product.id, name: l.product.name, qty: l.qty, unit_price: unitPrice(l.product, l.qty) })),
       subtotal: total, delivery_fee: fee, total: Math.round((total + fee) * 100) / 100,
     };
     await (supabase as any).from("store_orders").insert(order);
+    let payUrl = "";
+    if (store.infinitepay_enabled) {
+      const { data } = await supabase.functions.invoke("infinitepay", { body: { order_id: order.id, redirect_url: window.location.href } });
+      payUrl = data?.url || "";
+    }
     setSending(false);
-    setDone({ ...order, created_at: new Date().toISOString() });
+    setDone({ ...order, payment_link: payUrl, created_at: new Date().toISOString() });
     setCart({}); setOpen(false);
     if (!waWin) window.location.href = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
   };
@@ -174,6 +179,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
               <div className="flex justify-between border-t border-border pt-2"><span>Entrega</span><span>{brl(done.delivery_fee)}</span></div>
               <div className="flex justify-between font-bold"><span>Total</span><span>{brl(done.total)}</span></div>
               <p className="text-xs text-muted-foreground">A loja vai confirmar seu pedido pelo WhatsApp.</p>
+              {done.payment_link && <Button className="w-full" asChild><a href={done.payment_link} target="_blank" rel="noreferrer">💳 Pagar agora (Pix ou cartão)</a></Button>}
               <Button variant="outline" className="w-full" onClick={() => printReceipt(done, store.store_name)}>Imprimir / Salvar comprovante</Button>
             </div>
           )}

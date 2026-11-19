@@ -33,7 +33,9 @@ export default function StoreSettings() {
     if (s.is_published && digits.length < 10) { toast.error("Informe o WhatsApp com DDD para receber os pedidos"); return; }
     setSaving(true);
     const custom_domain = String(s.custom_domain || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "") || null;
-    const payload = { ...s, slug, whatsapp: digits, user_id: user.id, custom_domain };
+    const infinitepay_handle = String(s.infinitepay_handle || "").trim().replace(/^\$/, "") || null;
+    if (s.infinitepay_enabled && !infinitepay_handle) { toast.error("Informe sua InfiniteTag para receber pagamentos"); setSaving(false); return; }
+    const payload = { ...s, infinitepay_handle, slug, whatsapp: digits, user_id: user.id, custom_domain };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
     const { data, error } = await supabase.from("store_settings").upsert(payload, { onConflict: "user_id" }).select().single();
     setSaving(false);
@@ -62,6 +64,16 @@ export default function StoreSettings() {
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Pedido mínimo (R$)</Label><Input type="number" min={0} value={s.min_order ?? 0} onChange={(e) => setS({ ...s, min_order: Math.max(0, Number(e.target.value) || 0) })} /></div>
           <div><Label>Taxa de entrega (R$)</Label><Input type="number" min={0} value={s.delivery_fee ?? 0} onChange={(e) => setS({ ...s, delivery_fee: Math.max(0, Number(e.target.value) || 0) })} /></div>
+        </div>
+        <div className="space-y-2 rounded-md border border-border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div><Label>Receber pagamento online (InfinitePay)</Label><p className="text-[11px] text-muted-foreground">Cliente paga por Pix ou cartão. A loja e o agente de IA enviam o link de pagamento.</p></div>
+            <Switch checked={!!s.infinitepay_enabled} onCheckedChange={(v) => setS({ ...s, infinitepay_enabled: v })} />
+          </div>
+          {s.infinitepay_enabled && (
+            <div><Label>Sua InfiniteTag</Label><Input value={s.infinitepay_handle || ""} onChange={(e) => setS({ ...s, infinitepay_handle: e.target.value })} placeholder="minha_loja (sem o $)" />
+              <p className="text-[11px] text-muted-foreground mt-1">Encontre no app InfinitePay, no seu perfil. O dinheiro cai direto na sua conta InfinitePay.</p></div>
+          )}
         </div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>
         <div><Label>Mensagem de boas-vindas</Label><Textarea rows={2} value={s.welcome_text || ""} onChange={(e) => setS({ ...s, welcome_text: e.target.value })} placeholder="Ex: Entregamos em toda a região em até 24h!" /></div>

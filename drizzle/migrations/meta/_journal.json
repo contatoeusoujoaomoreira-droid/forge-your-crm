@@ -85,6 +85,13 @@
       "when": 1795049968669,
       "tag": "0011_direct_request_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795053824319,
+      "tag": "0012_infinitepay_checkout",
+      "breakpoints": true
     }
   ]
 }

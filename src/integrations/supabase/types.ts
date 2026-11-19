@@ -3842,8 +3842,11 @@ export type Database = {
           items: Json
           notes: string | null
           order_no: string
+          payment_link: string | null
           payment_method: string | null
+          payment_receipt_url: string | null
           payment_status: string
+          payment_transaction_nsu: string | null
           status: string
           status_history: Json
           subtotal: number
@@ -3864,8 +3867,11 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_no: string
+          payment_link?: string | null
           payment_method?: string | null
+          payment_receipt_url?: string | null
           payment_status?: string
+          payment_transaction_nsu?: string | null
           status?: string
           status_history?: Json
           subtotal?: number
@@ -3886,8 +3892,11 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_no?: string
+          payment_link?: string | null
           payment_method?: string | null
+          payment_receipt_url?: string | null
           payment_status?: string
+          payment_transaction_nsu?: string | null
           status?: string
           status_history?: Json
           subtotal?: number
@@ -3904,6 +3913,8 @@ export type Database = {
           custom_domain: string | null
           delivery_fee: number | null
           id: string
+          infinitepay_enabled: boolean
+          infinitepay_handle: string | null
           is_published: boolean
           logo_url: string | null
           min_order: number | null
@@ -3922,6 +3933,8 @@ export type Database = {
           custom_domain?: string | null
           delivery_fee?: number | null
           id?: string
+          infinitepay_enabled?: boolean
+          infinitepay_handle?: string | null
           is_published?: boolean
           logo_url?: string | null
           min_order?: number | null
@@ -3940,6 +3953,8 @@ export type Database = {
           custom_domain?: string | null
           delivery_fee?: number | null
           id?: string
+          infinitepay_enabled?: boolean
+          infinitepay_handle?: string | null
           is_published?: boolean
           logo_url?: string | null
           min_order?: number | null
