@@ -1,0 +1,24 @@
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search, ShoppingCart, MessageCircle, Truck, ChevronLeft, ChevronRight, Package, ShieldCheck } from 'lucide-react';
+export default function StorefrontHeader({store,q,onSearch,categories,category,onCategory,count,onCart,onTrack}:{store:any;q:string;onSearch:(v:string)=>void;categories:string[];category:string;onCategory:(v:string)=>void;count:number;onCart:()=>void;onTrack:()=>void}) {
+  const config=store.storefront_config || {};
+  const banners=[store.banner_url,...(config.banners || [])].filter(Boolean);
+  const [slide,setSlide]=useState(0);
+  const selected=banners[slide % Math.max(1,banners.length)];
+  return <>
+    <div className="bg-secondary text-secondary-foreground border-b border-border"><div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs"><span>{config.announcement || store.welcome_text || store.store_name}</span><Button variant="link" size="sm" className="h-auto p-0 text-foreground" onClick={onTrack}><Truck className="h-3 w-3 mr-1" />Acompanhar minha compra</Button></div></div>
+    <header className="bg-background border-b border-border"><div className="max-w-7xl mx-auto px-4 py-5 grid grid-cols-[1fr_auto] md:grid-cols-[minmax(180px,1fr)_minmax(240px,2fr)_auto] items-center gap-4">
+      <div className="flex items-center gap-3 min-w-0">{store.logo_url && <img src={store.logo_url} alt={store.store_name} className="w-16 h-16 md:w-20 md:h-20 object-contain shrink-0" />}<h1 className="text-xl md:text-2xl font-bold break-words">{store.store_name}</h1></div>
+      <div className="relative col-span-2 row-start-2 md:row-start-auto md:col-span-1"><Search className="absolute left-4 top-3.5 h-5 w-5 text-primary" /><Input className="h-12 pl-12" aria-label="Buscar produtos e serviços" placeholder="O que você procura hoje?" value={q} onChange={e=>onSearch(e.target.value)} /></div>
+      <div className="flex items-center gap-1"><Button variant="ghost" size="icon" asChild><a title="Atendimento pelo WhatsApp" href={`https://wa.me/${store.whatsapp}`} target="_blank" rel="noreferrer"><MessageCircle className="h-6 w-6" /></a></Button><Button variant="outline" className="gap-2" aria-label={`Meu carrinho (${count})`} onClick={onCart}><ShoppingCart className="h-5 w-5" /><span className="hidden lg:inline">Meu carrinho</span><span>{count}</span></Button></div>
+    </div><nav aria-label="Categorias da loja" className="bg-primary text-primary-foreground"><div className="max-w-7xl mx-auto px-4 flex overflow-x-auto gap-1 py-1">{['',...categories].map(c=><Button key={c} variant="ghost" onClick={()=>onCategory(c)} className={`shrink-0 text-primary-foreground hover:bg-background/20 hover:text-primary-foreground ${category===c?'bg-background/20':''}`}>{c || 'Todos os itens'}</Button>)}</div></nav></header>
+    {!q && !category && <>
+      {selected && <section className="max-w-7xl mx-auto px-4 pt-5 relative"><picture>{config.mobile_banner && <source media="(max-width: 640px)" srcSet={config.mobile_banner} />}<img src={selected} alt={`Destaques de ${store.store_name}`} className="w-full aspect-[96/37] max-sm:aspect-[5/4] object-contain" /></picture>{banners.length>1 && <div className="flex justify-center gap-3 py-2"><Button variant="outline" size="icon" aria-label="Banner anterior" onClick={()=>setSlide(s=>(s+banners.length-1)%banners.length)}><ChevronLeft className="h-4 w-4" /></Button><span className="text-xs self-center">{slide+1} / {banners.length}</span><Button variant="outline" size="icon" aria-label="Próximo banner" onClick={()=>setSlide(s=>(s+1)%banners.length)}><ChevronRight className="h-4 w-4" /></Button></div>}</section>}
+      <div className="max-w-7xl mx-auto px-4 py-5 grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-border">
+        {[[Truck,config.delivery_text || 'Entrega ou retirada'],[ShieldCheck,store.infinitepay_enabled?'Pix e cartão • InfinitePay':'Pedido pelo WhatsApp'],[Package,config.service_text || 'Produtos e serviços'],[MessageCircle,config.support_text || 'Atendimento pelo WhatsApp']].map(([Icon,text],i)=>{const I=Icon as typeof Truck;return <div key={i} className="flex items-center gap-3"><I className="h-7 w-7 shrink-0 text-primary" /><span className="text-xs font-medium">{String(text)}</span></div>;})}
+      {categories.length>0 && <section className="max-w-7xl mx-auto px-4 pt-6"><h2 className="font-semibold mb-3">Navegue por categorias</h2><div className="flex gap-2 overflow-x-auto pb-2">{categories.map(c=><Button key={c} variant="outline" className="shrink-0 gap-2" onClick={()=>onCategory(c)}><Package className="h-4 w-4" />{c}</Button>)}</div></section>}
+    </>}
+  </>;
+}

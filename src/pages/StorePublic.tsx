@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Minus, Plus, Search, ShoppingCart, Package, MessageCircle } from "lucide-react";
+import StorefrontHeader from "@/components/store/StorefrontHeader";
+import OrderTracking from "@/components/store/OrderTracking";
+import { storeThemeStyle } from "@/lib/storeAppearance";
 import { unitPrice, cartTotal, buildOrderMessage, printReceipt, type CartLine } from "@/lib/store";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -15,6 +18,10 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const params = useParams();
   const [search, setSearch] = useSearchParams();
   const [viewItem, setViewItem] = useState<any>(null);
+  const [tracking, setTracking] = useState(!!search.get("pedido"));
+  const [trackingToken, setTrackingToken] = useState(search.get("pedido") || "");
+  const [brand, setBrand] = useState("");
+  const [sort, setSort] = useState("name");
   const [autoPay, setAutoPay] = useState(false);
   const [slug, setSlug] = useState<string | undefined>(params.slug);
   const [store, setStore] = useState<any>(null);
@@ -31,12 +38,12 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   useEffect(() => {
     (async () => {
       let qs = supabase.from("store_settings").select("*").eq("is_published", true);
-      qs = domain ? qs.ilike("custom_domain", domain.replace(/^www\./, "")) : qs.eq("slug", params.slug!);
+      qs = domain ? qs.ilike("custom_domain", domain.replace(/^www\./, "")) : qs.eq("slug", params.slug || "");
       const { data: s } = await qs.maybeSingle();
       if (s && s.slug !== slug) setSlug(s.slug);
       setStore(s);
       if (s) {
-        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images,item_type")
+        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images,item_type,brand,sku")
           .eq("user_id", s.user_id).eq("is_active", true).eq("show_in_catalog", true).order("name");
         setProducts(data || []);
         const itemId = search.get("item") || search.get("pagar");
@@ -50,7 +57,8 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   useEffect(() => { if (!slug) return; localStorage.setItem(`cart_${slug}`, JSON.stringify(cart)); }, [cart, slug]);
 
   const cats = useMemo(() => Array.from(new Set(products.map((p) => p.category).filter(Boolean))), [products]);
-  const shown = products.filter((p) => (!cat || p.category === cat) && (!q || p.name.toLowerCase().includes(q.toLowerCase())));
+  const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean))) as string[];
+  const shown = products.filter((p) => (!cat || p.category === cat) && (!brand || p.brand === brand) && (!q || [p.name,p.sku,p.brand,p.description].some(v=>String(v || "").toLowerCase().includes(q.toLowerCase())))).sort((a,b)=>sort==="price-low"?Number(a.price)-Number(b.price):sort==="price-high"?Number(b.price)-Number(a.price):a.name.localeCompare(b.name));
   const lines: CartLine[] = products.filter((p) => cart[p.id] > 0).map((p) => ({ product: p, qty: cart[p.id] }));
   const total = cartTotal(lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
@@ -60,119 +68,85 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const minOrder = Number(store?.min_order || 0);
   const belowMin = minOrder > 0 && total < minOrder;
   const [payError, setPayError] = useState("");
+  const createOrder = async (selected: CartLine[], customerName: string, delivery = "", comment = "") => {
+    const { data, error } = await supabase.functions.invoke("infinitepay", { body: { action:"create_order", store_slug:store.slug, customer_name:customerName, address:delivery, notes:comment, items:selected.map(l=>({id:l.product.id,qty:l.qty})) } });
+    if (error || !data?.order) throw new Error(data?.error || "Não foi possível criar o pedido. Confira o estoque e tente novamente.");
+    const order=data.order;
+    localStorage.setItem(`last_order_${store.slug}`,order.tracking_token);
+    setTrackingToken(order.tracking_token);
+    return order;
+  };
+  const payment = async (order:any) => {
+    const {data}=await supabase.functions.invoke("infinitepay",{body:{order_id:order.id,token:order.tracking_token,redirect_url:`${window.location.origin}${window.location.pathname}`}});
+    if (!data?.url) throw new Error(data?.error || "Não foi possível abrir o pagamento agora.");
+    return data.url;
+  };
   const send = async (mode: "whatsapp" | "pay" = "whatsapp") => {
     if (belowMin || sending) return;
     setSending(true); setPayError("");
-    const orderNo = String(Date.now()).slice(-6);
-    const msg = buildOrderMessage(lines, { name, address, notes, orderNo, storeName: store.store_name, fee });
-    const waUrl = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
-    const waWin = mode === "whatsapp" ? window.open(waUrl, "_blank") : null;
-    const order = {
-      id: crypto.randomUUID(), user_id: store.user_id, order_no: orderNo, customer_name: name.trim(), address: address.trim() || null, notes: notes.trim() || null,
-      items: lines.map((l) => ({ id: l.product.id, name: l.product.name, qty: l.qty, unit_price: unitPrice(l.product, l.qty) })),
-      subtotal: total, delivery_fee: fee, total: Math.round((total + fee) * 100) / 100,
-    };
-    await (supabase as any).from("store_orders").insert(order);
-    let payUrl = "";
-    if (store.infinitepay_enabled) {
-      const { data } = await supabase.functions.invoke("infinitepay", { body: { order_id: order.id, redirect_url: window.location.href } });
-      payUrl = data?.url || "";
-    }
-    if (mode === "pay") {
-      if (payUrl) { window.location.href = payUrl; return; }
-      setSending(false);
-      setPayError("Não foi possível abrir o pagamento agora. Tente de novo ou envie o pedido pelo WhatsApp.");
-      return;
-    }
+    try {
+      const order=await createOrder(lines,name.trim(),address.trim(),notes.trim());
+      const trackingUrl=`${window.location.origin}${window.location.pathname}?pedido=${order.tracking_token}`;
+      const msg=buildOrderMessage(lines,{name,address,notes,orderNo:order.order_no,storeName:store.store_name,fee})+`\nAcompanhe seu pedido: ${trackingUrl}`;
+      const waUrl=`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
+      if (mode==="pay") { window.location.href=await payment(order); return; }
+      setDone({...order,wa_url:waUrl}); setCart({}); setOpen(false);
+      window.open(waUrl,"_blank","noopener,noreferrer");
+    } catch(error) { setPayError(error instanceof Error?error.message:"Não foi possível concluir o pedido."); }
     setSending(false);
-    setDone({ ...order, payment_link: payUrl, wa_url: waUrl, created_at: new Date().toISOString() });
-    setCart({}); setOpen(false);
-    if (!waWin) window.location.href = waUrl;
   };
 
   const buyNow = async (p: any, qty = 1) => {
     if (sending) return;
     setSending(true); setPayError("");
-    const one: CartLine[] = [{ product: p, qty }];
-    const sub = cartTotal(one);
-    const orderNo = String(Date.now()).slice(-6);
-    const msg = buildOrderMessage(one, { name, address: "", notes: "", orderNo, storeName: store.store_name, fee: 0 });
-    const waUrl = `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(msg)}`;
-    const order = { id: crypto.randomUUID(), user_id: store.user_id, order_no: orderNo, customer_name: (name.trim() || "Cliente").slice(0, 100), address: null, notes: null,
-      items: [{ id: p.id, name: p.name, qty, unit_price: unitPrice(p, qty) }], subtotal: sub, delivery_fee: 0, total: Math.round(sub * 100) / 100 };
-    await (supabase as any).from("store_orders").insert(order);
-    if (store.infinitepay_enabled) {
-      const base = `${window.location.origin}${window.location.pathname}`;
-      const { data } = await supabase.functions.invoke("infinitepay", { body: { order_id: order.id, redirect_url: base } });
-      if (data?.url) { window.location.href = data.url; return; }
-      setSending(false); setAutoPay(false);
-      setPayError("Não foi possível abrir o pagamento agora. Tente de novo ou fale no WhatsApp.");
-      return;
-    }
+    try {
+      const order=await createOrder([{product:p,qty:p.item_type==="service"?1:qty}],name.trim() || "Cliente");
+      if (store.infinitepay_enabled) {window.location.href=await payment(order);return;}
+      window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Pedido #${order.order_no}: ${p.name}`)}`,"_blank","noopener,noreferrer");
+    } catch(error) {setPayError(error instanceof Error?error.message:"Não foi possível abrir o pagamento.");setAutoPay(false);}
     setSending(false);
-    window.location.href = waUrl;
   };
   useEffect(() => { if (autoPay && viewItem && store) { setAutoPay(false); buyNow(viewItem); } }, [autoPay, viewItem, store]);
   const closeItem = () => { setViewItem(null); if (search.get("item") || search.get("pagar")) { search.delete("item"); search.delete("pagar"); setSearch(search, { replace: true }); } };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
   if (!store) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loja não encontrada.</div>;
-  const color = store.primary_color || "hsl(var(--primary))";
-  const customBg = store.store_theme === "custom" && /^#[0-9a-f]{6}$/i.test(store.store_bg_color || "") ? store.store_bg_color : null;
-  const isLightBg = customBg ? (() => { const n = parseInt(customBg.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150; })() : store.store_theme === "light";
-  const themeClass = isLightBg ? "light" : "store-dark";
-  const bgStyle = customBg ? ({ backgroundColor: customBg } as React.CSSProperties) : undefined;
+  const {className:themeClass,style}=storeThemeStyle(store);
+  const bgStyle=style as React.CSSProperties;
 
   return (
     <div className={`min-h-screen bg-background text-foreground pb-24 ${themeClass}`} style={bgStyle}>
-      {store.banner_url && <img src={store.banner_url} alt="" className="w-full h-36 md:h-52 object-cover" />}
-      {(store.opening_hours || minOrder > 0) && (
-        <div className="max-w-5xl mx-auto px-4 pt-2 text-xs text-muted-foreground flex flex-wrap gap-x-4">
-          {store.opening_hours && <span>🕒 {store.opening_hours}</span>}
-          {minOrder > 0 && <span>Pedido mínimo {brl(minOrder)}</span>}
-          {Number(store.delivery_fee) > 0 && <span>Entrega {brl(Number(store.delivery_fee))}</span>}
+      <StorefrontHeader store={store} q={q} onSearch={setQ} categories={cats} category={cat} onCategory={setCat} count={count} onCart={()=>setOpen(true)} onTrack={()=>{setTrackingToken(localStorage.getItem(`last_order_${store.slug}`) || "");setTracking(true);}} />
+      <section className="max-w-7xl mx-auto px-4 pt-6 flex flex-wrap justify-between items-center gap-3">
+        <div><h2 className="text-xl font-bold">{cat || store.storefront_config?.catalog_title || "Produtos e serviços"}</h2><p className="text-xs text-muted-foreground">{shown.length} itens</p></div>
+        <div className="flex flex-wrap gap-2">
+          {brands.length>0 && <select aria-label="Filtrar por marca" className="h-10 px-3 rounded-md bg-background border border-input text-sm" value={brand} onChange={e=>setBrand(e.target.value)}><option value="">Todas as marcas</option>{brands.map(b=><option key={b}>{b}</option>)}</select>}
+          <select aria-label="Ordenar catálogo" className="h-10 px-3 rounded-md bg-background border border-input text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="name">Nome</option><option value="price-low">Menor preço</option><option value="price-high">Maior preço</option></select>
         </div>
-      )}
-      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-          {store.logo_url ? <img src={store.logo_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full flex items-center justify-center text-background font-bold" style={{ background: color }}>{store.store_name[0]}</div>}
-          <div className="flex-1 min-w-0"><h1 className="font-bold truncate">{store.store_name}</h1>{store.welcome_text && <p className="text-xs text-muted-foreground truncate">{store.welcome_text}</p>}</div>
-        </div>
-        <div className="max-w-5xl mx-auto px-4 pb-3 space-y-2">
-          <div className="relative"><Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar produto" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-          {cats.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto">
-              {["", ...cats].map((c) => (
-                <button key={c || "all"} onClick={() => setCat(c)} className={`px-3 py-1 rounded-full text-sm whitespace-nowrap border ${cat === c ? "text-background border-transparent" : "border-border"}`} style={cat === c ? { background: color } : undefined}>{c || "Todos"}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 py-4 grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      </section>
+      <main className="max-w-7xl mx-auto px-4 py-5 grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {shown.map((p) => {
           const qty = cart[p.id] || 0;
           return (
             <div key={p.id} className="rounded-lg border border-border overflow-hidden flex flex-col bg-card">
               <div className="aspect-square bg-muted flex items-center justify-center cursor-pointer" onClick={() => setViewItem(p)}>
-                {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" loading="lazy" /> : <Package className="h-10 w-10 text-muted-foreground" />}
+                {p.images?.[0] ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-contain p-3" loading="lazy" /> : <Package className="h-10 w-10 text-muted-foreground" />}
               </div>
-              <div className="p-2 flex-1 flex flex-col gap-1">
+              <div className="p-3 flex-1 flex flex-col gap-2">
                 <p className="text-sm font-medium leading-tight line-clamp-2">{p.name}</p>
                 {p.price != null && <p className="font-bold">{brl(Number(p.price))}<span className="text-xs font-normal text-muted-foreground"> /{p.unit}</span></p>}
-                {p.wholesale_price != null && <p className="text-xs" style={{ color }}>{brl(Number(p.wholesale_price))} a partir de {p.wholesale_min_qty ?? 1}</p>}
-                {p.item_type !== "service" && Number(p.stock_qty) <= 0 && <p className="text-xs text-muted-foreground">Sob consulta</p>}
+                {p.wholesale_price != null && <p className="text-xs" >{brl(Number(p.wholesale_price))} a partir de {p.wholesale_min_qty ?? 1}</p>}
+                {p.item_type !== "service" && Number(p.stock_qty) <= 0 && <p className="text-xs text-muted-foreground">Esgotado</p>}
                 <div className="mt-auto pt-1">
                   {p.item_type === "service" ? (
-                    <Button size="sm" className="w-full" style={{ background: color }} disabled={sending} onClick={() => setViewItem(p)}>Contratar</Button>
+                    <Button size="sm" className="w-full"  disabled={sending} onClick={() => setViewItem(p)}>Contratar</Button>
                   ) : qty === 0 ? (
-                    <Button size="sm" className="w-full" style={{ background: color }} onClick={() => setQty(p.id, 1)}>Adicionar</Button>
+                    <Button size="sm" className="w-full"  disabled={Number(p.stock_qty)<=0} onClick={() => setQty(p.id, 1)}>Comprar</Button>
                   ) : (
                     <div className="flex items-center justify-between border border-border rounded-md">
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setQty(p.id, qty - 1)}><Minus className="h-4 w-4" /></Button>
                       <input className="w-10 text-center bg-transparent text-sm" value={qty} onChange={(e) => setQty(p.id, Number(e.target.value.replace(/\D/g, "")) || 0)} />
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setQty(p.id, qty + 1)}><Plus className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" disabled={qty>=Number(p.stock_qty)} onClick={() => setQty(p.id, qty + 1)}><Plus className="h-4 w-4" /></Button>
                     </div>
                   )}
                 </div>
@@ -183,9 +157,11 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
         {shown.length === 0 && <p className="col-span-full text-center text-muted-foreground py-10">Nenhum produto encontrado.</p>}
       </main>
 
+      <footer className="border-t border-border bg-secondary/30 mt-8"><div className="max-w-7xl mx-auto px-4 py-8 grid gap-6 md:grid-cols-3 text-sm"><div><h2 className="font-bold mb-2">{store.store_name}</h2><p className="text-muted-foreground whitespace-pre-line">{store.storefront_config?.about || store.welcome_text}</p></div><div><h3 className="font-semibold mb-2">Atendimento</h3><p>{store.opening_hours}</p><p>{store.storefront_config?.contact_email}</p><Button asChild variant="link" className="px-0"><a href={`https://wa.me/${store.whatsapp}`} target="_blank" rel="noreferrer">Falar no WhatsApp</a></Button><Button variant="link" onClick={()=>setTracking(true)}>Acompanhar pedido</Button></div><div><h3 className="font-semibold mb-2">Informações da loja</h3><p className="whitespace-pre-line text-muted-foreground">{store.storefront_config?.policies || ""}</p>{store.infinitepay_enabled && <p className="mt-3 font-medium">Pix e cartão • InfinitePay</p>}</div></div></footer>
+      <OrderTracking open={tracking} onClose={()=>setTracking(false)} token={trackingToken || undefined} store={store} themeClass={themeClass} themeStyle={bgStyle} />
       {count > 0 && (
         <div className="fixed bottom-0 inset-x-0 p-3 bg-background border-t border-border">
-          <Button className="w-full max-w-5xl mx-auto flex h-12 text-base" style={{ background: color }} onClick={() => setOpen(true)}>
+          <Button className="w-full max-w-7xl mx-auto flex h-12 text-base"  onClick={() => setOpen(true)}>
             <ShoppingCart className="h-5 w-5 mr-2" />Ver cesta ({count}) · {brl(total)}
           </Button>
         </div>
@@ -194,6 +170,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" className={`max-h-[90vh] overflow-y-auto bg-background text-foreground ${themeClass}`} style={bgStyle}>
           <SheetHeader><SheetTitle>Sua cesta</SheetTitle></SheetHeader>
+          {!count && <p className="py-6 text-muted-foreground">Seu carrinho está vazio.</p>}
           <div className="space-y-2 py-3">
             {lines.map((l) => (
               <div key={l.product.id} className="flex justify-between text-sm gap-2">
@@ -210,12 +187,12 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
             <Textarea placeholder="Observações (opcional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
             {belowMin && <p className="text-sm text-destructive">Pedido mínimo: {brl(minOrder)}. Faltam {brl(minOrder - total)}.</p>}
             {store.infinitepay_enabled && (
-              <Button className="w-full h-12 text-base" style={{ background: color }} disabled={!name.trim() || belowMin || sending} onClick={() => send("pay")}>
+              <Button className="w-full h-12 text-base"  disabled={!count || !name.trim() || belowMin || sending} onClick={() => send("pay")}>
                 {sending ? "Abrindo pagamento..." : "💳 Pagar agora (Pix ou Cartão)"}
               </Button>
             )}
             {payError && <p className="text-sm text-destructive">{payError}</p>}
-            <Button className="w-full h-12 text-base" variant={store.infinitepay_enabled ? "outline" : "default"} style={store.infinitepay_enabled ? undefined : { background: color }} disabled={!name.trim() || belowMin || sending} onClick={() => send("whatsapp")}>
+            <Button className="w-full h-12 text-base" variant={store.infinitepay_enabled ? "outline" : "default"}  disabled={!count || !name.trim() || belowMin || sending} onClick={() => send("whatsapp")}>
               <MessageCircle className="h-5 w-5 mr-2" />{sending ? "Enviando..." : "Enviar pedido no WhatsApp"}
             </Button>
           </div>
@@ -231,6 +208,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
               <div className="flex justify-between border-t border-border pt-2"><span>Entrega</span><span>{brl(done.delivery_fee)}</span></div>
               <div className="flex justify-between font-bold"><span>Total</span><span>{brl(done.total)}</span></div>
               <p className="text-xs text-muted-foreground">A loja vai confirmar seu pedido pelo WhatsApp.</p>
+              <Button variant="outline" className="w-full" onClick={()=>{setDone(null);setTracking(true);}}>Acompanhar pedido</Button>
               {done.payment_link && <Button className="w-full" asChild><a href={done.payment_link} target="_blank" rel="noreferrer">💳 Pagar agora (Pix ou cartão)</a></Button>}
               <Button variant="outline" className="w-full" onClick={() => printReceipt(done, store.store_name)}>Imprimir / Salvar comprovante</Button>
             </div>
@@ -242,15 +220,15 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
           {viewItem && (() => { const isSvc = viewItem.item_type === "service"; const q = cart[viewItem.id] || 0; return (
             <div className="space-y-3">
               <DialogHeader><DialogTitle>{viewItem.name}</DialogTitle></DialogHeader>
-              {viewItem.images?.[0] && <img src={viewItem.images[0]} alt={viewItem.name} className="w-full max-h-72 object-cover rounded-md" />}
+              {viewItem.images?.[0] && <img src={viewItem.images[0]} alt={viewItem.name} className="w-full aspect-square max-h-72 object-contain rounded-md" />}
               {viewItem.price != null && <p className="text-xl font-bold">{brl(Number(viewItem.price))}<span className="text-sm font-normal text-muted-foreground"> /{viewItem.unit}</span></p>}
               {viewItem.description && <p className="text-sm text-muted-foreground whitespace-pre-line">{viewItem.description}</p>}
               {autoPay || (sending && isSvc) ? <p className="text-sm text-muted-foreground">Abrindo o pagamento...</p> : null}
               {payError && <p className="text-xs text-destructive">{payError}</p>}
               {store.infinitepay_enabled && viewItem.price != null && (
-                <Button className="w-full" style={{ background: color }} disabled={sending} onClick={() => buyNow(viewItem, isSvc ? 1 : Math.max(1, q))}>{sending ? "Abrindo pagamento..." : isSvc ? "💳 Contratar e pagar agora" : "💳 Comprar agora (Pix ou Cartão)"}</Button>
+                <Button className="w-full"  disabled={sending || (!isSvc && Number(viewItem.stock_qty)<=0)} onClick={() => buyNow(viewItem, isSvc ? 1 : Math.max(1, q))}>{sending ? "Abrindo pagamento..." : isSvc ? "💳 Contratar e pagar agora" : "💳 Comprar agora (Pix ou Cartão)"}</Button>
               )}
-              {!isSvc && <Button variant="outline" className="w-full" onClick={() => { setQty(viewItem.id, q + 1); closeItem(); }}><ShoppingCart className="h-4 w-4 mr-1" />{q > 0 ? `Adicionar mais um (${q} na cesta)` : "Adicionar à cesta"}</Button>}
+              {!isSvc && <Button variant="outline" className="w-full" disabled={q>=Number(viewItem.stock_qty)} onClick={() => { setQty(viewItem.id, q + 1); closeItem(); }}><ShoppingCart className="h-4 w-4 mr-1" />{q > 0 ? `Adicionar mais um (${q} na cesta)` : "Adicionar à cesta"}</Button>}
               <Button variant="ghost" className="w-full" asChild><a href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Olá! Tenho interesse em: ${viewItem.name}`)}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 mr-1" />Falar no WhatsApp</a></Button>
             </div>); })()}
         </DialogContent>

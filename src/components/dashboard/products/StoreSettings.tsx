@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ShoppingCart, ExternalLink, Copy, Globe, Upload, ImageIcon } from "lucide-react";
-import StoreOrders from "./StoreOrders";
+import OrdersCenter from "../operations/OrdersCenter";
+import { STORE_IMAGE_ACCEPT, STORE_IMAGE_SPECS, validateStoreImage } from "@/lib/storeAppearance";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -28,27 +29,30 @@ export default function StoreSettings() {
   };
 
   const [uploading, setUploading] = useState<string | null>(null);
-  const uploadImg = async (field: "logo_url" | "banner_url", file?: File) => {
+  const uploadImg = async (field: "logo_url" | "banner_url" | "mobile_banner", file?: File) => {
     if (!user || !file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Escolha um arquivo de imagem"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Imagem muito grande (máx. 5 MB)"); return; }
+    const invalid=validateStoreImage(file);
+    if (invalid) {toast.error(invalid);return;}
     setUploading(field);
     const path = `${user.id}/store/${field}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
     const { error } = await supabase.storage.from("chat-media").upload(path, file, { upsert: true });
     setUploading(null);
     if (error) { toast.error("Falha ao enviar: " + error.message); return; }
     const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
-    setS((x: any) => ({ ...x, [field]: data.publicUrl }));
+    setS((x: any) => field === "mobile_banner" ? ({...x,storefront_config:{...x.storefront_config,mobile_banner:data.publicUrl}}) : ({ ...x, [field]: data.publicUrl }));
     toast.success("Imagem enviada! Clique em Salvar loja.");
   };
-  const ImgField = ({ field, label, wide }: { field: "logo_url" | "banner_url"; label: string; wide?: boolean }) => (
+  const imageValue = (field:string) => field === "mobile_banner" ? s.storefront_config?.mobile_banner : s[field];
+  const config = (key:string,value:any) => setS((x:any)=>({...x,storefront_config:{...x.storefront_config,[key]:value}}));
+  const ImgField = ({ field, label, wide }: { field: "logo_url" | "banner_url" | "mobile_banner"; label: string; wide?: boolean }) => (
     <div><Label>{label}</Label>
       <div className="flex items-center gap-3 mt-1">
-        {s[field] ? <img src={s[field]} alt="" className={wide ? "h-16 w-32 rounded-md object-cover border border-border" : "h-16 w-16 rounded-full object-cover border border-border"} /> : <div className={`${wide ? "h-16 w-32 rounded-md" : "h-16 w-16 rounded-full"} border border-dashed border-border flex items-center justify-center text-muted-foreground`}><ImageIcon className="h-5 w-5" /></div>}
-        <label className="cursor-pointer"><input type="file" accept="image/*" className="hidden" onChange={(e) => { uploadImg(field, e.target.files?.[0]); e.target.value = ""; }} />
-          <span className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"><Upload className="h-4 w-4" />{uploading === field ? "Enviando..." : s[field] ? "Trocar imagem" : "Enviar imagem"}</span></label>
-        {s[field] && <Button type="button" variant="ghost" size="sm" onClick={() => setS({ ...s, [field]: null })}>Remover</Button>}
+        {imageValue(field) ? <img src={imageValue(field)} alt="" className={wide ? "h-16 w-32 rounded-md object-cover border border-border" : "h-16 w-16 rounded-md object-contain border border-border"} /> : <div className={`${wide ? "h-16 w-32 rounded-md" : "h-16 w-16 rounded-md"} border border-dashed border-border flex items-center justify-center text-muted-foreground`}><ImageIcon className="h-5 w-5" /></div>}
+        <label className="cursor-pointer"><input type="file" accept={STORE_IMAGE_ACCEPT} className="hidden" onChange={(e) => { uploadImg(field, e.target.files?.[0]); e.target.value = ""; }} />
+          <span className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"><Upload className="h-4 w-4" />{uploading === field ? "Enviando..." : imageValue(field) ? "Trocar imagem" : "Enviar imagem"}</span></label>
+        {imageValue(field) && <Button type="button" variant="ghost" size="sm" onClick={() => field === "mobile_banner" ? config(field,null) : setS({ ...s, [field]: null })}>Remover</Button>}
       </div>
+      <p className="text-xs text-muted-foreground mt-2">Recomendado: {STORE_IMAGE_SPECS[field].width} × {STORE_IMAGE_SPECS[field].height} px · JPG, PNG ou WEBP · até 5 MB</p>
     </div>
   );
 
@@ -105,11 +109,12 @@ export default function StoreSettings() {
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="geral">Geral</TabsTrigger>
           <TabsTrigger value="visual">Aparência</TabsTrigger>
+          <TabsTrigger value="conteudo">Conteúdo da loja</TabsTrigger>
           <TabsTrigger value="pagamento">Pagamento e entrega</TabsTrigger>
           <TabsTrigger value="dominio"><Globe className="h-4 w-4 mr-1" />Domínio</TabsTrigger>
           {s.id && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
         </TabsList>
-        <TabsContent value="geral"><Card className="p-4 grid gap-4 md:grid-cols-2">
+        <TabsContent value="geral"><div className="p-4 grid gap-4 md:grid-cols-2">
         <div><Label>Nome da loja</Label><Input value={s.store_name} onChange={(e) => setS({ ...s, store_name: e.target.value })} /></div>
         <div><Label>Endereço da loja</Label>
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">{window.location.origin}/loja/</span><Input value={s.slug} onChange={(e) => setS({ ...s, slug: slugify(e.target.value) })} /></div>
@@ -117,10 +122,10 @@ export default function StoreSettings() {
         <div><Label>WhatsApp que recebe os pedidos (com DDD)</Label><Input value={s.whatsapp || ""} onChange={(e) => setS({ ...s, whatsapp: e.target.value })} placeholder="5511999998888" /></div>
         
         <div><Label>Horário de funcionamento</Label><Input value={s.opening_hours || ""} onChange={(e) => setS({ ...s, opening_hours: e.target.value })} placeholder="Seg a Sáb, 8h às 18h" /></div>
-        </Card></TabsContent>
-        <TabsContent value="visual"><Card className="p-4 grid gap-6 md:grid-cols-2">
+        </div></TabsContent>
+        <TabsContent value="visual"><div className="p-4 grid gap-6 md:grid-cols-2">
         <div className="space-y-4"><ImgField field="logo_url" label="Logo da loja" />
-        <ImgField field="banner_url" label="Banner de capa" wide /></div>
+        <ImgField field="banner_url" label="Banner principal" wide /><ImgField field="mobile_banner" label="Banner para celular" wide /></div>
         <div className="space-y-4"><div><Label>Fundo da loja</Label>
           <div className="grid grid-cols-3 gap-2 mt-1">
             {[["dark", "Escuro"], ["light", "Claro"], ["custom", "Personalizado"]].map(([v, l]) => (
@@ -131,7 +136,12 @@ export default function StoreSettings() {
         </div>
         <div><Label>Cor principal</Label><Input type="color" className="h-10 w-24 p-1" value={s.primary_color || "#84cc16"} onChange={(e) => setS({ ...s, primary_color: e.target.value })} /></div>
         <div><Label>Mensagem de boas-vindas</Label><Textarea rows={2} value={s.welcome_text || ""} onChange={(e) => setS({ ...s, welcome_text: e.target.value })} placeholder="Ex: Entregamos em toda a região em até 24h!" /></div></div>
-        </Card></TabsContent>
+        </div></TabsContent>
+        <TabsContent value="conteudo"><div className="py-4 grid gap-4 md:grid-cols-2">
+          {[["announcement","Faixa de aviso"],["catalog_title","Título do catálogo"],["delivery_text","Informação de entrega"],["support_text","Informação de atendimento"],["service_text","Informação sobre produtos e serviços"],["contact_email","E-mail de atendimento"]].map(([k,l])=><div key={k}><Label>{l}</Label><Input value={s.storefront_config?.[k] || ""} onChange={e=>config(k,e.target.value)} maxLength={200} /></div>)}
+          <div><Label>Sobre a empresa</Label><Textarea value={s.storefront_config?.about || ""} onChange={e=>config("about",e.target.value)} maxLength={2000} /></div>
+          <div><Label>Políticas de entrega, troca e atendimento</Label><Textarea value={s.storefront_config?.policies || ""} onChange={e=>config("policies",e.target.value)} maxLength={4000} /></div>
+        </div></TabsContent>
         <TabsContent value="pagamento"><Card className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Pedido mínimo (R$)</Label><Input type="number" min={0} value={s.min_order ?? 0} onChange={(e) => setS({ ...s, min_order: Math.max(0, Number(e.target.value) || 0) })} /></div>
@@ -164,7 +174,7 @@ export default function StoreSettings() {
           <Input value={s.custom_domain || ""} onChange={(e) => setS({ ...s, custom_domain: e.target.value })} placeholder="minhaloja.com.br" />
           <p className="text-xs text-muted-foreground">No provedor do domínio (Registro.br, GoDaddy...), crie um registro <b>A</b> para <b>@</b> e <b>www</b> apontando para <b>185.158.133.1</b>. Depois avise o suporte da plataforma para ativar o domínio e o cadeado de segurança (HTTPS). Quando ativo, ao abrir o domínio a sua loja aparece direto.</p>
         </div></Card></TabsContent>
-        {s.id && <TabsContent value="pedidos"><StoreOrders storeName={s.store_name} /></TabsContent>}
+        {s.id && <TabsContent value="pedidos"><OrdersCenter /></TabsContent>}
       </Tabs>
     </div>
   );

@@ -1,4 +1,9 @@
 # Solicitação atual
+- [ ] Reformular a loja pública com cabeçalho comercial, categorias, banner, filtros e informações de atendimento, preservando produtos e serviços.
+- [ ] Ampliar configurações da loja com orientações de tamanho e upload WEBP.
+- [ ] Permitir habilitar catálogo, estoque, links e acompanhamento de pedidos no agente.
+- [ ] Unificar confirmação InfinitePay, situação de pagamento, estoque e acompanhamento seguro pelo cliente.
+- [ ] Validar os fluxos da loja no computador e celular, testes e implantação.
 - [x] Remover criação automática de estado humano pelo chat; oito testes passaram e IA reativada na conversa afetada, com persistência conferida após recarregar (nova resposta WhatsApp ainda depende de mensagem real).
 - [x] Impedir fluxos antigos de interceptar o WhatsApp e encerrar sessões legadas sem apagar históricos; confirmado que a conta não possui fluxos legados ativos.
 - [x] Configurar consulta direta por mensagens abertas, regras e instruções; nove testes passaram, atualização do atendimento implantada e salvamento/reabertura conferidos na conta conectada.

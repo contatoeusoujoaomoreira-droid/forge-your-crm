@@ -5,3 +5,7 @@
 - Use the shared integration policy for supported REST methods and public HTTPS destinations; reject redirects before forwarding credentials.
 - WhatsApp inbound routing uses the configured welcome menu and assigned AI agent, never retired conversation flows; keep direct-request rules shared between routing and AI instructions to prevent conflicting behavior.
 - Inbox reads must never initialize conversation state; only inbound processing or explicit user actions may write it, to prevent chat refreshes racing with agent activation.
+- Store orders are created from server-resolved catalog prices; tracking reads require an unguessable per-order token or the owner session to prevent customer data exposure.
+- Store agent actions use explicit per-agent permissions; confirmed orders share the store order ledger and stock trigger instead of decrementing stock separately.
+- InfinitePay confirmations verify transaction, invoice and order amount before marking payment as paid; fulfillment status stays independent and duplicate callbacks do not notify twice.
+- Storefront appearance values are scoped CSS tokens, and store uploads share raster validation and recommended image dimensions.

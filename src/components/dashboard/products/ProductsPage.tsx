@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { STORE_IMAGE_ACCEPT, validateStoreImage } from "@/lib/storeAppearance";
 import { toast } from "sonner";
 import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History, Link2, Copy } from "lucide-react";
 
@@ -86,7 +87,7 @@ export default function ProductsPage() {
     return items.filter((p) =>
       (!typeFilter || (p.item_type || "product") === typeFilter) && (!catFilter || p.category === catFilter) && (!brandFilter || p.brand === brandFilter) &&
       (!t || [p.name, p.sku, p.category, p.brand, p.barcode].some((f) => String(f || "").toLowerCase().includes(t))));
-  }, [items, q, catFilter, brandFilter]);
+  }, [items, q, catFilter, brandFilter, typeFilter]);
   const lowStock = items.filter((p) => p.item_type !== "service" && p.is_active && Number(p.low_stock_threshold) > 0 && Number(p.stock_qty) <= Number(p.low_stock_threshold));
 
   const save = async () => {
@@ -117,6 +118,8 @@ export default function ProductsPage() {
 
   const uploadImage = async (file: File) => {
     if (!user || !edit) return;
+    const invalid=validateStoreImage(file);
+    if (invalid) {toast.error(invalid);return;}
     const path = `${user.id}/products/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
     const { error } = await supabase.storage.from("chat-media").upload(path, file, { upsert: true });
     if (error) { toast.error("Falha ao enviar foto: " + error.message); return; }
@@ -300,7 +303,7 @@ export default function ProductsPage() {
               {edit.item_type !== "service" && <div><Label>Estoque atual</Label><Input type="number" value={edit.stock_qty} onChange={(e) => setEdit({ ...edit, stock_qty: Number(e.target.value || 0) })} /></div>}
               {edit.item_type !== "service" && <div><Label>Avisar quando estoque ≤</Label><Input type="number" value={edit.low_stock_threshold} onChange={(e) => setEdit({ ...edit, low_stock_threshold: Number(e.target.value || 0) })} /></div>}
               <div className="col-span-2 space-y-2">
-                <Label>Fotos</Label>
+                <Label>Fotos</Label><p className="text-xs text-muted-foreground">Recomendado: 1200 × 1200 px · JPG, PNG ou WEBP · até 5 MB por imagem</p>
                 <div className="flex flex-wrap gap-2">
                   {edit.images.map((src, i) => (
                     <div key={i} className="relative">
@@ -309,7 +312,7 @@ export default function ProductsPage() {
                     </div>
                   ))}
                   <Button type="button" variant="outline" size="sm" onClick={() => imgRef.current?.click()}><Plus className="h-4 w-4 mr-1" />Enviar fotos</Button>
-                  <input ref={imgRef} type="file" accept="image/*" multiple hidden onChange={(e) => { Array.from(e.target.files || []).forEach((f) => uploadImage(f)); e.target.value = ""; }} />
+                  <input ref={imgRef} type="file" accept={STORE_IMAGE_ACCEPT} multiple hidden onChange={(e) => { Array.from(e.target.files || []).forEach((f) => uploadImage(f)); e.target.value = ""; }} />
                 </div>
               </div>
               <div className="flex items-center gap-2"><Switch checked={edit.is_active} onCheckedChange={(v) => setEdit({ ...edit, is_active: v })} /><Label>Ativo</Label></div>

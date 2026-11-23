@@ -582,6 +582,10 @@ export default function AgentBuilder({ open, onOpenChange, agent, onSaved }: Pro
 
           {/* COMPORTAMENTO */}
           <TabsContent value="comportamento" className="space-y-4">
+            <div className="border-b border-border pb-4 space-y-3">
+              <h3 className="font-semibold">Loja virtual deste usuário</h3>
+              {[["catalog","Consultar produtos, serviços, preços, estoque e enviar links"],["orders","Registrar pedidos confirmados e acompanhar entrega e pagamento"],["payments","Gerar links de pagamento pela InfinitePay"]].map(([key,label])=><div key={key} className="flex justify-between items-center gap-4"><Label htmlFor={`store-${key}`}>{label}</Label><Switch id={`store-${key}`} checked={!!form.store_tools?.[key]} onCheckedChange={value=>setForm({...form,store_tools:{...form.store_tools,[key]:value}})} /></div>)}
+            </div>
             <Card className="p-4 space-y-2">
               <Label>Integrações que este agente pode usar</Label>
               <p className="text-xs text-muted-foreground">Ligue somente as integrações (ERP, CRM, loja, outros sistemas) que este agente deve consultar ou acionar.</p>

@@ -1,6 +1,7 @@
 import { shouldAttendDirect, directRequestInstructions } from '../_shared/adIntent.ts';
 import { buildExternalToolDefs, execExternalTool, safeToolName } from '../_shared/externalTools.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { allowedStoreTools, validatedOrderLines, publicOrder } from '../_shared/storeCommerce.ts';
 import { createInfinitePayLink } from '../_shared/infinitepay.ts';
 import { persistAvatar, isStoredAvatar } from '../_shared/avatar.ts';
 
@@ -974,8 +975,9 @@ async function callAi(systemPrompt: string, history: MmMessage[], runtime: { end
 const PRODUCT_TOOLS = [
   { type: 'function', function: { name: 'buscar_produtos', description: 'Busca produtos do catálogo por nome, categoria ou código. Retorna preço varejo, preço atacado, quantidade mínima de atacado e estoque.', parameters: { type: 'object', properties: { termo: { type: 'string', description: 'Texto de busca. Vazio lista os principais.' } } } } },
   { type: 'function', function: { name: 'verificar_estoque', description: 'Verifica o estoque atual de um produto pelo id ou código (SKU).', parameters: { type: 'object', properties: { produto: { type: 'string' } }, required: ['produto'] } } },
-  { type: 'function', function: { name: 'registrar_pedido', description: 'Registra o pedido confirmado pelo cliente: baixa o estoque e atualiza o valor da venda no CRM. Use só após o cliente confirmar itens e quantidades.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
+  { type: 'function', function: { name: 'registrar_pedido', description: 'Registra um pedido confirmado, reservando estoque somente de produtos. Não significa pagamento recebido. Use só após confirmação dos itens e quantidades.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
   { type: 'function', function: { name: 'gerar_link_pagamento', description: 'Cria um pedido e gera o link de pagamento (Pix ou cartão) para o cliente pagar. Use só após o cliente confirmar itens e quantidades. Envie o link retornado ao cliente.', parameters: { type: 'object', properties: { itens: { type: 'array', items: { type: 'object', properties: { produto: { type: 'string', description: 'id ou SKU' }, quantidade: { type: 'number' } }, required: ['produto', 'quantidade'] } } }, required: ['itens'] } } },
+  { type: 'function', function: { name: 'acompanhar_pedido', description: 'Consulta os pedidos deste contato, situação de pagamento e entrega. Nunca consulta pedidos de outros clientes.', parameters: { type:'object', properties:{ numero:{type:'string',description:'Número do pedido, opcional'} } } } },
   { type: 'function', function: { name: 'link_loja', description: 'Retorna o link da loja virtual para o cliente montar a cesta.', parameters: { type: 'object', properties: {} } } },
 ];
 
@@ -987,8 +989,11 @@ async function findProduct(admin: any, userId: string, ref: string) {
   return data;
 }
 
-async function execProductTool(admin: any, userId: string, client: any, name: string, args: any): Promise<string> {
-  const fmt = (p: any) => ({ id: p.id, sku: p.sku, nome: p.name, categoria: p.category, unidade: p.unit, preco_varejo: p.price, preco_atacado: p.wholesale_price, atacado_a_partir_de: p.wholesale_min_qty, estoque: p.stock_qty, descricao: (p.description || '').slice(0, 200) });
+async function execProductTool(admin: any, userId: string, client: any, name: string, args: any, agent: any): Promise<string> {
+  if (!allowedStoreTools(agent.store_tools || {}).includes(name)) return JSON.stringify({erro:'Este agente não tem autorização para essa ação na loja.'});
+  const {data:store} = await admin.from('store_settings').select('slug,is_published,custom_domain').eq('user_id',userId).maybeSingle();
+  const base = store?.is_published ? (store.custom_domain ? `https://${store.custom_domain}` : `https://omnibuildercrm.online/loja/${store.slug}`) : null;
+  const fmt = (p: any) => ({ id: p.id, sku: p.sku, nome: p.name, categoria: p.category, unidade: p.unit, preco_varejo: p.price, preco_atacado: p.wholesale_price, atacado_a_partir_de: p.wholesale_min_qty, estoque: p.stock_qty, tipo:p.item_type, descricao:(p.description || '').slice(0,1000), link:base?`${base}?item=${p.id}`:null, link_pagamento:base?`${base}?pagar=${p.id}`:null, imagem:p.images?.[0] || null });
   try {
     if (name === 'buscar_produtos') {
       const t = String(args.termo || '').replace(/[,()%]/g, '').trim();
@@ -1001,44 +1006,34 @@ async function execProductTool(admin: any, userId: string, client: any, name: st
       const p = await findProduct(admin, userId, String(args.produto || ''));
       return p ? JSON.stringify(fmt(p)) : JSON.stringify({ erro: 'Produto não encontrado' });
     }
-    if (name === 'gerar_link_pagamento') {
-      const its: any[] = [];
-      for (const it of (Array.isArray(args.itens) ? args.itens : [])) {
-        const p = await findProduct(admin, userId, String(it.produto || ''));
-        if (!p) return JSON.stringify({ erro: `Produto não encontrado: ${it.produto}` });
-        const qty = Math.max(1, Number(it.quantidade) || 1);
-        const unit = p.wholesale_price && p.wholesale_min_qty && qty >= p.wholesale_min_qty ? Number(p.wholesale_price) : Number(p.price || 0);
-        its.push({ id: p.id, name: p.name, qty, unit_price: unit });
-      }
-      if (!its.length) return JSON.stringify({ erro: 'Nenhum item informado' });
-      const sub = Math.round(its.reduce((a, i) => a + i.qty * i.unit_price, 0) * 100) / 100;
-      const { data: ord, error: oe } = await admin.from('store_orders').insert({ user_id: userId, order_no: String(Date.now()).slice(-6), customer_name: client?.name || 'Cliente WhatsApp', customer_phone: client?.phone || null, channel: 'whatsapp', items: its, subtotal: sub, delivery_fee: 0, total: sub }).select('id').single();
-      if (oe || !ord) return JSON.stringify({ erro: 'Não foi possível criar o pedido' });
-      const r = await createInfinitePayLink(admin, ord.id);
-      return JSON.stringify(r.url ? { link_pagamento: r.url, total: sub } : { erro: r.error });
+    if (name === 'acompanhar_pedido') {
+      const phone=String(client?.phone || '').replace(/\D/g,'');
+      if (!phone) return JSON.stringify({erro:'Contato sem telefone identificado.'});
+      let query=admin.from('store_orders').select('*').eq('user_id',userId).eq('customer_phone',phone);
+      if (args.numero) query=query.eq('order_no',String(args.numero).slice(0,30));
+      const {data}=await query.order('created_at',{ascending:false}).limit(3);
+      return JSON.stringify((data || []).map((o:any)=>({...publicOrder(o),link_acompanhamento:base?`${base}?pedido=${o.tracking_token}`:null})));
     }
-    if (name === 'link_loja') {
-      const { data: st } = await admin.from('store_settings').select('slug,is_published').eq('user_id', userId).maybeSingle();
-      if (!st?.is_published) return JSON.stringify({ erro: 'Loja não publicada' });
-      return JSON.stringify({ link: `https://omnibuildercrm.online/loja/${st.slug}` });
-    }
-    if (name === 'registrar_pedido') {
-      const itens = Array.isArray(args.itens) ? args.itens : [];
-      let total = 0; const linhas: any[] = []; const faltas: string[] = [];
-      for (const it of itens) {
-        const p = await findProduct(admin, userId, String(it.produto || ''));
-        const qtd = Math.max(1, Number(it.quantidade) || 1);
-        if (!p) { faltas.push(`${it.produto}: não encontrado`); continue; }
-        if (p.stock_qty != null && Number(p.stock_qty) < qtd) { faltas.push(`${p.name}: só ${p.stock_qty} em estoque`); continue; }
-        const unit = p.wholesale_price && p.wholesale_min_qty && qtd >= p.wholesale_min_qty ? Number(p.wholesale_price) : Number(p.price || 0);
-        total += unit * qtd; linhas.push({ nome: p.name, quantidade: qtd, preco_unit: unit, subtotal: unit * qtd });
-        if (p.stock_qty != null) await admin.from('products_services').update({ stock_qty: Number(p.stock_qty) - qtd }).eq('id', p.id);
+    if (name === 'link_loja') return JSON.stringify(base?{link:base}:{erro:'Loja não publicada'});
+    if (name === 'gerar_link_pagamento' || name === 'registrar_pedido') {
+      const requested=Array.isArray(args.itens)?args.itens:[];
+      const products:any[]=[];const selections:any[]=[];
+      for (const item of requested) {
+        const p=await findProduct(admin,userId,String(item.produto || ''));
+        if (!p) return JSON.stringify({erro:'Produto ou serviço não encontrado.'});
+        products.push(p);selections.push({id:p.id,qty:Number(item.quantidade)});
       }
-      if (linhas.length && client?.lead_id) {
-        const { data: lead } = await admin.from('leads').select('value').eq('id', client.lead_id).maybeSingle();
-        await admin.from('leads').update({ value: Number(lead?.value || 0) + total }).eq('id', client.lead_id);
+      const items=validatedOrderLines(products,selections);
+      const total=Math.round(items.reduce((s,i)=>s+i.qty*i.unit_price,0)*100)/100;
+      const {data:order,error}=await admin.from('store_orders').insert({user_id:userId,order_no:String(Date.now()).slice(-8),customer_name:client?.name || 'Cliente WhatsApp',customer_phone:String(client?.phone || '').replace(/\D/g,'') || null,channel:'whatsapp',items,subtotal:total,total}).select('*').single();
+      if (error || !order) return JSON.stringify({erro:'Não foi possível registrar o pedido.'});
+      const result:any={pedido:order.order_no,total,pagamento:'pendente',link_acompanhamento:base?`${base}?pedido=${order.tracking_token}`:null};
+      if (name==='gerar_link_pagamento') {
+        const payment=await createInfinitePayLink(admin,order.id,base?`${base}?pedido=${order.tracking_token}`:undefined);
+        if (!payment.url) return JSON.stringify({...result,erro:payment.error});
+        result.link_pagamento=payment.url;
       }
-      return JSON.stringify({ registrado: linhas, total, problemas: faltas });
+      return JSON.stringify(result);
     }
   } catch (e) { return JSON.stringify({ erro: String((e as Error).message || e) }); }
   return JSON.stringify({ erro: 'ferramenta desconhecida' });
@@ -1201,7 +1196,8 @@ async function callAiWithTools(
   const extTools = (extRows || []).filter((t: any) => (!t.agent_id || t.agent_id === agent?.id) && !offIds.includes(t.id));
   const { data: triageCfg } = await admin.from('ai_triage_settings').select('*').eq('user_id', userId).maybeSingle();
   const HUMAN_TOOL = { type: 'function', function: { name: 'transferir_humano', description: 'Pausa a IA e passa a conversa para a equipe humana. Use quando o assunto do contato não for atendido por este agente ou ele pedir para falar com uma pessoa.', parameters: { type: 'object', properties: { motivo: { type: 'string', description: 'Motivo curto da transferência' } }, required: ['motivo'] } } };
-  const TOOLS: any[] = [...PRODUCT_TOOLS, ...(schedTools ? SCHEDULING_TOOLS : []), ...buildExternalToolDefs(extTools), ...(triageCfg?.enabled ? [HUMAN_TOOL] : [])];
+  const permittedProducts = PRODUCT_TOOLS.filter(t=>allowedStoreTools(agent.store_tools || {}).includes(t.function.name));
+  const TOOLS: any[] = [...permittedProducts, ...(schedTools ? SCHEDULING_TOOLS : []), ...buildExternalToolDefs(extTools), ...(triageCfg?.enabled ? [HUMAN_TOOL] : [])];
   if (extTools.length) {
     systemPrompt += '\n\nIntegrações externas disponíveis: ' + extTools.map((t: any) => `${safeToolName(t.name)} (${t.kind === 'lead_push' ? 'envia o lead para o CRM do outro sistema' : 'consulta dados'}): ${t.description}`).join(' | ') + '. Use as de consulta sempre que o cliente pedir algo que elas cobrem, envie no máximo 3 opções com o link de cada uma, nunca invente dados. Use a de envio de lead uma única vez, assim que souber o nome e o interesse do cliente.';
   }
@@ -1216,7 +1212,7 @@ async function callAiWithTools(
     const dm = (triageCfg as any)?.ad_delivery_message || 'Tá na mão, {nome}! O que você me pediu sobre {item}. É uma ótima opção pra você que busca {desejo}.';
     systemPrompt += `\n\nPRIORIDADE MÁXIMA - FLUXO DE ANÚNCIO/REFERÊNCIA (substitui a QUALIFICAÇÃO): quando a mensagem trouxer código, referência, link ou texto de anúncio e o cliente ainda não disse o nome, NÃO faça perguntas de qualificação. Consulte a ferramenta já neste turno para confirmar o item. Use esta mensagem de acolhimento, trocando {item} pelo item/referência citado: "${wm}". Não invente que está buscando sem consultar. Não repita a pergunta de nome se já foi feita; não bloqueie a entrega se o cliente preferir não dizer o nome. Na próxima resposta (após o cliente dizer o nome), aproveite os resultados confirmados ou consulte novamente se necessário com o código/termo do item, e comece com esta mensagem, trocando {nome} pelo nome do cliente, {item} pelo item e {desejo} pelo que ele busca (ex: alugar, comprar): "${dm}". Em seguida envie os dados do item com foto e o link de mais detalhes, termine com uma chamada para ação e envie o lead pela ferramenta de envio, se houver. Se o cliente já tiver dito o nome, pule o acolhimento e entregue direto chamando pelo nome.`;
   }
-  systemPrompt += '\n\nVocê tem acesso ao catálogo de produtos e estoque em tempo real pelas ferramentas buscar_produtos, verificar_estoque, registrar_pedido e link_loja. Sempre consulte antes de informar preço ou disponibilidade. Nunca invente preços. Preço de atacado vale a partir da quantidade mínima indicada.';
+  systemPrompt += permittedProducts.length ? '\n\nLOJA: use somente as ferramentas de loja autorizadas. Consulte preços e estoque antes de informar. Serviços são contratados uma vez e não possuem estoque. Informe somente links retornados. Registre pedidos só após confirmação. Pedido criado NÃO é pagamento confirmado. Pagamento e entrega são situações independentes; nunca invente confirmação. Para acompanhar consulte acompanhar_pedido, que usa o telefone do contato.' : '\n\nEste agente não está autorizado a acessar o catálogo, estoque, pedidos ou pagamentos da loja interna. Não prometa executar ações da loja.';
   if (!enableTools) {
     const r = await callAi(systemPrompt, history, runtime);
     return r.text;
@@ -1246,7 +1242,7 @@ async function callAiWithTools(
         await admin.from('conversation_state').update({ ai_active: false, mode: 'human', updated_at: new Date().toISOString() }).eq('client_id', clientId);
         result = JSON.stringify({ ok: true, motivo: parsedArgs?.motivo || 'outro' });
       }
-      else result = PRODUCT_TOOLS.some(t => t.function.name === tn) ? await execProductTool(admin, userId, client, tn, parsedArgs) : await execSchedulingTool(admin, userId, clientId, client, tn, parsedArgs);
+      else result = PRODUCT_TOOLS.some(t => t.function.name === tn) ? await execProductTool(admin, userId, client, tn, parsedArgs, agent) : await execSchedulingTool(admin, userId, clientId, client, tn, parsedArgs);
       conv.push({ role: 'tool', tool_call_id: tc.id, content: result });
     }
   }

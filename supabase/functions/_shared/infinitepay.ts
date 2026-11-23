@@ -27,12 +27,13 @@ export async function createInfinitePayLink(admin: any, orderId: string, redirec
   let json: any = {}; try { json = JSON.parse(txt); } catch {}
   const url = json.url || json.link || json.checkout_url;
   if (!resp.ok || !url) { console.error('infinitepay link error', resp.status, txt.slice(0, 300)); return { error: 'A InfinitePay recusou o pedido. Confira a InfiniteTag da loja.' }; }
-  await admin.from('store_orders').update({ payment_link: url, payment_method: 'infinitepay', payment_status: 'pending' }).eq('id', order.id);
+  await admin.from('store_orders').update({ payment_link: url, payment_method: 'infinitepay', payment_status: 'pendente' }).eq('id', order.id);
   return { url };
 }
 
-export async function checkInfinitePayPayment(handle: string, p: { order_nsu: string; transaction_nsu?: string; slug?: string }) {
+export async function checkInfinitePayPayment(handle: string, p: { order_nsu: string; transaction_nsu?: string; slug?: string }, expectedTotal?: number) {
+  if (!handle || !p.transaction_nsu || !p.slug) return false;
   const resp = await fetch(`${API}/payment_check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle, ...p }) });
   const j = await resp.json().catch(() => ({}));
-  return resp.ok && j?.success === true && j?.paid === true;
+  return resp.ok && j?.success === true && j?.paid === true && (expectedTotal == null || Number(j.amount) === toCents(expectedTotal));
 }

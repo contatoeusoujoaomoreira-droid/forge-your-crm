@@ -449,6 +449,7 @@ export type Database = {
           split_long_messages: boolean
           stage_id: string | null
           stop_words: string | null
+          store_tools: Json
           style: string | null
           system_prompt: string
           timezone: string
@@ -521,6 +522,7 @@ export type Database = {
           split_long_messages?: boolean
           stage_id?: string | null
           stop_words?: string | null
+          store_tools?: Json
           style?: string | null
           system_prompt?: string
           timezone?: string
@@ -593,6 +595,7 @@ export type Database = {
           split_long_messages?: boolean
           stage_id?: string | null
           stop_words?: string | null
+          store_tools?: Json
           style?: string | null
           system_prompt?: string
           timezone?: string
@@ -3845,6 +3848,7 @@ export type Database = {
           items: Json
           notes: string | null
           order_no: string
+          payment_invoice_slug: string | null
           payment_link: string | null
           payment_method: string | null
           payment_receipt_url: string | null
@@ -3854,6 +3858,7 @@ export type Database = {
           status_history: Json
           subtotal: number
           total: number
+          tracking_token: string
           updated_at: string
           user_id: string
         }
@@ -3870,6 +3875,7 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_no: string
+          payment_invoice_slug?: string | null
           payment_link?: string | null
           payment_method?: string | null
           payment_receipt_url?: string | null
@@ -3879,6 +3885,7 @@ export type Database = {
           status_history?: Json
           subtotal?: number
           total?: number
+          tracking_token?: string
           updated_at?: string
           user_id: string
         }
@@ -3895,6 +3902,7 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_no?: string
+          payment_invoice_slug?: string | null
           payment_link?: string | null
           payment_method?: string | null
           payment_receipt_url?: string | null
@@ -3904,6 +3912,7 @@ export type Database = {
           status_history?: Json
           subtotal?: number
           total?: number
+          tracking_token?: string
           updated_at?: string
           user_id?: string
         }
@@ -3927,6 +3936,7 @@ export type Database = {
           store_bg_color: string | null
           store_name: string
           store_theme: string
+          storefront_config: Json
           updated_at: string
           user_id: string
           welcome_text: string | null
@@ -3949,6 +3959,7 @@ export type Database = {
           store_bg_color?: string | null
           store_name?: string
           store_theme?: string
+          storefront_config?: Json
           updated_at?: string
           user_id: string
           welcome_text?: string | null
@@ -3971,6 +3982,7 @@ export type Database = {
           store_bg_color?: string | null
           store_name?: string
           store_theme?: string
+          storefront_config?: Json
           updated_at?: string
           user_id?: string
           welcome_text?: string | null

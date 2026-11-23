@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Printer, Search, Trash2, ClipboardList, MessageCircle } from "lucide-react";
+import { isPaid } from "../../../../supabase/functions/_shared/storeCommerce";
 import { printReceipt, unitPrice } from "@/lib/store";
 
 const brl = (v: number) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -62,7 +63,7 @@ export default function OrdersCenter() {
 
   const openCreate = async () => {
     if (!user) return;
-    const { data } = await supabase.from("products_services").select("id, name, sku, price, wholesale_price, wholesale_min_qty, stock_qty, unit").eq("user_id", user.id).eq("is_active", true).order("name").limit(1000);
+    const { data } = await supabase.from("products_services").select("id, name, sku, price, wholesale_price, wholesale_min_qty, stock_qty, unit, item_type").eq("user_id", user.id).eq("is_active", true).order("name").limit(1000);
     setProducts(data || []);
     setCreating(true);
   };
@@ -104,7 +105,7 @@ export default function OrdersCenter() {
                   <td className="p-3"><p>{o.customer_name}</p><p className="text-[11px] text-muted-foreground capitalize">{o.customer_type}{o.customer_phone ? ` · ${o.customer_phone}` : ""}</p></td>
                   <td className="p-3">{CHANNELS[o.channel] || o.channel}</td>
                   <td className="p-3 text-right font-semibold">{brl(o.total)}</td>
-                  <td className="p-3"><Badge variant={o.payment_status === "pago" ? "default" : "secondary"}>{o.payment_status}</Badge></td>
+                  <td className="p-3"><Badge variant={isPaid(o.payment_status) ? "default" : "secondary"}>{isPaid(o.payment_status) ? "Pago" : "Pendente"}</Badge></td>
                   <td className="p-3">
                     <select className="h-8 rounded-md border border-border bg-background px-2 text-xs" value={o.status} onChange={(e) => update(o.id, { status: e.target.value })}>
                       {ORDER_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -126,6 +127,16 @@ export default function OrdersCenter() {
 
 function OrderDetail({ order: o, onClose, onUpdate }: { order: any; onClose: () => void; onUpdate: (id: string, p: any) => void }) {
   const [pay, setPay] = useState("PIX");
+  const [checking,setChecking]=useState(false);
+  const checkPayment=async()=>{
+    if (!o) return;
+    setChecking(true);
+    const {data,error}=await supabase.functions.invoke("infinitepay",{body:{action:"check",order_id:o.id}});
+    if (error) toast.error("Não foi possível consultar o pagamento.");
+    else if (data?.paid) {onUpdate(o.id,{payment_status:"pago"});toast.success("Pagamento confirmado pela InfinitePay.");}
+    else toast.info("Pagamento ainda não confirmado. A confirmação automática ocorre quando a InfinitePay envia a transação.");
+    setChecking(false);
+  };
   if (!o) return null;
   const phone = String(o.customer_phone || "").replace(/\D/g, "");
   const msg = `Pedido #${o.order_no}\n${(o.items || []).map((i: any) => `${i.qty}x ${i.name} — ${brl(i.unit_price * i.qty)}`).join("\n")}\nTotal: ${brl(o.total)}\nStatus: ${o.status}`;
@@ -151,7 +162,7 @@ function OrderDetail({ order: o, onClose, onUpdate }: { order: any; onClose: () 
             {Number(o.delivery_fee) > 0 && <div className="p-2 text-xs flex justify-between"><span>Frete</span><span>{brl(o.delivery_fee)}</span></div>}
             <div className="p-2 font-bold flex justify-between"><span>Total</span><span>{brl(o.total)}</span></div>
           </div>
-          {o.payment_status !== "pago" && o.status !== "cancelado" && (
+          {!isPaid(o.payment_status) && o.status !== "cancelado" && (
             <div className="flex gap-2 items-end">
               <div className="flex-1"><Label>Registrar pagamento</Label>
                 <select className="w-full h-9 px-2 rounded-md border border-input bg-background text-sm" value={pay} onChange={(e) => setPay(e.target.value)}>{PAYMENTS.map((p) => <option key={p}>{p}</option>)}</select>
@@ -159,9 +170,11 @@ function OrderDetail({ order: o, onClose, onUpdate }: { order: any; onClose: () 
               <Button size="sm" onClick={() => onUpdate(o.id, { payment_status: "pago", payment_method: pay })}>Marcar como pago</Button>
             </div>
           )}
+          {o.payment_method === "infinitepay" && <Button size="sm" variant="outline" disabled={checking} onClick={checkPayment}>{checking?"Consultando...":"Consultar pagamento na InfinitePay"}</Button>}
+          {o.tracking_token && <Button size="sm" variant="outline" onClick={async()=>{const {data:store}=await supabase.from("store_settings").select("slug,custom_domain").eq("user_id",o.user_id).maybeSingle();if(store){const base=store.custom_domain?`https://${store.custom_domain}`:`${window.location.origin}/loja/${store.slug}`;await navigator.clipboard.writeText(`${base}?pedido=${o.tracking_token}`);toast.success("Link privado de acompanhamento copiado.");}}}>Copiar link de acompanhamento</Button>}
           {(o.status_history || []).length > 0 && (
             <div><p className="text-xs text-muted-foreground mb-1">Histórico</p>
-              {(o.status_history as any[]).map((h, k) => <p key={k} className="text-xs">{new Date(h.at).toLocaleString("pt-BR")} — {h.from} → <b>{h.to}</b></p>)}
+              {(o.status_history as any[]).map((h, k) => <p key={k} className="text-xs">{new Date(h.at).toLocaleString("pt-BR")} — {h.from ? `${h.from} → ` : ""}<b>{h.to || h.status}</b></p>)}
             </div>
           )}
           <div className="flex flex-wrap gap-2 pt-2">
@@ -185,7 +198,7 @@ function CreateOrder({ products, onClose, onCreated }: { products: any[]; onClos
   const add = () => {
     const p = products.find((x) => x.id === pick);
     if (!p) return;
-    setLines((l) => l.some((x) => x.product.id === p.id) ? l.map((x) => x.product.id === p.id ? { ...x, qty: x.qty + 1 } : x) : [...l, { product: p, qty: 1 }]);
+    setLines((l) => l.some((x) => x.product.id === p.id) ? l.map((x) => x.product.id === p.id ? { ...x, qty: p.item_type === "service" ? 1 : x.qty + 1 } : x) : [...l, { product: p, qty: 1 }]);
     setPick("");
   };
   const subtotal = lines.reduce((s, l) => s + unitPrice(l.product, l.qty) * l.qty, 0);
@@ -195,7 +208,7 @@ function CreateOrder({ products, onClose, onCreated }: { products: any[]; onClos
     if (!user) return;
     if (!f.customer_name.trim()) return toast.error("Informe o cliente");
     if (lines.length === 0) return toast.error("Adicione pelo menos um produto");
-    const over = lines.find((l) => l.qty > Number(l.product.stock_qty || 0));
+    const over = lines.find((l) => l.product.item_type !== "service" && l.qty > Number(l.product.stock_qty || 0));
     if (over && !confirm(`"${over.product.name}" tem só ${Number(over.product.stock_qty)} em estoque. Criar mesmo assim?`)) return;
     setSaving(true);
     const order_no = String(Date.now()).slice(-6);
@@ -239,7 +252,7 @@ function CreateOrder({ products, onClose, onCreated }: { products: any[]; onClos
             {lines.map((l) => (
               <div key={l.product.id} className="flex items-center gap-2 p-2">
                 <span className="flex-1 truncate">{l.product.name}</span>
-                <Input type="number" min={1} className="w-20 h-8" value={l.qty} onChange={(e) => setLines((ls) => ls.map((x) => x.product.id === l.product.id ? { ...x, qty: Math.max(1, Number(e.target.value || 1)) } : x))} />
+                <Input type="number" min={1} disabled={l.product.item_type === "service"} className="w-20 h-8" value={l.qty} onChange={(e) => setLines((ls) => ls.map((x) => x.product.id === l.product.id ? { ...x, qty: Math.max(1, Number(e.target.value || 1)) } : x))} />
                 <span className="w-24 text-right">{brl(unitPrice(l.product, l.qty) * l.qty)}</span>
                 <button onClick={() => setLines((ls) => ls.filter((x) => x.product.id !== l.product.id))}><Trash2 className="h-4 w-4 text-destructive" /></button>
               </div>
