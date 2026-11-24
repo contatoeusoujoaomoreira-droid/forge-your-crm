@@ -9,3 +9,4 @@
 - Store agent actions use explicit per-agent permissions; confirmed orders share the store order ledger and stock trigger instead of decrementing stock separately.
 - InfinitePay confirmations verify transaction, invoice and order amount before marking payment as paid; fulfillment status stays independent and duplicate callbacks do not notify twice.
 - Storefront appearance values are scoped CSS tokens, and store uploads share raster validation and recommended image dimensions.
+- Legacy public checkout inserts validate published catalog prices, totals and pending status; storefront inserts use server validation and atomic stock reservation to prevent forged orders and overselling.

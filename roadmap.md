@@ -1,4 +1,5 @@
 # Solicitação atual
+- [ ] Concluir revisão da loja, implantação das funções, testes reais de pedido e validação da segurança dos pedidos antigos.
 - [ ] Reformular a loja pública com cabeçalho comercial, categorias, banner, filtros e informações de atendimento, preservando produtos e serviços.
 - [ ] Ampliar configurações da loja com orientações de tamanho e upload WEBP.
 - [ ] Permitir habilitar catálogo, estoque, links e acompanhamento de pedidos no agente.

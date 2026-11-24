@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ShoppingCart, Plus, Minus, Star, Timer, Copy, Check, Tag } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { readUtmFromUrl, insertTouchpoint } from "@/lib/attribution";
+import { toast } from 'sonner';
 
 interface CheckoutItem {
   id: string; name: string; description: string; price: number; image?: string;
@@ -158,7 +159,7 @@ const CheckoutPublic = () => {
       }
     }
 
-    await supabase.from("orders").insert({
+    const { error: orderError } = await supabase.from("orders").insert({
       checkout_id: checkout.id, customer_name: customer.name,
       customer_email: customer.email || null, customer_phone: customer.phone || null,
       items: [...cartItems, ...(bumpAdded && orderBump ? [{ ...orderBump, quantity: 1, subtotal: orderBump.price }] : [])] as any,
@@ -166,6 +167,7 @@ const CheckoutPublic = () => {
       coupon_code: appliedCoupon?.code || null,
       discount_amount: discountAmount,
     } as any);
+    if (orderError) { toast.error('Não foi possível registrar o pedido. Confira os itens e valores e tente novamente.'); return; }
 
     // Attribution touchpoint (checkout)
     const utm = readUtmFromUrl();

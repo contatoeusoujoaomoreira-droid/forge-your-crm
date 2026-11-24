@@ -27,6 +27,6 @@ export function validatedOrderLines(products: any[], requested: any[]) {
   });
 }
 export function publicOrder(order: any) {
-  return { order_no: order.order_no, status: order.status, payment_status: isPaid(order.payment_status) ? 'pago' : 'pendente', total: order.total, items: order.items, created_at: order.created_at,
+  return { id: order.id, order_no: order.order_no, status: order.status, payment_status: isPaid(order.payment_status) ? 'pago' : 'pendente', total: order.total, items: order.items, created_at: order.created_at,
     history: (Array.isArray(order.status_history) ? order.status_history : []).map((h: any) => ({ status: h.to || h.status, at: h.at })) };
 }

@@ -16,7 +16,7 @@ export async function createInfinitePayLink(admin: any, orderId: string, redirec
   if (!items.length) return { error: 'Pedido sem itens' };
   const body: any = {
     handle, items, order_nsu: order.id,
-    webhook: { url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/infinitepay?action=webhook`, events: ['paid', 'refunded', 'canceled'] },
+    webhook: { url: `${(globalThis as unknown as { Deno: { env: { get: (key: string) => string | undefined } } }).Deno.env.get('SUPABASE_URL')}/functions/v1/infinitepay?action=webhook`, events: ['paid'] },
   };
   if (redirectUrl && /^https:\/\//.test(redirectUrl)) body.redirect_url = redirectUrl;
   if (order.customer_name || order.customer_phone) {
@@ -27,7 +27,8 @@ export async function createInfinitePayLink(admin: any, orderId: string, redirec
   let json: any = {}; try { json = JSON.parse(txt); } catch {}
   const url = json.url || json.link || json.checkout_url;
   if (!resp.ok || !url) { console.error('infinitepay link error', resp.status, txt.slice(0, 300)); return { error: 'A InfinitePay recusou o pedido. Confira a InfiniteTag da loja.' }; }
-  await admin.from('store_orders').update({ payment_link: url, payment_method: 'infinitepay', payment_status: 'pendente' }).eq('id', order.id);
+  const { error } = await admin.from('store_orders').update({ payment_link: url, payment_method: 'infinitepay' }).eq('id', order.id);
+  if (error) return { error: 'Não foi possível salvar o link. Tente novamente.' };
   return { url };
 }
 

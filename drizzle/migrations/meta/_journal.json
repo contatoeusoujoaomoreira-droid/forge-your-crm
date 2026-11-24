@@ -113,6 +113,13 @@
       "when": 1795477112507,
       "tag": "0015_storefront_order_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795479951476,
+      "tag": "0016_secure_public_orders_and_atomic_stock",
+      "breakpoints": true
     }
   ]
 }

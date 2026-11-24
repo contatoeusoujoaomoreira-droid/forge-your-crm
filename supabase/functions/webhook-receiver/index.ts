@@ -983,7 +983,7 @@ const PRODUCT_TOOLS = [
 
 async function findProduct(admin: any, userId: string, ref: string) {
   const isUuid = /^[0-9a-f-]{36}$/i.test(ref);
-  let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true);
+  let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true).eq('show_in_catalog', true);
   q = isUuid ? q.eq('id', ref) : q.or(`sku.eq.${ref.replace(/[,()]/g, '')},name.ilike.%${ref.replace(/[,()%]/g, '')}%`);
   const { data } = await q.limit(1).maybeSingle();
   return data;
@@ -991,13 +991,13 @@ async function findProduct(admin: any, userId: string, ref: string) {
 
 async function execProductTool(admin: any, userId: string, client: any, name: string, args: any, agent: any): Promise<string> {
   if (!allowedStoreTools(agent.store_tools || {}).includes(name)) return JSON.stringify({erro:'Este agente não tem autorização para essa ação na loja.'});
-  const {data:store} = await admin.from('store_settings').select('slug,is_published,custom_domain').eq('user_id',userId).maybeSingle();
+  const {data:store} = await admin.from('store_settings').select('slug,is_published,custom_domain,infinitepay_enabled').eq('user_id',userId).maybeSingle();
   const base = store?.is_published ? (store.custom_domain ? `https://${store.custom_domain}` : `https://omnibuildercrm.online/loja/${store.slug}`) : null;
-  const fmt = (p: any) => ({ id: p.id, sku: p.sku, nome: p.name, categoria: p.category, unidade: p.unit, preco_varejo: p.price, preco_atacado: p.wholesale_price, atacado_a_partir_de: p.wholesale_min_qty, estoque: p.stock_qty, tipo:p.item_type, descricao:(p.description || '').slice(0,1000), link:base?`${base}?item=${p.id}`:null, link_pagamento:base?`${base}?pagar=${p.id}`:null, imagem:p.images?.[0] || null });
+  const fmt = (p: any) => ({ id: p.id, sku: p.sku, nome: p.name, categoria: p.category, unidade: p.unit, preco_varejo: p.price, preco_atacado: p.wholesale_price, atacado_a_partir_de: p.wholesale_min_qty, estoque: p.item_type==='service'?null:p.stock_qty, tipo:p.item_type, descricao:(p.description || '').slice(0,1000), link:base?`${base}?item=${p.id}`:null, link_pagamento:base && store?.infinitepay_enabled && agent.store_tools?.payments?`${base}?pagar=${p.id}`:null, imagem:p.images?.[0] || null });
   try {
     if (name === 'buscar_produtos') {
       const t = String(args.termo || '').replace(/[,()%]/g, '').trim();
-      let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true);
+      let q = admin.from('products_services').select('*').eq('user_id', userId).eq('is_active', true).eq('show_in_catalog', true);
       if (t) q = q.or(`name.ilike.%${t}%,category.ilike.%${t}%,sku.ilike.%${t}%,description.ilike.%${t}%`);
       const { data } = await q.limit(15);
       return JSON.stringify((data || []).map(fmt));

@@ -9,7 +9,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:corsHeaders });
   if (req.method !== 'POST') return json({error:'Método não permitido'},405);
   try {
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const serviceUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceUrl || !serviceKey) return json({error:'Serviço indisponível'},503);
+    const admin = createClient(serviceUrl, serviceKey);
     const raw = await req.json().catch(() => null);
     if (!raw || typeof raw !== 'object') return json({error:'Dados inválidos'},400);
     const action = new URL(req.url).searchParams.get('action') || raw.action || 'create';
@@ -67,10 +70,12 @@ Deno.serve(async (req) => {
         }
       }
       if (action==='webhook' && (!transaction || !slug)) return json({error:'Dados da transação ausentes'},400);
+      if (action==='webhook' && !isPaid(order.payment_status)) return json({error:'Pagamento ainda não validado. Reenvie a confirmação.'},400);
       return json({ok:true,paid:isPaid(order.payment_status),order:publicOrder(order)});
     }
     if (action!=='create') return json({error:'Ação inválida'},400);
     if (order.status==='cancelado' || isPaid(order.payment_status)) return json({error:'Este pedido não pode receber um novo pagamento.'},400);
+    if (Number(order.total)<1) return json({error:'O pagamento pela InfinitePay deve ser de pelo menos R$ 1,00.'},400);
     // Revalida preço e itens no catálogo, inclusive pedidos de versões antigas da loja.
     const {data:products}=await admin.from('products_services').select('*').eq('user_id',order.user_id).in('id',(order.items || []).map((i:any)=>i.id));
     let expected=Number(order.delivery_fee || 0);

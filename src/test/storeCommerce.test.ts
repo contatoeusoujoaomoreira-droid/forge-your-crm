@@ -5,6 +5,8 @@ const product = { id:'p', name:'Produto', price:20, stock_qty:5, item_type:'prod
 const service = { id:'s', name:'Serviço', price:100, stock_qty:0, item_type:'service' };
 describe('regras da loja', () => {
   it('aceita upload WEBP', () => expect(validateStoreImage({ type:'image/webp', size:1000 })).toBeNull());
+  it('recusa imagem SVG', () => expect(validateStoreImage({ type:'image/svg+xml', size:1000 })).not.toBeNull());
+  it('limita imagens a 5 MB', () => {expect(validateStoreImage({type:'image/webp',size:5*1024*1024})).toBeNull();expect(validateStoreImage({type:'image/webp',size:5*1024*1024+1})).not.toBeNull();});
   it('serviço não depende de estoque', () => expect(validatedOrderLines([service],[{id:'s',qty:1}])[0].unit_price).toBe(100));
   it('serviço não pode ser multiplicado', () => expect(() => validatedOrderLines([service],[{id:'s',qty:2}])).toThrow());
   it('preço do pedido vem do catálogo', () => expect(validatedOrderLines([product],[{id:'p',qty:2,unit_price:1}])[0].unit_price).toBe(20));

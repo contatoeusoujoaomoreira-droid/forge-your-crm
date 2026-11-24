@@ -4517,6 +4517,16 @@ export type Database = {
         Returns: boolean
       }
       user_usage_stats: { Args: { _user_id: string }; Returns: Json }
+      valid_public_checkout_order: {
+        Args: {
+          _checkout: string
+          _coupon: string
+          _discount: number
+          _items: Json
+          _total: number
+        }
+        Returns: boolean
+      }
       validate_coupon: {
         Args: { _checkout_id: string; _code: string }
         Returns: Json

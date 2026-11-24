@@ -59,10 +59,10 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const cats = useMemo(() => Array.from(new Set(products.map((p) => p.category).filter(Boolean))), [products]);
   const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean))) as string[];
   const shown = products.filter((p) => (!cat || p.category === cat) && (!brand || p.brand === brand) && (!q || [p.name,p.sku,p.brand,p.description].some(v=>String(v || "").toLowerCase().includes(q.toLowerCase())))).sort((a,b)=>sort==="price-low"?Number(a.price)-Number(b.price):sort==="price-high"?Number(b.price)-Number(a.price):a.name.localeCompare(b.name));
-  const lines: CartLine[] = products.filter((p) => cart[p.id] > 0).map((p) => ({ product: p, qty: cart[p.id] }));
+  const lines: CartLine[] = products.filter((p) => p.item_type !== 'service' && cart[p.id] > 0).map((p) => ({ product: p, qty: cart[p.id] }));
   const total = cartTotal(lines);
   const count = lines.reduce((a, l) => a + l.qty, 0);
-  const setQty = (id: string, qty: number) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = qty; return n; });
+  const setQty = (id: string, qty: number) => setCart((c) => { const n = { ...c }; const product=products.find(p=>p.id===id); const safeQty=Math.max(0,Math.min(Math.floor(qty),Number(product?.stock_qty || 0))); if (safeQty <= 0) delete n[id]; else n[id] = safeQty; return n; });
 
   const fee = address.trim() ? Number(store?.delivery_fee || 0) : 0;
   const minOrder = Number(store?.min_order || 0);

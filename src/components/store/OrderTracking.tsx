@@ -18,6 +18,13 @@ export default function OrderTracking({ open, onClose, token, store, themeClass,
     else {setOrder(data.order);setCode(value);}
     setBusy(false);
   };
+  const pay=async()=>{
+    if (!order || busy) return;
+    setBusy(true);setError('');
+    const {data,error}=await supabase.functions.invoke('infinitepay',{body:{action:'create',order_id:order.id,token:code,redirect_url:`${window.location.origin}${window.location.pathname}`}});
+    if (error || !data?.url) {setError(data?.error || 'Não foi possível abrir o pagamento.');setBusy(false);return;}
+    window.location.assign(data.url);
+  };
   useEffect(()=>{if(open && token){setCode(token);check(token);}},[open,token]);
   return <Dialog open={open} onOpenChange={v=>!v && onClose()}><DialogContent className={`max-w-lg ${themeClass}`} style={themeStyle}>
     <DialogHeader><DialogTitle>Acompanhar pedido</DialogTitle></DialogHeader>
@@ -27,6 +34,7 @@ export default function OrderTracking({ open, onClose, token, store, themeClass,
       <p className="capitalize text-sm">Situação: <strong>{order.status}</strong></p>
       <div className="divide-y divide-border">{order.items?.map((i:any)=><div key={i.id} className="flex justify-between gap-3 py-2 text-sm"><span>{i.qty}x {i.name}</span><span>{Number(i.unit_price*i.qty).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span></div>)}</div>
       <p className="font-bold">Total: {Number(order.total).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p>
+      {store.infinitepay_enabled && order.payment_status!=='pago' && order.status!=='cancelado' && <Button className="w-full" disabled={busy} onClick={pay}>{busy?'Abrindo pagamento...':'Pagar agora (Pix ou Cartão)'}</Button>}
       {order.history?.map((h:any,i:number)=><p key={i} className="text-xs text-muted-foreground">{new Date(h.at).toLocaleString('pt-BR')} · {h.status}</p>)}
       <Button variant="outline" className="w-full" asChild><a target="_blank" rel="noreferrer" href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Olá! Gostaria de acompanhar o pedido #${order.order_no}. Pagamento: ${order.payment_status}.`)}`}><MessageCircle className="mr-2 h-4 w-4" />Falar sobre este pedido</a></Button>
     </div>}
