@@ -16,3 +16,8 @@
 - [ ] Validar pareamento e exclusão de instância real (aguarda token administrativo substituído e conexão de teste; não alterar instâncias existentes).
 - [ ] Conectar Ellite Flats (aguarda endereço e documentação da API e substituição da chave exposta).
 - [ ] Conferir avisos e valor de aluguel do Ellite Flats (aguarda acesso/documentação do outro projeto).
+# Catálogo e anúncios — solicitação confirmada
+- [ ] Gerar Feed XML público de produtos publicados, sem dados internos.
+- [ ] Importar feeds XML compatíveis por arquivo ou HTTPS, com prévia, atualização por SKU e fotos somente por upload.
+- [ ] Configurar Meta, Google/GA4 e TikTok com consentimento e eventos reais da loja.
+- [ ] Testar importação autenticada, feed público, bloqueio por privacidade e layouts.
