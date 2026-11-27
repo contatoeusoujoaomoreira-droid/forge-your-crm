@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, MessageCircle } from 'lucide-react';
+import { reportPaidOrder } from '@/lib/storeTracking';
 export default function OrderTracking({ open, onClose, token, store, themeClass, themeStyle }: {open:boolean;onClose:()=>void;token?:string;store:any;themeClass:string;themeStyle:any}) {
   const [code,setCode]=useState(token || '');
   const [order,setOrder]=useState<any>(null);
@@ -15,13 +16,13 @@ export default function OrderTracking({ open, onClose, token, store, themeClass,
     const params=new URLSearchParams(window.location.search);
     const {data,error}=await supabase.functions.invoke('infinitepay',{body:{action:'track',token:value,transaction_nsu:params.get('transaction_nsu') || undefined,slug:params.get('slug') || undefined}});
     if (error || !data?.order) {setError('Pedido não encontrado. Confira o código privado recebido ao comprar.');setOrder(null);}
-    else {setOrder(data.order);setCode(value);}
+    else {setOrder(data.order);setCode(value);reportPaidOrder({id:data.order.id,payment_status:data.order.payment_status,total:Number(data.order.total||0)});}
     setBusy(false);
   };
   const pay=async()=>{
     if (!order || busy) return;
     setBusy(true);setError('');
-    const {data,error}=await supabase.functions.invoke('infinitepay',{body:{action:'create',order_id:order.id,token:code,redirect_url:`${window.location.origin}${window.location.pathname}`}});
+    const {data,error}=await supabase.functions.invoke('infinitepay',{body:{action:'create',order_id:order.id,token:code,redirect_url:`${window.location.origin}${window.location.pathname}?pedido=${code}`}});
     if (error || !data?.url) {setError(data?.error || 'Não foi possível abrir o pagamento.');setBusy(false);return;}
     window.location.assign(data.url);
   };

@@ -1,4 +1,3 @@
-import { canTrack, onConsentChange, readChoice } from '@/lib/consent';
 
 export type StoreTrackingConfig = { enabled?:boolean; meta_pixel_id?:string; ga4_id?:string; google_ads_id?:string; google_ads_label?:string; tiktok_pixel_id?:string };
 type QueuedPixel = ((...args:unknown[])=>void) & {callMethod?:(...args:unknown[])=>void;queue:unknown[][];push?:QueuedPixel;loaded:boolean;version:string};
@@ -18,7 +17,7 @@ export function validTrackingConfig(c:StoreTrackingConfig):string | null {
 }
 export const storeTrackingEnabled = (c:StoreTrackingConfig) => !!c.enabled && !validTrackingConfig(c) && !!(c.meta_pixel_id || c.ga4_id || c.google_ads_id || c.tiktok_pixel_id);
 async function load(c:StoreTrackingConfig) {
-  if(!storeTrackingEnabled(c) || !await canTrack('advertising')) return false;
+  if(!storeTrackingEnabled(c)) return false;
   const w=win();
   if(c.meta_pixel_id) {
     if(!w.fbq) {const fn=((...args:unknown[])=>{if(fn.callMethod)fn.callMethod(...args);else fn.queue.push(args);}) as QueuedPixel;fn.queue=[];fn.push=fn;fn.loaded=true;fn.version='2.0';w.fbq=fn;w._fbq=fn;}
@@ -40,22 +39,18 @@ async function load(c:StoreTrackingConfig) {
   }
   return true;
 }
-function revoke() {
-  win().fbq?.('consent','revoke');
-  const ttq=win().ttq;const deny=ttq?.revokeConsent as (()=>void)|undefined;deny?.();
-}
 export function startStoreTracking(config:StoreTrackingConfig) {
   active=config;const current=++generation;
-  const init=async()=>{if(current!==generation)return;if(!await canTrack('advertising')){revoke();return;}await load(config);};
-  void init();const unsub=onConsentChange(()=>{void init();});
-  return ()=>{unsub();if(current===generation){active={};generation++;revoke();}};
+  // Owner decision: pixels load instantly on open, without a consent banner.
+  void (async()=>{if(current===generation)await load(config);})();
+  return ()=>{if(current===generation){active={};generation++;}};
 }
 type Item = {id:string;price?:number|null;qty?:number;quantity?:number};
 type Event = 'page_view'|'view_item'|'add_to_cart'|'begin_checkout'|'purchase';
 export async function storeEvent(event:Event, details:{value?:number;items?:Item[];transaction_id?:string}={}) {
   const config={...active};const current=generation;
-  if(!storeTrackingEnabled(config) || !await canTrack('advertising') || current!==generation) return;
-  if(!await load(config) || readChoice('advertising')==='denied')return;
+  if(!storeTrackingEnabled(config) || current!==generation) return;
+  if(!await load(config))return;
   const w=win();const eventId=event==='purchase'?`store-purchase-${details.transaction_id}`:crypto.randomUUID();
   const items=(details.items || []).map(i=>({item_id:i.id,price:i.price,quantity:i.qty || i.quantity || 1}));
   const metaEvents={page_view:'PageView',view_item:'ViewContent',add_to_cart:'AddToCart',begin_checkout:'InitiateCheckout',purchase:'Purchase'};
@@ -67,7 +62,7 @@ export async function storeEvent(event:Event, details:{value?:number;items?:Item
 }
 export function reportPaidOrder(order:{id:string;payment_status:string;total:number;items?:{id:string;unit_price:number;qty:number}[]}) {
   if(!['pago','paid'].includes(order.payment_status))return;
-  // Only confirmed readback calls this; observe once even if consent blocks it, never replay blocked purchases.
+  // Only confirmed payment readback calls this; fire once per order.
   const key=`store_purchase_observed_${order.id}`;
   try {if(localStorage.getItem(key))return;localStorage.setItem(key,'1');} catch {return;}
   void storeEvent('purchase',{transaction_id:order.id,value:Number(order.total),items:order.items?.map(i=>({id:i.id,price:i.unit_price,qty:i.qty}))});

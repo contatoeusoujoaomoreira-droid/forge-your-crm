@@ -19,7 +19,7 @@
 # Catálogo e anúncios — solicitação confirmada
 - [x] Gerar Feed XML público de produtos publicados, sem dados internos.
 - [x] Importar feeds XML compatíveis por arquivo ou HTTPS, com prévia, atualização por SKU e fotos somente por upload.
-- [x] Configurar Meta, Google/GA4 e TikTok com consentimento e eventos reais da loja.
+- [x] Pixels Meta, Google/GA4 e TikTok disparam na hora (sem aviso), incluindo compra confirmada ao voltar do pagamento.
 - [ ] Testar importação autenticada, feed público, bloqueio por privacidade e layouts.
 # Próximas fases (pedidas em sequência)
 - [ ] Fase 2: Área de Membros (cursos/aulas) + acesso enviado no WhatsApp após pagamento InfinitePay; checkout sem endereço para digital.

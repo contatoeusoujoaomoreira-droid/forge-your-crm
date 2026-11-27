@@ -9,7 +9,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Minus, Plus, Search, ShoppingCart, Package, MessageCircle } from "lucide-react";
 import StorefrontHeader from "@/components/store/StorefrontHeader";
 import OrderTracking from "@/components/store/OrderTracking";
-import StorePrivacy from "@/components/store/StorePrivacy";
 import { startStoreTracking, storeEvent, storeTrackingEnabled } from "@/lib/storeTracking";
 import { storeThemeStyle } from "@/lib/storeAppearance";
 import { unitPrice, cartTotal, buildOrderMessage, printReceipt, type CartLine } from "@/lib/store";
@@ -83,7 +82,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   };
   const payment = async (order:any) => {
     void storeEvent("begin_checkout", { value: Number(order.total || 0) });
-    const {data}=await supabase.functions.invoke("infinitepay",{body:{order_id:order.id,token:order.tracking_token,redirect_url:`${window.location.origin}${window.location.pathname}`}});
+    const {data}=await supabase.functions.invoke("infinitepay",{body:{order_id:order.id,token:order.tracking_token,redirect_url:`${window.location.origin}${window.location.pathname}?pedido=${order.tracking_token}`}});
     if (!data?.url) throw new Error(data?.error || "Não foi possível abrir o pagamento agora.");
     return data.url;
   };
@@ -164,7 +163,6 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       </main>
 
       <footer className="border-t border-border bg-secondary/30 mt-8"><div className="max-w-7xl mx-auto px-4 py-8 grid gap-6 md:grid-cols-3 text-sm"><div><h2 className="font-bold mb-2">{store.store_name}</h2><p className="text-muted-foreground whitespace-pre-line">{store.storefront_config?.about || store.welcome_text}</p></div><div><h3 className="font-semibold mb-2">Atendimento</h3><p>{store.opening_hours}</p><p>{store.storefront_config?.contact_email}</p><Button asChild variant="link" className="px-0"><a href={`https://wa.me/${store.whatsapp}`} target="_blank" rel="noreferrer">Falar no WhatsApp</a></Button><Button variant="link" onClick={()=>setTracking(true)}>Acompanhar pedido</Button></div><div><h3 className="font-semibold mb-2">Informações da loja</h3><p className="whitespace-pre-line text-muted-foreground">{store.storefront_config?.policies || ""}</p>{store.infinitepay_enabled && <p className="mt-3 font-medium">Pix e cartão • InfinitePay</p>}</div></div></footer>
-      <StorePrivacy advertising={storeTrackingEnabled(trackCfg)} themeClass={themeClass} themeStyle={bgStyle} />
       <OrderTracking open={tracking} onClose={()=>setTracking(false)} token={trackingToken || undefined} store={store} themeClass={themeClass} themeStyle={bgStyle} />
       {count > 0 && (
         <div className="fixed bottom-0 inset-x-0 p-3 bg-background border-t border-border">
