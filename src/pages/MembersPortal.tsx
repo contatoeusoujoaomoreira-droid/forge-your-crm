@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, PlayCircle } from "lucide-react";
@@ -29,7 +29,7 @@ export default function MembersPortal() {
   const src = lesson?.video_url ? embed(lesson.video_url) : null;
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border px-4 py-4"><p className="text-xs text-muted-foreground">{data.store?.store_name} · Área de membros</p><h1 className="text-xl font-bold">{data.product.name}</h1>{data.customer_name && <p className="text-sm text-muted-foreground">Olá, {data.customer_name}!</p>}</header>
+      <header className="border-b border-border px-4 py-4"><Link to="/membros" className="text-xs text-primary">← Todos os meus cursos</Link><p className="text-xs text-muted-foreground">{data.store?.store_name} · Área de membros</p><h1 className="text-xl font-bold">{data.product.name}</h1>{data.customer_name && <p className="text-sm text-muted-foreground">Olá, {data.customer_name}!</p>}</header>
       <main className="max-w-6xl mx-auto p-4 grid gap-6 md:grid-cols-[1fr_300px]">
         <section className="space-y-3">
           {!lesson ? <p className="text-muted-foreground">As aulas serão liberadas em breve.</p> : <>

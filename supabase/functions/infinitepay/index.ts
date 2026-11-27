@@ -5,7 +5,7 @@ import { createInfinitePayLink, checkInfinitePayPayment, cleanHandle } from '../
 import { grantMemberAccess } from '../_shared/members.ts';
 import { isPaid, publicOrder, validatedOrderLines } from '../_shared/storeCommerce.ts';
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-const OrderInput = z.object({ store_slug:z.string().min(1).max(80), items:z.array(z.object({id:z.string().uuid(),qty:z.number().int().positive().max(10000)})).min(1).max(100), customer_name:z.string().trim().min(1).max(100), customer_phone:z.string().max(30).optional(), address:z.string().max(300).optional(), notes:z.string().max(500).optional() });
+const OrderInput = z.object({ store_slug:z.string().min(1).max(80), items:z.array(z.object({id:z.string().uuid(),qty:z.number().int().positive().max(10000)})).min(1).max(100), customer_name:z.string().trim().min(1).max(100), customer_phone:z.string().max(30).optional(), customer_email:z.string().trim().email().max(200).optional(), address:z.string().max(300).optional(), notes:z.string().max(500).optional() });
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:corsHeaders });
   if (req.method !== 'POST') return json({error:'Método não permitido'},405);
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       const subtotal=Math.round(items.reduce((s,i)=>s+i.qty*i.unit_price,0)*100)/100;
       if (subtotal<Number(store.min_order || 0)) return json({error:'Pedido abaixo do valor mínimo da loja.'},400);
       const fee=input.address?.trim()?Number(store.delivery_fee || 0):0;
-      const {data:order,error}=await admin.from('store_orders').insert({user_id:store.user_id,order_no:String(Date.now()).slice(-8),customer_name:input.customer_name,customer_phone:input.customer_phone?.replace(/\D/g,'') || null,address:input.address?.trim() || null,notes:input.notes || null,items,subtotal,delivery_fee:fee,total:Math.round((subtotal+fee)*100)/100}).select('*').single();
+      const {data:order,error}=await admin.from('store_orders').insert({user_id:store.user_id,order_no:String(Date.now()).slice(-8),customer_name:input.customer_name,customer_phone:input.customer_phone?.replace(/\D/g,'') || null,customer_email:input.customer_email?.toLowerCase() || null,address:input.address?.trim() || null,notes:input.notes || null,items,subtotal,delivery_fee:fee,total:Math.round((subtotal+fee)*100)/100}).select('*').single();
       if (error) throw error;
       return json({order});
     }

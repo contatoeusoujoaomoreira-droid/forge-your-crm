@@ -2548,6 +2548,7 @@ export type Database = {
       member_access: {
         Row: {
           created_at: string
+          customer_email: string | null
           customer_name: string | null
           customer_phone: string | null
           id: string
@@ -2559,6 +2560,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
@@ -2570,6 +2572,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
@@ -2629,6 +2632,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      member_login_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+        }
+        Relationships: []
       }
       message_debounce_queue: {
         Row: {
@@ -3927,6 +3957,7 @@ export type Database = {
           address: string | null
           channel: string
           created_at: string
+          customer_email: string | null
           customer_name: string
           customer_phone: string | null
           customer_type: string
@@ -3954,6 +3985,7 @@ export type Database = {
           address?: string | null
           channel?: string
           created_at?: string
+          customer_email?: string | null
           customer_name: string
           customer_phone?: string | null
           customer_type?: string
@@ -3981,6 +4013,7 @@ export type Database = {
           address?: string | null
           channel?: string
           created_at?: string
+          customer_email?: string | null
           customer_name?: string
           customer_phone?: string | null
           customer_type?: string
