@@ -124,8 +124,9 @@ const SettingsPage = () => {
       is_active: true, status: "pending",
     });
     if (error) { toast({ title: error.message.includes("unique") ? "Domínio já existe" : error.message, variant: "destructive" }); return; }
+    if (user) await supabase.from("store_settings").update({ custom_domain: cleaned.replace(/^www\./, "") }).eq("user_id", user.id);
     setNewDomain(""); setNewDomainProject(""); setShowAddDomain(false);
-    toast({ title: "Domínio adicionado! Configure os registros DNS." });
+    toast({ title: "Domínio adicionado e ligado à sua loja! Agora configure o DNS." });
     fetchDomains();
   };
 
@@ -149,7 +150,7 @@ const SettingsPage = () => {
     setVerifying(null);
   };
 
-  const handleRemoveDomain = async (id: string) => { await supabase.from("custom_domains").delete().eq("id", id); toast({ title: "Domínio removido" }); fetchDomains(); };
+  const handleRemoveDomain = async (id: string) => { const d = domains.find(x => x.id === id); if (user && d) await supabase.from("store_settings").update({ custom_domain: null }).eq("user_id", user.id).eq("custom_domain", d.domain.replace(/^www\./, "")); await supabase.from("custom_domains").delete().eq("id", id); toast({ title: "Domínio removido" }); fetchDomains(); };
   const handleToggleDomain = async (id: string) => { const d = domains.find(x => x.id === id); if (!d) return; await supabase.from("custom_domains").update({ is_active: !d.is_active }).eq("id", id); fetchDomains(); };
   const handleUpdateDomainProject = async (domainId: string, projectType: string, projectId: string) => { await supabase.from("custom_domains").update({ project_type: projectType, project_id: projectId }).eq("id", domainId); fetchDomains(); toast({ title: "Projeto vinculado!" }); };
   const handleEditDomain = (id: string) => { const d = domains.find(x => x.id === id); if (d) { setEditingDomain(id); setEditDomainValue(d.domain); } };
@@ -157,6 +158,7 @@ const SettingsPage = () => {
     const cleaned = editDomainValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
     if (!cleaned) return;
     await supabase.from("custom_domains").update({ domain: cleaned, status: "pending" }).eq("id", id);
+    if (user) await supabase.from("store_settings").update({ custom_domain: cleaned.replace(/^www\./, "") }).eq("user_id", user.id);
     setEditingDomain(null); toast({ title: "Domínio atualizado!" }); fetchDomains();
   };
 
@@ -252,37 +254,25 @@ const SettingsPage = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> Domínios próprios</h2>
-            <p className="text-sm text-muted-foreground mt-1">Conecte domínios e vincule a projetos (Pages, Forms, Quiz, Agenda, Checkout).</p>
+            <p className="text-sm text-muted-foreground mt-1">Use seu domínio (ex: minhaloja.com.br) ou subdomínio (ex: loja.minhaloja.com.br). Ele abre sua Loja Virtual, a Área de Membros (/membros) e o acompanhamento de pedidos.</p>
           </div>
           <Button size="sm" onClick={() => setShowAddDomain(!showAddDomain)}><Plus className="h-4 w-4 mr-1" /> Adicionar</Button>
         </div>
 
         {showAddDomain && (
           <div className="surface-card rounded-lg p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Domínio</label>
-                <Input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="seudominio.com.br" onKeyDown={e => e.key === "Enter" && handleAddDomain()} />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Tipo de projeto</label>
-                <select value={newDomainType} onChange={e => { setNewDomainType(e.target.value); setNewDomainProject(""); }} className="w-full h-10 bg-secondary border border-border rounded-md px-3 text-sm">
-                  {PROJECT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Projeto vinculado</label>
-                <select value={newDomainProject} onChange={e => setNewDomainProject(e.target.value)} className="w-full h-10 bg-secondary border border-border rounded-md px-3 text-sm">
-                  <option value="">Selecione...</option>
-                  {filteredProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.slug})</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Domínio ou subdomínio</label>
+              <Input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="minhaloja.com.br ou loja.minhaloja.com.br" onKeyDown={e => e.key === "Enter" && handleAddDomain()} />
+              <p className="text-[11px] text-muted-foreground mt-1">O domínio é ligado automaticamente à sua Loja Virtual.</p>
             </div>
             <Button onClick={handleAddDomain}>Adicionar domínio</Button>
             <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5">
               <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <div className="text-xs text-muted-foreground space-y-1">
-                <p className="font-semibold text-foreground">Configuração DNS necessária</p>
+                <p className="font-semibold text-foreground">Passo a passo</p>
+                <p>1. Adicione o domínio aqui. 2. No site onde comprou o domínio (Registro.br, GoDaddy, Hostinger...), crie os registros abaixo. 3. Clique em "Verificar". Pode levar de minutos até 24h.</p>
+                <p>Subdomínio (ex: loja.minhaloja.com.br): crie só um registro <b>A</b> com nome <b>loja</b> → 185.158.133.1.</p>
                 <div className="space-y-1 mt-2 font-mono text-[11px]">
                   <p><strong className="text-primary">A</strong> → @ → <code className="px-1 py-0.5 rounded bg-primary/10">185.158.133.1</code></p>
                   <p><strong className="text-primary">A</strong> → www → <code className="px-1 py-0.5 rounded bg-primary/10">185.158.133.1</code></p>
@@ -331,29 +321,13 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
-                  <Link2 className="h-4 w-4 text-primary shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Projeto vinculado</p>
-                    <div className="flex items-center gap-2">
-                      <select value={d.project_type} onChange={e => handleUpdateDomainProject(d.id, e.target.value, d.project_id || "")} className="h-7 text-xs bg-secondary border border-border rounded px-2">
-                        {PROJECT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                      <select value={d.project_id || ""} onChange={e => handleUpdateDomainProject(d.id, d.project_type, e.target.value)} className="h-7 text-xs bg-secondary border border-border rounded px-2 flex-1">
-                        <option value="">Selecione projeto...</option>
-                        {projects.filter(p => p.type === d.project_type).map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                      </select>
-                    </div>
-                    {d.project_id && (
-                      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                        <ExternalLink className="h-3 w-3" />
-                        {d.status === "verified" ? (
-                          <a href={`https://${d.domain}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{d.domain}</a>
-                        ) : (
-                          <span>Rota interna: {getProjectUrl(d)}</span>
-                        )}
-                      </p>
-                    )}
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
+                  <Link2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div className="flex-1 text-[11px] text-muted-foreground space-y-0.5">
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-1">Ligado à sua Loja Virtual</p>
+                    <p>Loja: <a href={`https://${d.domain}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{d.domain}</a></p>
+                    <p>Área de membros: <a href={`https://${d.domain}/membros`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{d.domain}/membros</a></p>
+                    <p>Acompanhar pedido: {d.domain}/?pedido=...</p>
                   </div>
                 </div>
 

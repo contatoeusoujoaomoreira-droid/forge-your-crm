@@ -181,12 +181,12 @@ export default function StoreSettings() {
           <div className="grid gap-3 md:grid-cols-2">
             {[["meta_pixel_id","ID do Pixel Meta","1234567890123"],["ga4_id","ID do Google Analytics (GA4)","G-XXXXXXX"],["google_ads_id","ID do Google Ads","AW-123456789"],["google_ads_label","Rótulo de conversão Google Ads (compra)","AbCdEf123"],["tiktok_pixel_id","ID do Pixel TikTok","C1ABCDEF23GHIJ"]].map(([k,l,ph]) => <div key={k}><Label>{l}</Label><Input value={s.storefront_config?.tracking?.[k] || ""} placeholder={ph} onChange={e => config("tracking", { ...(s.storefront_config?.tracking || {}), [k]: e.target.value.trim() })} /></div>)}
           </div>
-          <p className="text-xs text-muted-foreground">Eventos enviados: visita, produto visto, adicionar ao carrinho, início do pagamento e compra confirmada. Só dispara depois que o visitante aceitar no aviso de privacidade.</p>
+          <p className="text-xs text-muted-foreground">Eventos enviados: visita, produto visto, adicionar ao carrinho, início do pagamento e compra confirmada. Disparam assim que o visitante abre a loja.</p>
         </Card></TabsContent>
         <TabsContent value="dominio"><Card className="p-4"><div className="space-y-1 rounded-md border border-border p-3">
           <Label>Domínio próprio (opcional)</Label>
           <Input value={s.custom_domain || ""} onChange={(e) => setS({ ...s, custom_domain: e.target.value })} placeholder="minhaloja.com.br" />
-          <p className="text-xs text-muted-foreground">No provedor do domínio (Registro.br, GoDaddy...), crie um registro <b>A</b> para <b>@</b> e <b>www</b> apontando para <b>185.158.133.1</b>. Depois avise o suporte da plataforma para ativar o domínio e o cadeado de segurança (HTTPS). Quando ativo, ao abrir o domínio a sua loja aparece direto.</p>
+          <p className="text-xs text-muted-foreground">No provedor do domínio (Registro.br, GoDaddy...), crie um registro <b>A</b> para <b>@</b> e <b>www</b> apontando para <b>185.158.133.1</b>. Depois cadastre o mesmo domínio em Configurações → Domínios próprios e clique em Verificar. Subdomínio (ex: loja.minhaloja.com.br): registro A com nome "loja". Quando ativo, ao abrir o domínio a sua loja aparece direto.</p>
         </div></Card></TabsContent>
         {s.id && <TabsContent value="pedidos"><OrdersCenter /></TabsContent>}
       </Tabs>
