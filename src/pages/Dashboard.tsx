@@ -10,7 +10,7 @@ import {
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
   MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target, Package, Boxes, ClipboardList,
-, GraduationCap } from "lucide-react";
+  GraduationCap } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
 import LeadImporter from "@/components/dashboard/automation/LeadImporter";
