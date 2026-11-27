@@ -74,7 +74,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const [payError, setPayError] = useState("");
   const createOrder = async (selected: CartLine[], customerName: string, delivery = "", comment = "") => {
     const { data, error } = await supabase.functions.invoke("infinitepay", { body: { action:"create_order", store_slug:store.slug, customer_name:customerName, customer_phone:phone.replace(/\D/g,"") || undefined, customer_email:/^\S+@\S+\.\S+$/.test(email.trim())?email.trim():undefined, address:delivery, notes:comment, items:selected.map(l=>({id:l.product.id,qty:l.qty})) } });
-    if (error || !data?.order) throw new Error(data?.error || "Não foi possível criar o pedido. Confira o estoque e tente novamente.");
+    if (error || !data?.order) { let msg=data?.error; try { msg = msg || (await (error as any)?.context?.json())?.error; } catch {} throw new Error(msg || "Não foi possível criar o pedido. Tente novamente."); }
     const order=data.order;
     localStorage.setItem(`last_order_${store.slug}`,order.tracking_token);
     setTrackingToken(order.tracking_token);

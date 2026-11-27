@@ -40,7 +40,8 @@ Deno.serve(async (req) => {
       if (pe) throw pe;
       const items=validatedOrderLines(products || [],input.items);
       const subtotal=Math.round(items.reduce((s,i)=>s+i.qty*i.unit_price,0)*100)/100;
-      if (subtotal<Number(store.min_order || 0)) return json({error:'Pedido abaixo do valor mínimo da loja.'},400);
+      const physical=items.filter(i=>(products||[]).find((p:any)=>p.id===i.id)?.item_type!=='service').reduce((s,i)=>s+i.qty*i.unit_price,0);
+      if (physical>0 && physical<Number(store.min_order || 0)) return json({error:'Pedido abaixo do valor mínimo da loja.'},400);
       const fee=input.address?.trim()?Number(store.delivery_fee || 0):0;
       const {data:order,error}=await admin.from('store_orders').insert({user_id:store.user_id,order_no:String(Date.now()).slice(-8),customer_name:input.customer_name,customer_phone:input.customer_phone?.replace(/\D/g,'') || null,customer_email:input.customer_email?.toLowerCase() || null,address:input.address?.trim() || null,notes:input.notes || null,items,subtotal,delivery_fee:fee,total:Math.round((subtotal+fee)*100)/100}).select('*').single();
       if (error) throw error;
