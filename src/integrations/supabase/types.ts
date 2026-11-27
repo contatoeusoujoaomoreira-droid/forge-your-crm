@@ -1576,36 +1576,45 @@ export type Database = {
       }
       custom_domains: {
         Row: {
+          cf_error: string | null
+          cf_hostname_id: string | null
           created_at: string
           domain: string
           id: string
           is_active: boolean
           project_id: string | null
           project_type: string
+          ssl_status: string | null
           status: string
           updated_at: string
           user_id: string
           verified_at: string | null
         }
         Insert: {
+          cf_error?: string | null
+          cf_hostname_id?: string | null
           created_at?: string
           domain: string
           id?: string
           is_active?: boolean
           project_id?: string | null
           project_type?: string
+          ssl_status?: string | null
           status?: string
           updated_at?: string
           user_id?: string
           verified_at?: string | null
         }
         Update: {
+          cf_error?: string | null
+          cf_hostname_id?: string | null
           created_at?: string
           domain?: string
           id?: string
           is_active?: boolean
           project_id?: string | null
           project_type?: string
+          ssl_status?: string | null
           status?: string
           updated_at?: string
           user_id?: string

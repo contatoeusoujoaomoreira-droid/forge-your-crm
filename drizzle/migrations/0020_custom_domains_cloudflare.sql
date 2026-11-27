@@ -1,0 +1,1 @@
+ALTER TABLE public.custom_domains ADD COLUMN IF NOT EXISTS cf_hostname_id text, ADD COLUMN IF NOT EXISTS ssl_status text, ADD COLUMN IF NOT EXISTS cf_error text;

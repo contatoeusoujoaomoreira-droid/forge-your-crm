@@ -60,6 +60,9 @@ const DNS_INSTRUCTIONS = [
   ]},
 ];
 
+const CF_TARGET = "cname.omnibuildercrm.online";
+const cnameName = (domain: string) => { const parts = domain.split("."); const br = /\.(com|net|org|art|blog|eco|edu|gov|ind|inf|log|med|nom|wiki)\.br$/.test(domain); const base = br ? 3 : 2; return parts.length > base ? parts.slice(0, parts.length - base).join(".") : "@"; };
+
 const SettingsPage = () => {
   const { user } = useAuth();
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -126,47 +129,54 @@ const SettingsPage = () => {
     if (error) { toast({ title: error.message.includes("unique") ? "Domínio já existe" : error.message, variant: "destructive" }); return; }
     if (user) await supabase.from("store_settings").update({ custom_domain: cleaned.replace(/^www\./, "") }).eq("user_id", user.id);
     setNewDomain(""); setNewDomainProject(""); setShowAddDomain(false);
-    toast({ title: "Domínio adicionado e ligado à sua loja! Agora configure o DNS." });
+    toast({ title: "Domínio adicionado! Agora crie o registro CNAME no seu provedor." });
+    const { data: row } = await supabase.from("custom_domains").select("id").eq("domain", cleaned).maybeSingle();
+    if (row) { try { await callCf("create", row.id); } catch (e) { toast({ title: "Aviso", description: (e as Error).message, variant: "destructive" }); } }
     fetchDomains();
+  };
+
+  const callCf = async (action: "create" | "check" | "delete", id: string) => {
+    const { data, error } = await supabase.functions.invoke("cloudflare-domain", { body: { action, domain_id: id } });
+    if (error) {
+      let msg = error.message;
+      try { msg = JSON.parse(await (error as any).context.text()).error || msg; } catch { /* keep */ }
+      throw new Error(typeof msg === "string" ? msg : "Erro na Cloudflare");
+    }
+    return data as { status: string; ssl_status: string; errors?: string[] };
   };
 
   const handleVerifyDomain = async (id: string) => {
     setVerifying(id);
-    const domain = domains.find(d => d.id === id);
-    if (!domain) return;
     try {
-      const resp = await fetch(`https://dns.google/resolve?name=${domain.domain}&type=A`);
-      const data = await resp.json();
-      const hasCorrectA = data.Answer?.some((a: any) => a.data === "185.158.133.1");
-      const newStatus = hasCorrectA ? "verified" : "error";
-      await supabase.from("custom_domains").update({ status: newStatus, verified_at: hasCorrectA ? new Date().toISOString() : null }).eq("id", id);
+      const r = await callCf("create", id);
       fetchDomains();
       toast({
-        title: hasCorrectA ? "DNS verificado!" : "DNS não verificado",
-        description: hasCorrectA ? "O SSL será provisionado automaticamente." : `Registro A de ${domain.domain} não aponta para 185.158.133.1.`,
-        variant: hasCorrectA ? "default" : "destructive",
+        title: r.status === "verified" ? "Domínio ativo com cadeado (SSL)!" : "Aguardando o apontamento",
+        description: r.status === "verified" ? "Sua loja já abre nesse endereço." : `Crie o registro CNAME → ${CF_TARGET} e clique em Verificar de novo em alguns minutos.`,
       });
-    } catch { toast({ title: "Erro ao verificar DNS.", variant: "destructive" }); }
+    } catch (e) { toast({ title: "Não foi possível verificar", description: (e as Error).message, variant: "destructive" }); }
     setVerifying(null);
   };
 
-  const handleRemoveDomain = async (id: string) => { const d = domains.find(x => x.id === id); if (user && d) await supabase.from("store_settings").update({ custom_domain: null }).eq("user_id", user.id).eq("custom_domain", d.domain.replace(/^www\./, "")); await supabase.from("custom_domains").delete().eq("id", id); toast({ title: "Domínio removido" }); fetchDomains(); };
+  const handleRemoveDomain = async (id: string) => { const d = domains.find(x => x.id === id); if (!confirm(`Remover ${d?.domain}? O endereço deixa de abrir sua loja.`)) return; try { await callCf("delete", id); } catch (e) { toast({ title: "Não foi possível remover", description: (e as Error).message, variant: "destructive" }); return; } if (user && d) await supabase.from("store_settings").update({ custom_domain: null }).eq("user_id", user.id).eq("custom_domain", d.domain.replace(/^www\./, "")); await supabase.from("custom_domains").delete().eq("id", id); toast({ title: "Domínio removido" }); fetchDomains(); };
   const handleToggleDomain = async (id: string) => { const d = domains.find(x => x.id === id); if (!d) return; await supabase.from("custom_domains").update({ is_active: !d.is_active }).eq("id", id); fetchDomains(); };
   const handleUpdateDomainProject = async (domainId: string, projectType: string, projectId: string) => { await supabase.from("custom_domains").update({ project_type: projectType, project_id: projectId }).eq("id", domainId); fetchDomains(); toast({ title: "Projeto vinculado!" }); };
   const handleEditDomain = (id: string) => { const d = domains.find(x => x.id === id); if (d) { setEditingDomain(id); setEditDomainValue(d.domain); } };
   const handleSaveEditDomain = async (id: string) => {
     const cleaned = editDomainValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
     if (!cleaned) return;
-    await supabase.from("custom_domains").update({ domain: cleaned, status: "pending" }).eq("id", id);
+    try { await callCf("delete", id); } catch { /* ignore */ }
+    await supabase.from("custom_domains").update({ domain: cleaned, status: "pending", cf_hostname_id: null }).eq("id", id);
+    try { await callCf("create", id); } catch { /* user can click Verificar */ }
     if (user) await supabase.from("store_settings").update({ custom_domain: cleaned.replace(/^www\./, "") }).eq("user_id", user.id);
     setEditingDomain(null); toast({ title: "Domínio atualizado!" }); fetchDomains();
   };
 
   const getStatusBadge = (status: Domain["status"]) => {
     switch (status) {
-      case "verified": return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary"><CheckCircle2 className="h-3 w-3" /> Verificado</span>;
+      case "verified": return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary"><CheckCircle2 className="h-3 w-3" /> Ativo com cadeado</span>;
       case "error": return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-destructive/15 text-destructive"><AlertCircle className="h-3 w-3" /> DNS incorreto</span>;
-      default: return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-500"><RefreshCw className="h-3 w-3" /> Pendente</span>;
+      default: return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-500"><RefreshCw className="h-3 w-3" /> Aguardando apontamento</span>;
     }
   };
 
@@ -271,13 +281,8 @@ const SettingsPage = () => {
               <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p className="font-semibold text-foreground">Passo a passo</p>
-                <p>1. Adicione o domínio aqui. 2. No site onde comprou o domínio (Registro.br, GoDaddy, Hostinger...), crie os registros abaixo. 3. Clique em "Verificar". Pode levar de minutos até 24h.</p>
-                <p>Subdomínio (ex: loja.minhaloja.com.br): crie só um registro <b>A</b> com nome <b>loja</b> → 185.158.133.1.</p>
-                <div className="space-y-1 mt-2 font-mono text-[11px]">
-                  <p><strong className="text-primary">A</strong> → @ → <code className="px-1 py-0.5 rounded bg-primary/10">185.158.133.1</code></p>
-                  <p><strong className="text-primary">A</strong> → www → <code className="px-1 py-0.5 rounded bg-primary/10">185.158.133.1</code></p>
-                  <p><strong className="text-primary">TXT</strong> → _lovable → <code className="px-1 py-0.5 rounded bg-primary/10">lovable_verify=...</code></p>
-                </div>
+                <p>1. Adicione o domínio aqui. 2. No site onde comprou o domínio (GoDaddy, Registro.br, Hostinger...), crie <b>um registro CNAME</b> apontando para <b>{CF_TARGET}</b>. 3. Clique em "Verificar conexão". O cadeado (SSL) é gerado sozinho em poucos minutos.</p>
+                <p>Recomendado: use um subdomínio, como <b>loja.minhaloja.com.br</b> ou <b>www.minhaloja.com.br</b>.</p>
               </div>
             </div>
           </div>
@@ -313,13 +318,27 @@ const SettingsPage = () => {
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={() => handleVerifyDomain(d.id)} disabled={verifying === d.id} className="h-7 px-2 text-xs">
                       {verifying === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                      <span className="ml-1 hidden sm:inline">Verificar</span>
+                      <span className="ml-1 hidden sm:inline">Verificar conexão</span>
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleEditDomain(d.id)} className="h-7 px-2 text-xs">Editar</Button>
                     <Switch checked={d.is_active} onCheckedChange={() => handleToggleDomain(d.id)} />
                     <Button variant="ghost" size="sm" onClick={() => handleRemoveDomain(d.id)} className="text-destructive h-7 px-2"><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
+
+                {d.status !== "verified" && (
+                  <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-[11px] text-muted-foreground space-y-2">
+                    <p className="font-semibold text-foreground text-xs">Crie este registro no site onde comprou o domínio:</p>
+                    <div className="grid grid-cols-3 gap-2 font-mono">
+                      <div><p className="text-[10px] uppercase">Tipo</p><p className="text-foreground font-bold">CNAME</p></div>
+                      <div><p className="text-[10px] uppercase">Nome</p><p className="text-foreground font-bold">{cnameName(d.domain)}</p></div>
+                      <div><p className="text-[10px] uppercase">Valor</p><p className="text-foreground font-bold break-all">{CF_TARGET}</p></div>
+                    </div>
+                    <p>Se já existir outro registro com esse mesmo Nome (A ou CNAME), exclua antes. Depois clique em "Verificar conexão".</p>
+                    {(d as any).ssl_status && <p>Cadeado (SSL): <b className="text-foreground">{(d as any).ssl_status === "active" ? "ativo" : "aguardando"}</b></p>}
+                    {(d as any).cf_error && <p className="text-destructive">{(d as any).cf_error}</p>}
+                  </div>
+                )}
 
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/50">
                   <Link2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
