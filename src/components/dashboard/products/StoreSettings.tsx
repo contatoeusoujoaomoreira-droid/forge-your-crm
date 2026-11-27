@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ShoppingCart, ExternalLink, Copy, Globe, Upload, ImageIcon } from "lucide-react";
 import OrdersCenter from "../operations/OrdersCenter";
 import { STORE_IMAGE_ACCEPT, STORE_IMAGE_SPECS, validateStoreImage } from "@/lib/storeAppearance";
+import { validTrackingConfig } from "@/lib/storeTracking";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -69,6 +70,8 @@ export default function StoreSettings() {
     if (!slug) { toast.error("Informe o endereço da loja"); return; }
     const digits = String(s.whatsapp || "").replace(/\D/g, "");
     if (s.is_published && digits.length < 10) { toast.error("Informe o WhatsApp com DDD para receber os pedidos"); return; }
+    const tErr = validTrackingConfig(s.storefront_config?.tracking || {});
+    if (tErr) { toast.error(tErr); return; }
     setSaving(true);
     const custom_domain = String(s.custom_domain || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "") || null;
     const infinitepay_handle = String(s.infinitepay_handle || "").trim().replace(/^\$/, "") || null;
@@ -111,6 +114,7 @@ export default function StoreSettings() {
           <TabsTrigger value="visual">Aparência</TabsTrigger>
           <TabsTrigger value="conteudo">Conteúdo da loja</TabsTrigger>
           <TabsTrigger value="pagamento">Pagamento e entrega</TabsTrigger>
+          <TabsTrigger value="anuncios">Anúncios e Feed</TabsTrigger>
           <TabsTrigger value="dominio"><Globe className="h-4 w-4 mr-1" />Domínio</TabsTrigger>
           {s.id && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
         </TabsList>
@@ -168,6 +172,16 @@ export default function StoreSettings() {
             </div>
           )}
         </div>
+        </Card></TabsContent>
+        <TabsContent value="anuncios"><Card className="p-4 space-y-4">
+          <div><Label>Link do Feed XML (Google Shopping, Catálogo Meta, TikTok)</Label>
+            <div className="flex gap-2 mt-1"><Input readOnly value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/catalog-feed?slug=${slugify(s.slug || "")}`} /><Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/catalog-feed?slug=${slugify(s.slug || "")}`); toast.success("Link do feed copiado!"); }}><Copy className="h-4 w-4" /></Button></div>
+            <p className="text-xs text-muted-foreground mt-1">Cole esse link no Gerenciador de Comércio da Meta, no Google Merchant Center ou no TikTok. Só aparecem produtos visíveis na loja publicada, com preço e foto.</p></div>
+          <div className="flex items-center gap-2 border-t border-border pt-4"><Switch checked={!!s.storefront_config?.tracking?.enabled} onCheckedChange={v => config("tracking", { ...(s.storefront_config?.tracking || {}), enabled: v })} /><Label>Ativar pixels de anúncios (com aviso de privacidade ao visitante)</Label></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[["meta_pixel_id","ID do Pixel Meta","1234567890123"],["ga4_id","ID do Google Analytics (GA4)","G-XXXXXXX"],["google_ads_id","ID do Google Ads","AW-123456789"],["google_ads_label","Rótulo de conversão Google Ads (compra)","AbCdEf123"],["tiktok_pixel_id","ID do Pixel TikTok","C1ABCDEF23GHIJ"]].map(([k,l,ph]) => <div key={k}><Label>{l}</Label><Input value={s.storefront_config?.tracking?.[k] || ""} placeholder={ph} onChange={e => config("tracking", { ...(s.storefront_config?.tracking || {}), [k]: e.target.value.trim() })} /></div>)}
+          </div>
+          <p className="text-xs text-muted-foreground">Eventos enviados: visita, produto visto, adicionar ao carrinho, início do pagamento e compra confirmada. Só dispara depois que o visitante aceitar no aviso de privacidade.</p>
         </Card></TabsContent>
         <TabsContent value="dominio"><Card className="p-4"><div className="space-y-1 rounded-md border border-border p-3">
           <Label>Domínio próprio (opcional)</Label>

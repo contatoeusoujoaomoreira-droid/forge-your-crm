@@ -17,7 +17,11 @@
 - [ ] Conectar Ellite Flats (aguarda endereço e documentação da API e substituição da chave exposta).
 - [ ] Conferir avisos e valor de aluguel do Ellite Flats (aguarda acesso/documentação do outro projeto).
 # Catálogo e anúncios — solicitação confirmada
-- [ ] Gerar Feed XML público de produtos publicados, sem dados internos.
-- [ ] Importar feeds XML compatíveis por arquivo ou HTTPS, com prévia, atualização por SKU e fotos somente por upload.
-- [ ] Configurar Meta, Google/GA4 e TikTok com consentimento e eventos reais da loja.
+- [x] Gerar Feed XML público de produtos publicados, sem dados internos.
+- [x] Importar feeds XML compatíveis por arquivo ou HTTPS, com prévia, atualização por SKU e fotos somente por upload.
+- [x] Configurar Meta, Google/GA4 e TikTok com consentimento e eventos reais da loja.
 - [ ] Testar importação autenticada, feed público, bloqueio por privacidade e layouts.
+# Próximas fases (pedidas em sequência)
+- [ ] Fase 2: Área de Membros (cursos/aulas) + acesso enviado no WhatsApp após pagamento InfinitePay; checkout sem endereço para digital.
+- [ ] Fase 3: Cupons (painel + campo no carrinho), Order Bump e Upsell.
+- [ ] Fase 4: Carrossel de banners, várias fotos por produto, destaques e frete por CEP/região.

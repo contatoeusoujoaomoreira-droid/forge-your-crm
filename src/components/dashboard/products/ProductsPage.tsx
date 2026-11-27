@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { STORE_IMAGE_ACCEPT, validateStoreImage } from "@/lib/storeAppearance";
 import { toast } from "sonner";
+import CatalogImporter from "./CatalogImporter";
 import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History, Link2, Copy } from "lucide-react";
 
 export type Product = {
@@ -58,6 +59,7 @@ export default function ProductsPage() {
   const [edit, setEdit] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [showApi, setShowApi] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
   const sheetRef = useRef<HTMLInputElement>(null);
   const xmlRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
@@ -209,6 +211,7 @@ export default function ProductsPage() {
           <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4 mr-1" />Modelo de planilha</Button>
           <Button variant="outline" size="sm" onClick={() => sheetRef.current?.click()}><Upload className="h-4 w-4 mr-1" />Importar Excel/CSV</Button>
           <Button variant="outline" size="sm" onClick={() => xmlRef.current?.click()}><FileCode className="h-4 w-4 mr-1" />Importar XML (NF-e)</Button>
+          <Button variant="outline" size="sm" onClick={() => setShowCatalog(true)}><FileCode className="h-4 w-4 mr-1" />Importar catálogo (Feed XML)</Button>
           <Button variant="outline" size="sm" onClick={() => setShowApi(true)}><Webhook className="h-4 w-4 mr-1" />API / Webhook</Button>
           <Button size="sm" variant="outline" onClick={() => setEdit({ ...empty, item_type: "service", unit: "serviço" })}><Plus className="h-4 w-4 mr-1" />Novo serviço</Button>
           <Button size="sm" onClick={() => setEdit({ ...empty })}><Plus className="h-4 w-4 mr-1" />Novo produto</Button>
@@ -359,6 +362,7 @@ export default function ProductsPage() {
         </DialogContent>
       </Dialog>
 
+      <CatalogImporter open={showCatalog} onOpenChange={setShowCatalog} onImported={load} />
       <Dialog open={showApi} onOpenChange={setShowApi}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>Sincronizar com ERP (API / Webhook)</DialogTitle></DialogHeader>
