@@ -134,6 +134,13 @@
       "when": 1795797050211,
       "tag": "0018_members_email_login",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795797399512,
+      "tag": "0019_members_modules_content",
+      "breakpoints": true
     }
   ]
 }

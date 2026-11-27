@@ -10,7 +10,7 @@ import {
   Globe, FileQuestion, ChevronLeft, ChevronRight, Settings,
   FileText, Calendar, ShoppingCart, Shield, Users, Bell, X,
   MessageCircle, Zap, Upload, ListChecks, CheckCircle2, Menu, Target, Package, Boxes, ClipboardList,
-} from "lucide-react";
+, GraduationCap } from "lucide-react";
 import { useUserPlan, PLAN_DEFINITIONS } from "@/hooks/useUserPlan";
 import { Badge } from "@/components/ui/badge";
 import LeadImporter from "@/components/dashboard/automation/LeadImporter";
@@ -20,6 +20,7 @@ import CRMClients from "@/components/dashboard/CRMClients";
 import Analytics from "@/components/dashboard/DashboardAnalytics";
 
 import ProductsPage from "@/components/dashboard/products/ProductsPage";
+import MembersAdmin from "@/components/dashboard/products/MembersAdmin";
 import StoreSettings from "@/components/dashboard/products/StoreSettings";
 import SettingsPage from "@/components/dashboard/SettingsPage";
 import SuperAdminPanel from "@/components/dashboard/SuperAdminPanel";
@@ -41,6 +42,7 @@ const allTabs = [
   { id: "stock", label: "Estoque", icon: Boxes, group: "ops" },
   { id: "orders", label: "Pedidos", icon: ClipboardList, group: "ops" },
   { id: "store", label: "Loja Virtual", icon: ShoppingCart, group: "sales" },
+  { id: "members", label: "Área de Membros", icon: GraduationCap, group: "sales" },
   { id: "automation", label: "Automação", icon: Zap, group: "tools" },
   { id: "chat", label: "Chat", icon: MessageCircle, group: "comms" },
   { id: "settings", label: "Configurações", icon: Settings, group: "system" },
@@ -345,6 +347,7 @@ const Dashboard = () => {
             
             {viewTab === "products" && <ProductsPage />}
             {viewTab === "store" && <StoreSettings />}
+            {viewTab === "members" && <MembersAdmin />}
             {viewTab === "orders" && <OrdersCenter />}
             {viewTab === "stock" && <StockPage />}
             {viewTab === "automation" && <AutomationHub />}

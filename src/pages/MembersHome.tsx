@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Play, LogOut } from "lucide-react";
 
-type Course = { token: string; name: string; description?: string; cover?: string | null; category: string; lessons: number };
+type Course = { token: string; name: string; description?: string; cover?: string | null; category: string; lessons: number; external_url?: string | null };
+type Offer = { id: string; name: string; description?: string; cover?: string | null; price?: number; buy_url?: string | null };
 const KEY = "members_session";
 
 export default function MembersHome() {
-  const [session, setSession] = useState<{ email: string; courses: Course[] } | null>(() => { try { return JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch { return null; } });
+  const [session, setSession] = useState<{ email: string; courses: Course[]; offers?: Offer[] } | null>(() => { try { return JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch { return null; } });
   const [email, setEmail] = useState(""); const [code, setCode] = useState(""); const [step, setStep] = useState<"email" | "code">("email");
   const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
   const request = async () => {
@@ -66,6 +67,13 @@ export default function MembersHome() {
                 </Link>)}
               </div></section>
           ))}
+          {!!session.offers?.length && <section><h2 className="mb-3 text-lg font-semibold">Você também pode gostar</h2>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {session.offers.map(o => <a key={o.id} href={o.buy_url || "#"} className="group w-56 shrink-0">
+                <div className="relative aspect-video overflow-hidden rounded-md bg-secondary">{o.cover && <img src={o.cover} alt={o.name} className="h-full w-full object-cover opacity-70 transition-transform group-hover:scale-105" />}<span className="absolute right-2 top-2 rounded bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">Comprar</span></div>
+                <p className="mt-2 text-sm font-medium">{o.name}</p>{o.price != null && <p className="text-xs text-muted-foreground">R$ {Number(o.price).toFixed(2).replace(".", ",")}</p>}
+              </a>)}
+            </div></section>}
         </main>
       </>}
     </div>

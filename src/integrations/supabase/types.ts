@@ -2594,9 +2594,12 @@ export type Database = {
       }
       member_lessons: {
         Row: {
+          content_type: string
           created_at: string
           description: string | null
+          file_url: string | null
           id: string
+          module_id: string | null
           position: number
           product_id: string
           title: string
@@ -2604,9 +2607,12 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          content_type?: string
           created_at?: string
           description?: string | null
+          file_url?: string | null
           id?: string
+          module_id?: string | null
           position?: number
           product_id: string
           title: string
@@ -2614,9 +2620,12 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          content_type?: string
           created_at?: string
           description?: string | null
+          file_url?: string | null
           id?: string
+          module_id?: string | null
           position?: number
           product_id?: string
           title?: string
@@ -2624,6 +2633,13 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "member_lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "member_modules"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "member_lessons_product_id_fkey"
             columns: ["product_id"]
@@ -2659,6 +2675,44 @@ export type Database = {
           id?: string
         }
         Relationships: []
+      }
+      member_modules: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          id: string
+          position: number
+          product_id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          product_id: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          product_id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_modules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       message_debounce_queue: {
         Row: {
@@ -3181,6 +3235,7 @@ export type Database = {
           item_type: string
           keywords: string[] | null
           low_stock_threshold: number
+          members_external_url: string | null
           metadata: Json | null
           name: string
           niche: string | null
@@ -3221,6 +3276,7 @@ export type Database = {
           item_type?: string
           keywords?: string[] | null
           low_stock_threshold?: number
+          members_external_url?: string | null
           metadata?: Json | null
           name: string
           niche?: string | null
@@ -3261,6 +3317,7 @@ export type Database = {
           item_type?: string
           keywords?: string[] | null
           low_stock_threshold?: number
+          members_external_url?: string | null
           metadata?: Json | null
           name?: string
           niche?: string | null

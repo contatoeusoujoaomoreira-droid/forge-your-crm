@@ -36,17 +36,22 @@ Deno.serve(async (req) => {
     await admin.from('member_login_codes').delete().eq('email', email);
     const { data: rows } = await admin.from('member_access').select('token,product_id,created_at').eq('customer_email', email).order('created_at', { ascending: false });
     const ids = [...new Set((rows || []).map((r: any) => r.product_id))];
-    const { data: products } = ids.length ? await admin.from('products_services').select('id,name,description,images,category').in('id', ids) : { data: [] };
+    const { data: products } = ids.length ? await admin.from('products_services').select('id,user_id,name,description,images,category,members_external_url').in('id', ids) : { data: [] };
     const { data: counts } = ids.length ? await admin.from('member_lessons').select('product_id').in('product_id', ids) : { data: [] };
-    const courses = ids.map(id => { const p = (products || []).find((x: any) => x.id === id); return p && { token: rows!.find((r: any) => r.product_id === id).token, name: p.name, description: p.description, cover: p.images?.[0] || null, category: p.category || 'Meus cursos', lessons: (counts || []).filter((c: any) => c.product_id === id).length }; }).filter(Boolean);
-    return json({ email, courses });
+    const courses = ids.map(id => { const p = (products || []).find((x: any) => x.id === id); return p && { token: rows!.find((r: any) => r.product_id === id).token, name: p.name, description: p.description, cover: p.images?.[0] || null, category: p.category || 'Meus cursos', external_url: p.members_external_url || null, lessons: (counts || []).filter((c: any) => c.product_id === id).length }; }).filter(Boolean);
+    const owners = [...new Set((products || []).map((p: any) => p.user_id))];
+    const { data: more } = owners.length ? await admin.from('products_services').select('id,user_id,name,description,images,category,price').in('user_id', owners).eq('delivery_type', 'digital').eq('is_active', true).eq('show_in_catalog', true).limit(60) : { data: [] };
+    const { data: stores } = owners.length ? await admin.from('store_settings').select('user_id,slug,custom_domain').in('user_id', owners) : { data: [] };
+    const offers = (more || []).filter((p: any) => !ids.includes(p.id)).map((p: any) => { const st = (stores || []).find((s: any) => s.user_id === p.user_id); return { id: p.id, name: p.name, description: p.description, cover: p.images?.[0] || null, price: p.price, buy_url: st ? (st.custom_domain ? `https://${st.custom_domain}` : `/loja/${st.slug}`) : null }; });
+    return json({ email, courses, offers });
   }
   const { data: access } = await admin.from('member_access').select('product_id,user_id,customer_name').eq('token', b.token).maybeSingle();
   if (!access) return json({ error: 'Acesso não encontrado' }, 404);
-  const [{ data: product }, { data: lessons }, { data: store }] = await Promise.all([
-    admin.from('products_services').select('name,description,images').eq('id', access.product_id).maybeSingle(),
-    admin.from('member_lessons').select('id,title,description,video_url,position').eq('product_id', access.product_id).order('position'),
+  const [{ data: product }, { data: lessons }, { data: store }, { data: modules }] = await Promise.all([
+    admin.from('products_services').select('name,description,images,members_external_url').eq('id', access.product_id).maybeSingle(),
+    admin.from('member_lessons').select('id,title,description,video_url,file_url,content_type,module_id,position').eq('product_id', access.product_id).order('position'),
     admin.from('store_settings').select('store_name,whatsapp').eq('user_id', access.user_id).maybeSingle(),
+    admin.from('member_modules').select('id,title,cover_url,position').eq('product_id', access.product_id).order('position'),
   ]);
-  return json({ customer_name: access.customer_name, product, lessons: lessons || [], store });
+  return json({ customer_name: access.customer_name, product, lessons: lessons || [], modules: modules || [], store });
 });
