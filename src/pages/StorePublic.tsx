@@ -32,7 +32,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const [cat, setCat] = useState<string>("");
   const [cart, setCart] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem(`cart_${slug}`) || "{}"); } catch { return {}; } });
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState(""); const [address, setAddress] = useState(""); const [notes, setNotes] = useState("");
+  const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [address, setAddress] = useState(""); const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<any>(null);
 
@@ -44,7 +44,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       if (s && s.slug !== slug) setSlug(s.slug);
       setStore(s);
       if (s) {
-        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images,item_type,brand,sku")
+        const { data } = await supabase.from("products_services").select("id,name,description,category,unit,price,wholesale_price,wholesale_min_qty,stock_qty,images,item_type,delivery_type,brand,sku")
           .eq("user_id", s.user_id).eq("is_active", true).eq("show_in_catalog", true).order("name");
         setProducts(data || []);
         const itemId = search.get("item") || search.get("pagar");
@@ -73,7 +73,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const belowMin = minOrder > 0 && total < minOrder;
   const [payError, setPayError] = useState("");
   const createOrder = async (selected: CartLine[], customerName: string, delivery = "", comment = "") => {
-    const { data, error } = await supabase.functions.invoke("infinitepay", { body: { action:"create_order", store_slug:store.slug, customer_name:customerName, address:delivery, notes:comment, items:selected.map(l=>({id:l.product.id,qty:l.qty})) } });
+    const { data, error } = await supabase.functions.invoke("infinitepay", { body: { action:"create_order", store_slug:store.slug, customer_name:customerName, customer_phone:phone.replace(/\D/g,"") || undefined, address:delivery, notes:comment, items:selected.map(l=>({id:l.product.id,qty:l.qty})) } });
     if (error || !data?.order) throw new Error(data?.error || "Não foi possível criar o pedido. Confira o estoque e tente novamente.");
     const order=data.order;
     localStorage.setItem(`last_order_${store.slug}`,order.tracking_token);
@@ -188,6 +188,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
           </div>
           <div className="space-y-2">
             <Input placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+            <Input placeholder="Seu WhatsApp com DDD" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
             <Input placeholder="Endereço de entrega" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={300} />
             <Textarea placeholder="Observações (opcional)" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
             {belowMin && <p className="text-sm text-destructive">Pedido mínimo: {brl(minOrder)}. Faltam {brl(minOrder - total)}.</p>}
@@ -229,9 +230,10 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
               {viewItem.price != null && <p className="text-xl font-bold">{brl(Number(viewItem.price))}<span className="text-sm font-normal text-muted-foreground"> /{viewItem.unit}</span></p>}
               {viewItem.description && <p className="text-sm text-muted-foreground whitespace-pre-line">{viewItem.description}</p>}
               {autoPay || (sending && isSvc) ? <p className="text-sm text-muted-foreground">Abrindo o pagamento...</p> : null}
+              {viewItem.delivery_type === "digital" && <div className="space-y-2 rounded-md border border-border p-3"><p className="text-xs text-muted-foreground">Produto digital: o acesso chega no seu WhatsApp assim que o pagamento for confirmado.</p><Input placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} /><Input placeholder="Seu WhatsApp com DDD" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} /></div>}
               {payError && <p className="text-xs text-destructive">{payError}</p>}
               {store.infinitepay_enabled && viewItem.price != null && (
-                <Button className="w-full"  disabled={sending || (!isSvc && Number(viewItem.stock_qty)<=0)} onClick={() => buyNow(viewItem, isSvc ? 1 : Math.max(1, q))}>{sending ? "Abrindo pagamento..." : isSvc ? "💳 Contratar e pagar agora" : "💳 Comprar agora (Pix ou Cartão)"}</Button>
+                <Button className="w-full"  disabled={sending || (!isSvc && Number(viewItem.stock_qty)<=0) || (viewItem.delivery_type==="digital" && (!name.trim() || phone.replace(/\D/g,"").length<10))} onClick={() => buyNow(viewItem, isSvc ? 1 : Math.max(1, q))}>{sending ? "Abrindo pagamento..." : isSvc ? "💳 Contratar e pagar agora" : "💳 Comprar agora (Pix ou Cartão)"}</Button>
               )}
               {!isSvc && <Button variant="outline" className="w-full" disabled={q>=Number(viewItem.stock_qty)} onClick={() => { setQty(viewItem.id, q + 1); closeItem(); }}><ShoppingCart className="h-4 w-4 mr-1" />{q > 0 ? `Adicionar mais um (${q} na cesta)` : "Adicionar à cesta"}</Button>}
               <Button variant="ghost" className="w-full" asChild><a href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Olá! Tenho interesse em: ${viewItem.name}`)}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 mr-1" />Falar no WhatsApp</a></Button>

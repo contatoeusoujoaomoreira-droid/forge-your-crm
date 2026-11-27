@@ -22,6 +22,6 @@
 - [x] Pixels Meta, Google/GA4 e TikTok disparam na hora (sem aviso), incluindo compra confirmada ao voltar do pagamento.
 - [ ] Testar importação autenticada, feed público, bloqueio por privacidade e layouts.
 # Próximas fases (pedidas em sequência)
-- [ ] Fase 2: Área de Membros (cursos/aulas) + acesso enviado no WhatsApp após pagamento InfinitePay; checkout sem endereço para digital.
+- [x] Fase 2: Área de Membros (cursos/aulas) + acesso enviado no WhatsApp após pagamento InfinitePay; checkout sem endereço para digital.
 - [ ] Fase 3: Cupons (painel + campo no carrinho), Order Bump e Upsell.
 - [ ] Fase 4: Carrossel de banners, várias fotos por produto, destaques e frete por CEP/região.

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { STORE_IMAGE_ACCEPT, validateStoreImage } from "@/lib/storeAppearance";
 import { toast } from "sonner";
 import CatalogImporter from "./CatalogImporter";
+import MemberLessons from "./MemberLessons";
 import { Plus, Upload, FileCode, Download, Pencil, Trash2, Package, AlertTriangle, Search, Webhook, History, Link2, Copy } from "lucide-react";
 
 export type Product = {
@@ -34,6 +35,7 @@ export type Product = {
   is_active: boolean;
   show_in_catalog: boolean;
   item_type?: string;
+  delivery_type?: string;
 };
 
 const UNITS = ["un", "cx", "fardo", "kg", "L", "galão", "pct"];
@@ -286,6 +288,8 @@ export default function ProductsPage() {
                   <Button type="button" variant={edit.item_type !== "service" ? "default" : "outline"} onClick={() => setEdit({ ...edit, item_type: "product", unit: UNITS.includes(edit.unit) ? edit.unit : "un" })}>Produto (com estoque)</Button>
                   <Button type="button" variant={edit.item_type === "service" ? "default" : "outline"} onClick={() => setEdit({ ...edit, item_type: "service", unit: SERVICE_UNITS.includes(edit.unit) ? edit.unit : "serviço" })}>Serviço</Button>
                 </div></div>
+              {edit.item_type === "service" && <div className="col-span-2 flex items-center justify-between rounded-md border border-border p-3"><div><Label>Infoproduto / curso digital</Label><p className="text-xs text-muted-foreground">Sem entrega física. Após o pagamento o cliente recebe o acesso à área de membros no WhatsApp.</p></div><Switch checked={edit.delivery_type === "digital"} onCheckedChange={(v) => setEdit({ ...edit, delivery_type: v ? "digital" : "physical" })} /></div>}
+              {edit.item_type === "service" && edit.delivery_type === "digital" && (edit.id && user ? <div className="col-span-2"><MemberLessons productId={edit.id} userId={user.id} /></div> : <p className="col-span-2 text-xs text-muted-foreground">Salve o item para cadastrar as aulas.</p>)}
               <div className="col-span-2"><Label>Nome *</Label><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
               <div><Label>Código / SKU</Label><Input value={edit.sku || ""} onChange={(e) => setEdit({ ...edit, sku: e.target.value })} /></div>
               {edit.item_type !== "service" && <div><Label>Código de barras</Label><Input value={edit.barcode || ""} onChange={(e) => setEdit({ ...edit, barcode: e.target.value })} /></div>}

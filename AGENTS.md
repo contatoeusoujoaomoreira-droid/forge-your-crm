@@ -10,3 +10,4 @@
 - InfinitePay confirmations verify transaction, invoice and order amount before marking payment as paid; fulfillment status stays independent and duplicate callbacks do not notify twice.
 - Storefront appearance values are scoped CSS tokens, and store uploads share raster validation and recommended image dimensions.
 - Legacy public checkout inserts validate published catalog prices, totals and pending status; storefront inserts use server validation and atomic stock reservation to prevent forged orders and overselling.
+- Member-area access is granted server-side only after confirmed payment (shared members helper) and read through the token-checked members function, so lessons never leak to unpaid visitors.

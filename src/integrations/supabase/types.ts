@@ -2545,6 +2545,91 @@ export type Database = {
         }
         Relationships: []
       }
+      member_access: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          order_id: string | null
+          product_id: string
+          sent_at: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          order_id?: string | null
+          product_id: string
+          sent_at?: string | null
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          order_id?: string | null
+          product_id?: string
+          sent_at?: string | null
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_access_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_lessons: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          position: number
+          product_id: string
+          title: string
+          user_id: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          product_id: string
+          title: string
+          user_id: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          product_id?: string
+          title?: string
+          user_id?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_lessons_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_debounce_queue: {
         Row: {
           agent_id: string | null
@@ -3055,6 +3140,7 @@ export type Database = {
           conditions: string | null
           cost_price: number | null
           created_at: string
+          delivery_type: string
           description: string | null
           differentials: string | null
           external_links: Json | null
@@ -3094,6 +3180,7 @@ export type Database = {
           conditions?: string | null
           cost_price?: number | null
           created_at?: string
+          delivery_type?: string
           description?: string | null
           differentials?: string | null
           external_links?: Json | null
@@ -3133,6 +3220,7 @@ export type Database = {
           conditions?: string | null
           cost_price?: number | null
           created_at?: string
+          delivery_type?: string
           description?: string | null
           differentials?: string | null
           external_links?: Json | null

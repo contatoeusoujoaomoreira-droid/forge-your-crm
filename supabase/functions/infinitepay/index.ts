@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
 import { createInfinitePayLink, checkInfinitePayPayment, cleanHandle } from '../_shared/infinitepay.ts';
+import { grantMemberAccess } from '../_shared/members.ts';
 import { isPaid, publicOrder, validatedOrderLines } from '../_shared/storeCommerce.ts';
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const OrderInput = z.object({ store_slug:z.string().min(1).max(80), items:z.array(z.object({id:z.string().uuid(),qty:z.number().int().positive().max(10000)})).min(1).max(100), customer_name:z.string().trim().min(1).max(100), customer_phone:z.string().max(30).optional(), address:z.string().max(300).optional(), notes:z.string().max(500).optional() });
@@ -67,6 +68,7 @@ Deno.serve(async (req) => {
           const {data:updated,error}=await admin.from('store_orders').update({payment_status:'pago',payment_transaction_nsu:transaction,payment_invoice_slug:slug,status_history:history}).eq('id',order.id).not('payment_status','in','(pago,paid)').select('*').maybeSingle();
           if (error) throw error;
           if (updated) { Object.assign(order,updated); await admin.from('notifications').insert({user_id:order.user_id,type:'payment',title:'Pagamento recebido',message:`Pedido #${order.order_no} pago pela InfinitePay`,related_id:order.id}); }
+          if (isPaid(order.payment_status)) { try { await grantMemberAccess(admin,order,req.headers.get('origin')); } catch (e) { console.error('member access',e); } }
         }
       }
       if (action==='webhook' && (!transaction || !slug)) return json({error:'Dados da transação ausentes'},400);
