@@ -26,6 +26,7 @@ export default function StoreOrders({ storeName }: { storeName?: string }) {
     const { error } = await (supabase as any).from("store_orders").update({ status }).eq("id", id);
     if (error) return toast.error(error.message);
     setOrders((o) => o.map((x) => (x.id === id ? { ...x, status } : x)));
+    void supabase.functions.invoke("infinitepay", { body: { action: "notify", order_id: id, event: status } });
   };
 
   return (

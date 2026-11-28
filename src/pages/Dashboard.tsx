@@ -17,6 +17,7 @@ import LeadImporter from "@/components/dashboard/automation/LeadImporter";
 import ImportedListsViewer from "@/components/dashboard/automation/ImportedListsViewer";
 import CRMKanban from "@/components/dashboard/CRMKanban";
 import CRMClients from "@/components/dashboard/CRMClients";
+import StoreCustomers from "@/components/dashboard/StoreCustomers";
 import Analytics from "@/components/dashboard/DashboardAnalytics";
 
 import ProductsPage from "@/components/dashboard/products/ProductsPage";
@@ -337,7 +338,7 @@ const Dashboard = () => {
         <div className="max-w-full overflow-x-hidden p-3 pb-24 sm:p-6 sm:pb-24 md:pb-6">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {viewTab === "crm" && <CRMKanban focusLeadId={focusLeadId || undefined} />}
-            {viewTab === "clients" && <CRMClients />}
+            {viewTab === "clients" && <div className="space-y-8"><StoreCustomers /><CRMClients /></div>}
             {viewTab === "import" && <LeadImporter onShowImported={() => setActiveTab("imported")} />}
             {viewTab === "imported" && <ImportedListsViewer />}
             {viewTab === "chat" && <InboxPage />}

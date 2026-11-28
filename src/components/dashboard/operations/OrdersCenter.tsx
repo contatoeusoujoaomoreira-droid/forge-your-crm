@@ -59,6 +59,7 @@ export default function OrdersCenter() {
     setOrders((l) => l.map((x) => (x.id === id ? data : x)));
     if (view?.id === id) setView(data);
     toast.success("Pedido atualizado");
+    if (patch.status) void supabase.functions.invoke("infinitepay", { body: { action: "notify", order_id: id, event: patch.status } });
   };
 
   const openCreate = async () => {

@@ -20,7 +20,7 @@ export async function createInfinitePayLink(admin: any, orderId: string, redirec
   };
   if (redirectUrl && /^https:\/\//.test(redirectUrl)) body.redirect_url = redirectUrl;
   if (order.customer_name || order.customer_phone) {
-    body.customer = { ...(order.customer_name ? { name: order.customer_name } : {}), ...(order.customer_phone ? { phone_number: '+' + String(order.customer_phone).replace(/\D/g, '') } : {}) };
+    body.customer = { ...(order.customer_name ? { name: order.customer_name } : {}), ...(order.customer_phone ? { phone_number: '+' + ((d) => d.length <= 11 ? `55${d}` : d)(String(order.customer_phone).replace(/\D/g, '')) } : {}) };
   }
   const resp = await fetch(`${API}/links`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const txt = await resp.text();

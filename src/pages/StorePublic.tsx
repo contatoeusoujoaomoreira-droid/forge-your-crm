@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Minus, Plus, Search, ShoppingCart, Package, MessageCircle } from "lucide-react";
 import StorefrontHeader from "@/components/store/StorefrontHeader";
 import OrderTracking from "@/components/store/OrderTracking";
+import ThankYou from "@/components/store/ThankYou";
 import { startStoreTracking, storeEvent, storeTrackingEnabled } from "@/lib/storeTracking";
 import { storeThemeStyle } from "@/lib/storeAppearance";
 import { unitPrice, cartTotal, buildOrderMessage, printReceipt, type CartLine } from "@/lib/store";
@@ -21,6 +22,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
   const [viewItem, setViewItem] = useState<any>(null);
   const [tracking, setTracking] = useState(!!search.get("pedido"));
   const [trackingToken, setTrackingToken] = useState(search.get("pedido") || "");
+  const [thanks, setThanks] = useState(search.get("obrigado") || "");
   const [brand, setBrand] = useState("");
   const [sort, setSort] = useState("name");
   const [autoPay, setAutoPay] = useState(false);
@@ -80,9 +82,9 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
     setTrackingToken(order.tracking_token);
     return order;
   };
-  const payment = async (order:any) => {
+  const payment = async (order:any, digital=false) => {
     void storeEvent("begin_checkout", { value: Number(order.total || 0) });
-    const {data}=await supabase.functions.invoke("infinitepay",{body:{order_id:order.id,token:order.tracking_token,redirect_url:`${window.location.origin}${window.location.pathname}?pedido=${order.tracking_token}`}});
+    const {data}=await supabase.functions.invoke("infinitepay",{body:{order_id:order.id,token:order.tracking_token,redirect_url:`${window.location.origin}${window.location.pathname}?${digital?"obrigado":"pedido"}=${order.tracking_token}`}});
     if (!data?.url) throw new Error(data?.error || "Não foi possível abrir o pagamento agora.");
     return data.url;
   };
@@ -106,7 +108,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
     setSending(true); setPayError("");
     try {
       const order=await createOrder([{product:p,qty:p.item_type==="service"?1:qty}],name.trim() || "Cliente");
-      if (store.infinitepay_enabled) {window.location.href=await payment(order);return;}
+      if (store.infinitepay_enabled) {window.location.href=await payment(order,p.item_type==="service" || p.delivery_type==="digital");return;}
       window.open(`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Pedido #${order.order_no}: ${p.name}`)}`,"_blank","noopener,noreferrer");
     } catch(error) {setPayError(error instanceof Error?error.message:"Não foi possível abrir o pagamento.");setAutoPay(false);}
     setSending(false);
@@ -163,6 +165,7 @@ export default function StorePublic({ domain }: { domain?: string } = {}) {
       </main>
 
       <footer className="border-t border-border bg-secondary/30 mt-8"><div className="max-w-7xl mx-auto px-4 py-8 grid gap-6 md:grid-cols-3 text-sm"><div><h2 className="font-bold mb-2">{store.store_name}</h2><p className="text-muted-foreground whitespace-pre-line">{store.storefront_config?.about || store.welcome_text}</p></div><div><h3 className="font-semibold mb-2">Atendimento</h3><p>{store.opening_hours}</p><p>{store.storefront_config?.contact_email}</p><Button asChild variant="link" className="px-0"><a href={`https://wa.me/${store.whatsapp}`} target="_blank" rel="noreferrer">Falar no WhatsApp</a></Button><Button variant="link" onClick={()=>setTracking(true)}>Acompanhar pedido</Button></div><div><h3 className="font-semibold mb-2">Informações da loja</h3><p className="whitespace-pre-line text-muted-foreground">{store.storefront_config?.policies || ""}</p>{store.infinitepay_enabled && <p className="mt-3 font-medium">Pix e cartão • InfinitePay</p>}</div></div></footer>
+      {thanks && <ThankYou token={thanks} products={products} themeClass={themeClass} themeStyle={bgStyle} onClose={()=>{setThanks("");search.delete("obrigado");setSearch(search,{replace:true});}} onBuy={(p)=>{setThanks("");setViewItem(p);}} />}
       <OrderTracking open={tracking} onClose={()=>setTracking(false)} token={trackingToken || undefined} store={store} themeClass={themeClass} themeStyle={bgStyle} />
       {count > 0 && (
         <div className="fixed bottom-0 inset-x-0 p-3 bg-background border-t border-border">

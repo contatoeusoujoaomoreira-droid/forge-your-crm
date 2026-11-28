@@ -13,6 +13,7 @@ import OrdersCenter from "../operations/OrdersCenter";
 import { STORE_IMAGE_ACCEPT, STORE_IMAGE_SPECS, validateStoreImage } from "@/lib/storeAppearance";
 import { validTrackingConfig } from "@/lib/storeTracking";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NOTIFY_EVENTS } from "../../../../supabase/functions/_shared/orderNotify";
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
@@ -115,6 +116,7 @@ export default function StoreSettings() {
           <TabsTrigger value="conteudo">Conteúdo da loja</TabsTrigger>
           <TabsTrigger value="pagamento">Pagamento e entrega</TabsTrigger>
           <TabsTrigger value="anuncios">Anúncios e Feed</TabsTrigger>
+          <TabsTrigger value="mensagens">Mensagens WhatsApp</TabsTrigger>
           <TabsTrigger value="dominio"><Globe className="h-4 w-4 mr-1" />Domínio</TabsTrigger>
           {s.id && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
         </TabsList>
@@ -182,6 +184,16 @@ export default function StoreSettings() {
             {[["meta_pixel_id","ID do Pixel Meta","1234567890123"],["ga4_id","ID do Google Analytics (GA4)","G-XXXXXXX"],["google_ads_id","ID do Google Ads","AW-123456789"],["google_ads_label","Rótulo de conversão Google Ads (compra)","AbCdEf123"],["tiktok_pixel_id","ID do Pixel TikTok","C1ABCDEF23GHIJ"]].map(([k,l,ph]) => <div key={k}><Label>{l}</Label><Input value={s.storefront_config?.tracking?.[k] || ""} placeholder={ph} onChange={e => config("tracking", { ...(s.storefront_config?.tracking || {}), [k]: e.target.value.trim() })} /></div>)}
           </div>
           <p className="text-xs text-muted-foreground">Eventos enviados: visita, produto visto, adicionar ao carrinho, início do pagamento e compra confirmada. Disparam assim que o visitante abre a loja.</p>
+        </Card></TabsContent>
+        <TabsContent value="mensagens"><Card className="p-4 space-y-4">
+          <p className="text-sm text-muted-foreground">O WhatsApp conectado da loja envia estas mensagens ao cliente automaticamente. Ligue só as que quiser. Use {"{nome}"}, {"{pedido}"} e {"{total}"} no texto.</p>
+          {(() => { const n = s.storefront_config?.notifications || {}; const set = (k: string, v: any) => config("notifications", { ...n, [k]: { ...(n[k] || {}), ...v } }); return <>
+            <div className="flex items-center justify-between gap-2 rounded-md border border-border p-3"><div><Label>Enviar acesso de cursos e serviços</Label><p className="text-[11px] text-muted-foreground">Link da área de membros após o pagamento, no seu domínio.</p></div><Switch checked={n.member_access?.enabled !== false} onCheckedChange={v => set("member_access", { enabled: v })} /></div>
+            {Object.entries(NOTIFY_EVENTS).map(([k, d]) => <div key={k} className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex items-center justify-between gap-2"><Label>{d.label}</Label><Switch checked={!!n[k]?.enabled} onCheckedChange={v => set(k, { enabled: v })} /></div>
+              {n[k]?.enabled && <Textarea rows={2} maxLength={1000} value={n[k]?.text ?? d.text} onChange={e => set(k, { text: e.target.value })} />}
+            </div>)}
+          </>; })()}
         </Card></TabsContent>
         <TabsContent value="dominio"><Card className="p-4"><div className="space-y-1 rounded-md border border-border p-3">
           <Label>Domínio próprio (opcional)</Label>

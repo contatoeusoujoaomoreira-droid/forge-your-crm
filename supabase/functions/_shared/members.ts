@@ -11,7 +11,8 @@ export async function grantMemberAccess(admin: any, order: any, siteOrigin?: str
   ).select('id,token,product_id,sent_at');
   const fresh = (rows || []).filter((r: any) => !r.sent_at);
   if (!fresh.length || !order.customer_phone) return;
-  const { data: store } = await admin.from('store_settings').select('slug,custom_domain,store_name').eq('user_id', order.user_id).maybeSingle();
+  const { data: store } = await admin.from('store_settings').select('slug,custom_domain,store_name,storefront_config').eq('user_id', order.user_id).maybeSingle();
+  if (store?.storefront_config?.notifications?.member_access?.enabled === false) return;
   const base = store?.custom_domain ? `https://${store.custom_domain}` : (siteOrigin || 'https://omnibuildercrm.online');
   const links = fresh.map((r: any) => `• ${digital.find((p: any) => p.id === r.product_id)?.name}: ${base}/membros/${r.token}`).join('\n');
   const text = `Olá ${order.customer_name || ''}! Pagamento confirmado ✅\nSeu acesso à área de membros:\n${links}\n\nGuarde este link, ele é pessoal.${order.customer_email ? `\nVocê também entra em ${base}/membros com o e-mail ${order.customer_email}.` : ''}`;

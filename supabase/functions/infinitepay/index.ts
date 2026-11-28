@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
 import { createInfinitePayLink, checkInfinitePayPayment, cleanHandle } from '../_shared/infinitepay.ts';
 import { grantMemberAccess } from '../_shared/members.ts';
+import { notifyOrder } from '../_shared/orderNotify.ts';
 import { isPaid, publicOrder, validatedOrderLines } from '../_shared/storeCommerce.ts';
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const OrderInput = z.object({ store_slug:z.string().min(1).max(80), items:z.array(z.object({id:z.string().uuid(),qty:z.number().int().positive().max(10000)})).min(1).max(100), customer_name:z.string().trim().min(1).max(100), customer_phone:z.string().max(30).optional(), customer_email:z.string().trim().email().max(200).optional(), address:z.string().max(300).optional(), notes:z.string().max(500).optional() });
@@ -70,12 +71,14 @@ Deno.serve(async (req) => {
           if (error) throw error;
           if (updated) { Object.assign(order,updated); await admin.from('notifications').insert({user_id:order.user_id,type:'payment',title:'Pagamento recebido',message:`Pedido #${order.order_no} pago pela InfinitePay`,related_id:order.id}); }
           if (isPaid(order.payment_status)) { try { await grantMemberAccess(admin,order,req.headers.get('origin')); } catch (e) { console.error('member access',e); } }
+          if (updated) { try { await notifyOrder(admin,order,'pago'); } catch (e) { console.error('notify',e); } }
         }
       }
       if (action==='webhook' && (!transaction || !slug)) return json({error:'Dados da transação ausentes'},400);
       if (action==='webhook' && !isPaid(order.payment_status)) return json({error:'Pagamento ainda não validado. Reenvie a confirmação.'},400);
       return json({ok:true,paid:isPaid(order.payment_status),order:publicOrder(order)});
     }
+    if (action==='notify') { if (user?.id!==order.user_id) return json({error:'Acesso não autorizado'},403); const ev=String(raw.event||'').slice(0,40); return json({sent:await notifyOrder(admin,order,ev)}); }
     if (action!=='create') return json({error:'Ação inválida'},400);
     if (order.status==='cancelado' || isPaid(order.payment_status)) return json({error:'Este pedido não pode receber um novo pagamento.'},400);
     if (Number(order.total)<1) return json({error:'O pagamento pela InfinitePay deve ser de pelo menos R$ 1,00.'},400);
