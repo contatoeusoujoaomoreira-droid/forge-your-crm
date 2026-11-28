@@ -61,13 +61,28 @@ Deno.serve(async (req) => {
     }
     if (!h) {
       // reuse only a hostname exactly matching this owned domain
-      const found = await cf(`/custom_hostnames?hostname=${encodeURIComponent(d.domain)}`)
-      h = Array.isArray(found) ? found.find((x: any) => x.hostname === d.domain) : null
+      const host = String(d.domain).trim().toLowerCase().replace(/\.$/, '')
+      const lookup = async () => {
+        const found = await cf(`/custom_hostnames?hostname=${encodeURIComponent(host)}`)
+        return Array.isArray(found) ? found.find((x: any) => String(x.hostname).toLowerCase() === host) : null
+      }
+      h = await lookup()
+      if (h) {
+        // only reuse if no other account claims this hostname
+        const { data: others } = await admin.from('custom_domains').select('id').ilike('domain', host).neq('user_id', u.user.id).limit(1)
+        if (others?.length) return json({ error: 'Este domínio já está em uso por outra conta.' }, 409)
+      }
       if (!h && action === 'create') {
-        h = await cf('/custom_hostnames', {
-          method: 'POST',
-          body: JSON.stringify({ hostname: d.domain, ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } } }),
-        })
+        try {
+          h = await cf('/custom_hostnames', {
+            method: 'POST',
+            body: JSON.stringify({ hostname: host, ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } } }),
+          })
+        } catch (e) {
+          if (!/duplicate/i.test((e as Error).message)) throw e
+          h = await lookup()
+          if (!h) return json({ error: 'Este domínio já está cadastrado na Cloudflare. Clique em Verificar conexão em alguns segundos.' }, 409)
+        }
       }
     }
     if (!h) return json({ error: 'Domínio ainda não registrado. Clique em Ativar.' }, 404)
