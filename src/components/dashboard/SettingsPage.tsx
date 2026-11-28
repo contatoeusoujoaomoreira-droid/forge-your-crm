@@ -35,28 +35,21 @@ const PROJECT_TYPES = [
 ];
 
 const DNS_INSTRUCTIONS = [
-  { provider: "Cloudflare", steps: [
-    "Acesse o painel do Cloudflare → DNS → Records",
-    'Adicione registro tipo A: Name = @ (raiz), Value = 185.158.133.1',
-    'Adicione registro tipo A: Name = www, Value = 185.158.133.1',
-    'Adicione registro TXT: Name = _lovable, Value = lovable_verify=[código exibido abaixo]',
-    "Desative o proxy (nuvem laranja) para o registro A",
-    "Aguarde propagação DNS (até 24h)",
-  ]},
   { provider: "GoDaddy", steps: [
-    "Acesse My Products → DNS → Manage",
-    'Adicione registro A: Host = @, Points to = 185.158.133.1',
-    'Adicione registro A: Host = www, Points to = 185.158.133.1',
-    'Adicione registro TXT: Host = _lovable, TXT Value = lovable_verify=[código]',
-    "TTL: 1 hora. Aguarde propagação.",
+    "Acesse Meus Produtos → DNS do domínio",
+    "Se já existir um registro com o mesmo Nome (ex.: www), clique no lápis para editar em vez de criar outro",
+    "Tipo CNAME · Nome conforme o quadro acima (use www se for o domínio principal) · Valor cname.omnibuildercrm.online",
+    "Salve e clique em \"Verificar conexão\" aqui no sistema",
   ]},
   { provider: "Registro.br", steps: [
-    "Acesse Registro.br → Meus Domínios → DNS",
-    "Edite a Zona DNS do domínio",
-    'Adicione registro A: @ → 185.158.133.1',
-    'Adicione registro A: www → 185.158.133.1',
-    'Adicione registro TXT: _lovable → lovable_verify=[código]',
-    "Aguarde propagação (pode levar até 72h).",
+    "Acesse Meus Domínios → Editar zona DNS",
+    "Crie um registro CNAME com o Nome do quadro acima apontando para cname.omnibuildercrm.online",
+    "Salve e clique em \"Verificar conexão\" (pode levar algumas horas)",
+  ]},
+  { provider: "Hostinger / outros", steps: [
+    "Abra a área de DNS / Zona DNS do domínio",
+    "Apague registros A ou CNAME antigos com o mesmo Nome",
+    "Crie o CNAME do quadro acima e clique em \"Verificar conexão\"",
   ]},
 ];
 
@@ -334,9 +327,10 @@ const SettingsPage = () => {
                       <div><p className="text-[10px] uppercase">Nome</p><p className="text-foreground font-bold">{cnameName(d.domain)}</p></div>
                       <div><p className="text-[10px] uppercase">Valor</p><p className="text-foreground font-bold break-all">{CF_TARGET}</p></div>
                     </div>
-                    <p>Se já existir outro registro com esse mesmo Nome (A ou CNAME), exclua antes. Depois clique em "Verificar conexão".</p>
+                    {cnameName(d.domain) === "@" && <p className="text-foreground">Dica: a GoDaddy não aceita CNAME com Nome "@". Cadastre aqui o domínio com www (ex.: www.{d.domain}) e use Nome "www".</p>}
+                    <p>Se já existir outro registro com esse mesmo Nome (A ou CNAME), edite ou exclua antes. Depois clique em "Verificar conexão".</p>
                     {(d as any).ssl_status && <p>Cadeado (SSL): <b className="text-foreground">{(d as any).ssl_status === "active" ? "ativo" : "aguardando"}</b></p>}
-                    {(d as any).cf_error && <p className="text-destructive">{(d as any).cf_error}</p>}
+                    {(d as any).cf_error && <p className="text-destructive">{/does not CNAME/i.test((d as any).cf_error) ? "Ainda não encontramos o CNAME apontando para cname.omnibuildercrm.online. Confira o registro e aguarde alguns minutos." : /quota/i.test((d as any).cf_error) ? "A automação de domínios ainda está sendo ativada. Tente novamente em instantes." : (d as any).cf_error}</p>}
                   </div>
                 )}
 

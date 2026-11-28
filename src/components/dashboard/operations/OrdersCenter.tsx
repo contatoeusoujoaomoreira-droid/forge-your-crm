@@ -10,6 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { Plus, Printer, Search, Trash2, ClipboardList, MessageCircle } from "lucide-react";
 import { isPaid } from "../../../../supabase/functions/_shared/storeCommerce";
+import { priorPurchases } from "../StoreCustomers";
+
+const BuyerTag = ({ all, o }: { all: any[]; o: any }) => {
+  const n = priorPurchases(all, o);
+  if (n === null) return null;
+  return n === 0
+    ? <Badge variant="outline" className="text-[10px] ml-1">Novo cliente</Badge>
+    : <Badge className="text-[10px] ml-1">{n >= 4 ? "VIP" : "Já é cliente"} · {n} compra{n > 1 ? "s" : ""}</Badge>;
+};
 import { printReceipt, unitPrice } from "@/lib/store";
 
 const brl = (v: number) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -103,7 +112,7 @@ export default function OrdersCenter() {
               {filtered.map((o) => (
                 <tr key={o.id} className="border-b border-border/50 hover:bg-secondary/40">
                   <td className="p-3"><button className="font-semibold hover:text-primary" onClick={() => setView(o)}>#{o.order_no}</button><p className="text-[11px] text-muted-foreground">{new Date(o.created_at).toLocaleString("pt-BR")}</p></td>
-                  <td className="p-3"><p>{o.customer_name}</p><p className="text-[11px] text-muted-foreground capitalize">{o.customer_type}{o.customer_phone ? ` · ${o.customer_phone}` : ""}</p></td>
+                  <td className="p-3"><p>{o.customer_name}<BuyerTag all={orders} o={o} /></p><p className="text-[11px] text-muted-foreground capitalize">{o.customer_type}{o.customer_phone ? ` · ${o.customer_phone}` : ""}</p></td>
                   <td className="p-3">{CHANNELS[o.channel] || o.channel}</td>
                   <td className="p-3 text-right font-semibold">{brl(o.total)}</td>
                   <td className="p-3"><Badge variant={isPaid(o.payment_status) ? "default" : "secondary"}>{isPaid(o.payment_status) ? "Pago" : "Pendente"}</Badge></td>

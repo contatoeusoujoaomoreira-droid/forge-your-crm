@@ -13,6 +13,14 @@ const DAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sáb
 // A paid or completed order turns the buyer into a customer (grouped by WhatsApp, then e-mail/name).
 export const isCustomerOrder = (o: any) => o.status !== "cancelado" && (isPaid(o.payment_status) || ["entregue", "concluído"].includes(o.status));
 export const customerLevel = (orders: number, spent: number) => (orders >= 5 || spent >= 1000 ? "VIP" : orders >= 2 ? "Recorrente" : "Novo");
+// Same WhatsApp = same person: compare the last 11 digits so "+55 (11) 9..." and "119..." match.
+export const phoneKey = (p: unknown) => String(p || "").replace(/\D/g, "").slice(-11);
+// How many earlier paid purchases this buyer already has (by WhatsApp).
+export const priorPurchases = (all: any[], order: any) => {
+  const k = phoneKey(order.customer_phone);
+  if (k.length < 10) return null;
+  return all.filter((o) => o.id !== order.id && phoneKey(o.customer_phone) === k && isCustomerOrder(o) && o.created_at < order.created_at).length;
+};
 
 export default function StoreCustomers() {
   const { user } = useAuth();
